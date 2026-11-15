@@ -1,6 +1,6 @@
 /**
  * Pausing a run between steps (R-UI-19). The run looks at the gate at the top of every step, once the page it acts
- * on is loaded and signed in (scenes.ts runStep), never inside a step (a half-typed field, a held button), never in
+ * on is loaded and signed in (scene-step.ts runStep), never inside a step (a half-typed field, a held button), never in
  * hooks, teardown or encoding. While paused it waits, polling the gate; a cancel (or the sign-in guard) ends the wait at
  * once and the run stops as any cancelled run does (teardown and rollbacks still run). A pause longer than its maximum
  * stops the run the same way: a paused run holds the single worker, the session copies and a sandbox take.

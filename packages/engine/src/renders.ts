@@ -764,9 +764,7 @@ const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
  * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board.
  */
 export async function renderView(
-  memos: RenderMemos,
-  reviews: OutputFolder,
-  projectDir: string,
+  { memos, reviews, projectDir }: { memos: RenderMemos; reviews: OutputFolder; projectDir: string },
   r: StoredRenderRecord,
   renderJobs: readonly JobRecord[],
   reviewJobs: readonly JobRecord[],
@@ -845,7 +843,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   // Newest first (the one order of renders, reversed).
   const records = orderRenders(found).reverse();
   const renders: ScenarioRenderView[] = [];
-  for (const r of records.slice(0, SCENARIO_RENDERS_MAX)) renders.push(await renderView(memos, ws.outputs.reviews, project.dir, r, renderJobs, reviewJobs));
+  for (const r of records.slice(0, SCENARIO_RENDERS_MAX)) renders.push(await renderView({ memos, reviews: ws.outputs.reviews, projectDir: project.dir }, r, renderJobs, reviewJobs));
 
   const jobs: ScenarioRenderJobView[] = [];
   for (const j of [...renderJobs].reverse()) {

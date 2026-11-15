@@ -42,66 +42,38 @@
  *   screen, the render line with Cancel, Undo · Redo, Render — Edit owns ⌘B at the screen's priority). The renders'
  *   list and reviews are the Review report's; its "Show in Edit" hands a finding over (edit-handoff.ts) and Edit seeks
  *   to its frame only when that render shows this version. This file keeps the one PreviewFrame and its checked URL
- *   (the source lint pins them here), the state, the keys and the seek loop.
+ *   (the source lint pins them here) and the palette's groups; the preview's state and the seek loop are
+ *   timeline-preview.ts', the arrival seeks and the keys timeline-navigation.ts', the slots, the notices and the
+ *   tracks' section timeline-sections.tsx'.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { TimelineView } from '@retake/engine';
-import type { TimelineViewAnswer } from '../../server/ops.js';
-import type { PreviewConnection } from '../../player/parent.js';
-import type { FrameMessage } from '../../player/protocol.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { errorText } from '../api.js';
 import { previewAllow, timelineLeave, useTimelineView } from '../data/edit.js';
 import { Txt } from '../bits.js';
 import { commentsEventAction, useEvents, useScenarioEvents } from '../events.js';
-import { commentKey } from '../words/comment-words.js';
 import { takeEditSeek } from './edit-handoff.js';
-import type { EditSeek } from './edit-handoff.js';
-import { EditNotes, EditNotices } from './EditNotes.js';
-import type { FrameNote } from './EditNotes.js';
+import { EditNotes } from './EditNotes.js';
 import { EditPreview } from './EditPreview.js';
-import { EditStatus, renderOff } from './EditStatus.js';
+import { renderOff } from './EditStatus.js';
 import { PreviewFrame } from './PreviewFrame.js';
-import { ProposalBanner } from '../review/ProposalBanner.js';
-import { RenderOutcome, useRenders, useReportEntry } from '../review/Renders.js';
+import { useRenders, useReportEntry } from '../review/Renders.js';
 import { useShownFile } from '../shoot/shoot-data.js';
-import { PROPOSAL_RENDER, versionNote, versionWords } from '../words/render-words.js';
+import { PROPOSAL_RENDER, versionNote } from '../words/render-words.js';
 import type { RenderTarget } from '../review/Renders.js';
 import { hrefTo } from '../route.js';
 import { PRIORITY, usePaletteGroup, useShellCommand } from '../shell/command-bus.js';
 import { say } from '../shell/say.js';
-import { BrowserCollapsed, ShellSlot } from '../shell/slots.js';
-import { Callout, EmptyState, LinkButton, Playhead, Scrubber, Select, TerminalCommands as Commands, studioShell } from '../ui-kit/index.js';
-import { TimelineInspector, useSwitchEditor } from './TimelineInspector.js';
-import { Tracks } from './TimelineTracks.js';
-import { canPlay, cannotPlayWords, frameWords, keyAction, landingOf, previewUrls, segmentWords, targetFrame, timecode, zoomFactor } from '../words/timeline-words.js';
-import type { CodecProbe, KeyTarget } from '../words/timeline-words.js';
+import { BrowserCollapsed } from '../shell/slots.js';
+import { Callout, EmptyState, LinkButton, TerminalCommands as Commands, studioShell } from '../ui-kit/index.js';
+import { useSwitchEditor } from './TimelineInspector.js';
+import { cannotPlayWords, frameWords, landingOf, previewUrls, segmentWords, timecode, zoomFactor } from '../words/timeline-words.js';
 import { bestEffort } from '../best-effort.js';
+import { usePlayback, useFrameHandlers, usePreviewState } from './timeline-preview.js';
+import type { PreviewedProposal, PreviewState, Ready } from './timeline-preview.js';
+import { useArrivalSeek, useFollowPlayhead, useTimelineKeys } from './timeline-navigation.js';
+import { EditTop, TimelineSlots, TrackSection, timeMarks } from './timeline-sections.js';
 
-type Ready = Extract<TimelineViewAnswer, { run_id: string; model: unknown }>;
-/** Frame notes kept (warnings and errors the frame posted). */
-const NOTES_MAX = 20;
-
-/** What the browser can say about a codec (no element made: MediaSource, else Media Capabilities). */
-function codecProbe(): CodecProbe {
-  // Typed by what is read: either constructor may be missing (ManagedMediaSource is Safari's only).
-  const w: { MediaSource?: { isTypeSupported?(t: string): boolean }; ManagedMediaSource?: { isTypeSupported?(t: string): boolean } } = window;
-  const ms = w.MediaSource ?? w.ManagedMediaSource;
-  const mc = navigator.mediaCapabilities;
-  return {
-    ...(ms?.isTypeSupported ? { isTypeSupported: (t: string) => ms.isTypeSupported!(t) } : {}),
-    ...(mc ? { decodingInfo: (cfg: Parameters<NonNullable<CodecProbe['decodingInfo']>>[0]) => mc.decodingInfo(cfg) } : {}),
-  };
-}
-
-function keyTarget(t: EventTarget | null): KeyTarget {
-  const el = t instanceof Element ? t : null;
-  return {
-    tag: el?.tagName ?? 'body',
-    ...(el instanceof HTMLInputElement ? { type: el.type } : {}),
-    ...(el instanceof HTMLElement && el.isContentEditable ? { editable: true } : {}),
-    ...(el?.closest('[role="radiogroup"]') ? { inRadioGroup: true } : {}),
-  };
-}
+export type { PreviewedProposal } from './timeline-preview.js';
 
 /** A random lease id (22 base64url characters) for timeline_view / timeline_leave. */
 function newLease(): string {
@@ -110,12 +82,6 @@ function newLease(): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
-}
-
-/** The proposal a timeline previews (the thread and the reply holding it). */
-export interface PreviewedProposal {
-  comment_id: string;
-  entry_id: string;
 }
 
 export function TimelineScreen({ slug, name, run, step, proposal }: { slug: string; name: string; run?: string; step?: string; proposal?: PreviewedProposal }) {
@@ -318,67 +284,6 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   );
 }
 
-/** The preview's state and the refs the seek loop and the frame's messages read. */
-function usePreviewState() {
-  const [frame, setFrame] = useState(0);
-  const frameRef = useRef(0);
-  /** The frame whose `settled` the loading state waits for ('any': after a pause), or null. */
-  const [waiting, setWaiting] = useState<number | 'any' | null>(0);
-  const waitingRef = useRef<number | 'any' | null>(0);
-  const [playing, setPlaying] = useState(false);
-  const playingRef = useRef(false);
-  const [muted, setMuted] = useState(true);
-  const [buffering, setBuffering] = useState(false);
-  const [rate, setRate] = useState<0.5 | 1 | 2>(1);
-  const [missing, setMissing] = useState<string[]>([]);
-  const [notes, setNotes] = useState<FrameNote[]>([]);
-  const [stopped, setStopped] = useState<string | null>(null);
-  const [restart, setRestart] = useState(0);
-  const [zoom, setZoom] = useState<'fit' | 'zoom'>('fit');
-  const [playable, setPlayable] = useState<boolean | null>(null);
-  const conn = useRef<PreviewConnection | null>(null);
-  /** The sound the person asked for: a new load remounts the Player muted, so an unmuted preview is unmuted again. */
-  const wantSound = useRef(false);
-  const pending = useRef<number | null>(null);
-  const raf = useRef(0);
-  const scroller = useRef<HTMLDivElement>(null);
-  return {
-    frame,
-    setFrame,
-    frameRef,
-    waiting,
-    setWaiting,
-    waitingRef,
-    playing,
-    setPlaying,
-    playingRef,
-    muted,
-    setMuted,
-    buffering,
-    setBuffering,
-    rate,
-    setRate,
-    missing,
-    setMissing,
-    notes,
-    setNotes,
-    stopped,
-    setStopped,
-    restart,
-    setRestart,
-    zoom,
-    setZoom,
-    playable,
-    setPlayable,
-    conn,
-    wantSound,
-    pending,
-    raf,
-    scroller,
-  };
-}
-type PreviewState = ReturnType<typeof usePreviewState>;
-
 /** The version shown: the capture, the theme and the plan and theme files (and the scenario's hash). */
 function useShownVersion(v: Ready) {
   return useMemo(
@@ -431,384 +336,6 @@ function renderTargetOf(v: Ready, name: string, proposal: PreviewedProposal | un
     : v.hash === undefined
       ? { why: `scenarios/${name}.yaml is not there: nothing to render` }
       : { run: v.run_id, hash: v.hash, asCaptured: v.source.edit === 'run' };
-}
-
-/** The seek loop and the transport: show and wait, the codec probe, seek (one per animation frame), play, pause. */
-function usePlayback(p: PreviewState, v: Ready, last: number) {
-  const { setFrame, frameRef, setWaiting, waitingRef, playingRef, setPlayable, conn, pending, raf } = p;
-  const m = v.model;
-  // Stable (refs and setters only): the callbacks below keep their identity.
-  const wait = useCallback(
-    (w: number | 'any' | null) => {
-      waitingRef.current = w;
-      setWaiting(w);
-    },
-    [waitingRef, setWaiting],
-  );
-  const show = useCallback(
-    (f: number) => {
-      frameRef.current = f;
-      setFrame(f);
-    },
-    [frameRef, setFrame],
-  );
-
-  // The capture's codec: a browser that cannot play it gets the message, no frame.
-  useEffect(() => {
-    let live = true;
-    setPlayable(null);
-    void canPlay(v.capture.codec, codecProbe(), { width: m.width, height: m.height, fps: m.fps }).then((ok) => live && setPlayable(ok));
-    return () => {
-      live = false;
-    };
-  }, [v.capture.codec, m.width, m.height, m.fps, setPlayable]);
-
-  // A shorter plan (a switch, a file changed): the playhead stays inside it.
-  useEffect(() => {
-    if (frameRef.current > last) show(last);
-  }, [last, show, frameRef]);
-
-  const flush = useCallback(() => {
-    cancelAnimationFrame(raf.current);
-    raf.current = 0;
-    const f = pending.current;
-    pending.current = null;
-    if (f !== null) conn.current?.send({ type: 'seek', frame: f });
-  }, [raf, pending, conn]);
-
-  const seek = useCallback(
-    (to: number) => {
-      const f = Math.min(last, Math.max(0, Math.round(to)));
-      show(f);
-      // A seek pauses the preview and shows that exact frame once settled.
-      if (conn.current?.connected) wait(f);
-      pending.current = f;
-      if (!raf.current) raf.current = requestAnimationFrame(flush);
-    },
-    [last, flush, show, wait, conn, pending, raf],
-  );
-  useEffect(() => () => cancelAnimationFrame(raf.current), [raf]);
-
-  const play = useCallback(() => {
-    const c = conn.current;
-    if (!c?.connected) return;
-    // A seek still waiting for its animation frame goes first (it pauses: after the play, it would stop it).
-    flush();
-    if (frameRef.current >= last) {
-      show(0);
-      c.send({ type: 'seek', frame: 0 });
-    }
-    wait(null);
-    c.send({ type: 'play' });
-  }, [last, flush, show, wait, conn, frameRef]);
-  const pause = useCallback(() => {
-    const c = conn.current;
-    if (!c?.connected) return;
-    flush();
-    wait('any');
-    c.send({ type: 'pause' });
-  }, [flush, wait, conn]);
-  const toggle = useCallback(() => (playingRef.current ? pause() : play()), [play, pause, playingRef]);
-  return { wait, show, seek, toggle };
-}
-
-/** The frame's messages and the connection's life (a hello, a stop, a new plan loading into the same frame). */
-function useFrameHandlers(p: PreviewState, wait: (w: number | 'any' | null) => void, show: (f: number) => void, plan: string | undefined) {
-  const { frameRef, waitingRef, setPlaying, playingRef, setMuted, setBuffering, setMissing, setNotes, setStopped, conn, wantSound } = p;
-  const onMessage = useCallback(
-    (msg: FrameMessage) => {
-      switch (msg.type) {
-        case 'loaded':
-          if (wantSound.current) conn.current?.send({ type: 'mute', muted: false });
-          setMissing(msg.missing);
-          if (msg.warnings.length) setNotes((n) => [...n, ...msg.warnings.map((message) => ({ type: 'warning' as const, message }))].slice(-NOTES_MAX));
-          return;
-        case 'frame':
-          if (playingRef.current || waitingRef.current === 'any') show(msg.frame);
-          return;
-        case 'settled': {
-          const w = waitingRef.current;
-          if (w === 'any') show(msg.frame);
-          if (w === 'any' || w === msg.frame) wait(null);
-          return;
-        }
-        case 'state':
-          playingRef.current = msg.playing;
-          setPlaying(msg.playing);
-          setBuffering(msg.buffering);
-          setMuted(msg.muted);
-          return;
-        case 'ended':
-          playingRef.current = false;
-          setPlaying(false);
-          return;
-        case 'warning':
-        case 'error':
-          setNotes((n) => [...n, { type: msg.type, message: msg.message }].slice(-NOTES_MAX));
-          return;
-      }
-    },
-    [show, wait, wantSound, conn, setMissing, setNotes, playingRef, waitingRef, setPlaying, setBuffering, setMuted],
-  );
-  const onHello = useCallback(() => {
-    // A load is on its way (PreviewFrame sent it): loading until the frame asked is settled.
-    setMissing([]);
-    playingRef.current = false;
-    setPlaying(false);
-    wait(frameRef.current);
-  }, [wait, setMissing, playingRef, setPlaying, frameRef]);
-  const onStop = useCallback(
-    (reason: string) => {
-      playingRef.current = false;
-      setPlaying(false);
-      wait(null);
-      setStopped(reason);
-    },
-    [wait, playingRef, setPlaying, setStopped],
-  );
-  const onConnection = useCallback(
-    (c: PreviewConnection | null) => {
-      conn.current = c;
-    },
-    [conn],
-  );
-
-  // A new plan (a switch, the file changed) loads into the same frame (PreviewFrame sends it): loading until settled.
-  // (A layout effect: no paint shows the new view as already settled.)
-  const planSeen = useRef(plan);
-  useLayoutEffect(() => {
-    if (plan === planSeen.current) return;
-    planSeen.current = plan;
-    if (!conn.current?.connected) return;
-    playingRef.current = false;
-    setPlaying(false);
-    wait(frameRef.current);
-  }, [plan, wait, conn, playingRef, setPlaying, frameRef]);
-  return { onMessage, onHello, onStop, onConnection };
-}
-
-/**
- * Where the screen opens: a step's first frame (Show in timeline), a proposal's comment pin, or the Review report's
- * Show in Edit; each once. Returns the note said when that render was made from another version, or null.
- */
-function useArrivalSeek({
-  slug,
-  name,
-  v,
-  step,
-  proposal,
-  renders,
-  shownVersion,
-  seek,
-}: {
-  slug: string;
-  name: string;
-  v: Ready;
-  step: string | undefined;
-  proposal: PreviewedProposal | undefined;
-  renders: ReturnType<typeof useRenders>;
-  shownVersion: Parameters<typeof versionNote>[1];
-  seek: (to: number) => void;
-}): string | null {
-  const m = v.model;
-  // Show in timeline (a step of the scenario screen): its first frame, once.
-  const shown = useRef<string | null>(null);
-  useEffect(() => {
-    if (!step || shown.current === step) return;
-    shown.current = step;
-    const first = m.steps.filter((s) => s.key === step).sort((a, b) => a.from - b.from)[0];
-    if (first) seek(first.from);
-  }, [step, m.steps, seek]);
-
-  // Preview change: the proposal's comment pin, once (where the change was asked).
-  const pinned = useRef(false);
-  useEffect(() => {
-    if (!proposal || pinned.current) return;
-    const pin = v.pins.placed.find((p) => p.id === proposal.comment_id);
-    if (!pin) return;
-    pinned.current = true;
-    seek(pin.frame);
-  }, [proposal, v.pins.placed, seek]);
-
-  // The Review report's Show in Edit — the finding's frame only when its render shows this version (the same plan
-  // and theme files: its frame f is the preview's frame f); else its step. The note "made from
-  // another version" only when the render is found AND differs — a finding with no frame on this version (the video's
-  // length) goes to its step or stays, saying nothing; a render no longer listed goes to the step, no frame trusted.
-  const [handoff] = useState<EditSeek | null>(() => (proposal ? null : takeEditSeek(slug, name)));
-  const handled = useRef(false);
-  const [seekNote, setSeekNote] = useState<string | null>(null);
-  useEffect(() => {
-    if (!handoff || handled.current || renders.loaded.state !== 'ready') return;
-    handled.current = true;
-    const r = renders.loaded.data.renders.find((x) => x.render_id === handoff.render_id);
-    const differs = r !== undefined && !versionNote(r, shownVersion).same;
-    if (r && !differs && handoff.frame !== undefined) {
-      seek(handoff.frame);
-      return;
-    }
-    const first = handoff.step ? m.steps.filter((s) => s.key === handoff.step).sort((a, b) => a.from - b.from)[0] : undefined;
-    if (first) seek(first.from);
-    if (differs)
-      setSeekNote(`${versionWords(handoff.render_id)} was made from another version of the edit: its frame is not this preview's${first ? ', so the preview shows the step it points at' : ''}.`);
-  }, [handoff, renders.loaded, shownVersion, m.steps, seek]);
-  return seekNote;
-}
-
-/** The screen's keys: C comments the playhead's frame, the transport and segment keys (timeline-words keyAction). */
-function useTimelineKeys({
-  slug,
-  name,
-  m,
-  commentOn,
-  frameRef,
-  toggle,
-  seek,
-  setSelected,
-}: {
-  slug: string;
-  name: string;
-  m: Ready['model'];
-  commentOn: string | null;
-  frameRef: PreviewState['frameRef'];
-  toggle: () => void;
-  seek: (to: number) => void;
-  setSelected: (id: string) => void;
-}) {
-  const commentRef = useRef<string | null>(null);
-  commentRef.current = commentOn;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // A control handled the key (the transport's toolbar roves with the arrows, Home and End): its own.
-      if (e.defaultPrevented) return;
-      // C: comment the frame at the playhead on the render of this version (when there is one).
-      if (commentKey(e, keyTarget(e.target))) {
-        if (commentRef.current === null) return;
-        e.preventDefault();
-        location.hash = hrefTo({ name: 'comments', slug, scenario: name, at: { render: commentRef.current, frame: frameRef.current } });
-        return;
-      }
-      const a = keyAction(e, keyTarget(e.target));
-      if (!a) return;
-      e.preventDefault();
-      if (a.kind === 'toggle') return toggle();
-      const to = targetFrame(a, frameRef.current, m);
-      seek(to);
-      // [ / ]: the segment the playhead lands on is the inspector's.
-      if (a.kind === 'segment') {
-        const at = m.segments.filter((s) => landingOf(s) === to).at(-1);
-        if (at) setSelected(at.id);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, seek, m, slug, name, frameRef, setSelected]);
-}
-
-/** The zoomed level: the playhead stays on screen while playing (an instant scroll). */
-function useFollowPlayhead(scroller: PreviewState['scroller'], zoom: 'fit' | 'zoom', playing: boolean, frame: number, frames: number) {
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el || zoom !== 'zoom' || !playing) return;
-    const labelW = el.querySelector<HTMLElement>('.k-track-label')?.offsetWidth ?? 96;
-    const lane = el.scrollWidth - labelW;
-    const x = labelW + (frame / Math.max(1, frames)) * lane;
-    if (x < el.scrollLeft + labelW || x > el.scrollLeft + el.clientWidth - 24) el.scrollLeft = Math.max(0, x - labelW - 40);
-  }, [frame, zoom, playing, frames, scroller]);
-}
-
-/** The shell's slots: the take picker, the inspector, the status bar. */
-function TimelineSlots({
-  slug,
-  name,
-  v,
-  proposal,
-  segment,
-  ed,
-  stepsOf,
-  renders,
-  renderTarget,
-  shownVersion,
-  inApp,
-}: {
-  slug: string;
-  name: string;
-  v: Ready;
-  proposal: PreviewedProposal | undefined;
-  segment: Ready['model']['segments'][number] | null;
-  ed: ReturnType<typeof useSwitchEditor>;
-  stepsOf: (id: string) => number;
-  renders: ReturnType<typeof useRenders>;
-  renderTarget: RenderTarget;
-  shownVersion: Parameters<typeof versionNote>[1];
-  inApp: boolean;
-}) {
-  return (
-    <>
-      {v.runs.length > 1 && !proposal && (
-        <ShellSlot name="context">
-          <Select
-            layout="inline"
-            label="Take"
-            testId="timeline-run-picker"
-            value={v.run_id}
-            options={v.runs.map((r) => ({ value: r, label: r }))}
-            onChange={(r) => (location.hash = hrefTo({ name: 'timeline', slug, scenario: name, run: r }))}
-          />
-        </ShellSlot>
-      )}
-      <ShellSlot name="inspector" inline="Inspector">
-        <TimelineInspector v={v} segment={segment} ed={ed} fps={v.model.fps} stepsOf={stepsOf} />
-      </ShellSlot>
-      <ShellSlot name="actions">
-        <EditStatus
-          slug={slug}
-          name={name}
-          source={{ proposal: proposal !== undefined, edit: v.source.edit, run: v.run_id, ...(v.source.edit_changes ? { changes: v.source.edit_changes } : {}) }}
-          r={renders}
-          target={renderTarget}
-          shown={shownVersion}
-          ed={ed}
-          inApp={inApp}
-        />
-      </ShellSlot>
-    </>
-  );
-}
-
-/** Above the stage: the proposal's banner, the render's outcome, the seek's note and the take's notices. */
-function EditTop({
-  slug,
-  name,
-  v,
-  proposal,
-  renders,
-  seekNote,
-  allowing,
-  allowError,
-  onAllow,
-}: {
-  slug: string;
-  name: string;
-  v: Ready;
-  proposal: PreviewedProposal | undefined;
-  renders: ReturnType<typeof useRenders>;
-  seekNote: string | null;
-  allowing: string | null;
-  allowError: string | null;
-  onAllow: (c: { id: string; hash: string }) => void;
-}) {
-  return (
-    <div className="ed-top">
-      {proposal && <ProposalBanner slug={slug} name={name} proposal={proposal} shown={v.proposal?.shown} />}
-      <RenderOutcome r={renders} />
-      {seekNote && (
-        <Callout state="idle" role="status" title="Note: made from another version" testId="edit-seek-note">
-          <Txt text={seekNote} />
-        </Callout>
-      )}
-      <EditNotices v={v} slug={slug} name={name} proposal={proposal !== undefined} allowing={allowing} allowError={allowError} onAllow={onAllow} />
-    </div>
-  );
 }
 
 /** The stage: the preview region (the one PreviewFrame, on the URL previewUrls checked), the transport and the take's facts. */
@@ -883,62 +410,4 @@ function TimelineStage({
       )}
     </EditPreview>
   );
-}
-
-/** The tracks: the scrubber, the lanes and the playhead (zoomed or fit), and the keys' line. */
-function TrackSection({
-  v,
-  p,
-  factor,
-  last,
-  words,
-  marks,
-  onSeek,
-  selected,
-  onSelect,
-  at,
-  commentOn,
-}: {
-  v: Ready;
-  p: PreviewState;
-  factor: number;
-  last: number;
-  words: string;
-  marks: Array<{ at: number; label: string }>;
-  onSeek: (to: number) => void;
-  selected: string | null;
-  onSelect: (id: string, from: number) => void;
-  at: { slug: string; scenario: string };
-  commentOn: string | null;
-}) {
-  const m = v.model;
-  const { scroller, zoom, frame } = p;
-  const width = zoom === 'fit' ? '100%' : `${factor * 100}%`;
-  return (
-    <section className="ed-tracks" aria-label="Tracks">
-      <div className="ed-scroll" ref={scroller} data-testid="timeline-scroll" data-zoom={zoom}>
-        <div className="ed-inner" style={{ width }}>
-          <Scrubber testId="scrubber" time={timecode(frame, m.fps)} max={last} value={frame} valueText={words} onChange={onSeek} marks={marks} />
-          <Tracks view={v as TimelineView} onSeek={onSeek} selected={selected} onSelect={onSelect} at={at} />
-          <Playhead testId="playhead" at={frame / Math.max(1, m.frames)} />
-        </div>
-      </div>
-      <p className="ed-keys">
-        Space plays or pauses · ← → one frame · Shift + ← → one second · Home / End · [ ] the previous / next segment · ⌘Z undoes a switch · C comments the frame
-        <Txt text={commentOn ? ` on ${commentOn}` : ' (no render of this version yet: render it, or comment an earlier render from Comments)'} />
-      </p>
-    </section>
-  );
-}
-
-/** Time labels under the scrubber: about a dozen across what is on screen, on a round step (1 s … 5 min). */
-function timeMarks(frames: number, fps: number, factor: number): Array<{ at: number; label: string }> {
-  const seconds = frames / Math.max(1, fps);
-  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300].find((s) => seconds / s <= 12 * factor) ?? 600;
-  const out: Array<{ at: number; label: string }> = [];
-  for (let t = 0; t <= seconds && out.length < 400; t += step) {
-    const m = Math.floor(t / 60);
-    out.push({ at: t / seconds, label: `${m}:${String(Math.floor(t - m * 60)).padStart(2, '0')}` });
-  }
-  return out;
 }

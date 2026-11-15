@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, open as openFile, rm, stat } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { historyFile, readHistoryLine } from '../history.js';
 import type { HistoryEntry } from '../history.js';
 import type { JobQueueView } from '../jobs/job-queue.js';
@@ -311,17 +311,8 @@ export class WorkspaceIndex {
     }));
   }
 
-  private async pass(): Promise<IndexChanges> {
-    const unfinished = new Map<string, string[]>();
-    for (const r of this.db.prepare("SELECT project, id FROM runs WHERE status IN ('queued', 'running')").all() as Array<{ project: string; id: string }>) {
-      unfinished.set(r.project, [...(unfinished.get(r.project) ?? []), r.id]);
-    }
-    const next = await scanSources(this.ws, unfinished);
-    const prev = new Map((this.db.prepare('SELECT key, sig FROM sources').all() as Array<{ key: string; sig: string }>).map((r) => [r.key, r.sig]));
-    const keys = diffSources(prev, next);
-    if (keys.length === 0 || this.closed) return { keys: [], runs: [], generation: this.generation };
-
-    // Read what changed (async), then write it in one transaction (sync).
+  /** The changed sources read, per project; a runs/ folder that cannot be read is said (its rows and signature kept). */
+  private async readChanged(keys: string[], next: ReadonlyMap<string, string>): Promise<{ reads: Map<string, ProjectRead>; unreadable: Set<string> }> {
     const reads = new Map<string, ProjectRead>();
     const readOf = (slug: string) => reads.get(slug) ?? reads.set(slug, { slug, gone: !next.has(`project:${slug}`) }).get(slug)!;
     let summaries: Map<string, ProjectSummary> | undefined;
@@ -347,6 +338,73 @@ export class WorkspaceIndex {
         }
       } else if (kind === 'renders') r.renders = await readRenders(this.ws.outputs.renders, dir);
     }
+    return { reads, unreadable };
+  }
+
+  /** One project's rows written (inside the pass's transaction): its summary, readme, runs and renders, or all gone. */
+  private writeProject(
+    r: ProjectRead,
+    st: { delSearch: StatementSync; addSearch: StatementSync },
+    c: { prev: ReadonlyMap<string, string>; next: ReadonlyMap<string, string>; runs: RunChange[] },
+  ): void {
+    const db = this.db;
+    const { delSearch, addSearch } = st;
+    const { prev, next, runs } = c;
+    if (r.gone) {
+      for (const t of ['projects', 'runs', 'renders']) db.prepare(`DELETE FROM ${t} WHERE ${t === 'projects' ? 'slug' : 'project'} = ?`).run(r.slug);
+      db.prepare('DELETE FROM search WHERE project = ?').run(r.slug);
+      return;
+    }
+    if (r.summary) {
+      const s = r.summary;
+      db.prepare(
+        'INSERT INTO projects(slug, name, error, scenarios) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET name = excluded.name, error = excluded.error, scenarios = excluded.scenarios',
+      ).run(s.slug, s.name, s.error ?? null, s.scenarios.length);
+      delSearch.run(s.slug, 'scenario');
+      for (const name of s.scenarios) addSearch.run('scenario', s.slug, name, name, '');
+    }
+    if (r.summary || r.readme !== undefined) {
+      const name = r.summary?.name ?? (db.prepare('SELECT name FROM projects WHERE slug = ?').get(r.slug) as { name?: string } | undefined)?.name ?? r.slug;
+      const body = r.readme ?? (db.prepare("SELECT body FROM search WHERE project = ? AND kind = 'project'").get(r.slug) as { body?: string } | undefined)?.body ?? '';
+      delSearch.run(r.slug, 'project');
+      addSearch.run('project', r.slug, r.slug, name, body);
+    }
+    if (r.runs) {
+      const before = db.prepare('SELECT id, scenario, status FROM runs WHERE project = ?').all(r.slug) as unknown as RunRow[];
+      const after: RunRow[] = r.runs.filter((x) => !x.newer && !x.unread).map((x) => ({ id: x.id, scenario: x.scenario ?? null, status: x.status ?? null }));
+      runs.push(...runChanges(r.slug, before, after, prev.get(`runs:${r.slug}`), next.get(`runs:${r.slug}`)));
+      db.prepare('DELETE FROM runs WHERE project = ?').run(r.slug);
+      delSearch.run(r.slug, 'run');
+      const add = db.prepare('INSERT INTO runs(project, id, scenario, mode, status, env, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      for (const run of r.runs) {
+        if (run.newer || run.unread) continue;
+        add.run(r.slug, run.id, run.scenario ?? null, run.mode ?? null, run.status ?? null, run.env ?? null, run.started_at ?? null, run.finished_at ?? null);
+        addSearch.run('run', r.slug, run.id, [run.scenario, run.mode === 'dry' ? 'dry run' : 'capture', run.status].filter(Boolean).join(' · '), run.env ?? '');
+      }
+    }
+    if (r.renders) {
+      db.prepare('DELETE FROM renders WHERE project = ?').run(r.slug);
+      delSearch.run(r.slug, 'render');
+      const add = db.prepare('INSERT INTO renders(project, id, scenario, run_id, status, template, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      for (const x of r.renders) {
+        add.run(r.slug, x.id, x.scenario ?? null, x.run_id ?? null, x.status ?? null, x.template ?? null, x.created_at ?? null);
+        addSearch.run('render', r.slug, x.id, [x.scenario, x.template, x.status].filter(Boolean).join(' · '), '');
+      }
+    }
+  }
+
+  private async pass(): Promise<IndexChanges> {
+    const unfinished = new Map<string, string[]>();
+    for (const r of this.db.prepare("SELECT project, id FROM runs WHERE status IN ('queued', 'running')").all() as Array<{ project: string; id: string }>) {
+      unfinished.set(r.project, [...(unfinished.get(r.project) ?? []), r.id]);
+    }
+    const next = await scanSources(this.ws, unfinished);
+    const prev = new Map((this.db.prepare('SELECT key, sig FROM sources').all() as Array<{ key: string; sig: string }>).map((r) => [r.key, r.sig]));
+    const keys = diffSources(prev, next);
+    if (keys.length === 0 || this.closed) return { keys: [], runs: [], generation: this.generation };
+
+    // Read what changed (async), then write it in one transaction (sync).
+    const { reads, unreadable } = await this.readChanged(keys, next);
     const history = keys.includes('history') ? await this.readHistory() : undefined;
     if (this.closed) return { keys: [], runs: [], generation: 0 };
 
@@ -356,49 +414,7 @@ export class WorkspaceIndex {
     try {
       const delSearch = db.prepare('DELETE FROM search WHERE project = ? AND kind = ?');
       const addSearch = db.prepare('INSERT INTO search(kind, project, ref, title, body) VALUES (?, ?, ?, ?, ?)');
-      for (const r of reads.values()) {
-        if (r.gone) {
-          for (const t of ['projects', 'runs', 'renders']) db.prepare(`DELETE FROM ${t} WHERE ${t === 'projects' ? 'slug' : 'project'} = ?`).run(r.slug);
-          db.prepare('DELETE FROM search WHERE project = ?').run(r.slug);
-          continue;
-        }
-        if (r.summary) {
-          const s = r.summary;
-          db.prepare(
-            'INSERT INTO projects(slug, name, error, scenarios) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET name = excluded.name, error = excluded.error, scenarios = excluded.scenarios',
-          ).run(s.slug, s.name, s.error ?? null, s.scenarios.length);
-          delSearch.run(s.slug, 'scenario');
-          for (const name of s.scenarios) addSearch.run('scenario', s.slug, name, name, '');
-        }
-        if (r.summary || r.readme !== undefined) {
-          const name = r.summary?.name ?? (db.prepare('SELECT name FROM projects WHERE slug = ?').get(r.slug) as { name?: string } | undefined)?.name ?? r.slug;
-          const body = r.readme ?? (db.prepare("SELECT body FROM search WHERE project = ? AND kind = 'project'").get(r.slug) as { body?: string } | undefined)?.body ?? '';
-          delSearch.run(r.slug, 'project');
-          addSearch.run('project', r.slug, r.slug, name, body);
-        }
-        if (r.runs) {
-          const before = db.prepare('SELECT id, scenario, status FROM runs WHERE project = ?').all(r.slug) as unknown as RunRow[];
-          const after: RunRow[] = r.runs.filter((x) => !x.newer && !x.unread).map((x) => ({ id: x.id, scenario: x.scenario ?? null, status: x.status ?? null }));
-          runs.push(...runChanges(r.slug, before, after, prev.get(`runs:${r.slug}`), next.get(`runs:${r.slug}`)));
-          db.prepare('DELETE FROM runs WHERE project = ?').run(r.slug);
-          delSearch.run(r.slug, 'run');
-          const add = db.prepare('INSERT INTO runs(project, id, scenario, mode, status, env, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-          for (const run of r.runs) {
-            if (run.newer || run.unread) continue;
-            add.run(r.slug, run.id, run.scenario ?? null, run.mode ?? null, run.status ?? null, run.env ?? null, run.started_at ?? null, run.finished_at ?? null);
-            addSearch.run('run', r.slug, run.id, [run.scenario, run.mode === 'dry' ? 'dry run' : 'capture', run.status].filter(Boolean).join(' · '), run.env ?? '');
-          }
-        }
-        if (r.renders) {
-          db.prepare('DELETE FROM renders WHERE project = ?').run(r.slug);
-          delSearch.run(r.slug, 'render');
-          const add = db.prepare('INSERT INTO renders(project, id, scenario, run_id, status, template, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-          for (const x of r.renders) {
-            add.run(r.slug, x.id, x.scenario ?? null, x.run_id ?? null, x.status ?? null, x.template ?? null, x.created_at ?? null);
-            addSearch.run('render', r.slug, x.id, [x.scenario, x.template, x.status].filter(Boolean).join(' · '), '');
-          }
-        }
-      }
+      for (const r of reads.values()) this.writeProject(r, { delSearch, addSearch }, { prev, next, runs });
       if (history) {
         if (history.reset) db.exec('DELETE FROM history');
         const add = db.prepare('INSERT INTO history(at, kind, project, job, submitted_by, state, entry) VALUES (?, ?, ?, ?, ?, ?, ?)');

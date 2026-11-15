@@ -6,7 +6,7 @@
  * the take, the recorders' frames, the encodes, the step pictures, what the screen did after each click and what the
  * take cost.
  */
-import { copyFile, writeFile } from 'node:fs/promises';
+import { copyFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
 import { AGENT_CONFINEMENT } from '@retake/core/model';
@@ -195,21 +195,14 @@ class BrowserDriver implements CaptureDriver {
     for (const p of this.personas) for (const v of p.secrets ?? []) secrets.addValue(v);
   }
 
-  async open(): Promise<void> {
-    const r = this.run;
-    const { opts, project, env, sc, mode, capture, until, hooksMode, runId, secrets, timeline, template, log, emit, signal } = r;
+  /** The capture's browsers: one per persona the plan uses (on its session's copy), the default one if needed. */
+  private openBrowsers(plan: PersonaPlan, prepared: PreparedSession[]): Promise<BrowserSession> {
+    const { opts, project, env, capture, log } = this.run;
     const personas = this.personas;
-    const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run', ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
-    if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
-    this.planned = plan;
-    const prepared = (this.prepared = await prepareSessions(
-      personas.filter((p) => plan.used.includes(p.name)),
-      { runId, log },
-    ));
     const realmOf = personaOf(plan, personas, env, () => this.rt);
     const writeGuard = this.writeGuard;
     const httpCredentials = this.httpCredentials;
-    const session = (this.session = await BrowserSession.open({
+    return BrowserSession.open({
       policy: opts.policy,
       width: capture.width,
       height: capture.height,
@@ -227,29 +220,78 @@ class BrowserDriver implements CaptureDriver {
             hookRealmOf: (key: string) => (plan.hookPages.has(key) ? (plan.hookPages.get(key) ?? '') : (personaOfKey(personas, key) ?? '')),
           }
         : {}),
-    }));
+    });
+  }
+
+  /** The encoder fed during the take, the GPU the capture renders with, a limiter turned off. */
+  private async checkRendering(session: BrowserSession): Promise<void> {
+    const { opts, capture, timeline, log } = this.run;
+    this.encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg, opts.policy);
+    const gpu = (this.gpu = await session.gpuInfo());
+    if (gpu && !gpu.accelerated) {
+      const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`retake doctor\`${this.browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
+      timeline.warn(m);
+      log('warn', m);
+    }
+    if (!this.frameRateLimit) {
+      const m =
+        'browser.frame_rate_limit: false makes Chromium draw back to back (measured on the fixture: ×2.8 its CPU, its GPU and renderer processes ×7) — ' +
+        'the dialog-close freeze it was set for is handled without it now (fresh frames during a click ripple, the edit cuts what is left): remove it';
+      timeline.warn(m);
+      log('warn', m);
+    }
+  }
+
+  /** The runtime that plays the scenes in `session`. */
+  private newRuntime(session: BrowserSession, guard: LoginGuard | null, plan: PersonaPlan, signedIn: boolean): Runtime {
+    const r = this.run;
+    const { opts, project, env, sc, mode, capture, secrets, timeline, template, log, signal } = r;
+    return new Runtime({
+      session,
+      timeline,
+      pacing: r.pacing,
+      capture,
+      mode,
+      signal,
+      project,
+      env,
+      runDir: r.dir,
+      screenshotsDir: r.screenshotsDir,
+      template,
+      secrets,
+      recorder: null,
+      cursorHidden: opts.hideCursor === true,
+      ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
+      // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
+      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? AGENT_CONFINEMENT } : {},
+      ...(opts.inspect ? { inspecting: true } : {}),
+      // Step defaults: the scenario's win over the project's.
+      ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
+      log,
+      guard,
+      ...(signedIn ? { plannedPersonas: plan.pages } : {}),
+      ...(mode === 'capture' ? { encoderFor: (o: { out: string; width: number; height: number; horizon: () => number }) => this.newEncoder(o) } : {}),
+    });
+  }
+
+  async open(): Promise<void> {
+    const r = this.run;
+    const { opts, project, env, sc, mode, until, hooksMode, runId, secrets, template, log, emit, signal } = r;
+    const personas = this.personas;
+    const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run', ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
+    if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
+    this.planned = plan;
+    const prepared = (this.prepared = await prepareSessions(
+      personas.filter((p) => plan.used.includes(p.name)),
+      { runId, log },
+    ));
+    const session = (this.session = await this.openBrowsers(plan, prepared));
     const chromium = await session.browserVersion();
     if (chromium) {
       r.record.engine = runEngine(chromium);
       void r.files.saveRecord();
     }
-    if (mode === 'capture') {
-      // The encoder fed during the take, the GPU the capture renders with, a limiter turned off.
-      this.encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg, opts.policy);
-      const gpu = (this.gpu = await session.gpuInfo());
-      if (gpu && !gpu.accelerated) {
-        const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`retake doctor\`${this.browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
-        timeline.warn(m);
-        log('warn', m);
-      }
-      if (!this.frameRateLimit) {
-        const m =
-          'browser.frame_rate_limit: false makes Chromium draw back to back (measured on the fixture: ×2.8 its CPU, its GPU and renderer processes ×7) — ' +
-          'the dialog-close freeze it was set for is handled without it now (fresh frames during a click ripple, the edit cuts what is left): remove it';
-        timeline.warn(m);
-        log('warn', m);
-      }
-    }
+    if (mode === 'capture') await this.checkRendering(session);
     if (prepared.length) {
       await preflight(session, prepared, {
         project: project.slug,
@@ -277,38 +319,18 @@ class BrowserDriver implements CaptureDriver {
         `clock: the product's browser reads ${runClock.at}${runClock.timezone ? ` (${runClock.timezone})` : ''} at capture time 0${runClock.freeze ? ' and never moves (freeze)' : ', then runs'}`,
       );
     }
-    const guard = (this.guard = signInGuard(project, env, personas, plan, () => this.session, {
+    const guard = (this.guard = signInGuard({
+      project,
+      env,
+      personas,
+      plan,
+      session: () => this.session,
       command: this.commandOf,
       hooksJustRan: () => r.record.steps_done === 0 && r.record.hooks.setup === 'ok',
       redact: (t) => secrets.redactText(t),
       abort: (e) => r.abort.abort(e),
     }));
-    const rt = (this.rt = new Runtime({
-      session,
-      timeline,
-      pacing: r.pacing,
-      capture,
-      mode,
-      signal,
-      project,
-      env,
-      runDir: r.dir,
-      screenshotsDir: r.screenshotsDir,
-      template,
-      secrets,
-      recorder: null,
-      cursorHidden: opts.hideCursor === true,
-      ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
-      // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
-      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? AGENT_CONFINEMENT } : {},
-      ...(opts.inspect ? { inspecting: true } : {}),
-      // Step defaults: the scenario's win over the project's.
-      ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
-      log,
-      guard,
-      ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
-      ...(mode === 'capture' ? { encoderFor: (o: { out: string; width: number; height: number; horizon: () => number }) => this.newEncoder(o) } : {}),
-    }));
+    const rt = (this.rt = this.newRuntime(session, guard, plan, prepared.length > 0));
 
     if (opts.hideCursor) log('info', 'capturing without the in-page cursor (raw export): its track, icon, presses and ripples are recorded as data');
     this.notifications = watchNotifications(rt);
@@ -333,9 +355,121 @@ class BrowserDriver implements CaptureDriver {
     this.rt!.runHook = run;
   }
 
+  /** R-FLD-27: every page the scenario opens, visited once off camera, so the take does not film it cold. */
+  private async prewarm(rt: Runtime): Promise<void> {
+    const { env, sc, capture, until, log } = this.run;
+    const targets = prewarmTargets(sc, {
+      envPages: env.pages,
+      capture: { width: capture.width, height: capture.height },
+      template: (entry, si) => {
+        try {
+          return templateSceneEntry(untilSteps(entry, si, until), si, rt.template, rt.editTemplate);
+        } catch {
+          return null;
+        }
+      },
+      ...(until ? { lastScene: until.sceneIndex } : {}),
+      // A page the take may not open is not visited either (its step fails when it runs).
+      mayOpen: (url) => openProblem(url, rt.navigation) === null,
+    });
+    const done = await prewarmPages(rt, targets);
+    log('info', `prewarm: ${done.visited} of ${targets.length} page${targets.length === 1 ? '' : 's'} visited off camera in ${(done.ms / 1000).toFixed(1)} s`);
+    for (const f of done.failed) log('warn', `prewarm: ${f}`);
+  }
+
+  /** capture.mp4: its encoder fed during the take, the screencast recorder and the loading watch of the filmed page. */
+  private async startMainCapture(rt: Runtime, firstPage: string | undefined): Promise<void> {
+    const { capture, timeline, clock, dir, framesDir } = this.run;
+    const mainEncoder = (this.mainEncoder = this.newEncoder({
+      out: join(dir, 'capture.mp4'),
+      width: capture.width * capture.scale,
+      height: capture.height * capture.scale,
+      horizon: () => this.recorder?.horizon() ?? 0,
+      thumbs: true,
+    }));
+    mainEncoder.start();
+    const recorder = (this.recorder = new ScreencastRecorder({
+      framesDir,
+      indexFile: join(dir, 'frames.jsonl'),
+      format: capture.format,
+      quality: capture.quality,
+      width: capture.width,
+      height: capture.height,
+      scale: capture.scale,
+      clock,
+      onError: (m) => timeline.warn(m),
+      pageId: (p) => this.session?.idOf(p),
+      keepFrames: capture.keep_frames,
+      sink: mainEncoder,
+    }));
+    if (firstPage) await recorder.start(rt.page);
+    else await recorder.prepare();
+    rt.recorder = recorder;
+    this.loadingWatch = new LoadingWatch(
+      () => recorder.recordingPage ?? undefined,
+      () => clock.now(),
+      (p) => this.session?.idOf(p),
+    );
+    this.loadingWatch.start();
+  }
+
+  /** What the take costs (R-FLD-23): Chromium's processes, the encoders, the product's local servers. */
+  private async startSampler(): Promise<PerfSampler> {
+    const { env } = this.run;
+    const s = new PerfSampler({
+      chromium: () => this.session?.processInfo() ?? Promise.resolve([]),
+      // The personas' browsers a recorder films now (the main capture's page, the pages of a multi-page scene).
+      filmed: () => {
+        const pages = [this.recorder?.recordingPage, ...[...(this.rt?.tracks.values() ?? [])].map((t) => t.recorder?.recordingPage)];
+        return new Set(pages.filter((p): p is Page => !!p).map((p) => this.session?.realmName(p) ?? ''));
+      },
+    });
+    s.addEncoder(this.mainEncoder?.pid);
+    s.addProduct(await listeningPids(localPorts(Object.values(env.pages))));
+    s.start();
+    return s;
+  }
+
+  /** The pause of a take: a capture does not film it (its recorders, clock and CPU sampler stop meanwhile). */
+  private pauser(gate: NonNullable<CaptureRun['opts']['pause']>, rt: Runtime): RunPauser {
+    const r = this.run;
+    const { record, emit, log, signal, files, clock, timeline } = r;
+    return new RunPauser({
+      gate,
+      signal,
+      record,
+      emit,
+      save: () => void files.saveRecord(),
+      log,
+      ...(r.filmingPause ? { filming: r.filmingPause } : {}),
+      // A capture does not film the pause: its recorders, clock and CPU sampler stop meanwhile (pause.ts).
+      take: {
+        clock,
+        filming: () => {
+          const out: Array<{ recorder: ScreencastRecorder; page: Page }> = [];
+          for (const rec of [this.recorder, ...[...rt.tracks.values()].map((t) => t.recorder)]) {
+            const page = rec?.recordingPage;
+            if (rec && page) out.push({ recorder: rec, page });
+          }
+          return out;
+        },
+        lastPress: () => {
+          const ts = [timeline.cursorEffects, ...timeline.tracks.map((t) => t.cursorEffects)]
+            .flat()
+            .filter((e) => e.type === 'press' || e.type === 'ripple')
+            .map((e) => e.t);
+          return ts.length ? Math.max(...ts) : null;
+        },
+        settleEffects: () => settleEffectChecks({ rt }),
+        sampler: () => this.sampler,
+        note: (p) => timeline.pauses.push(p),
+      },
+    });
+  }
+
   async film(): Promise<void> {
     const r = this.run;
-    const { opts, env, sc, mode, capture, until, timeline, clock, record, emit, log, signal, dir, framesDir, files } = r;
+    const { opts, env, sc, mode, capture, until, record, emit, files } = r;
     const rt = this.rt!;
     const session = this.session!;
     const captured = sc.scenes.filter(isCaptureScene).filter((s) => !s.skip);
@@ -343,25 +477,7 @@ class BrowserDriver implements CaptureDriver {
     const firstPage = firstScene?.pages !== undefined ? undefined : (firstScene?.page ?? Object.keys(env.pages)[0]);
     if (firstScene?.pages === undefined && !firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
     // R-FLD-27: every page the scenario opens, visited once off camera, so the take does not film it cold.
-    if (mode === 'capture' && capture.prewarm) {
-      const targets = prewarmTargets(sc, {
-        envPages: env.pages,
-        capture: { width: capture.width, height: capture.height },
-        template: (entry, si) => {
-          try {
-            return templateSceneEntry(untilSteps(entry, si, until), si, rt.template, rt.editTemplate);
-          } catch {
-            return null;
-          }
-        },
-        ...(until ? { lastScene: until.sceneIndex } : {}),
-        // A page the take may not open is not visited either (its step fails when it runs).
-        mayOpen: (url) => openProblem(url, rt.navigation) === null,
-      });
-      const done = await prewarmPages(rt, targets);
-      log('info', `prewarm: ${done.visited} of ${targets.length} page${targets.length === 1 ? '' : 's'} visited off camera in ${(done.ms / 1000).toFixed(1)} s`);
-      for (const f of done.failed) log('warn', `prewarm: ${f}`);
-    }
+    if (mode === 'capture' && capture.prewarm) await this.prewarm(rt);
     // Capture time 0: right before the first page is shown and the screencast starts. The product's clock reads its
     // time now, in every browser.
     await session.anchorClock();
@@ -373,87 +489,9 @@ class BrowserDriver implements CaptureDriver {
     // A scenario whose first scene films several pages starts with their tracks (the main capture starts with the
     // first single-page scene, if any).
     if (firstPage) await rt.activate(firstPage);
-    if (mode === 'capture' && captured.some((s) => s.pages === undefined)) {
-      const mainEncoder = (this.mainEncoder = this.newEncoder({
-        out: join(dir, 'capture.mp4'),
-        width: capture.width * capture.scale,
-        height: capture.height * capture.scale,
-        horizon: () => this.recorder?.horizon() ?? 0,
-        thumbs: true,
-      }));
-      mainEncoder.start();
-      const recorder = (this.recorder = new ScreencastRecorder({
-        framesDir,
-        indexFile: join(dir, 'frames.jsonl'),
-        format: capture.format,
-        quality: capture.quality,
-        width: capture.width,
-        height: capture.height,
-        scale: capture.scale,
-        clock,
-        onError: (m) => timeline.warn(m),
-        pageId: (p) => this.session?.idOf(p),
-        keepFrames: capture.keep_frames,
-        sink: mainEncoder,
-      }));
-      if (firstPage) await recorder.start(rt.page);
-      else await recorder.prepare();
-      rt.recorder = recorder;
-      this.loadingWatch = new LoadingWatch(
-        () => recorder.recordingPage ?? undefined,
-        () => clock.now(),
-        (p) => this.session?.idOf(p),
-      );
-      this.loadingWatch.start();
-    }
-    if (mode === 'capture') {
-      // What the take costs (R-FLD-23): Chromium's processes, the encoders, the product's local servers.
-      const s = new PerfSampler({
-        chromium: () => this.session?.processInfo() ?? Promise.resolve([]),
-        // The personas' browsers a recorder films now (the main capture's page, the pages of a multi-page scene).
-        filmed: () => {
-          const pages = [this.recorder?.recordingPage, ...[...(this.rt?.tracks.values() ?? [])].map((t) => t.recorder?.recordingPage)];
-          return new Set(pages.filter((p): p is Page => !!p).map((p) => this.session?.realmName(p) ?? ''));
-        },
-      });
-      s.addEncoder(this.mainEncoder?.pid);
-      s.addProduct(await listeningPids(localPorts(Object.values(env.pages))));
-      s.start();
-      this.sampler = s;
-    }
-    const pauser = opts.pause
-      ? new RunPauser({
-          gate: opts.pause,
-          signal,
-          record,
-          emit,
-          save: () => void files.saveRecord(),
-          log,
-          ...(r.filmingPause ? { filming: r.filmingPause } : {}),
-          // A capture does not film the pause: its recorders, clock and CPU sampler stop meanwhile (pause.ts).
-          take: {
-            clock,
-            filming: () => {
-              const out: Array<{ recorder: ScreencastRecorder; page: Page }> = [];
-              for (const rec of [this.recorder, ...[...rt.tracks.values()].map((t) => t.recorder)]) {
-                const page = rec?.recordingPage;
-                if (rec && page) out.push({ recorder: rec, page });
-              }
-              return out;
-            },
-            lastPress: () => {
-              const ts = [timeline.cursorEffects, ...timeline.tracks.map((t) => t.cursorEffects)]
-                .flat()
-                .filter((e) => e.type === 'press' || e.type === 'ripple')
-                .map((e) => e.t);
-              return ts.length ? Math.max(...ts) : null;
-            },
-            settleEffects: () => settleEffectChecks({ rt }),
-            sampler: () => this.sampler,
-            note: (p) => timeline.pauses.push(p),
-          },
-        })
-      : null;
+    if (mode === 'capture' && captured.some((s) => s.pages === undefined)) await this.startMainCapture(rt, firstPage);
+    if (mode === 'capture') this.sampler = await this.startSampler();
+    const pauser = opts.pause ? this.pauser(opts.pause, rt) : null;
     await runScenes(rt, {
       scenario: sc,
       scenarioName: r.loaded.name,
@@ -483,9 +521,78 @@ class BrowserDriver implements CaptureDriver {
     return failure;
   }
 
+  /** Every recorder of the take stopped: the page tracks' frames and loads, then the main capture's. */
+  private async stopRecorders(): Promise<void> {
+    const { timeline, log } = this.run;
+    const { rt, recorder } = this;
+    if (rt) {
+      for (const [id, t] of rt.tracks) {
+        if (!t.recorder) continue;
+        try {
+          t.builder.frames = (await t.recorder.stop()).length;
+          t.builder.loading = t.recorder.loadingIntervals();
+          warnLimitedLoads(t.recorder, timeline, log);
+        } catch (e) {
+          log('error', `stopping the recorder of page ${id} failed: ${errorMessage(e)}`);
+        }
+      }
+    }
+    if (recorder) {
+      try {
+        this.frames = await recorder.stop();
+        timeline.loading = recorder.loadingIntervals();
+        warnLimitedLoads(recorder, timeline, log);
+        const st = recorder.stats();
+        if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
+      } catch (e) {
+        log('error', `stopping the recorder failed: ${errorMessage(e)}`);
+      }
+    }
+  }
+
+  /** The CPU sampler stopped: what the take cost, and a persona's browser busy while nobody filmed it. */
+  private async stopSampler(beside: FilmingReport | undefined): Promise<void> {
+    const { timeline, log } = this.run;
+    const sampler = this.sampler;
+    if (!sampler) return;
+    const perfCpu = (this.perfCpu = await sampler.stop().catch(() => undefined));
+    this.perfMachine = { ...sampler.machine(), ...(beside ? { takes_beside: beside.takes_beside, ...(beside.heavy_slowed ? { heavy_slowed: true as const } : {}) } : {}) };
+    // R-FLD-25: a persona's page that costs CPU while nobody films it (measured on the fixture: ≈ 0.02 core).
+    for (const b of perfCpu?.browsers ?? []) {
+      if (!b.unfilmed || b.unfilmed.seconds < 4 || b.unfilmed.cpu / b.unfilmed.seconds <= UNFILMED_WARN_CORES) continue;
+      const m = `persona ${b.persona ?? '(none)'}: its browser kept ${(b.unfilmed.cpu / b.unfilmed.seconds).toFixed(2)} cores busy while not filmed (${b.unfilmed.seconds.toFixed(0)} s) — its page polls or animates off screen and slows the take: leave a quieter page open there between its scenes`;
+      timeline.warn(m);
+      log('warn', m);
+    }
+  }
+
+  /** The main capture's motion: the frame rate while the cursor moves, its stalls and their warnings. */
+  private measureMotion(endT: number): void {
+    const { opts, capture, timeline, log } = this.run;
+    const minFps = Math.min(capture.fps, 30) * 0.6;
+    // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
+    const motion = opts.hideCursor
+      ? null
+      : motionCapture({
+          frameTimes: this.frames.map((f) => f.t),
+          samples: timeline.cursor,
+          minFps,
+          effects: timeline.cursorEffects,
+          pageChanges: timeline.pages.map((p) => p.t_start),
+          held: timeline.loading,
+        });
+    timeline.stalls = (motion?.stalls ?? []).map((x) => ({ t_start: x.t, t_end: x.t_end, during: x.during }));
+    const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit: this.frameRateLimit }) : undefined;
+    for (const message of motionWarnings(motion, minFps, '', cause)) {
+      timeline.warn(message);
+      log('warn', message);
+    }
+    this.perfMotion = motion;
+  }
+
   async stop(): Promise<void> {
     const r = this.run;
-    const { opts, mode, capture, timeline, clock, log, env, secrets, signal } = r;
+    const { mode, timeline, clock, log, env, secrets, signal } = r;
     const { rt, recorder, guard, session } = this;
     // Off camera from here: the live picture stops before anything else (teardown, diagnosis, artefacts).
     await this.live?.stop().catch(() => undefined);
@@ -514,68 +621,15 @@ class BrowserDriver implements CaptureDriver {
       this.sampler?.addEncoder(t.encoder?.pid);
     }
     if (r.failure === null && guard?.error) r.failure = guard.error;
-    if (rt) {
-      for (const [id, t] of rt.tracks) {
-        if (!t.recorder) continue;
-        try {
-          t.builder.frames = (await t.recorder.stop()).length;
-          t.builder.loading = t.recorder.loadingIntervals();
-          warnLimitedLoads(t.recorder, timeline, log);
-        } catch (e) {
-          log('error', `stopping the recorder of page ${id} failed: ${errorMessage(e)}`);
-        }
-      }
-    }
-    if (recorder) {
-      try {
-        this.frames = await recorder.stop();
-        timeline.loading = recorder.loadingIntervals();
-        warnLimitedLoads(recorder, timeline, log);
-        const st = recorder.stats();
-        if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
-      } catch (e) {
-        log('error', `stopping the recorder failed: ${errorMessage(e)}`);
-      }
-    }
+    await this.stopRecorders();
     // Off camera: heavy work held for this take may go on (teardown, diagnosis and artefacts are not filming).
     const beside: FilmingReport | undefined = r.stopFilming();
     if (this.loadingWatch) {
       const spans = this.loadingWatch.stop();
       if (spans.length) timeline.loading_ui = spans;
     }
-    const sampler = this.sampler;
-    if (sampler) {
-      const perfCpu = (this.perfCpu = await sampler.stop().catch(() => undefined));
-      this.perfMachine = { ...sampler.machine(), ...(beside ? { takes_beside: beside.takes_beside, ...(beside.heavy_slowed ? { heavy_slowed: true as const } : {}) } : {}) };
-      // R-FLD-25: a persona's page that costs CPU while nobody films it (measured on the fixture: ≈ 0.02 core).
-      for (const b of perfCpu?.browsers ?? []) {
-        if (!b.unfilmed || b.unfilmed.seconds < 4 || b.unfilmed.cpu / b.unfilmed.seconds <= UNFILMED_WARN_CORES) continue;
-        const m = `persona ${b.persona ?? '(none)'}: its browser kept ${(b.unfilmed.cpu / b.unfilmed.seconds).toFixed(2)} cores busy while not filmed (${b.unfilmed.seconds.toFixed(0)} s) — its page polls or animates off screen and slows the take: leave a quieter page open there between its scenes`;
-        timeline.warn(m);
-        log('warn', m);
-      }
-    }
-    if (recorder) {
-      const minFps = Math.min(capture.fps, 30) * 0.6;
-      // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
-      const motion = opts.hideCursor
-        ? null
-        : motionCapture(
-            this.frames.map((f) => f.t),
-            timeline.cursor,
-            minFps,
-            timeline.cursorEffects,
-            timeline.pages.map((p) => p.t_start),
-            timeline.loading,
-          );
-      timeline.stalls = (motion?.stalls ?? []).map((x) => ({ t_start: x.t, t_end: x.t_end, during: x.during }));
-      const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit: this.frameRateLimit }) : undefined;
-      for (const message of motionWarnings(motion, minFps, '', cause)) {
-        timeline.warn(message);
-        log('warn', message);
-      }
-      this.perfMotion = motion;
-    }
+    await this.stopSampler(beside);
+    if (recorder) this.measureMotion(endT);
     // A landing seen while the run was ending (after a step failed, or a cancel): nothing of the capture is kept either.
     if (guard?.error) r.failure = guard.error;
     // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed.
@@ -609,11 +663,11 @@ class BrowserDriver implements CaptureDriver {
     if (rt) r.timeline.artefacts = rt.artefacts.items;
   }
 
-  async finish(): Promise<DriverTake> {
+  /** The personas whose session expired during the run (a sign-in landing included): their status says so. */
+  private async saveExpiredSessions(): Promise<void> {
     const r = this.run;
-    const { opts, mode, capture, timeline, env, secrets, log, emit, dir, screenshotsDir, framesDir, record, runId, project } = r;
-    const { rt, guard, recorder, personas, prepared, planned, frameRateLimit } = this;
-    const endT = r.endT;
+    const { env, secrets, log, runId } = r;
+    const { guard, personas, prepared, planned } = this;
     // The session of a persona whose page landed on its own sign-in page expired during the run.
     const landing = guard?.landing;
     if (landing?.persona && r.failure instanceof LoginPageError && !foreignSignIn(landing.url, landing.persona, env.pages, personas, planned)) {
@@ -626,6 +680,209 @@ class BrowserDriver implements CaptureDriver {
         log('warn', `persona ${name}: its status could not be saved: ${errorMessage(e)}`),
       );
     }
+  }
+
+  /** Per-page tracks of multi-page scenes: their frames in time order, with their motion warnings. */
+  private trackFramesOf(rt: Runtime): Map<string, FrameIndexEntry[]> {
+    const { opts, capture, timeline, log } = this.run;
+    const endT = this.run.endT;
+    const frameRateLimit = this.frameRateLimit;
+    const trackFrames = new Map<string, FrameIndexEntry[]>();
+    for (const [id, t] of rt.tracks) {
+      if (!t.recorder) continue;
+      const list = [...t.recorder.frames].sort((a, b) => a.t - b.t);
+      trackFrames.set(id, list);
+      t.builder.frames = list.length;
+      const st = t.recorder.stats();
+      if (st.write_errors) timeline.warn(`page ${id}: ${st.write_errors} frames could not be written`);
+      const minFps = Math.min(capture.fps, 30) * 0.6;
+      const motion = opts.hideCursor
+        ? null
+        : motionCapture({
+            frameTimes: list.map((f) => f.t),
+            samples: t.builder.cursor,
+            minFps,
+            effects: t.builder.cursorEffects,
+            pageChanges: t.builder.pages.map((p) => p.t_start),
+            held: t.builder.loading,
+          });
+      const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit }) : undefined;
+      for (const message of motionWarnings(motion, minFps, `page ${id}: `, cause)) {
+        timeline.warn(message);
+        log('warn', message);
+      }
+    }
+    return trackFrames;
+  }
+
+  /** capture.mp4 finished (the encoder fed during the take); what finishing it cost, null without one. */
+  private async encodeMain(): Promise<{ finish_ms: number; late_frames: number } | null> {
+    const r = this.run;
+    const { emit, dir, record } = r;
+    if (this.mainEncoder && this.frames.length === 0) {
+      await this.mainEncoder.abort();
+      this.mainEncoder = null;
+    }
+    const mainEncoder = this.mainEncoder;
+    if (!mainEncoder) return null;
+    const out = join(dir, 'capture.mp4');
+    emit({ type: 'encode', status: 'start', message: `${this.frames.length} frames → ${out}` });
+    try {
+      await mainEncoder.finish(r.endT);
+      record.capture = out;
+      emit({ type: 'encode', status: 'done', message: out });
+      return { finish_ms: mainEncoder.finishMs, late_frames: mainEncoder.late };
+    } catch (e) {
+      emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
+      r.failure ??= e;
+      return null;
+    }
+  }
+
+  /** Each page track's video finished; the track `mainFromTrack` becomes capture.mp4 too. */
+  private async encodeTracks(rt: Runtime, trackFrames: Map<string, FrameIndexEntry[]>, mainFromTrack: string | undefined): Promise<void> {
+    const r = this.run;
+    const { timeline, log, emit, dir, record } = r;
+    for (const [id, t] of rt.tracks) {
+      const list = trackFrames.get(id) ?? [];
+      if (list.length === 0) {
+        timeline.warn(`page ${id}: its track recorded no frame`);
+        await t.encoder?.abort();
+        continue;
+      }
+      const out = join(dir, t.builder.info.file);
+      if (!t.encoder) continue;
+      emit({ type: 'encode', status: 'start', message: `page ${id}: ${list.length} frames → ${out}` });
+      try {
+        await t.encoder.finish(r.endT);
+        emit({ type: 'encode', status: 'done', message: out });
+        if (mainFromTrack === id) {
+          await copyFile(out, join(dir, 'capture.mp4'));
+          record.capture = join(dir, 'capture.mp4');
+          this.frames = list;
+          log('info', `every scene films several pages: capture.mp4 is the track of page "${id}"`);
+        }
+      } catch (e) {
+        emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
+        r.failure ??= e;
+      }
+    }
+  }
+
+  /**
+   * One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step — copied from the
+   * kept frames, else read from the video (no frame written during the take). Nothing is taken during the take.
+   */
+  private stepPictures(rt: Runtime, trackFrames: Map<string, FrameIndexEntry[]>): Promise<string[]> {
+    const { opts, capture, timeline, log, dir, screenshotsDir, framesDir, record } = this.run;
+    const endT = this.run.endT;
+    const frames = this.frames;
+    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
+    const trackOf = (ev: TimelineEvent) => {
+      const page = multi.has(ev.scene) ? ev.page : undefined;
+      return page ? rt.tracks.get(page) : undefined;
+    };
+    return capture.keep_frames
+      ? stepShots(
+          timeline.events,
+          screenshotsDir,
+          { dir: framesDir, frames },
+          (ev) => {
+            const t = trackOf(ev);
+            const list = t ? trackFrames.get(t.builder.info.id) : undefined;
+            return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
+          },
+          log,
+        )
+      : videoStepShots(timeline.events, {
+          screenshotsDir,
+          videoOf: (ev) => {
+            const t = trackOf(ev);
+            const file = t ? join(dir, t.builder.info.file) : record.capture;
+            return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
+          },
+          fps: capture.fps,
+          ffmpeg: ffmpegBin(opts.policy, opts.ffmpeg),
+          log,
+        });
+  }
+
+  /** What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens. */
+  private async transitions(): Promise<RunPerf['transitions']> {
+    const { opts, capture, timeline, secrets, log } = this.run;
+    const activity = this.activity;
+    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
+    const events = timeline.events.filter((e) => !multi.has(e.scene));
+    const act = analyzeActivity({
+      masks: activity.masks,
+      fps: capture.fps,
+      width: capture.width,
+      height: capture.height,
+      cursor: opts.hideCursor ? [] : timeline.cursor,
+      effects: timeline.cursorEffects,
+      events,
+      loading: timeline.loading,
+    });
+    timeline.busy = act.busy;
+    log('debug', `transitions: ${act.transitions.map((x) => `${x.scene}.${x.step} ${x.ms} ms`).join(', ')}; waits: ${act.busy.map((b) => `${b.t_start}–${b.t_end} s`).join(', ') || 'none'}`);
+    const slow = slowTransitions(act.transitions);
+    const transitions = {
+      measured: clicksOf(events).length,
+      slow: slow.slice(0, 10).map((x) => ({ t: x.t, ms: x.ms, scene: x.scene, step: x.step, ...(x.target ? { target: secrets.redactText(x.target) } : {}) })),
+    };
+    if (slow.length) {
+      log(
+        'info',
+        `slow transitions (click → stable screen over 0.8 s): ${slow
+          .slice(0, 4)
+          .map((x) => `${x.scene}.${x.step} ${(x.ms / 1000).toFixed(1)} s`)
+          .join(', ')}${slow.length > 4 ? ', …' : ''}`,
+      );
+    }
+    return transitions;
+  }
+
+  /** What the take cost (run.json `perf`): its CPU, machine, GPU, frames, stalls, transitions, encode and disk. */
+  private async takePerf(perfMachine: RunPerf['machine'], transitions: RunPerf['transitions'], encodeDone: { finish_ms: number; late_frames: number } | null): Promise<RunPerf> {
+    const { capture, timeline, log, dir, project } = this.run;
+    const endT = this.run.endT;
+    const { rt, recorder, frameRateLimit } = this;
+    const frames = this.frames;
+    const disk = await diskCheck(dir, project.slug);
+    if (disk.warning) {
+      timeline.warn(disk.warning);
+      log('warn', disk.warning);
+    }
+    const st = recorder?.stats();
+    const perfMotion = this.perfMotion;
+    const livePreview = this.livePreview;
+    const encoderKind = this.encoderKind;
+    return {
+      seconds: Math.round(endT * 100) / 100,
+      ...(this.perfCpu ? { cpu: this.perfCpu } : {}),
+      machine: perfMachine,
+      ...(this.gpu ? { gpu: this.gpu } : {}),
+      frame_rate_limit: frameRateLimit,
+      frames: {
+        received: frames.length,
+        fps: endT > 0 ? Math.round((frames.length / endT) * 10) / 10 : 0,
+        ...(perfMotion?.worst ? { motion_fps_min: Math.round(perfMotion.worst.fps * 10) / 10 } : {}),
+        dropped: st?.dropped ?? 0,
+        kicked: (st?.kicked ?? 0) + [...(rt?.tracks.values() ?? [])].reduce((n, t) => n + (t.recorder?.kicked ?? 0), 0),
+      },
+      stalls: (perfMotion?.stalls ?? []).map((x) => ({ t: x.t, ms: x.ms, during: x.during })),
+      ...(transitions ? { transitions } : {}),
+      ...(livePreview && livePreview.seconds > 0 ? { live_preview: livePreview } : {}),
+      ...(encodeDone && encoderKind ? { encode: { ...encoderLabel({ encoder: encoderKind, crf: capture.crf }), ...encodeDone } } : {}),
+      disk: { run_mb: await folderMB(dir), frames_kept: capture.keep_frames, ...(disk.free_gb !== undefined ? { free_gb: disk.free_gb } : {}) },
+    };
+  }
+
+  async finish(): Promise<DriverTake> {
+    const r = this.run;
+    const { mode, capture, timeline, dir, screenshotsDir, record } = r;
+    const { rt } = this;
+    await this.saveExpiredSessions();
     const cancelled = r.failure !== null && isCancelled(r.failure);
     // Nothing of a run that landed on a sign-in page is kept: no frames, no video, no screenshot, no timeline (so
     // `render latest` never picks it); a preflight failure recorded nothing either.
@@ -642,33 +899,7 @@ class BrowserDriver implements CaptureDriver {
       this.mainEncoder = null;
     }
     // Per-page tracks of multi-page scenes: their frames, encoded on the same CFR grid as capture.mp4.
-    const trackFrames = new Map<string, FrameIndexEntry[]>();
-    if (rt && mode === 'capture' && !discard) {
-      for (const [id, t] of rt.tracks) {
-        if (!t.recorder) continue;
-        const list = [...t.recorder.frames].sort((a, b) => a.t - b.t);
-        trackFrames.set(id, list);
-        t.builder.frames = list.length;
-        const st = t.recorder.stats();
-        if (st.write_errors) timeline.warn(`page ${id}: ${st.write_errors} frames could not be written`);
-        const minFps = Math.min(capture.fps, 30) * 0.6;
-        const motion = opts.hideCursor
-          ? null
-          : motionCapture(
-              list.map((f) => f.t),
-              t.builder.cursor,
-              minFps,
-              t.builder.cursorEffects,
-              t.builder.pages.map((p) => p.t_start),
-              t.builder.loading,
-            );
-        const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit }) : undefined;
-        for (const message of motionWarnings(motion, minFps, `page ${id}: `, cause)) {
-          timeline.warn(message);
-          log('warn', message);
-        }
-      }
-    }
+    const trackFrames = rt && mode === 'capture' && !discard ? this.trackFramesOf(rt) : new Map<string, FrameIndexEntry[]>();
     const allTrackFrames = [...trackFrames.values()].flat();
     // A scenario made only of multi-page scenes has no main capture of its own: capture.mp4 is its first page's track.
     const mainFromTrack = mode === 'capture' && this.frames.length === 0 && allTrackFrames.length > 0 ? [...trackFrames.keys()].find((k) => trackFrames.get(k)!.length > 0) : undefined;
@@ -677,150 +908,13 @@ class BrowserDriver implements CaptureDriver {
       const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
       r.failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
     }
-    let encodeDone: { finish_ms: number; late_frames: number } | null = null;
-    if (this.mainEncoder && this.frames.length === 0) {
-      await this.mainEncoder.abort();
-      this.mainEncoder = null;
-    }
-    const mainEncoder = this.mainEncoder;
-    if (mainEncoder) {
-      const out = join(dir, 'capture.mp4');
-      emit({ type: 'encode', status: 'start', message: `${this.frames.length} frames → ${out}` });
-      try {
-        await mainEncoder.finish(endT);
-        record.capture = out;
-        encodeDone = { finish_ms: mainEncoder.finishMs, late_frames: mainEncoder.late };
-        emit({ type: 'encode', status: 'done', message: out });
-      } catch (e) {
-        emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
-        r.failure ??= e;
-      }
-    }
-    if (rt && mode === 'capture' && !cancelled && !discard) {
-      for (const [id, t] of rt.tracks) {
-        const list = trackFrames.get(id) ?? [];
-        if (list.length === 0) {
-          timeline.warn(`page ${id}: its track recorded no frame`);
-          await t.encoder?.abort();
-          continue;
-        }
-        const out = join(dir, t.builder.info.file);
-        if (!t.encoder) continue;
-        emit({ type: 'encode', status: 'start', message: `page ${id}: ${list.length} frames → ${out}` });
-        try {
-          await t.encoder.finish(endT);
-          emit({ type: 'encode', status: 'done', message: out });
-          if (mainFromTrack === id) {
-            await copyFile(out, join(dir, 'capture.mp4'));
-            record.capture = join(dir, 'capture.mp4');
-            this.frames = list;
-            log('info', `every scene films several pages: capture.mp4 is the track of page "${id}"`);
-          }
-        } catch (e) {
-          emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
-          r.failure ??= e;
-        }
-      }
-    }
+    const encodeDone = await this.encodeMain();
+    if (rt && mode === 'capture' && !cancelled && !discard) await this.encodeTracks(rt, trackFrames, mainFromTrack);
     const frames = this.frames;
-    // One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step — copied from the
-    // kept frames, else read from the video (no frame written during the take). Nothing is taken during the take.
-    if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) {
-      const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
-      const trackOf = (ev: TimelineEvent) => {
-        const page = multi.has(ev.scene) ? ev.page : undefined;
-        return page ? rt.tracks.get(page) : undefined;
-      };
-      record.screenshots = capture.keep_frames
-        ? await stepShots(
-            timeline.events,
-            screenshotsDir,
-            { dir: framesDir, frames },
-            (ev) => {
-              const t = trackOf(ev);
-              const list = t ? trackFrames.get(t.builder.info.id) : undefined;
-              return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
-            },
-            log,
-          )
-        : await videoStepShots(timeline.events, {
-            screenshotsDir,
-            videoOf: (ev) => {
-              const t = trackOf(ev);
-              const file = t ? join(dir, t.builder.info.file) : record.capture;
-              return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
-            },
-            fps: capture.fps,
-            ffmpeg: ffmpegBin(opts.policy, opts.ffmpeg),
-            log,
-          });
-    }
-    // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
-    let transitions: RunPerf['transitions'];
-    const activity = this.activity;
-    if (record.capture && !mainFromTrack && activity.masks.length) {
-      const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
-      const events = timeline.events.filter((e) => !multi.has(e.scene));
-      if (process.env.DS_DEBUG_ACTIVITY) await writeFile(join(dir, 'activity.bin'), Buffer.concat(activity.masks)); // TEMP
-      const act = analyzeActivity({
-        masks: activity.masks,
-        fps: capture.fps,
-        width: capture.width,
-        height: capture.height,
-        cursor: opts.hideCursor ? [] : timeline.cursor,
-        effects: timeline.cursorEffects,
-        events,
-        loading: timeline.loading,
-      });
-      timeline.busy = act.busy;
-      log('debug', `transitions: ${act.transitions.map((x) => `${x.scene}.${x.step} ${x.ms} ms`).join(', ')}; waits: ${act.busy.map((b) => `${b.t_start}–${b.t_end} s`).join(', ') || 'none'}`);
-      const slow = slowTransitions(act.transitions);
-      transitions = {
-        measured: clicksOf(events).length,
-        slow: slow.slice(0, 10).map((x) => ({ t: x.t, ms: x.ms, scene: x.scene, step: x.step, ...(x.target ? { target: secrets.redactText(x.target) } : {}) })),
-      };
-      if (slow.length) {
-        log(
-          'info',
-          `slow transitions (click → stable screen over 0.8 s): ${slow
-            .slice(0, 4)
-            .map((x) => `${x.scene}.${x.step} ${(x.ms / 1000).toFixed(1)} s`)
-            .join(', ')}${slow.length > 4 ? ', …' : ''}`,
-        );
-      }
-    }
+    if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) record.screenshots = await this.stepPictures(rt, trackFrames);
+    const transitions = record.capture && !mainFromTrack && this.activity.masks.length ? await this.transitions() : undefined;
     const perfMachine = this.perfMachine;
-    if (mode === 'capture' && !cancelled && !discard && perfMachine) {
-      const disk = await diskCheck(dir, project.slug);
-      if (disk.warning) {
-        timeline.warn(disk.warning);
-        log('warn', disk.warning);
-      }
-      const st = recorder?.stats();
-      const perfMotion = this.perfMotion;
-      const livePreview = this.livePreview;
-      const encoderKind = this.encoderKind;
-      const perf: RunPerf = {
-        seconds: Math.round(endT * 100) / 100,
-        ...(this.perfCpu ? { cpu: this.perfCpu } : {}),
-        machine: perfMachine,
-        ...(this.gpu ? { gpu: this.gpu } : {}),
-        frame_rate_limit: frameRateLimit,
-        frames: {
-          received: frames.length,
-          fps: endT > 0 ? Math.round((frames.length / endT) * 10) / 10 : 0,
-          ...(perfMotion?.worst ? { motion_fps_min: Math.round(perfMotion.worst.fps * 10) / 10 } : {}),
-          dropped: st?.dropped ?? 0,
-          kicked: (st?.kicked ?? 0) + [...(rt?.tracks.values() ?? [])].reduce((n, t) => n + (t.recorder?.kicked ?? 0), 0),
-        },
-        stalls: (perfMotion?.stalls ?? []).map((x) => ({ t: x.t, ms: x.ms, during: x.during })),
-        ...(transitions ? { transitions } : {}),
-        ...(livePreview && livePreview.seconds > 0 ? { live_preview: livePreview } : {}),
-        ...(encodeDone && encoderKind ? { encode: { ...encoderLabel({ encoder: encoderKind, crf: capture.crf }), ...encodeDone } } : {}),
-        disk: { run_mb: await folderMB(dir), frames_kept: capture.keep_frames, ...(disk.free_gb !== undefined ? { free_gb: disk.free_gb } : {}) },
-      };
-      record.perf = perf;
-    }
+    if (mode === 'capture' && !cancelled && !discard && perfMachine) record.perf = await this.takePerf(perfMachine, transitions, encodeDone);
     return {
       discard,
       capture: {

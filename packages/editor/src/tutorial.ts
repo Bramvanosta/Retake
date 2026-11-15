@@ -16,6 +16,7 @@ import type { ReframeTarget } from './camera.js';
 import type { OverlayUse, PlanTutorial, ResolvedComponent } from './plan-types.js';
 import { round, stepEnd } from './util.js';
 import { TRACK_GLIDE_S } from './remotion/frames.js';
+import type { TutorialResolve } from './tutorial-progress.js';
 
 /** Timings of the tutorial overlays (seconds). */
 export const TUTORIAL_TIMING = {
@@ -54,9 +55,9 @@ export const TUTORIAL_TIMING = {
 
 /** Glide between two boxes of an overlay track (output seconds): see remotion/frames.ts `trackBoxAt`. */
 export { TRACK_GLIDE_S };
+export { planProgress } from './tutorial-progress.js';
 
-/** Resolves a tutorial overlay use (the planner's ComponentResolver behind it). */
-export type TutorialResolve = (feature: TutorialFeatureName, state: TutorialFeatureState, slots: Record<string, string>, where: string) => ResolvedComponent | null;
+export type { TutorialResolve } from './tutorial-progress.js';
 
 export interface ClipTutorialInput {
   scene: TimelineScene;
@@ -195,15 +196,13 @@ function clicksAway(ev: TimelineEvent, events: readonly TimelineEvent[]): boolea
   return ev.action !== 'type' && ev.action !== 'hover' && eventClicks(ev).length > 0 && stepNavigates(ev, events);
 }
 
-/** The tutorial overlays of one clip (spotlight first: it is drawn under the others). */
-export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
+/** The spotlight overlays of a clip. */
+function tutorialSpotlight(input: ClipTutorialInput, steps: TimelineEvent[]): OverlayUse[] {
   const { events, rel, n, fps } = input;
   const T = TUTORIAL_TIMING;
-  const steps = events.filter((e) => e.step >= 0 && e.status !== 'skipped');
   const scene = input.scene.id;
-  const out: { spotlight: OverlayUse[]; steps: OverlayUse[]; loupe: OverlayUse[]; shortcuts: OverlayUse[] } = { spotlight: [], steps: [], loupe: [], shortcuts: [] };
   const where = (ev: TimelineEvent, what: string) => `scene "${scene}" step ${ev.step} ${what}`;
-
+  const out: OverlayUse[] = [];
   // ── Spotlight: windows per step (or per click), joined into runs whose hole glides from box to box ───────────
   type Win = { t0: number; t1: number; keys: Array<{ t: number; bbox: BBox }>; state: TutorialFeatureState; ev: TimelineEvent };
   const wins: Win[] = [];
@@ -260,7 +259,7 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
       .map((k) => ({ at: Math.max(0, rel(k.t) - from), bbox: { ...k.bbox } }))
       .filter((k, i, all) => i === 0 || JSON.stringify(k.bbox) !== JSON.stringify(all[i - 1].bbox));
     track[0].at = 0;
-    out.spotlight.push({
+    out.push({
       component: rc,
       from,
       durationInFrames: to - from,
@@ -273,7 +272,16 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     });
     count(input, 'spotlight');
   }
+  return out;
+}
 
+/** The numbered badges of a clip. */
+function tutorialBadges(input: ClipTutorialInput, steps: TimelineEvent[]): OverlayUse[] {
+  const { events, rel, n, fps } = input;
+  const T = TUTORIAL_TIMING;
+  const scene = input.scene.id;
+  const where = (ev: TimelineEvent, what: string) => `scene "${scene}" step ${ev.step} ${what}`;
+  const out: OverlayUse[] = [];
   // ── Numbered badges next to clicked targets ──────────────────────────────────────────────────────────────────
   const numbers = input.badgeNumbers ?? planBadgeNumbers(steps, input.stateOf, input.counter);
   for (const ev of steps) {
@@ -303,10 +311,19 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     // After a click that navigates, the badge leaves with the page (as the spotlight does).
     const after = clicksAway(ev, events) ? T.spotlight_after_click_s : T.badge_after_s;
     const frames = Math.min(at - from + fr(after, fps), input.duration - from);
-    out.steps.push({ component: rc, from, durationInFrames: Math.max(1, frames), scene, step: ev.step, anchor: { bbox: { ...box } }, tutorial: 'steps', moment: at - from });
+    out.push({ component: rc, from, durationInFrames: Math.max(1, frames), scene, step: ev.step, anchor: { bbox: { ...box } }, tutorial: 'steps', moment: at - from });
     count(input, 'steps');
   }
+  return out;
+}
 
+/** The typing loupes of a clip. */
+function tutorialLoupe(input: ClipTutorialInput, steps: TimelineEvent[]): OverlayUse[] {
+  const { rel, n, fps } = input;
+  const T = TUTORIAL_TIMING;
+  const scene = input.scene.id;
+  const where = (ev: TimelineEvent, what: string) => `scene "${scene}" step ${ev.step} ${what}`;
+  const out: OverlayUse[] = [];
   // ── Typing loupe: the field of a type step, from the first keystroke to just after the last; consecutive ones
   // (type, Tab, type…) are one overlay whose lens glides from field to field ──────────────────────────────────────
   type Lw = { t0: number; t1: number; region: BBox; ev: TimelineEvent; state: TutorialFeatureState; typeAt: number };
@@ -345,7 +362,7 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     const rc = input.resolve('loupe', first.state, {}, where(first.ev, 'loupe'));
     if (!rc) continue;
     const track = run.map((w, i) => ({ at: i === 0 ? 0 : Math.max(0, rel(w.typeAt - TRACK_GLIDE_S) - from), bbox: { ...w.region } }));
-    out.loupe.push({
+    out.push({
       component: rc,
       from,
       durationInFrames: to - from,
@@ -359,7 +376,16 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     });
     count(input, 'loupe');
   }
+  return out;
+}
 
+/** The key caps of a clip. */
+function tutorialShortcuts(input: ClipTutorialInput, steps: TimelineEvent[]): OverlayUse[] {
+  const { rel, n, fps } = input;
+  const T = TUTORIAL_TIMING;
+  const scene = input.scene.id;
+  const where = (ev: TimelineEvent, what: string) => `scene "${scene}" step ${ev.step} ${what}`;
+  const out: OverlayUse[] = [];
   // ── Key caps of press steps (and the Enter of a type step), timed on the key press ──────────────────────────
   type Press = { ev: TimelineEvent; t: number; keys: string; times: number; state: TutorialFeatureState };
   const presses: Press[] = [];
@@ -391,16 +417,25 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     if (!rc) return;
     const seconds = (input.durationOf(rc) ?? 1.8) + (p.times - 1) * T.shortcut_repeat_s;
     const frames = Math.min(fr(seconds, fps) + (pressAt - from), input.duration - from);
-    out.shortcuts.push({ component: rc, from, durationInFrames: Math.max(1, frames), scene, step: p.ev.step, tutorial: 'shortcuts', moment: pressAt - from });
+    out.push({ component: rc, from, durationInFrames: Math.max(1, frames), scene, step: p.ev.step, tutorial: 'shortcuts', moment: pressAt - from });
     count(input, 'shortcuts');
   });
   // A press that comes before the previous caps left: the previous ones leave as the next ones come.
-  for (let i = 0; i + 1 < out.shortcuts.length; i++) {
-    const a = out.shortcuts[i];
-    const b = out.shortcuts[i + 1];
+  for (let i = 0; i + 1 < out.length; i++) {
+    const a = out[i];
+    const b = out[i + 1];
     if (a.from + a.durationInFrames > b.from) a.durationInFrames = Math.max(fr(T.shortcut_min_s, fps), b.from - a.from + fr(0.15, fps));
   }
-  return [...out.spotlight, ...out.steps, ...out.loupe, ...out.shortcuts];
+  return out;
+}
+/** The tutorial overlays of one clip (spotlight first: it is drawn under the others). */
+export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
+  const steps = input.events.filter((e) => e.step >= 0 && e.status !== 'skipped');
+  const spotlight = tutorialSpotlight(input, steps);
+  const badges = tutorialBadges(input, steps);
+  const loupe = tutorialLoupe(input, steps);
+  const shortcuts = tutorialShortcuts(input, steps);
+  return [...spotlight, ...badges, ...loupe, ...shortcuts];
 }
 
 /**
@@ -432,42 +467,3 @@ export function tutorialReframeTargets(events: readonly TimelineEvent[], stateOf
 
 /** The built-in component of a feature (re-exported for messages and tests). */
 export const tutorialComponent = (f: TutorialFeatureName): string => TUTORIAL_COMPONENTS[f];
-
-/**
- * The chapter progress bar (R-TUT-05): over every segment between the intro and the outro; chapters = each captured
- * scene and card (`scenes`; an interstitial belongs to the chapter before it), or each card and what follows it
- * (`cards`; what comes before the first card is a chapter too). Labels: the scene caption's kicker (else its text, else
- * the id), the card's kicker / title.
- */
-export function planProgress(opts: {
-  segments: readonly import('./plan-types.js').PlanSegment[];
-  timeline: Timeline;
-  state: TutorialFeatureState;
-  resolve: TutorialResolve;
-}): import('./plan-types.js').PlanProgress | null {
-  const segs = opts.segments.filter((s) => s.kind !== 'intro' && s.kind !== 'outro');
-  if (segs.length === 0) return null;
-  const outro = opts.segments.find((s) => s.kind === 'outro');
-  const from = segs[0].from;
-  const last = segs[segs.length - 1];
-  const end = outro ? outro.from + (outro.transition?.kind === 'crossfade' ? outro.transition.frames : 0) : last.from + last.durationInFrames;
-  const durationInFrames = Math.max(1, end - from);
-  const mode = opts.state.mode === 'cards' ? 'cards' : 'scenes';
-  const label = (s: (typeof segs)[number]): string | undefined => {
-    const ts = opts.timeline.scenes.find((x) => x.id === s.id);
-    if (s.kind === 'card') return s.component.slots.kicker ?? s.component.slots.title ?? ts?.card?.slots?.kicker ?? s.id;
-    if (s.kind === 'clip') return ts?.caption?.kicker ?? ts?.caption?.text ?? s.id;
-    return undefined;
-  };
-  const starts = segs.filter((s, i) => (mode === 'cards' ? i === 0 || s.kind === 'card' : s.kind === 'clip' || s.kind === 'card' || i === 0));
-  const chapters = starts.map((s, i) => {
-    const next = starts[i + 1];
-    const a = Math.max(0, s.from - from);
-    const b = next ? next.from - from : durationInFrames;
-    const l = label(s);
-    return { id: s.id, ...(l ? { label: l } : {}), from: a, to: Math.max(a + 1, b) };
-  });
-  const rc = opts.resolve('progress', opts.state, {}, 'the progress bar');
-  if (!rc) return null;
-  return { component: rc, from, durationInFrames, mode, chapters };
-}

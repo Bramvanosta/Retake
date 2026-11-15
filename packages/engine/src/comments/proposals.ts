@@ -129,7 +129,7 @@ export async function applyProposal(
     if (why) throw why;
     const text = rebuildProposal(today, entry.proposal, 'applied');
     // Edit-only and the Studio's checks once more before the write (editScenario repeats the latter while writing).
-    await checkProposedText(project, r.thread.scenario, today, text, 'applied', read);
+    await checkProposedText(project, { scenario: r.thread.scenario, today, text, stage: 'applied' }, read);
     // The apply entry must fit the thread (entries, size) before the scenario is written: a full
     // thread refuses with nothing changed. The entry written after names the hash editScenario returns (= this one).
     try {
@@ -220,6 +220,77 @@ export interface CommentProposalView {
   untrusted: { rows: string[] };
 }
 
+type Proposal = ReturnType<typeof proposalEntry>['proposal'];
+type ThreadRead = Extract<Awaited<ReturnType<typeof readThread>>, { ok: true }>;
+
+/**
+ * The proposal's base and result lines, proven from today's file: rebuilt when today's file is its base (pending,
+ * undone), or (applied) its hunks undone, checked against the base hash and the canonical diff. Undefined: unverified.
+ */
+function provenLines(today: ScenarioText, p: Proposal, state: ReturnType<typeof proposalStates>[number]['state']): { base: string[]; result: string[] } | undefined {
+  if (state === 'pending' || state === 'undone') {
+    try {
+      const text = rebuildProposal(today, p, 'previewed');
+      return { base: textLines(today.yaml), result: textLines(text) };
+    } catch {
+      /* a tampered proposal: shown unverified */
+    }
+  } else if (state === 'applied') {
+    // Today's file is the result: the base is the hunks undone, checked against the base hash and the canonical diff.
+    const eol = textEol(today.yaml);
+    try {
+      const after = textLines(today.yaml);
+      const before = applyHunks(after, invertHunks(p.hunks));
+      const canonical = diffLines(before, after, { maxChanged: PROPOSAL_CHANGED_LINES_MAX });
+      // The base may have had no final line break (Apply writes one): both spellings of the base are its hash.
+      const baseOk = sha256Hex(joinLines(before, eol)) === p.base_sha256 || sha256Hex(before.join(eol)) === p.base_sha256;
+      if (baseOk && canonical && sameHunks(canonical, p.hunks)) return { base: before, result: after };
+    } catch {
+      /* shown unverified */
+    }
+  }
+  return undefined;
+}
+
+/** What Apply would say now: its checks before the write (undefined when it would take the proposal). */
+async function applyBlocker(project: LoadedProject, r: ThreadRead, entry: ReturnType<typeof proposalEntry>, today: ScenarioText, o: Parameters<typeof getProposal>[3]): Promise<string | undefined> {
+  const p = entry.proposal;
+  try {
+    const text = rebuildProposal(today, p, 'applied');
+    await checkProposedText(project, { scenario: r.thread.scenario, today, text, stage: 'applied' }, o);
+    appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256, FIT_STAMP)); // the longest name: never offered when Apply would not fit
+  } catch (e) {
+    if (!(e instanceof Error)) throw e;
+    const words = e.message.split(`${project.dir}/`).join('').split(project.dir).join('.');
+    return words.startsWith('not applied: ') ? words : `not applied: ${words}`;
+  }
+  return undefined;
+}
+
+/** The stored hunks as rows, unverified (no context). */
+function storedRows(hunks: Proposal['hunks']): { rows: ProposalRow[]; texts: string[] } {
+  const out: { rows: ProposalRow[]; texts: string[] } = { rows: [], texts: [] };
+  for (const h of hunks) {
+    h.del.forEach((l, j) => (out.rows.push({ kind: 'del', base: h.at + j }), out.texts.push(l)));
+    h.add.forEach((l) => (out.rows.push({ kind: 'add' }), out.texts.push(l)));
+  }
+  return out;
+}
+
+/** Whether the proposal's result films the same take as the thread's run (no filmed change since its snapshot). */
+async function sameTakeOf(project: LoadedProject, thread: ThreadRead['thread'], result: string[], today: ScenarioText): Promise<boolean> {
+  let since: ReturnType<typeof scenarioSinceRun>;
+  try {
+    // The take's snapshot read as the run's other files are (outputs/run-files.ts RunFolder: no link followed, capped).
+    const folder = await RunFolder.open(project.dir, checkRunId(thread.render.run_id));
+    const snap = folder ? await folder.read('scenario.yaml', SCENARIO_COMPARE_MAX_BYTES) : undefined;
+    since = scenarioSinceRun(project, { then: snap?.ok ? snap.bytes.toString('utf8') : undefined }, thread.scenario, joinLines(result, textEol(today.yaml)));
+  } catch {
+    since = undefined;
+  }
+  return since !== undefined && since.filmed !== undefined && since.filmed.length === 0;
+}
+
 /**
  * A proposal as a person reads it: its state and the diff computed by the engine from the file —
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
@@ -245,70 +316,12 @@ export async function getProposal(
   const { status } = deriveStatus(r.thread.entries);
   const st = proposalStates(r.thread.entries, today?.hash ?? null).find((x) => x.entry === entry.id)!;
   const stats = hunkStats(p.hunks);
-  let base: string[] | undefined;
-  let result: string[] | undefined;
-  if (today && (st.state === 'pending' || st.state === 'undone')) {
-    try {
-      const text = rebuildProposal(today, p, 'previewed');
-      base = textLines(today.yaml);
-      result = textLines(text);
-    } catch {
-      /* a tampered proposal: shown unverified */
-    }
-  } else if (today && st.state === 'applied') {
-    // Today's file is the result: the base is the hunks undone, checked against the base hash and the canonical diff.
-    const eol = textEol(today.yaml);
-    try {
-      const after = textLines(today.yaml);
-      const before = applyHunks(after, invertHunks(p.hunks));
-      const canonical = diffLines(before, after, { maxChanged: PROPOSAL_CHANGED_LINES_MAX });
-      // The base may have had no final line break (Apply writes one): both spellings of the base are its hash.
-      const baseOk = sha256Hex(joinLines(before, eol)) === p.base_sha256 || sha256Hex(before.join(eol)) === p.base_sha256;
-      if (baseOk && canonical && sameHunks(canonical, p.hunks)) {
-        base = before;
-        result = after;
-      }
-    } catch {
-      /* shown unverified */
-    }
-  }
+  const { base, result } = (today && provenLines(today, p, st.state)) || {};
   const verified = base !== undefined && result !== undefined;
   // What Apply would say now: its checks before the write, run only for a proposal it would take.
-  let blocked: string | undefined;
-  if (today && status === 'open' && st.actionable) {
-    try {
-      const text = rebuildProposal(today, p, 'applied');
-      await checkProposedText(project, r.thread.scenario, today, text, 'applied', o);
-      appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256, FIT_STAMP)); // the longest name: never offered when Apply would not fit
-    } catch (e) {
-      if (!(e instanceof Error)) throw e;
-      const words = e.message.split(`${project.dir}/`).join('').split(project.dir).join('.');
-      blocked = words.startsWith('not applied: ') ? words : `not applied: ${words}`;
-    }
-  }
-  const { rows, texts } = verified
-    ? diffRows(base!, p.hunks, PROPOSAL_CONTEXT_LINES)
-    : (() => {
-        const out: { rows: ProposalRow[]; texts: string[] } = { rows: [], texts: [] };
-        for (const h of p.hunks) {
-          h.del.forEach((l, j) => (out.rows.push({ kind: 'del', base: h.at + j }), out.texts.push(l)));
-          h.add.forEach((l) => (out.rows.push({ kind: 'add' }), out.texts.push(l)));
-        }
-        return out;
-      })();
-  let sameTake: boolean | undefined;
-  if (verified && (st.state === 'pending' || st.state === 'undone')) {
-    let since: ReturnType<typeof scenarioSinceRun>;
-    try {
-      // The take's snapshot read as the run's other files are (outputs/run-files.ts RunFolder: no link followed, capped).
-      const folder = await RunFolder.open(project.dir, checkRunId(r.thread.render.run_id));
-      const snap = folder ? await folder.read('scenario.yaml', SCENARIO_COMPARE_MAX_BYTES) : undefined;
-      since = scenarioSinceRun(project, { then: snap?.ok ? snap.bytes.toString('utf8') : undefined }, r.thread.scenario, joinLines(result!, textEol(today!.yaml)));
-    } catch {
-      since = undefined;
-    }
-    sameTake = since !== undefined && since.filmed !== undefined && since.filmed.length === 0;
-  }
+  const blocked = today && status === 'open' && st.actionable ? await applyBlocker(project, r, entry, today, o) : undefined;
+  const { rows, texts } = verified ? diffRows(base!, p.hunks, PROPOSAL_CONTEXT_LINES) : storedRows(p.hunks);
+  const sameTake = verified && (st.state === 'pending' || st.state === 'undone') ? await sameTakeOf(project, r.thread, result!, today!) : undefined;
   return {
     project: project.slug,
     comment_id: r.thread.id,
@@ -370,6 +383,6 @@ export async function proposalForPreview(
   const why = notActionable(r.thread, entry, today, 'previewed');
   if (why) throw why;
   const text = rebuildProposal(today, entry.proposal, 'previewed');
-  await checkProposedText(project, scenario, today, text, 'previewed', o);
+  await checkProposedText(project, { scenario, today, text, stage: 'previewed' }, o);
   return { comment_id: r.thread.id, entry: entry.id, text, result_sha256: entry.proposal.result_sha256, run_id: checkRunId(r.thread.render.run_id), base_sha256: today.hash, thread: r.thread };
 }

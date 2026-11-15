@@ -24,7 +24,7 @@
  * JPEG signature) before handing it on.
  */
 import { createServer, request } from 'node:http';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
@@ -178,6 +178,35 @@ async function writePrivate(file: string, text: string): Promise<void> {
 }
 
 /**
+ * The channel's sockets kept to LIVE_SOCKETS_MAX: room for a newcomer is made by closing the oldest socket without a
+ * stream, and a socket that carries no stream after LIVE_IDLE_MS is closed.
+ */
+function holdSockets(server: Server, sockets: Set<Socket>, streaming: Set<Socket>): void {
+  server.on('connection', (socket: Socket) => {
+    if (sockets.size >= LIVE_SOCKETS_MAX) {
+      // Room for the newcomer: the oldest socket without a stream goes (idle, refused, or still sending its request).
+      const idle = [...sockets].find((x) => !streaming.has(x));
+      if (!idle) {
+        socket.destroy();
+        return;
+      }
+      sockets.delete(idle);
+      idle.destroy();
+    }
+    sockets.add(socket);
+    const idleTimer = setTimeout(() => {
+      if (!streaming.has(socket)) socket.destroy();
+    }, LIVE_IDLE_MS);
+    idleTimer.unref();
+    socket.on('close', () => {
+      clearTimeout(idleTimer);
+      sockets.delete(socket);
+      streaming.delete(socket);
+    });
+  });
+}
+
+/**
  * Open the live channel of a running `run` job (the claiming worker only): the listener, then live.json. Frames the
  * sink receives go to the open streams; `wanted` is true while a stream is open.
  */
@@ -224,28 +253,7 @@ export async function openLiveChannel(o: { files: Pick<JobFiles, 'live'>; jobId:
     if (latest) stream.send(latest);
     if (streams.size === 1) notify();
   });
-  server.on('connection', (socket: Socket) => {
-    if (sockets.size >= LIVE_SOCKETS_MAX) {
-      // Room for the newcomer: the oldest socket without a stream goes (idle, refused, or still sending its request).
-      const idle = [...sockets].find((x) => !streaming.has(x));
-      if (!idle) {
-        socket.destroy();
-        return;
-      }
-      sockets.delete(idle);
-      idle.destroy();
-    }
-    sockets.add(socket);
-    const idleTimer = setTimeout(() => {
-      if (!streaming.has(socket)) socket.destroy();
-    }, LIVE_IDLE_MS);
-    idleTimer.unref();
-    socket.on('close', () => {
-      clearTimeout(idleTimer);
-      sockets.delete(socket);
-      streaming.delete(socket);
-    });
-  });
+  holdSockets(server, sockets, streaming);
   port = await listenLoopback(server, 0);
   const info: LiveChannelInfo = { v: LIVE_FILE_VERSION, port, token, job: o.jobId, run: o.runId, pid: o.worker.pid, ...(o.worker.started_at ? { started_at: o.worker.started_at } : {}) };
   try {

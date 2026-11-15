@@ -94,7 +94,8 @@ describe("the launch of a persona's profile", () => {
     // Kept as an order check of the two headed launches (a behaviour test would sign a persona in
     // through a visible window), loosened to the calls' names and the profile they are handed — not their statements.
     // The headless launch's refusal is the behaviour case above.
-    const headed = login.slice(login.indexOf('async function headedSession'));
+    // The headed sign-in window is launched by launchSignInBrowser (headedSession's first call).
+    const headed = login.slice(login.indexOf('async function launchSignInBrowser'));
     const launch = headed.indexOf('chromium.launchPersistentContext(userDataDir');
     // The version argument is pinned (review fix): the major the launch will run, checked and then recorded.
     const major = headed.search(/\bconst major = launchMajor\(\{ executablePath, channel \}\)/);

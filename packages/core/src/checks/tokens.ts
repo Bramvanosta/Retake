@@ -110,7 +110,8 @@ export function checkVarsValues(vars: unknown, path: IssuePath, ctx: CheckContex
  * Check every {{token}} found in the strings of `value` (recursively). `note` fields are skipped;
  * `{{response.*}}` is accepted under a `rollback` key; `rules` forbids tokens or secrets at some paths.
  */
-export function checkTokens(value: unknown, path: IssuePath, scope: TokenScope, ctx: CheckContext, inRollback = false, rules?: TokenRules): void {
+export function checkTokens(value: unknown, path: IssuePath, scope: TokenScope, ctx: CheckContext, walk: { inRollback?: boolean; rules?: TokenRules } = {}): void {
+  const { inRollback = false, rules } = walk;
   if (typeof value === 'string') {
     const exprs = listTemplateTokens(value);
     if (exprs.length && rules?.literal?.(path, value)) {
@@ -129,11 +130,11 @@ export function checkTokens(value: unknown, path: IssuePath, scope: TokenScope, 
       checkToken(expr, path, scope, inRollback, ctx);
     }
   } else if (Array.isArray(value)) {
-    value.forEach((v, i) => checkTokens(v, [...path, i], scope, ctx, inRollback, rules));
+    value.forEach((v, i) => checkTokens(v, [...path, i], scope, ctx, { inRollback, rules }));
   } else if (isObj(value)) {
     for (const [k, v] of Object.entries(value)) {
       if (k === 'note') continue;
-      checkTokens(v, [...path, k], scope, ctx, inRollback || k === 'rollback', rules);
+      checkTokens(v, [...path, k], scope, ctx, { inRollback: inRollback || k === 'rollback', rules });
     }
   }
 }

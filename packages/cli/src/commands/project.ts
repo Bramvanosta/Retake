@@ -195,7 +195,7 @@ async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject
       }
       const persona = resolvePersonas(project, env, { home: retakeHome() }).find((p) => p.name === name)!;
       try {
-        const r = await signInPersona(ui, global, project, resolveEnvironment(project, env), persona, { policy });
+        const r = await signInPersona(ui, global, { project, env: resolveEnvironment(project, env), persona }, { policy });
         if (r === EXIT.interrupted) {
           asking = false;
           code = r;

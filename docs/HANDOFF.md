@@ -75,6 +75,70 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.57b)
+- **L7.57b done (2026-11-15; branch `claude/arch-l7`)** — the size baseline 176 → 18 entries: no file over 1,000
+  lines left, files over 500 lines 96 → 49, functions over 100 lines 124 → 5, parameter lists over 5 38 → 12,
+  nesting over 5 7 → 1 (functions over 50 lines 503 → 516: the splits' helpers).
+  - Code: mechanical moves into sibling files by responsibility, the original file re-exporting every name it
+    exported. The seven files over 1,000: core recording.ts 1,786 → 279 (recording-events / -draft / -targets /
+    -walk 707 (the EventWalk class, one unit) / -annotate), agent-policy.ts 1,299 → 415 (agent-env,
+    agent-shell-words, browser-switches, work-policy, navigation-policy, real-path), shell-hosts.ts 1,128 → 304
+    (shell-hosts-scan / -tables / -tools), blocks.ts 1,083 → 434 (blocks-model, block-words, block-nodes); engine
+    record-studio.ts 1,161 → 305 (record-folder, record-situation, record-view, record-save); runner-web session.ts
+    1,095 → 493 (kit-client, kit-bindings, browser-args, browser-state, browser-reports, page-emulation,
+    session-options); sandbox compose.ts 1,164 → 473 (compose-parse, compose-project, compose-runner: a base class
+    ComposeProvider extends, its members `protected`). Others below 500: the Studio's AppShell 743 → 404, SetupSheet,
+    ShootPrepare 635 → 253, ShootLive, run-live (shoot), shoot-data, Storyboard, ScenarioScreen, YamlTab,
+    ScenarioInspector, StepForm, GalleryScreen 865 → 184, ProductionsScreen, TimelineScreen 944 → 413,
+    TimelineInspector, LibraryScreen, LibraryInspector, ThemeEditor, ThemesScreen, ThemeFields, ReviewScreen,
+    FrameViewer, ui-kit panes; the Studio server's setup-ops, studio, player, run-live 855 → 295; review.ts;
+    core step-edits, checks/sandbox, auth, shell-words, script-draft; editor timing, render/render 965 → 450,
+    render/preview 790 → 331, camera; engine record, prune, brand/create; runner-web record-session, site/extract,
+    raw/export, scenes 778 → 374; components manifest. Every Studio sibling sits in its own feature folder.
+  - Long functions split (119, into named helpers, hook-free sub-components, or custom hooks called in the same
+    order): every one of the list but five, kept with their reason in the baseline: pageRecorder, idbInPage, readFacts
+    and installCursor run in the page (serialised or the page kit); ScreencastRecorder › attach's CDP handlers share one
+    attach's mutable state.
+  - Parameter lists: 25 internal ones to options objects (24 of the 25 not reviewed, and cellsOf) (useStepEditor, RunStream, runOne, confirmDestructive,
+    cellsOf, pathProblem, insertion, checkWriteRules, checkAccounts, checkTokens, signInGuard, motionCapture, otioClip
+    (was clipItem), checkProposedText, checkWorkspaceProtection, renderView, RunData, computeText, factsOf,
+    editOfToday, runCamera, signInPersona, commentAdd / commentReplyCommand, recordCommand); `planActing` is public
+    (the `@retake/editor/plan` entry) and joins the public group. `agentWrittenShellHooks` (exported, no caller) is deleted. Left: 7 public, 2 commander callbacks, 3 per-frame.
+  - Audit lists: `CORE_CONTEXTS` (scripts/audit/lib.mjs) gains the 26 new core files, each in its original's
+    context; the R14 group of `scripts/audit/baseline.json` gains `render/preview-session.ts → @retake/components`
+    (the same dependency, moved with previewSession; 62 → 63 entries, the reason says why).
+  - Tests touched (no title or expect lost, test-guard no decrease): app-source's per-side lists name the new
+    siblings (PROJECT, SCENARIO, SHOOT, EDIT_REVIEW, COMMENTS, LIBRARY sides, the shell's ratchet loop, shoot's op
+    check); caller.test reads the four record-studio siblings; profile-browser reads the sign-in launch from
+    `launchSignInBrowser`; app-bundle reads openSession from `render/render-session.ts`; props-contract's inputProps lint
+    covers every `render/*.ts` that names inputProps (preview-backend, render-stills, render); ids-characterization, unit (motionCapture)
+    and cli record.test call the new signatures.
+  - Test accommodation, then a sturdier match: the split's inner hex field of ColorField took `testId` and `picker`,
+    and the themes e2e's fiber walker, which matched a props shape, counted each field twice (60 for 30; the product
+    had no bug). A prop rename first dodged it; now the walker matches the ColorField component itself (the function
+    component whose own root is the kit's `k-color` wrapper with its test id), and the inner field keeps `picker`.
+  - Boy scout: after a run ends, the status bar no longer flashes an enabled Pause and Stop for it (ShootLive keeps
+    the `actions` slot claimed, empty, while the scenario's actions still name the ended run); the `// TEMP` debug
+    read of an old-prefixed variable in browser-driver's transitions() is removed.
+  - Tests: 40 files each alone with a fresh RETAKE_HOME and RETAKE_DISK_WARN=off after the clean build (core
+    size-limits, import-rules, shell-hosts, recording, agent-policy, blocks, step-edits, sandbox, auth, shell-words;
+    engine caller, ids-characterization, record-studio, jobs; runner-web profile-browser, unit, record-session, run;
+    editor planner-golden, props-contract, preview-loops; review; cli record, comment; ui app-source,
+    feature-boundaries, run-live; Chromium e2e run, shoot, themes, kit, setup, timeline, scenario, library, review,
+    record, edit, yaml, comments), all green (studio-e2e-run three times in a row after the status-bar fix);
+    the helpers ran about 150 more files alone.
+  - Gates: clean build (every `packages/*/dist` and `*.tsbuildinfo` removed, `npx tsc -b` 0), `pnpm typecheck`,
+    `pnpm lint` (0), `pnpm format:check`, `rules.mjs --check` (63), `size-limits.mjs --check` (18, strict),
+    `test-guard` no decrease, `--check-cites` with the requirement edits.
+  - Requirement evidence moved (edits file): R-LES-02, R-MOD-06 (cameraFor → runner-web scene-step.ts), R-SCN-04,
+    R-MOD-02, R-MOD-03, R-CHO-21 (runStep → scene-step.ts), R-SCN-07 (overlayFor → scene-step.ts), R-KIT-10
+    (ERROR_DOM_MAX → step-failure.ts), R-PRIN-05, R-RUN-02 (kit re-install → kit-client.ts), R-CMP-02
+    (ComponentManifestFileSchema → manifest-schema.ts), R-ISS-08, R-CHO-24 (loadsBesideOtherPages, quickRunSpans,
+    QUICK_RUN_SPEED → timing-spans.ts).
+  - Not done: 49 files over 500 lines (recording-walk 707, runtime, scenario-view, project-board, checks/scenario,
+    render-record (pinned by the record-read rule), browser-driver 935 …); the line-number citations of
+    docs/requirements.json (`scenes.ts:285-322`, `session.ts:237-275` …) were stale before and are more so.
+
 ## State (after L7.57)
 - **L7.57 done (2026-11-15; branch `claude/arch-l7`)** — CC-N1: a size ratchet and the worst offenders split.
   - Code: `scripts/audit/size-limits.mjs` (TypeScript AST over `packages/*/src`: file lines > 1,000, function lines

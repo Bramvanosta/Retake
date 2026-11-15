@@ -76,7 +76,7 @@ function preflight(hooks: HookStep[], ctx: HookContext, phase: HookPhase): HookR
   return failures;
 }
 
-async function confirmDestructive(hook: HookStep, reason: string, description: string, ctx: HookContext, log: Log, request: HookApprovalRequest) {
+async function confirmDestructive({ hook, reason, description, ctx, log, request }: { hook: HookStep; reason: string; description: string; ctx: HookContext; log: Log; request: HookApprovalRequest }) {
   // Through MCP (trust `mcp`), the agent can write `confirm: true` itself: only a human approval counts.
   const mcp = ctx.trust === 'mcp';
   if (!mcp && hook.confirm === true) return;
@@ -124,7 +124,68 @@ async function journalOutcome(journal: Journal, entry: Omit<JournalEntry, 'seq'>
   return { result, entry: stored };
 }
 
-async function runOne(hook: HookStep, index: number, total: number, ctx: HookContext, opts: RunHooksOptions, log: Log): Promise<Attempt> {
+/**
+ * The files a hook references, checked before it is prepared: through MCP (core agent-trust) they stay in the project,
+ * and the files a person checked before the run are still those.
+ */
+async function checkedFiles(hook: HookStep, ctx: HookContext, opts: RunHooksOptions): Promise<{ files: Record<string, string> | undefined; agentWritten: boolean }> {
+  // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
+  // code; their bytes are bound to its approval (fingerprint).
+  let files: Record<string, string> | undefined;
+  const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
+  if (ctx.trust === 'mcp') {
+    // An agent-written shell hook's words are judged by core agentShellProblems instead (kinds/shell.ts).
+    const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx), ...(agentWritten ? { agentWritten } : {}) });
+    if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
+    files = found.files;
+  }
+  // The files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is
+  // refused.
+  if (!ctx.dryRun) {
+    const changed = await trustedFilesProblem(hook, ctx);
+    if (changed.length) throw new HookSecurityError(trustedFilesMessage(changed), 'trust');
+  }
+  return { files, agentWritten };
+}
+
+/** The human approval a prepared hook needs before it runs (approvalReason), or none. */
+function approvalRequest({
+  hook,
+  kind,
+  prepared,
+  ctx,
+  phase,
+  index,
+  files,
+  agentWritten,
+}: {
+  hook: HookStep;
+  kind: HookKind;
+  prepared: PreparedHook;
+  ctx: HookContext;
+  phase: HookPhase;
+  index: number;
+  files: Record<string, string> | undefined;
+  agentWritten: boolean;
+}): { reason: string | null; request: HookApprovalRequest | undefined } {
+  const reason = approvalReason(hook, kind, prepared, ctx, agentWritten);
+  // A seed rebuilds a local, disposable sandbox: destructive steps are its job, never asked about. With trust
+  // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
+  const asks = reason !== null && (phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));
+  const request: HookApprovalRequest | undefined = asks
+    ? {
+        hook,
+        phase,
+        index,
+        env: ctx.env.name,
+        ...(files && Object.keys(files).length ? { files } : {}),
+        fingerprint: hookFingerprint(hook, { phase, index, env: ctx.env.name, ...(files ? { files } : {}) }),
+      }
+    : undefined;
+  return { reason, request };
+}
+
+async function runOne({ hook, index, total, ctx, opts, log }: { hook: HookStep; index: number; total: number; ctx: HookContext; opts: RunHooksOptions; log: Log }): Promise<Attempt> {
   const t0 = Date.now();
   const startedAt = nowIso();
   const label = `${opts.phase} hook ${index + 1}/${total}`;
@@ -172,25 +233,9 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   });
 
   let prepared: PreparedHook;
-  let agentWritten = false;
   try {
     if (kind === 'js' && opts.phase === 'seed') throw new HookError(SEED_NO_JS);
-    // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
-    // code; their bytes are bound to its approval (fingerprint).
-    let files: Record<string, string> | undefined;
-    agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
-    if (ctx.trust === 'mcp') {
-      // An agent-written shell hook's words are judged by core agentShellProblems instead (kinds/shell.ts).
-      const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx), ...(agentWritten ? { agentWritten } : {}) });
-      if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
-      files = found.files;
-    }
-    // The files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is
-    // refused.
-    if (!ctx.dryRun) {
-      const changed = await trustedFilesProblem(hook, ctx);
-      if (changed.length) throw new HookSecurityError(trustedFilesMessage(changed), 'trust');
-    }
+    const { files, agentWritten } = await checkedFiles(hook, ctx, opts);
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log, ...(agentWritten ? { agentWritten } : {}) });
     description = withName(hook.name, prepared.description);
     if (prepared.rollback) rollbackShown = prepared.rollback.description;
@@ -203,23 +248,10 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     }
     // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
     if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
-    const reason = approvalReason(hook, kind, prepared, ctx, agentWritten);
-    // A seed rebuilds a local, disposable sandbox: destructive steps are its job, never asked about. With trust
-    // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
-    const asks = reason !== null && (opts.phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));
-    const request: HookApprovalRequest | undefined = asks
-      ? {
-          hook,
-          phase: opts.phase,
-          index,
-          env: ctx.env.name,
-          ...(files && Object.keys(files).length ? { files } : {}),
-          fingerprint: hookFingerprint(hook, { phase: opts.phase, index, env: ctx.env.name, ...(files ? { files } : {}) }),
-        }
-      : undefined;
+    const { reason, request } = approvalRequest({ hook, kind, prepared, ctx, phase: opts.phase, index, files, agentWritten });
     if (request) approval = { reason: reason!, fingerprint: request.fingerprint };
     // A dry run through MCP asks nobody: its result says which hooks a real run needs approved.
-    if (request && !(ctx.dryRun && ctx.trust === 'mcp')) await confirmDestructive(hook, reason!, description, ctx, log, request);
+    if (request && !(ctx.dryRun && ctx.trust === 'mcp')) await confirmDestructive({ hook, reason: reason!, description, ctx, log, request });
     if (ctx.dryRun) {
       const saveAs = kind === 'http' ? (hook as { http: HttpHookSpec }).http.save_as : undefined;
       if (saveAs) addDrySaved(ctx, saveAs);
@@ -306,7 +338,7 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
     }
     // A run held to trusted files holds them as this hook leaves them (holdAfter).
     const point = ctx.trustedFiles && !ctx.dryRun ? await holdBefore(hooks[i] as HookStep, ctx) : undefined;
-    const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
+    const { result, entry } = await runOne({ hook: hooks[i], index: i, total: hooks.length, ctx, opts, log });
     if (point) await holdAfter(ctx, point, result.status);
     await recordHookRun(ctx, result);
     results.push(result);

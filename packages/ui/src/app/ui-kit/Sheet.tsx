@@ -21,7 +21,7 @@
  * answer an action id of its own (`escapeAction`: closing without the choice its visible button records).
  */
 import { useEffect, useId, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode, RefObject } from 'react';
 import { Button } from './Button.js';
 import type { ButtonVariant } from './Button.js';
 import { shown } from '../bits.js';
@@ -96,49 +96,7 @@ export function Sheet({
   const cancel = actions.find((a) => a.isCancel);
   const escapeId = escapeAction ?? cancel?.id;
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const openNow = useRef(open);
-  openNow.current = open;
-  // Bumped when the platform closes the dialog while its owner still holds it open (below).
-  const [resync, setResync] = useState(0);
-  // The `close` events still to come of closings this sheet made itself (already answered when it closed).
-  const ownCloses = useRef(0);
-  const giveBack = () => {
-    const back = opener.current;
-    opener.current = null;
-    (back?.isConnected ? back : document.getElementById('main'))?.focus();
-  };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on open/close and on `resync` (the platform closed it) only; focusTitle is read at opening, giveBack only touches refs
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) {
-      if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
-      d.showModal();
-      (focusTitle ? titleRef.current : firstFocus(d))?.focus();
-    } else if (!open && d.open) {
-      ownCloses.current += 1;
-      d.close();
-      giveBack();
-    } else if (!open && opener.current) giveBack();
-  }, [open, resync]);
-  const onClose = () => {
-    // The late event of a closing of its own: the focus went back when it closed.
-    if (ownCloses.current > 0) {
-      ownCloses.current -= 1;
-      return;
-    }
-    // A close event of an earlier closing that lands after the sheet opened again: not this one's.
-    if (ref.current?.open) return;
-    // The platform may close a modal dialog by itself (Chromium's close watcher lets a page refuse Escape
-    // once per user activation) while the owner still holds it open — that is the cancel action, and if the owner keeps
-    // the sheet open (a busy one, or no cancel at all) it shows again rather than leaving the two out of step.
-    if (openNow.current) {
-      if (escapeId) onAction(escapeId);
-      setResync((n) => n + 1);
-      return;
-    }
-    giveBack();
-  };
+  const onClose = useSheetDialog({ open, ref, opener, titleRef, focusTitle, escapeId, onAction });
   // Return in a one-line text field: the default action, when it is on (a text area keeps its Return). Return on a
   // focused destructive action never presses it: the default instead, when it is on — else nothing.
   const onKeyDown = (e: KeyboardEvent<HTMLDialogElement>) => {
@@ -189,4 +147,65 @@ export function Sheet({
       </div>
     </dialog>
   );
+}
+
+/** What the sheet's dialog reads: its open state, its refs (the dialog, the opener, the title), and the Escape answer. */
+interface SheetDialog {
+  open: boolean;
+  ref: RefObject<HTMLDialogElement | null>;
+  opener: RefObject<HTMLElement | null>;
+  titleRef: RefObject<HTMLHeadingElement | null>;
+  focusTitle: boolean | undefined;
+  escapeId: string | undefined;
+  onAction: (id: string) => void;
+}
+
+/**
+ * The dialog shown modal while `open` (the focus on its first stop, or the title), closed when not — the focus given back
+ * at once; the answer is the `close` handler, for a closing the platform made while the owner still holds it open.
+ */
+function useSheetDialog({ open, ref, opener, titleRef, focusTitle, escapeId, onAction }: SheetDialog): () => void {
+  const openNow = useRef(open);
+  openNow.current = open;
+  // Bumped when the platform closes the dialog while its owner still holds it open (below).
+  const [resync, setResync] = useState(0);
+  // The `close` events still to come of closings this sheet made itself (already answered when it closed).
+  const ownCloses = useRef(0);
+  const giveBack = () => {
+    const back = opener.current;
+    opener.current = null;
+    (back?.isConnected ? back : document.getElementById('main'))?.focus();
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on open/close and on `resync` (the platform closed it) only; focusTitle is read at opening, giveBack only touches refs
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) {
+      if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
+      d.showModal();
+      (focusTitle ? titleRef.current : firstFocus(d))?.focus();
+    } else if (!open && d.open) {
+      ownCloses.current += 1;
+      d.close();
+      giveBack();
+    } else if (!open && opener.current) giveBack();
+  }, [open, resync]);
+  return () => {
+    // The late event of a closing of its own: the focus went back when it closed.
+    if (ownCloses.current > 0) {
+      ownCloses.current -= 1;
+      return;
+    }
+    // A close event of an earlier closing that lands after the sheet opened again: not this one's.
+    if (ref.current?.open) return;
+    // The platform may close a modal dialog by itself (Chromium's close watcher lets a page refuse Escape
+    // once per user activation) while the owner still holds it open — that is the cancel action, and if the owner keeps
+    // the sheet open (a busy one, or no cancel at all) it shows again rather than leaving the two out of step.
+    if (openNow.current) {
+      if (escapeId) onAction(escapeId);
+      setResync((n) => n + 1);
+      return;
+    }
+    giveBack();
+  };
 }

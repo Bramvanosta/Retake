@@ -36,7 +36,8 @@ const ACTIONS = new Set(['pointer', 'type', 'key', 'select_native', 'file']);
  * text goes only to the draft and the recording's folder; this command prints counts, step references and write labels.
  * Exit 1 when nothing was recorded, the draft was not valid, or the check replay failed.
  */
-export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: string, name: string | undefined, opts: RecordCommandOptions, hooks: RecordTestHooks = {}): Promise<ExitCode> {
+export async function recordCommand(ui: Ui, global: GlobalOptions, args: { project: string; name: string | undefined }, opts: RecordCommandOptions, hooks: RecordTestHooks = {}): Promise<ExitCode> {
+  const { project: projectArg, name } = args;
   if (opts.url !== undefined && (opts.page !== undefined || opts.path !== undefined)) throw new UsageError('--url goes alone (it names the page and the path): leave --page and --path out');
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);

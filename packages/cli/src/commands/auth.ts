@@ -69,11 +69,10 @@ function cliLoginError(e: unknown): unknown {
 export async function signInPersona(
   ui: Ui,
   global: GlobalOptions,
-  project: LoadedProject,
-  env: { name: string; pages: Record<string, string> },
-  persona: ResolvedPersona,
+  target: { project: LoadedProject; env: { name: string; pages: Record<string, string> }; persona: ResolvedPersona },
   opts: { auto?: boolean; page?: string; url?: string; policy: WorkPolicy },
 ): Promise<ExitCode> {
+  const { project, env, persona } = target;
   const c = ui.c;
   const mode = opts.auto ? 'auto' : 'headed';
   const who = `${c.bold(persona.name)} ${c.dim(`(env ${env.name})`)}`;
@@ -146,7 +145,7 @@ export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: st
   } catch (e) {
     throw cliLoginError(e);
   }
-  return signInPersona(ui, global, project, target.env, target.persona, { ...opts, policy: ws.policy });
+  return signInPersona(ui, global, { project, env: target.env, persona: target.persona }, { ...opts, policy: ws.policy });
 }
 
 // ── retake auth status ───────────────────────────────────────────────────────

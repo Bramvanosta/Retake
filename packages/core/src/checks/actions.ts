@@ -39,7 +39,7 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
   const ap: IssuePath = [...sp, step.action];
   const a = step.args as unknown as Record<string, unknown>;
   const rawArg = (step.raw as Record<string, unknown>)[step.action];
-  const target = (t: unknown, ...keys: Array<string | number>) => checkTarget(t, [...ap, ...keys], ctx);
+  const target: TargetCheck = (t, ...keys) => checkTarget(t, [...ap, ...keys], ctx);
 
   switch (step.action) {
     case 'click':
@@ -76,42 +76,18 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       target(a.row, 'row');
       target(a.trigger, 'trigger');
       break;
-    case 'date': {
-      target(a.field, 'field');
-      target(a.next, 'next');
-      target(a.previous, 'previous');
-      const days = Array.isArray(a.day) ? (a.day as unknown[]) : [a.day];
-      days.forEach((d, i) => {
-        if (typeof d !== 'string' || d.includes('{{') || parseDay(d) !== null) return;
-        // Not a date the runner reads (ISO, English long forms): matched as words of the day labels.
-        const path = typeof rawArg === 'string' ? ap : Array.isArray(a.day) ? [...ap, 'day', i] : [...ap, 'day'];
-        const what = /\b(1[89]|2\d)\d{2}\b/.test(d) ? 'is not a date the runner reads (2027-01-10, 10 January 2027, January 10, 2027)' : 'has no year';
-        ctx.warning(path, `"${d}" ${what}: it is matched by its label only, and the calendar can only be paged forward to find it`);
-      });
+    case 'date':
+      checkDate(a, ap, rawArg, target, ctx);
       break;
-    }
-    case 'scroll': {
-      if (a.to === undefined && a.by === undefined) ctx.error(ap, 'scroll needs `to` or `by`');
-      else if (a.to !== undefined && a.by !== undefined) ctx.error(ap, 'scroll takes `to` or `by`, not both');
-      const toIsTarget = a.to !== undefined && typeof a.to !== 'number' && a.to !== 'top' && a.to !== 'bottom';
-      if (a.offset !== undefined && !toIsTarget) ctx.warning([...ap, 'offset'], '`offset` only applies when `to` is a target');
-      if (toIsTarget) target(a.to, 'to');
-      target(a.in, 'in');
+    case 'scroll':
+      checkScroll(a, ap, target, ctx);
       break;
-    }
     case 'drag':
       target(a.from, 'from');
       target(a.to, 'to');
       break;
     case 'drop_file':
-      if (a.path === undefined && a.fake !== true) {
-        ctx.error(ap, 'drop_file needs `path` (a file in the project) or `fake: true` with `name`');
-      }
-      if (a.fake === true && a.name === undefined) ctx.error(ap, '`fake: true` needs a file `name`');
-      if (a.fake === true && a.path !== undefined) ctx.warning([...ap, 'path'], '`path` is ignored with `fake: true`');
-      if (typeof a.path === 'string' && a.fake !== true) ctx.file(a.path, [...ap, 'path'], 'file', 'error');
-      target(a.zone, 'zone');
-      target(a.input, 'input');
+      checkDropFile(a, ap, target, ctx);
       break;
     case 'wait_for':
     case 'assert': {
@@ -134,40 +110,15 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       if (typeof a.file === 'string') ctx.file(a.file, [...ap, 'file'], 'JS file', 'error');
       break;
     case 'cursor':
-      if (isObj(rawArg)) {
-        if (rawArg.move === undefined && rawArg.set === undefined && rawArg.show === undefined) {
-          ctx.error(ap, 'cursor needs `move`, `set` or `show`');
-        } else if (rawArg.move !== undefined && rawArg.set !== undefined) {
-          ctx.error(ap, 'cursor takes `move` or `set`, not both');
-        }
-        target(rawArg.move, 'move');
-      }
+      checkCursor(rawArg, ap, target, ctx);
       break;
     case 'open':
       return typeof a.page === 'string' ? { openPage: { page: a.page, path: [...ap, 'page'] } } : {};
     case 'wait_for_email':
-      if (a.to === undefined && a.from === undefined && a.subject === undefined) {
-        ctx.warning(ap, 'wait_for_email without `to`, `from` or `subject` captures the first new message, whatever it is');
-      }
-      if (typeof a.subject === 'string' && /^\/.*\/[a-z]*$/.test(a.subject)) {
-        const m = /^\/(.*)\/([a-z]*)$/.exec(a.subject)!;
-        try {
-          new RegExp(m[1], m[2]);
-        } catch (e) {
-          ctx.error([...ap, 'subject'], `invalid regular expression ${a.subject}: ${errorMessage(e)}`);
-        }
-      }
+      checkEmailFilter(a, ap, ctx);
       return typeof a.as === 'string' ? { artefact: { kind: 'email', name: a.as, path: [...ap, 'as'] } } : {};
     case 'capture_text':
-      target(a.target, 'target');
-      if (typeof a.pattern === 'string') {
-        const m = /^\/(.*)\/([a-z]*)$/.exec(a.pattern);
-        try {
-          new RegExp(m ? m[1] : a.pattern, m ? m[2] : '');
-        } catch (e) {
-          ctx.error([...ap, 'pattern'], `invalid regular expression ${a.pattern}: ${errorMessage(e)}`);
-        }
-      }
+      checkCaptureText(a, ap, target, ctx);
       return typeof a.as === 'string' ? { artefact: { kind: 'text', name: a.as, path: [...ap, 'as'] } } : {};
     case 'download':
       target(pickTarget(a.click as Record<string, unknown>), 'click');
@@ -176,4 +127,85 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       break;
   }
   return {};
+}
+
+/** Checks a target found at keys under the step's action (checkTarget). */
+type TargetCheck = (t: unknown, ...keys: Array<string | number>) => void;
+type Args = Record<string, unknown>;
+
+/** date: its targets, and each day the runner cannot read as a date (matched by its label only). */
+function checkDate(a: Args, ap: IssuePath, rawArg: unknown, target: TargetCheck, ctx: CheckContext): void {
+  target(a.field, 'field');
+  target(a.next, 'next');
+  target(a.previous, 'previous');
+  const days = Array.isArray(a.day) ? (a.day as unknown[]) : [a.day];
+  days.forEach((d, i) => {
+    if (typeof d !== 'string' || d.includes('{{') || parseDay(d) !== null) return;
+    // Not a date the runner reads (ISO, English long forms): matched as words of the day labels.
+    const path = typeof rawArg === 'string' ? ap : Array.isArray(a.day) ? [...ap, 'day', i] : [...ap, 'day'];
+    const what = /\b(1[89]|2\d)\d{2}\b/.test(d) ? 'is not a date the runner reads (2027-01-10, 10 January 2027, January 10, 2027)' : 'has no year';
+    ctx.warning(path, `"${d}" ${what}: it is matched by its label only, and the calendar can only be paged forward to find it`);
+  });
+}
+
+/** scroll: `to` or `by`, `offset` only with a target. */
+function checkScroll(a: Args, ap: IssuePath, target: TargetCheck, ctx: CheckContext): void {
+  if (a.to === undefined && a.by === undefined) ctx.error(ap, 'scroll needs `to` or `by`');
+  else if (a.to !== undefined && a.by !== undefined) ctx.error(ap, 'scroll takes `to` or `by`, not both');
+  const toIsTarget = a.to !== undefined && typeof a.to !== 'number' && a.to !== 'top' && a.to !== 'bottom';
+  if (a.offset !== undefined && !toIsTarget) ctx.warning([...ap, 'offset'], '`offset` only applies when `to` is a target');
+  if (toIsTarget) target(a.to, 'to');
+  target(a.in, 'in');
+}
+
+/** drop_file: a project file or a fake one with its name. */
+function checkDropFile(a: Args, ap: IssuePath, target: TargetCheck, ctx: CheckContext): void {
+  if (a.path === undefined && a.fake !== true) {
+    ctx.error(ap, 'drop_file needs `path` (a file in the project) or `fake: true` with `name`');
+  }
+  if (a.fake === true && a.name === undefined) ctx.error(ap, '`fake: true` needs a file `name`');
+  if (a.fake === true && a.path !== undefined) ctx.warning([...ap, 'path'], '`path` is ignored with `fake: true`');
+  if (typeof a.path === 'string' && a.fake !== true) ctx.file(a.path, [...ap, 'path'], 'file', 'error');
+  target(a.zone, 'zone');
+  target(a.input, 'input');
+}
+
+/** cursor (its long form): `move`, `set` or `show`, not `move` and `set`. */
+function checkCursor(rawArg: unknown, ap: IssuePath, target: TargetCheck, ctx: CheckContext): void {
+  if (isObj(rawArg)) {
+    if (rawArg.move === undefined && rawArg.set === undefined && rawArg.show === undefined) {
+      ctx.error(ap, 'cursor needs `move`, `set` or `show`');
+    } else if (rawArg.move !== undefined && rawArg.set !== undefined) {
+      ctx.error(ap, 'cursor takes `move` or `set`, not both');
+    }
+    target(rawArg.move, 'move');
+  }
+}
+
+/** wait_for_email: some filter, and a `/…/` subject that compiles. */
+function checkEmailFilter(a: Args, ap: IssuePath, ctx: CheckContext): void {
+  if (a.to === undefined && a.from === undefined && a.subject === undefined) {
+    ctx.warning(ap, 'wait_for_email without `to`, `from` or `subject` captures the first new message, whatever it is');
+  }
+  if (typeof a.subject === 'string' && /^\/.*\/[a-z]*$/.test(a.subject)) {
+    const m = /^\/(.*)\/([a-z]*)$/.exec(a.subject)!;
+    try {
+      new RegExp(m[1], m[2]);
+    } catch (e) {
+      ctx.error([...ap, 'subject'], `invalid regular expression ${a.subject}: ${errorMessage(e)}`);
+    }
+  }
+}
+
+/** capture_text: its target, and a pattern that compiles. */
+function checkCaptureText(a: Args, ap: IssuePath, target: TargetCheck, ctx: CheckContext): void {
+  target(a.target, 'target');
+  if (typeof a.pattern === 'string') {
+    const m = /^\/(.*)\/([a-z]*)$/.exec(a.pattern);
+    try {
+      new RegExp(m ? m[1] : a.pattern, m ? m[2] : '');
+    } catch (e) {
+      ctx.error([...ap, 'pattern'], `invalid regular expression ${a.pattern}: ${errorMessage(e)}`);
+    }
+  }
 }

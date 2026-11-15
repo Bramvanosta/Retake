@@ -15,6 +15,7 @@ import type { MailSummary } from '../artefacts/mailbox.js';
 import { imageSize, sniffMime } from '../artefacts/store.js';
 import { StepError, errorMessage, isCancelled } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
+import type { Resolved } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
 import { closePage } from '../write-guard.js';
@@ -192,13 +193,12 @@ async function fetchDocument(ctx: StepContext, url: string, timeoutMs: number, a
   }
 }
 
-export async function download(ctx: StepContext, args: NormalizedArgsMap['download']): Promise<ActionResult> {
-  const { rt } = ctx;
-  if (rt.artefacts.has('document', args.as)) throw new StepError(`download: a document named "${args.as}" was already captured in this run`);
-  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? rt.defaultTimeoutS ?? ARTEFACT_TIMEOUT_S) * 1000;
-  const page = rt.page;
+/**
+ * Click for the document: listening before the click for a download (on this page or on a tab the click opens), or a
+ * new tab's document. The tabs the click opened are the caller's to close.
+ */
+async function clickForDocument(ctx: StepContext, page: Page, r: Resolved, timeoutMs: number): Promise<{ run: ClickRun; captured: Captured; tabs: Page[] }> {
   const context = page.context();
-  const r = await resolveTarget(ctx, args.click);
   // Listen before clicking: the download event (on this page or on a tab the click opens), or a new tab's document.
   let settle: (c: Captured) => void = () => undefined;
   const got = new Promise<Captured>((resolve) => (settle = resolve));
@@ -222,23 +222,31 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
   };
   page.on('download', onDownload);
   context.on('page', onPage);
-  let run: ClickRun;
-  let captured: Captured;
   try {
-    run = await clickResolved(ctx, r, { expect_popup: false });
+    const run = await clickResolved(ctx, r, { expect_popup: false });
     const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
     const c = await Promise.race([got, timer]);
     if (!c) throw new StepError(`download: clicking ${r.desc} produced no download and opened no document within ${timeoutMs / 1000} s`);
-    captured = c;
+    return { run, captured: c, tabs };
   } finally {
     page.off('download', onDownload);
     context.off('page', onPage);
   }
+}
 
+/** The captured document's bytes and name: the download's file (fetched again on a broken transfer), or the tab's document. */
+async function readCaptured(
+  ctx: StepContext,
+  page: Page,
+  captured: Captured,
+  o: { name: string; timeoutMs: number },
+): Promise<{ bytes: Buffer; fileName: string; contentType: string; url: string | undefined; attempts: number }> {
+  const { rt } = ctx;
+  const { name, timeoutMs } = o;
   // Never a sign-in page saved as the document: the URL of the download, of the tab and of the fetched document
   // are checked like the page's own (its persona's sign-in pages) — a landing fails the run, which keeps nothing.
   const signIn = (u: string): void => {
-    const e = rt.guard?.check(rt.activeId ?? '', page, u, `the document of download "${args.as}"`);
+    const e = rt.guard?.check(rt.activeId ?? '', page, u, `the document of download "${name}"`);
     if (e) throw e;
   };
   let bytes: Buffer;
@@ -246,50 +254,63 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
   let contentType = '';
   let url: string | undefined;
   let attempts = 1;
-  try {
-    if (captured.via === 'download') {
-      const d = captured.download;
-      url = d.url();
-      signIn(url);
-      fileName = d.suggestedFilename();
-      let failed: string | null = null;
-      const path = await d.path().catch((e: unknown) => {
-        failed = errorMessage(e);
-        return null;
-      });
-      // The browser's own reason ("network error", "canceled") says more than path()'s.
-      if (failed || !path) failed = [await d.failure().catch(() => null), failed].filter(Boolean).join(': ') || 'the download did not finish';
-      if (path && !failed) {
-        bytes = await readFile(path);
-      } else if (failed && /^https?:/.test(url)) {
-        // The browser's transfer broke (R-FLD-13; Chromium reports a network failure as "canceled", after its own new
-        // attempt): the same URL again with the session, not a new click — a real error shows there as its HTTP status.
-        rt.warn(`${ctx.scene.id}.${ctx.step.index}: download "${args.as}": the browser's transfer failed (${failed}) — fetching ${url} again with the session`);
-        const got = await fetchDocument(ctx, url, timeoutMs, args.as);
-        signIn(got.res.url());
-        attempts = got.attempts + 1;
-        bytes = await got.res.body();
-      } else {
-        throw new StepError(`download: the file could not be downloaded (${failed})`);
-      }
+  if (captured.via === 'download') {
+    const d = captured.download;
+    url = d.url();
+    signIn(url);
+    fileName = d.suggestedFilename();
+    let failed: string | null = null;
+    const path = await d.path().catch((e: unknown) => {
+      failed = errorMessage(e);
+      return null;
+    });
+    // The browser's own reason ("network error", "canceled") says more than path()'s.
+    if (failed || !path) failed = [await d.failure().catch(() => null), failed].filter(Boolean).join(': ') || 'the download did not finish';
+    if (path && !failed) {
+      bytes = await readFile(path);
+    } else if (failed && /^https?:/.test(url)) {
+      // The browser's transfer broke (R-FLD-13; Chromium reports a network failure as "canceled", after its own new
+      // attempt): the same URL again with the session, not a new click — a real error shows there as its HTTP status.
+      rt.warn(`${ctx.scene.id}.${ctx.step.index}: download "${name}": the browser's transfer failed (${failed}) — fetching ${url} again with the session`);
+      const got = await fetchDocument(ctx, url, timeoutMs, name);
+      signIn(got.res.url());
+      attempts = got.attempts + 1;
+      bytes = await got.res.body();
     } else {
-      url = captured.page.url();
-      signIn(url);
-      const got = await fetchDocument(ctx, url, timeoutMs, args.as);
-      const res = got.res;
-      attempts = got.attempts;
-      signIn(res.url());
-      bytes = await res.body();
-      contentType = res.headers()['content-type'] ?? '';
-      const disposition = res.headers()['content-disposition'] ?? '';
-      const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-      fileName = named ? decodeURIComponent(named[1]) : basename(new URL(url).pathname) || args.as;
+      throw new StepError(`download: the file could not be downloaded (${failed})`);
     }
+  } else {
+    url = captured.page.url();
+    signIn(url);
+    const got = await fetchDocument(ctx, url, timeoutMs, name);
+    const res = got.res;
+    attempts = got.attempts;
+    signIn(res.url());
+    bytes = await res.body();
+    contentType = res.headers()['content-type'] ?? '';
+    const disposition = res.headers()['content-disposition'] ?? '';
+    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+    fileName = named ? decodeURIComponent(named[1]) : basename(new URL(url).pathname) || name;
+  }
+  return { bytes, fileName, contentType, url, attempts };
+}
+
+export async function download(ctx: StepContext, args: NormalizedArgsMap['download']): Promise<ActionResult> {
+  const { rt } = ctx;
+  if (rt.artefacts.has('document', args.as)) throw new StepError(`download: a document named "${args.as}" was already captured in this run`);
+  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? rt.defaultTimeoutS ?? ARTEFACT_TIMEOUT_S) * 1000;
+  const page = rt.page;
+  const r = await resolveTarget(ctx, args.click);
+  const { run, captured, tabs } = await clickForDocument(ctx, page, r, timeoutMs);
+  let doc: Awaited<ReturnType<typeof readCaptured>>;
+  try {
+    doc = await readCaptured(ctx, page, captured, { name: args.as, timeoutMs });
   } finally {
     // Close the tabs the click opened: the recording stays on this page.
     for (const t of tabs) await closePage(t);
     if (tabs.length) await page.bringToFront().catch(() => undefined);
   }
+  const { bytes, fileName, contentType, url, attempts } = doc;
 
   const mime = sniffMime(bytes, fileName, contentType);
   const file = await rt.artefacts.writeDocument(args.as, bytes, mime, fileName);

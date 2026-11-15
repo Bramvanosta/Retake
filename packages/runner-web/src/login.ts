@@ -19,7 +19,7 @@ import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import { writeTextAtomic } from '@retake/core/io';
 import { autoLogin, checkPersona, ensurePrivateDir, isProfileDir, prepareSessions, profileLock, readSnapshot, registerSessionCopy, writeSnapshot, writeStatus } from './auth.js';
-import type { PersonaCheckResult, SessionSnapshot, SnapshotMeta } from './auth.js';
+import type { PersonaCheckResult, ProfileLock, SessionSnapshot, SnapshotMeta } from './auth.js';
 import { projectBrowser } from './config.js';
 import { RunnerError, errorMessage, isCancelled } from './errors.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
@@ -354,13 +354,8 @@ async function autoSession(o: SignInOptions, userDataDir: string, url: string, l
   }
 }
 
-/**
- * headed: a visible window on the master, showing the saved session (`applied`, as a run applies it); resolves when
- * the user closed its last page or quit the browser (or `signal` aborted: the window closes). Cookies (session cookies
- * included) and the localStorage of the open pages are read every 1.5 s — a quit browser cannot be read any more — and
- * the cookies once more when the last page closes; the localStorage of origins not open then is the saved one.
- */
-async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
+/** The sign-in browser on the master profile, its Chromium checked and recorded (profile-browser.ts), and the profile's lock pid. */
+async function launchSignInBrowser(o: SignInOptions, userDataDir: string): Promise<{ context: BrowserContext; pid: ProfileLock['pid'] }> {
   const b = projectBrowser(o.project, o.browser);
   const { executablePath, channel } = launchTarget(b, { headless: o.headless === true, policy: o.policy });
   // Never an older Chromium than the one that opened this profile last (profile-browser.ts).
@@ -383,6 +378,17 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
   await refuseUnsandboxed(context.browser(), () => context.close(), 'The sign-in browser');
   recordProfileBrowser(userDataDir, major);
   const pid = (await profileLock(userDataDir)).pid;
+  return { context, pid };
+}
+
+/**
+ * headed: a visible window on the master, showing the saved session (`applied`, as a run applies it); resolves when
+ * the user closed its last page or quit the browser (or `signal` aborted: the window closes). Cookies (session cookies
+ * included) and the localStorage of the open pages are read every 1.5 s — a quit browser cannot be read any more — and
+ * the cookies once more when the last page closes; the localStorage of origins not open then is the saved one.
+ */
+async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
+  const { context, pid } = await launchSignInBrowser(o, userDataDir);
   try {
     if (applied) await applyStorageState(context, applied);
   } catch (e) {

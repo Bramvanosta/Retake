@@ -106,7 +106,9 @@ describe('the bundle setup runs first in both entry points (before anything load
 
 describe('the render browser is checked before the asset server starts (nothing left open on a refusal)', () => {
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
-    const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
+    // openSession lives in render-session.ts, the session half of render.ts.
+    const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render-session.ts'), 'utf8');
+    expect(code).toContain('async function openSession(');
     const session = code.slice(code.indexOf('async function openSession('));
     // The order of the two calls, the check handed the work's own policy; the refusal itself is the behaviour case
     // below.

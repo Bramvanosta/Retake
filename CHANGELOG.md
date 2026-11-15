@@ -348,6 +348,7 @@ release — for the person about to click Install and Restart.
   block or with `{{…}}` tokens as written ("an older run format").
 
 ### Fixed
+- The status bar no longer shows Pause and Stop for a run that has just ended, before the scenario's state catches up.
 - An inspection and an export's clean-up never write or remove anything through a symbolic link that leads out of the
   project: an inspection whose `.retake/inspect` (or its own folder) leads out is refused before anything is made,
   pruned or queued, and the clean-up of an interrupted export leaves an `exports/<id>` that leads out as it is.

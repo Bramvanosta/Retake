@@ -28,10 +28,13 @@ const BUSY = new Set(['checking', 'downloading', 'waiting', 'installing']);
 /** The version whose "Updated to vX" was seen (a per-browser convenience). */
 const SEEN_KEY = 'retake.update.seen';
 
-export function UpdateControl() {
+type Sent = { busy: 'install' | 'later' | null; failed: string | null };
+
+/** The update's status (read on mount, on a timer, on the shell's event), the sheet's open state and the click sent. */
+function useUpdateStatus() {
   const [st, setSt] = useState<UpdateStatus | null>(null);
   const [open, setOpen] = useState(false);
-  const [sent, setSent] = useState<{ busy: 'install' | 'later' | null; failed: string | null }>({ busy: null, failed: null });
+  const [sent, setSent] = useState<Sent>({ busy: null, failed: null });
   const load = useCallback(() => {
     desktopUpdateStatus().then(
       (s) => setSt(s),
@@ -66,12 +69,83 @@ export function UpdateControl() {
     }
     if (seen !== updated) setOpen(true);
   }, [updated]);
-  const badge = dismissed && st?.state === 'updated' ? null : badgeWords(st);
-  if (!st?.available) return null;
-  const version = st.version ?? '';
+  return { st, open, setOpen, sent, setSent, load, dismissed, setDismissed };
+}
+
+/** The sheet's buttons: Later · Install and Restart when it can install, Close · Later while a step runs, else Close. */
+function sheetActions(st: UpdateStatus, installable: boolean, sent: Sent): SheetAction[] {
+  return installable
+    ? [
+        { id: 'later', label: 'Later', isCancel: true, testId: 'update-later', ...(sent.busy ? { disabled: true } : {}) },
+        {
+          id: 'install',
+          label: 'Install and Restart',
+          variant: 'primary',
+          isDefault: true,
+          testId: 'update-install',
+          ...(sent.busy === 'install' ? { busy: true } : sent.busy ? { disabled: true } : {}),
+        },
+      ]
+    : st.state && BUSY.has(st.state) && st.state !== 'installing'
+      ? [
+          { id: 'close', label: 'Close', testId: 'update-close' },
+          { id: 'later', label: 'Later', isCancel: true, isDefault: true, testId: 'update-later', ...(sent.busy === 'later' ? { busy: true } : {}) },
+        ]
+      : [{ id: 'close', label: 'Close', isCancel: true, isDefault: true, testId: 'update-close' }];
+}
+
+/** The sheet's content: the release notes, the progress, the download, the steps, a click the app did not get. */
+function UpdateContent({ st, failed }: { st: UpdateStatus; failed: string | null }) {
   const progress = progressWords(st);
   const steps = installSteps(st);
   const figure = downloadFigure(st);
+  const notes = st.untrusted?.notes ?? '';
+  return (
+    <>
+      {notes && (
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the release notes scroll inside the sheet: a named region with its own tab stop to scroll by keyboard
+        <section className="sh-update-notes" tabIndex={0} aria-label="Release notes, from the update feed" data-testid="update-notes">
+          <Txt text={notes} />
+        </section>
+      )}
+      {progress &&
+        (progress.state === 'fail' ? (
+          <Callout state="fail" role="alert" title={progress.title} testId="update-progress">
+            {progress.text}
+          </Callout>
+        ) : (
+          <Callout state={progress.state} role="status" title={progress.title} testId="update-progress">
+            {progress.text}
+          </Callout>
+        ))}
+      {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
+      {steps && (
+        <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
+          {steps.map((step) => (
+            <li key={step.id} className="sh-update-step" data-step={step.id} data-state={step.state} aria-current={step.state === 'running' ? 'step' : undefined}>
+              <span className="sh-update-step-mark" data-state={STEP_MARKS[step.state].mark}>
+                <Shape state={STEP_MARKS[step.state].mark} />
+              </span>
+              <span className="sh-update-step-label">{step.label}</span>
+              <span className="sh-update-step-state">{STEP_MARKS[step.state].word}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {failed && (
+        <Callout state="fail" role="alert" title="The app did not get the click" testId="update-click-failed">
+          <Txt text={failed} />
+        </Callout>
+      )}
+    </>
+  );
+}
+
+export function UpdateControl() {
+  const { st, open, setOpen, sent, setSent, load, dismissed, setDismissed } = useUpdateStatus();
+  const badge = dismissed && st?.state === 'updated' ? null : badgeWords(st);
+  if (!st?.available) return null;
+  const version = st.version ?? '';
   const installable = st.installable === true && st.state !== 'downloading' && st.state !== 'installing' && st.state !== 'waiting';
   const onAction = (id: string) => {
     if (id === 'close') {
@@ -103,25 +177,6 @@ export function UpdateControl() {
       (e: unknown) => setSent({ busy: null, failed: e instanceof Error ? e.message : String(e) }),
     );
   };
-  const actions: SheetAction[] = installable
-    ? [
-        { id: 'later', label: 'Later', isCancel: true, testId: 'update-later', ...(sent.busy ? { disabled: true } : {}) },
-        {
-          id: 'install',
-          label: 'Install and Restart',
-          variant: 'primary',
-          isDefault: true,
-          testId: 'update-install',
-          ...(sent.busy === 'install' ? { busy: true } : sent.busy ? { disabled: true } : {}),
-        },
-      ]
-    : st.state && BUSY.has(st.state) && st.state !== 'installing'
-      ? [
-          { id: 'close', label: 'Close', testId: 'update-close' },
-          { id: 'later', label: 'Later', isCancel: true, isDefault: true, testId: 'update-later', ...(sent.busy === 'later' ? { busy: true } : {}) },
-        ]
-      : [{ id: 'close', label: 'Close', isCancel: true, isDefault: true, testId: 'update-close' }];
-  const notes = st.untrusted?.notes ?? '';
   return (
     <>
       {badge && (
@@ -135,48 +190,10 @@ export function UpdateControl() {
       <Sheet
         open={open && sheetShown(st) && !(st.state === 'updated' && dismissed)}
         title={st.state === 'updated' ? `${APP_NAME} v${st.current ?? ''}` : version ? `Update ${APP_NAME} to v${version}?` : `Update ${APP_NAME}`}
-        actions={actions}
+        actions={sheetActions(st, installable, sent)}
         onAction={onAction}
         testId="update-sheet"
-        content={
-          <>
-            {notes && (
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: the release notes scroll inside the sheet: a named region with its own tab stop to scroll by keyboard
-              <section className="sh-update-notes" tabIndex={0} aria-label="Release notes, from the update feed" data-testid="update-notes">
-                <Txt text={notes} />
-              </section>
-            )}
-            {progress &&
-              (progress.state === 'fail' ? (
-                <Callout state="fail" role="alert" title={progress.title} testId="update-progress">
-                  {progress.text}
-                </Callout>
-              ) : (
-                <Callout state={progress.state} role="status" title={progress.title} testId="update-progress">
-                  {progress.text}
-                </Callout>
-              ))}
-            {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
-            {steps && (
-              <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
-                {steps.map((step) => (
-                  <li key={step.id} className="sh-update-step" data-step={step.id} data-state={step.state} aria-current={step.state === 'running' ? 'step' : undefined}>
-                    <span className="sh-update-step-mark" data-state={STEP_MARKS[step.state].mark}>
-                      <Shape state={STEP_MARKS[step.state].mark} />
-                    </span>
-                    <span className="sh-update-step-label">{step.label}</span>
-                    <span className="sh-update-step-state">{STEP_MARKS[step.state].word}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {sent.failed && (
-              <Callout state="fail" role="alert" title="The app did not get the click" testId="update-click-failed">
-                <Txt text={sent.failed} />
-              </Callout>
-            )}
-          </>
-        }
+        content={<UpdateContent st={st} failed={sent.failed} />}
       >
         <Txt
           className="sh-update-text"

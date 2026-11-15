@@ -59,7 +59,7 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
     .option('--allow-writes', 'let the window write on a production environment (only where project.yaml sets access: read-write), as retake run')
     .option('--no-check', 'skip the check replay of the draft')
     .option('--json', 'print the outcome as JSON on stdout')
-    .action(action((u, g, p: string, n: string | undefined, o: RecordCommandOptions) => recordCommand(u, g, p, n, o)));
+    .action(action((u, g, p: string, n: string | undefined, o: RecordCommandOptions) => recordCommand(u, g, { project: p, name: n }, o)));
 
   program
     .command('inspect')

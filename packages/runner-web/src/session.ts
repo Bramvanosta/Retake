@@ -1,479 +1,43 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
-import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import { gpuInfoOf } from '@retake/core/render';
-import type { BrowserConfig } from '@retake/core/project';
+import type { BrowserContext, Page } from 'playwright-core';
 import type { ResolvedClock } from '@retake/core/environment';
-import type { PageHttpCredentials } from '@retake/core/environment';
-import type { WorkPolicy } from '@retake/core/policy';
-import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
+import type { GpuInfo } from '@retake/core/render';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
-import { RunnerError, StepError } from './errors.js';
+import { RunnerError } from './errors.js';
 import { kitSource } from './kit/source.js';
 import { launchOptions, launchTarget, refuseUnsandboxed } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
-import { restoreIndexedDb } from './idb-state.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
 import type { ProductClockConfig } from './product-clock.js';
-import type { PageRole, WriteGuardOptions } from './write-guard.js';
-import type {
-  CalendarInfo,
-  CursorEffectPayload,
-  CursorState,
-  DropOutcome,
-  ElementInfo,
-  FieldState,
-  FileSpec,
-  FindOptions,
-  InventoryOptions,
-  KitConfig,
-  KitInventory,
-  KitTargetChecks,
-  MenuTrigger,
-  OutsidePlan,
-  PointInfo,
-  PopupEntry,
-  PositionalTrigger,
-  ResolveResult,
-  RestAt,
-  RestPlan,
-  ScrollInfo,
-  ScrollOp,
-} from './kit/types.js';
-import type { BBox, PointSpec } from '@retake/core/model';
-import type { NearElement } from '@retake/core/run';
-import type { TargetObject } from '@retake/core/language';
+import type { PageRole } from './write-guard.js';
+import type { CursorEffectPayload } from './kit/types.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
+import { DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './browser-args.js';
+import { applyStorageState, armFileGuard } from './browser-state.js';
+import { KitClient } from './kit-client.js';
+import { emulatePage } from './page-emulation.js';
+import type { EmulatedViewport, PageEmulation } from './page-emulation.js';
+import { BrowserReports, browserVersionOf } from './browser-reports.js';
+import { exposeKitBindings } from './kit-bindings.js';
+import type { NotificationPayload } from './kit-bindings.js';
+import { closeRealm } from './session-options.js';
+import type { Realm, RealmSpec, SessionOptions } from './session-options.js';
 
-export interface SessionOptions {
-  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
-  policy: WorkPolicy;
-  width: number;
-  height: number;
-  /** deviceScaleFactor. */
-  scale: number;
-  kit: KitConfig;
-  browser?: BrowserConfig;
-  /** Persistent profile directory. Default: a fresh temporary profile, deleted on close. */
-  profileDir?: string;
-  /** Playwright storageState JSON (cookies + localStorage) applied to the context. */
-  storageState?: string;
-  headed?: boolean;
-  log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
-  /**
-   * One browser per persona ("realms"): each launched like the single context above, on its own profile. Without
-   * it the session is that single context (profileDir / storageState / a temp profile) — the realm named "".
-   */
-  realms?: RealmSpec[];
-  /** The realm a capture page id is created in (default: ""). A tab opened by a page goes to that page's realm. */
-  realmOf?: (pageId: string) => string;
-  /** The realm of a js hook tab (environment page key; default: ""). */
-  hookRealmOf?: (key: string) => string;
-  /**
-   * A read-only run: every realm is armed with the write guard at launch (write-guard.ts), realms launched later
-   * too; its pages are closed through about:blank.
-   */
-  writes?: WriteGuardOptions;
-  /**
-   * The environment's HTTP credentials (core environmentHttpCredentials: the sign-in details of its page URLs), given to
-   * every realm's browser for their origin only.
-   */
-  httpCredentials?: PageHttpCredentials;
-}
-
-/** Playwright storage state: cookies, and per origin its localStorage and (when saved with it) its IndexedDB. */
-export interface StorageStateFile {
-  cookies?: Parameters<BrowserContext['addCookies']>[0];
-  origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }>; indexedDB?: unknown[] }>;
-}
-
-/** One persona's browser: a persistent context of its own. */
-export interface RealmSpec {
-  /** The persona; "" = the default browser (pages without a persona). */
-  name: string;
-  /** Chromium user-data-dir (a per-run copy of the persona's profile). Default: a fresh temporary profile. */
-  userDataDir?: string;
-  /** Applied at launch: an object, or a storage-state file (cookies + localStorage). */
-  storageState?: StorageStateFile | string;
-  /** Directories removed when the session closes (the per-run copy), or when the launch fails. */
-  cleanup?: string[];
-}
-
-interface Realm {
-  name: string;
-  context: BrowserContext;
-  /** The context's initial tab, reused by the first page created in this realm. */
-  spare: Page[];
-  /** Temporary profile created for the realm (removed on close). */
-  temp: string | null;
-  cleanup: string[];
-  /** The browser-level session that fails file: requests (armFileGuard), alive as long as the realm. */
-  fileGuard?: CDPSession;
-}
-
-/** Chromium flags for clean, uninterrupted captures (background tabs keep rendering). */
-export const DEFAULT_BROWSER_ARGS = [
-  '--hide-scrollbars',
-  '--force-color-profile=srgb',
-  '--disable-background-timer-throttling',
-  '--disable-backgrounding-occluded-windows',
-  '--disable-renderer-backgrounding',
-  '--disable-component-update',
-  '--disable-domain-reliability',
-  '--disable-features=Translate,MediaRouter',
-  '--no-first-run',
-  '--no-default-browser-check',
-];
-
-/**
- * `browser.frame_rate_limit: false` launches Chromium without its frame rate limiter. With the limiter, frame
- * production stops ≈ 0.26 s after a dialog whose overlay has a backdrop-filter closes (measured on macOS / Metal: the
- * click ripple freezes in the capture); without it that stall is gone, but the compositor draws back to back:
- * requestAnimationFrame runs at thousands of Hz while anything animates (24 000 Hz with a CSS spinner on screen), so
- * animations that advance a fixed step per frame play far too fast, and the CPU climbs 2–6×. Default: the limiter.
- */
-export function frameRateArgs(b: Pick<BrowserConfig, 'frame_rate_limit' | 'args'> = {}): string[] {
-  if (b.frame_rate_limit !== false || b.args?.includes('--disable-frame-rate-limit')) return [];
-  return ['--disable-frame-rate-limit'];
-}
-
-/**
- * Launch flags for a capture at device scale `scale` (measured in docs/HANDOFF.md): the CDP screencast of
- * headless Chromium (new headless and the headless shell alike) sends frames at the window's physical size, which
- * stays at CSS size whatever `deviceScaleFactor` the page emulates — `Emulation.setDeviceMetricsOverride` on the
- * recorder's session and `Page.captureScreenshot` give CSS-size images too. Forcing the browser's own device scale
- * factor makes the compositor surface `scale`× larger, so a 1920×1080 viewport at scale 2 is captured as real
- * 3840×2160 frames (text rasterised at 2×, not upscaled). Not used for headed windows (the display's own scale
- * applies) nor when the project already passes the flag.
- */
-export function scaleArgs(scale: number, headed: boolean | undefined, extra: readonly string[] = []): string[] {
-  if (headed || !(scale > 0) || scale === 1) return [];
-  if (extra.some((a) => a.startsWith('--force-device-scale-factor'))) return [];
-  return [`--force-device-scale-factor=${scale}`];
-}
-
-/** A web notification reported by the in-page kit (Notification API or ServiceWorkerRegistration.showNotification). */
-export interface NotificationPayload {
-  via: 'Notification' | 'ServiceWorkerRegistration.showNotification';
-  title: string;
-  body: string;
-  tag?: string;
-  /** Absolute icon URL (resolved against the page), when given. */
-  icon?: string;
-  /** The icon the page gave is not kept: its URL is longer than the limit (NOTIFICATION_ICON_URL_MAX). */
-  iconTooLong?: true;
-  /** Page wall clock (epoch ms). */
-  time: number;
-  /** The notifying page's URL and origin, as the browser reports its main frame (not as the page says). */
-  url: string;
-  origin: string;
-}
-
-/** The longest title, body or tag a notification keeps (characters; a longer one is cut, with `…`). */
-export const NOTIFICATION_TEXT_MAX = 2048;
-/** The longest icon URL a notification keeps: a data: URL (about 1 MiB of base64), any other URL. */
-export const NOTIFICATION_ICON_URL_MAX = { data: 1_500_000, other: 2048 } as const;
-const NOTIFICATION_VIA = new Set(['Notification', 'ServiceWorkerRegistration.showNotification']);
-
-function capText(v: string, max = NOTIFICATION_TEXT_MAX): string {
-  return v.length > max ? `${v.slice(0, max - 1)}…` : v;
-}
-
-/**
- * What the kit reported, checked: an object whose `via` is one of the two APIs, `title` and `body` strings, `tag` and
- * `icon` strings when given, `time` a valid epoch; anything else is null (ignored). Texts are cut at
- * NOTIFICATION_TEXT_MAX; an icon URL beyond NOTIFICATION_ICON_URL_MAX is dropped (`iconTooLong`). The URL and origin
- * are the main frame's (`frameUrl`), never the payload's.
- */
-export function readNotificationPayload(raw: unknown, frameUrl: string): NotificationPayload | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const p = raw as Record<string, unknown>;
-  if (typeof p.via !== 'string' || !NOTIFICATION_VIA.has(p.via)) return null;
-  if (typeof p.title !== 'string' || typeof p.body !== 'string') return null;
-  if (p.tag !== undefined && typeof p.tag !== 'string') return null;
-  if (p.icon !== undefined && typeof p.icon !== 'string') return null;
-  if (typeof p.time !== 'number' || !Number.isFinite(p.time) || Math.abs(p.time) > 8.64e15) return null;
-  let origin = 'null';
-  try {
-    origin = new URL(frameUrl).origin;
-  } catch {
-    /* not a URL: an opaque origin */
-  }
-  const n: NotificationPayload = {
-    via: p.via as NotificationPayload['via'],
-    title: capText(p.title),
-    body: capText(p.body),
-    time: p.time,
-    url: capText(frameUrl),
-    origin,
-  };
-  if (p.tag) n.tag = capText(p.tag);
-  if (p.icon) {
-    const max = /^data:/i.test(p.icon) ? NOTIFICATION_ICON_URL_MAX.data : NOTIFICATION_ICON_URL_MAX.other;
-    if (p.icon.length > max) n.iconTooLong = true;
-    else n.icon = p.icon;
-  }
-  return n;
-}
-
-/** Name of the binding the kit calls for each web notification the page shows. */
-export const NOTIFICATION_BINDING = '__retakeNotification';
-/** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples. */
-export const CURSOR_BINDING = '__retakeCursor';
+export type { RealmSpec, SessionOptions } from './session-options.js';
+export { DEFAULT_BROWSER_ARGS, frameRateArgs, mobileUserAgent, scaleArgs } from './browser-args.js';
+export { applyStorageState, armFileGuard } from './browser-state.js';
+export type { StorageStateFile } from './browser-state.js';
+export { DocumentChangedError, KitClient } from './kit-client.js';
+export { CURSOR_BINDING, NOTIFICATION_BINDING, NOTIFICATION_ICON_URL_MAX, NOTIFICATION_TEXT_MAX, readNotificationPayload } from './kit-bindings.js';
+export type { NotificationPayload } from './kit-bindings.js';
 
 /** playwright-core launch target for a browser config (launch.ts). */
 export { launchTarget } from './launch.js';
-
-function isContextDestroyed(e: unknown): boolean {
-  const m = errorMessage(e);
-  return /Execution context was destroyed|Cannot find context with specified id|frame was detached|because of a navigation/i.test(m);
-}
-
-function cleanEvalError(e: unknown): string {
-  const m = errorMessage(e);
-  return m
-    .replace(/^page\.evaluate: /, '')
-    .replace(/^Error: /, '')
-    .split('\n    at ')[0];
-}
-
-/** The page replaced its document during a kit call that must not be retried (`KitClient.callOnce`). */
-export class DocumentChangedError extends StepError {
-  constructor() {
-    super('the page navigated during the inspection');
-  }
-}
-
-/** Typed RPC to the in-page kit of one page. Re-installs the kit when a document lost it. */
-export class KitClient {
-  constructor(
-    private readonly page: Page,
-    private readonly source: string,
-  ) {}
-
-  async install(): Promise<void> {
-    await this.page.evaluate(this.source);
-  }
-
-  async call<T>(path: string, ...args: unknown[]): Promise<T> {
-    return this.callWith<T>(true, path, args);
-  }
-
-  /**
-   * One call in the document the page shows now (an inspection): a document replaced during the call (a late
-   * navigation) is an error, never retried in the new one — whatever that document holds is not what was asked for.
-   * A document that has no kit when the call starts (its init script not run) gets it installed and the call runs
-   * there: whichever document answers, the inventory and the target checks return its origin, which the inspection
-   * checks.
-   */
-  callOnce<T>(path: string, ...args: unknown[]): Promise<T> {
-    return this.callWith<T>(false, path, args);
-  }
-
-  private async callWith<T>(retry: boolean, path: string, args: unknown[]): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const res = await this.page.evaluate(
-          async ([p, a]): Promise<{ missing: boolean; value?: unknown }> => {
-            const k = (window as unknown as { __retake?: Record<string, unknown> }).__retake;
-            if (!k) return { missing: true };
-            const parts = p.split('.');
-            let owner = k;
-            for (let i = 0; i < parts.length - 1; i++) owner = owner[parts[i]] as Record<string, unknown>;
-            const fn = owner[parts[parts.length - 1]] as (...x: unknown[]) => unknown;
-            return { missing: false, value: await fn.apply(owner, a) };
-          },
-          [path, args] as [string, unknown[]],
-        );
-        if (res.missing) {
-          if (attempt >= 3) throw new RunnerError(`the in-page kit could not be installed in ${this.page.url()}`);
-          await this.install();
-          continue;
-        }
-        return res.value as T;
-      } catch (e) {
-        if (e instanceof RunnerError) throw e;
-        if (isContextDestroyed(e) && !retry) throw new DocumentChangedError();
-        if (isContextDestroyed(e) && attempt < 5) {
-          await this.page.waitForLoadState('domcontentloaded', { timeout: 10_000 }).catch(() => undefined);
-          continue;
-        }
-        throw new StepError(cleanEvalError(e));
-      }
-    }
-  }
-
-  find(t: TargetObject, opts?: FindOptions): Promise<ResolveResult> {
-    return this.call('find', t, opts ?? {});
-  }
-  point(ref: string, offset?: PointSpec | null): Promise<PointInfo | null> {
-    return this.call('point', ref, offset ?? null);
-  }
-  visible(ref: string): Promise<boolean> {
-    return this.call('visible', ref);
-  }
-  scrollPlan(ref: string, margin: number, centre = false): Promise<ScrollOp | null> {
-    return centre ? this.call('scrollPlan', ref, margin, true) : this.call('scrollPlan', ref, margin);
-  }
-  scrollContainerFor(ref: string | null, fromParent = false): Promise<string> {
-    return this.call('scrollContainerFor', ref, fromParent);
-  }
-  scrollInfo(container: string, of?: string | null): Promise<ScrollInfo> {
-    return this.call('scrollInfo', container, of ?? null);
-  }
-  scrollAnimate(container: string, top: number, left: number, ms: number): Promise<{ top: number; left: number }> {
-    return this.call('scrollAnimate', container, top, left, ms);
-  }
-  popupState(): Promise<PopupEntry[]> {
-    return this.call('popupState');
-  }
-  expanded(ref: string): Promise<string | null> {
-    return this.call('expanded', ref);
-  }
-  outsidePlan(near: PointSpec, avoid: number[]): Promise<OutsidePlan | null> {
-    return this.call('outsidePlan', near, avoid);
-  }
-  restPoint(where?: 'side' | 'centre', avoid?: BBox[]): Promise<PointSpec> {
-    if (avoid) return this.call('restPoint', where ?? 'side', avoid);
-    return where ? this.call('restPoint', where) : this.call('restPoint');
-  }
-  watchChanges(): Promise<void> {
-    return this.call('watchChanges');
-  }
-  changedBoxes(): Promise<{ watching: boolean; boxes: BBox[] }> {
-    return this.call('changedBoxes');
-  }
-  textBox(ref: string): Promise<BBox | null> {
-    return this.call('textBox', ref);
-  }
-  restNear(box: BBox, at?: RestAt): Promise<RestPlan> {
-    return at ? this.call('restNear', box, at) : this.call('restNear', box);
-  }
-  hasText(text: string): Promise<boolean> {
-    return this.call('hasText', text);
-  }
-  snapshot(ref: string | null, max: number): Promise<string> {
-    return this.call('snapshot', ref, max);
-  }
-  domClick(ref: string, x: number, y: number): Promise<void> {
-    return this.call('domClick', ref, x, y);
-  }
-  pointerSequence(ref: string, x: number, y: number): Promise<void> {
-    return this.call('pointerSequence', ref, x, y);
-  }
-  rowFor(text: string): Promise<string | null> {
-    return this.call('rowFor', text);
-  }
-  menuTrigger(rowRef: string, hovered = false): Promise<MenuTrigger> {
-    return this.call('menuTrigger', rowRef, hovered);
-  }
-  positionalTrigger(rowRef: string): Promise<PositionalTrigger | null> {
-    return this.call('positionalTrigger', rowRef);
-  }
-  confirmButton(text: string | null): Promise<string | null> {
-    return this.call('confirmButton', text);
-  }
-  fileInputFor(ref: string): Promise<string | null> {
-    return this.call('fileInputFor', ref);
-  }
-  selectNative(ref: string, option: string): Promise<{ ok: boolean; label?: string; options: string[] }> {
-    return this.call('selectNative', ref, option);
-  }
-  isTextInput(ref: string | null): Promise<boolean> {
-    return this.call('isTextInput', ref);
-  }
-  fieldState(ref: string | null): Promise<FieldState | null> {
-    return this.call('fieldState', ref);
-  }
-  clearField(ref: string | null): Promise<'setter' | 'editor' | null> {
-    return this.call('clearField', ref);
-  }
-  calendar(): Promise<CalendarInfo | null> {
-    return this.call('calendar');
-  }
-  setNativeValue(ref: string, value: string): Promise<boolean> {
-    return this.call('setNativeValue', ref, value);
-  }
-  describe(ref: string): Promise<string> {
-    return this.call('describe', ref);
-  }
-  info(ref: string): Promise<ElementInfo | null> {
-    return this.call('info', ref);
-  }
-  /** The element's rendered text (innerText, a field's value), whitespace collapsed (capture_text). */
-  visibleText(ref: string): Promise<string> {
-    return this.call('visibleText', ref);
-  }
-  /** The focused element (type steps without `into`: the field typed into; `input_type`: a password field or not). */
-  focused(): Promise<{ desc: string; bbox: BBox; input_type: string } | null> {
-    return this.call('focused');
-  }
-  /** Inspection: the visible interactive elements with verified suggested targets (one in-page call). */
-  inventory(opts: InventoryOptions = {}): Promise<KitInventory> {
-    return this.callOnce('inventory', opts);
-  }
-  /** Inspection: `find` for each (normalised) target. */
-  checkTargets(targets: TargetObject[]): Promise<KitTargetChecks> {
-    return this.callOnce('checkTargets', targets);
-  }
-  /** `find` for each target without acting, with the closest visible elements of those not found. */
-  closest(targets: TargetObject[]): Promise<Array<{ count: number; near: NearElement[] }>> {
-    return this.call('closest', targets);
-  }
-  /** Whether the focus is on `ref` (a `type` step's field) and what has it. */
-  focusCheck(ref: string): Promise<{ ok: boolean; desc: string | null; field: string | null }> {
-    return this.call('focusCheck', ref);
-  }
-  /** A field's value (input, textarea) or text (contenteditable); null for other elements. */
-  fieldValue(ref: string | null): Promise<string | null> {
-    return this.call('fieldValue', ref);
-  }
-  /** Start counting what a click changes on the page (dead-click detection). */
-  effectWatch(): Promise<void> {
-    return this.call('effectWatch');
-  }
-  effectSeen(): Promise<{ watching: boolean; dom: number; first: string; events: string[] }> {
-    return this.call('effectSeen');
-  }
-  effectStop(): Promise<void> {
-    return this.call('effectStop');
-  }
-  cursorSet(x: number, y: number, show?: boolean): Promise<void> {
-    return this.call('cursor.set', x, y, show);
-  }
-  cursorShow(show: boolean): Promise<void> {
-    return this.call(show ? 'cursor.show' : 'cursor.hide');
-  }
-  cursorState(): Promise<CursorState> {
-    return this.call('cursor.state');
-  }
-  /** Draw the cursor of a document that has not painted content of its own (after the load the runner waited for). */
-  cursorReveal(): Promise<void> {
-    return this.call('cursor.reveal');
-  }
-  ripple(x: number, y: number): Promise<void> {
-    return this.call('cursor.ripple', x, y);
-  }
-  ghostShow(name: string, detail: string): Promise<void> {
-    return this.call('ghost.show', name, detail);
-  }
-  ghostHide(): Promise<void> {
-    return this.call('ghost.hide');
-  }
-  fileDragBegin(spec: FileSpec): Promise<void> {
-    return this.call('fileDrag.begin', spec);
-  }
-  fileDragDrop(x: number, y: number): Promise<DropOutcome> {
-    return this.call('fileDrag.drop', x, y);
-  }
-  fileDragCancel(): Promise<void> {
-    return this.call('fileDrag.cancel');
-  }
-}
 
 /**
  * Persistent Chromium contexts with the kit injected in every document, and named pages: one per environment page key
@@ -496,7 +60,7 @@ export class BrowserSession {
   private closed = false;
   private closing: Promise<void> | null = null;
   /** Pages with their own viewport (multi-page scenes): the CDP session that keeps it, for the whole run. */
-  private readonly emulations = new Map<Page, { session: CDPSession; key: string; ua?: string }>();
+  private readonly emulations = new Map<Page, PageEmulation>();
   private readonly realms: Realm[] = [];
   /** A realm launched after the others (the default browser for a page no plan foresaw). */
   private readonly launching = new Map<string, Promise<Realm>>();
@@ -576,56 +140,20 @@ export class BrowserSession {
    * The browser's version ("141.0.7390.37", run.json `engine.chromium`), read over CDP on a page of the session (a
    * persistent context has no Browser object); undefined when it cannot be read.
    */
-  async browserVersion(): Promise<string | undefined> {
-    const context = this.context;
-    const page = context.pages()[0];
-    if (!page) return undefined;
-    try {
-      const cdp = await context.newCDPSession(page);
-      try {
-        const { product } = await cdp.send('Browser.getVersion');
-        return /\/(\S+)$/.exec(product)?.[1] ?? product;
-      } finally {
-        await cdp.detach().catch(() => undefined);
-      }
-    } catch {
-      return undefined;
-    }
+  browserVersion(): Promise<string | undefined> {
+    return browserVersionOf(this.context);
   }
 
-  /** A browser-level CDP session per realm (Chromium's process and GPU reports), opened once. */
-  private readonly browserCdp = new Map<Realm, Promise<CDPSession | null>>();
-
-  private browserTarget(realm: Realm): Promise<CDPSession | null> {
-    let p = this.browserCdp.get(realm);
-    if (!p) {
-      const browser = realm.context.browser();
-      p = browser ? bestEffort(browser.newBrowserCDPSession(), 'a browser without a browser-level session is not measured', null) : Promise.resolve(null);
-      this.browserCdp.set(realm, p);
-    }
-    return p;
-  }
+  /** Chromium's process and GPU reports, over a browser-level CDP session per realm opened once. */
+  private readonly reports = new BrowserReports();
 
   /**
    * Chromium's own report of its processes (run.json `perf`): per realm (persona; "" = none), each process's
    * kind ("browser", "GPU", "renderer", a utility's service name), pid and CPU seconds so far. Realms that cannot answer
    * are left out.
    */
-  async processInfo(): Promise<Array<{ realm: string; type: string; pid: number; cpu: number }>> {
-    const out: Array<{ realm: string; type: string; pid: number; cpu: number }> = [];
-    await Promise.all(
-      this.realms.map(async (realm) => {
-        const cdp = await this.browserTarget(realm);
-        if (!cdp) return;
-        try {
-          const r = (await cdp.send('SystemInfo.getProcessInfo')) as { processInfo: Array<{ type: string; id: number; cpuTime: number }> };
-          for (const p of r.processInfo) out.push({ realm: realm.name, type: p.type, pid: p.id, cpu: p.cpuTime });
-        } catch {
-          /* closing, or an older browser */
-        }
-      }),
-    );
-    return out;
+  processInfo(): Promise<Array<{ realm: string; type: string; pid: number; cpu: number }>> {
+    return this.reports.processInfo(this.realms);
   }
 
   /**
@@ -633,15 +161,8 @@ export class BrowserSession {
    * compositing and rasterization in hardware, the GL renderer (ANGLE Metal, SwiftShader…), the features that fell back
    * to software. Undefined when it cannot be read.
    */
-  async gpuInfo(): Promise<GpuInfo | undefined> {
-    const realm = this.realms[0];
-    const cdp = realm ? await this.browserTarget(realm) : null;
-    if (!cdp) return undefined;
-    try {
-      return gpuInfoOf((await cdp.send('SystemInfo.getInfo')) as SystemInfoReply);
-    } catch {
-      return undefined;
-    }
+  gpuInfo(): Promise<GpuInfo | undefined> {
+    return this.reports.gpuInfo(this.realms[0]);
   }
 
   /** The realm (persona; "" = none) a page belongs to; undefined for a page of another browser. */
@@ -851,33 +372,8 @@ export class BrowserSession {
    * override lives as long as the session that set it (measured: detaching it brings the page back to the window
    * size), and the recorders' own sessions only re-assert the same metrics. Re-applied only when the viewport changes.
    */
-  async emulate(page: Page, vp: { width: number; height: number; mobile?: boolean; touch?: boolean }): Promise<void> {
-    const scale = this.options.scale;
-    const key = `${vp.width}x${vp.height}@${scale}${vp.mobile ? 'm' : ''}${vp.touch ? 't' : ''}`;
-    let e = this.emulations.get(page);
-    if (e?.key === key) return;
-    if (!e) {
-      e = { session: await page.context().newCDPSession(page), key: '' };
-      this.emulations.set(page, e);
-      page.on('close', () => this.emulations.delete(page));
-    }
-    e.key = key;
-    const s = e.session;
-    await s.send('Emulation.setDeviceMetricsOverride', {
-      width: vp.width,
-      height: vp.height,
-      deviceScaleFactor: scale,
-      mobile: vp.mobile ?? false,
-      screenWidth: vp.width,
-      screenHeight: vp.height,
-    });
-    await s.send('Emulation.setTouchEmulationEnabled', vp.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
-    if (vp.mobile) {
-      e.ua ??= await page.evaluate(() => navigator.userAgent).catch(() => undefined);
-      if (e.ua) await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }), "a page closing as it opens keeps the browser's own user agent");
-    } else if (e.ua) {
-      await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }), "a page closing as it opens keeps the browser's own user agent");
-    }
+  async emulate(page: Page, vp: EmulatedViewport): Promise<void> {
+    await emulatePage(this.emulations, page, vp, this.options.scale);
   }
 
   /** Whether a page has its own viewport (`emulate`). */
@@ -979,23 +475,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     realm.fileGuard = await armFileGuard(context, spec.name);
     // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
     await context.grantPermissions(['notifications']).catch(() => undefined);
-    // Both bindings answer the page's own document only: a call from a frame inside it (an embed, an ad) is ignored.
-    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: unknown) => {
-      try {
-        if (!session.onNotification || !src.page || src.frame !== src.page.mainFrame()) return;
-        const n = readNotificationPayload(payload, src.frame.url());
-        if (n) session.onNotification(src.page, n);
-      } catch {
-        /* a listener error must not reach the page */
-      }
-    });
-    await context.exposeBinding(CURSOR_BINDING, (src, payload: CursorEffectPayload) => {
-      try {
-        if (session.onCursorEffect && src.page && src.frame === src.page.mainFrame()) session.onCursorEffect(src.page, payload);
-      } catch {
-        /* a listener error must not reach the page */
-      }
-    });
+    await exposeKitBindings(context, session);
     await context.addInitScript({ content: source });
     if (spec.storageState) await applyStorageState(context, spec.storageState);
     // Read-only run: armed before any page loads — the preflight's check page included.
@@ -1005,88 +485,6 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     throw e;
   }
   return realm;
-}
-
-/**
- * The browser's own last resort against local files, in every realm of a run (capture, dry run, inspection): a
- * browser-level CDP session pauses every `file:` request of every page, popup and frame — those that exist and those to
- * come — and fails it (`net::ERR_BLOCKED_BY_CLIENT`), whatever started it. Other requests are never paused, so the HTTP
- * cache and the write guard's route are untouched. Throws when the browser cannot be guarded (no browser-level session,
- * Fetch refused): the realm is not used.
- */
-export async function armFileGuard(context: BrowserContext, persona = ''): Promise<CDPSession> {
-  const fail = (why: string, cause?: unknown) =>
-    new RunnerError(`could not set the browser${persona ? ` of persona ${persona}` : ''} to refuse file: pages: ${why}`, cause === undefined ? undefined : { cause });
-  const browser = context.browser();
-  if (!browser) throw fail('no browser-level session');
-  let cdp: CDPSession;
-  try {
-    cdp = await browser.newBrowserCDPSession();
-  } catch (e) {
-    throw fail(errorText(e), e);
-  }
-  cdp.on('Fetch.requestPaused', (e: { requestId: string; request: { url: string } }) => {
-    // Only file: requests are paused (the pattern); anything else goes on untouched.
-    const call = /^file:/i.test(e.request.url)
-      ? cdp.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
-      : cdp.send('Fetch.continueRequest', { requestId: e.requestId });
-    bestEffort(call, 'a request of a page that is gone goes with it');
-  });
-  try {
-    await cdp.send('Fetch.enable', { patterns: [{ urlPattern: 'file:*' }] });
-  } catch (e) {
-    await cdp.detach().catch(() => undefined);
-    throw fail(errorText(e), e);
-  }
-  return cdp;
-}
-
-function errorText(e: unknown): string {
-  return errorMessage(e).split('\n')[0];
-}
-
-async function closeRealm(r: Realm): Promise<void> {
-  await r.context.close().catch(() => undefined);
-  for (const dir of [...(r.temp ? [r.temp] : []), ...r.cleanup]) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-}
-
-/**
- * A mobile user agent derived from the browser's own (same engine and version): the platform token becomes an Android
- * phone and "Mobile" is added, so sites that pick their layout from the user agent serve the phone one.
- */
-export function mobileUserAgent(ua: string): string {
-  let out = ua.replace(/\([^)]*\)/, '(Linux; Android 14; K)');
-  if (!/\bMobile\b/.test(out)) out = out.replace(/ Safari\//, ' Mobile Safari/');
-  return out;
-}
-
-/**
- * Apply a storage state to a context: its cookies, its localStorage by an init script (keys the app set are kept) and
- * its IndexedDB databases (idb-state.ts: written now, before any page of the product loads).
- */
-export async function applyStorageState(context: BrowserContext, from: StorageStateFile | string): Promise<void> {
-  let state: StorageStateFile;
-  if (typeof from === 'string') {
-    try {
-      state = JSON.parse(await readFile(from, 'utf8')) as StorageStateFile;
-    } catch (e) {
-      throw new RunnerError(`cannot read storage_state ${from}: ${errorMessage(e)}`);
-    }
-  } else state = from;
-  if (state.cookies?.length) await context.addCookies(state.cookies);
-  const origins = (state.origins ?? []).filter((o) => o.localStorage?.length).map((o) => ({ origin: o.origin, localStorage: o.localStorage }));
-  if (origins.length) {
-    // Applied before page scripts; keys already present (set by the app since) are kept.
-    await context.addInitScript({
-      content: `(() => { const o = ${JSON.stringify(origins)}.find((x) => x.origin === location.origin);
-        if (!o) return; try { for (const kv of o.localStorage) if (localStorage.getItem(kv.name) === null) localStorage.setItem(kv.name, kv.value); } catch {} })();`,
-    });
-  }
-  try {
-    await restoreIndexedDb(context, state.origins ?? []);
-  } catch (e) {
-    throw new RunnerError(`the saved session's IndexedDB could not be restored: ${errorMessage(e).split('\n')[0]}`, { cause: e });
-  }
 }
 
 /** Launch + kit injection (lower-level entry point; used by tests and live previews). */

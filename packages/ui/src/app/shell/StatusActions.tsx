@@ -81,8 +81,8 @@ export interface StatusActionsProps {
   inApp: boolean;
 }
 
-/** The status bar's scenario: its state (info), its actions, and the confirmation sheet. */
-export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActionsProps): { info: ReactNode; actions: ReactNode; overlay: ReactNode } {
+/** The scenario in context's reads: its project, its location, its actions (read, or fed by the Scenario screen), its run's progress. */
+function useScenarioRead(route: Route, ctx: ScenarioContext | null) {
   const slug = ctx?.slug ?? null;
   const name = ctx?.scenario ?? null;
   useShootEvents();
@@ -113,18 +113,18 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   });
   const live: LiveRun | null = onScenario ? (fed?.live ?? null) : prog;
   const runLive = live && running && live.id === running.id && !live.finished ? live : null;
+  return { slug, name, loc, onScenario, onRun, data, sending, running, pend, progress, runLive };
+}
 
-  // A remembered location dropped on a route whose screen does not say so: said here, once.
-  const dropped = slug && name ? droppedLocation(slug, name) : undefined;
-  useEffect(() => {
-    if (!slug || !name || dropped === undefined || onScenario || onRun) return;
-    takeDropped(slug, name);
-    say(`The location ${dropped} chosen earlier for ${name} is gone from project.yaml: its runs use the file's own`);
-  }, [slug, name, dropped, onScenario, onRun, say]);
+type ScenarioRead = ReturnType<typeof useScenarioRead>;
+type Why = { text: string; blocker?: RunBlocker } | null;
 
+/** The Scenario menu's commands for the scenario in context (the defaults: priority 0), and why each start is off. */
+function useScenarioCommands({ route, ctx, say, read }: { route: Route; ctx: ScenarioContext | null; say: (s: string) => void; read: ScenarioRead }) {
+  const { slug, name, loc, onRun, data, running, pend } = read;
   const busyRun = running ?? (pend ? { id: pend.id, mode: pend.mode, status: 'queued' as const, job: undefined } : null);
   const busyWords = busyRun ? `waits for the ${modeWord(busyRun.mode, true)} to end` : null;
-  const why = (mode: 'dry' | 'capture'): { text: string; blocker?: RunBlocker } | null => {
+  const why = (mode: 'dry' | 'capture'): Why => {
     if (!ctx) return { text: 'no scenario' };
     if (!loc.ready || !data) return { text: 'loading the scenario' };
     // While a start is being sent the buttons stay enabled (a disabled one would drop the focus the sheet gives back);
@@ -145,7 +145,6 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
     return null;
   };
 
-  const onPrepare = onRun && !(route.name === 'run' && route.run);
   const act = (mode: 'dry' | 'capture') => {
     if (!ctx || !slug || !name) return say('Open a scenario first');
     if (!loc.ready || !data) return say(`Wait: ${name} is still loading`);
@@ -188,6 +187,24 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   useShellCommand('capture', () => act('capture'), PRIORITY.defaults);
   useShellCommand('render', render, PRIORITY.defaults);
   useShellCommand('stop', stop, PRIORITY.defaults);
+  return { why, renderWhy, renderRun, act, render, stop };
+}
+
+/** The status bar's scenario: its state (info), its actions, and the confirmation sheet. */
+export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActionsProps): { info: ReactNode; actions: ReactNode; overlay: ReactNode } {
+  const read = useScenarioRead(route, ctx);
+  const { slug, name, onScenario, onRun, data, running, pend, runLive } = read;
+
+  // A remembered location dropped on a route whose screen does not say so: said here, once.
+  const dropped = slug && name ? droppedLocation(slug, name) : undefined;
+  useEffect(() => {
+    if (!slug || !name || dropped === undefined || onScenario || onRun) return;
+    takeDropped(slug, name);
+    say(`The location ${dropped} chosen earlier for ${name} is gone from project.yaml: its runs use the file's own`);
+  }, [slug, name, dropped, onScenario, onRun, say]);
+
+  const commands = useScenarioCommands({ route, ctx, say, read });
+  const onPrepare = onRun && !(route.name === 'run' && route.run);
 
   // ── what it shows ──
   const runInfo = running
@@ -197,6 +214,50 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
       : null;
   const lastTake = data?.runs.find((r) => runEnded(r.status));
   const state = runInfo ? shootState(runInfo) : lastTake ? shootState(lastTake) : 'idle';
+  // On the run routes the screen's own status bar says the state (Prepare, the live screen): not twice.
+  // Review's two views (the report, the comments) have their own line and Render (ReviewChrome): Shoot's never show there
+  //, not even before the screen claims the slot.
+  const inReview = route.name === 'review' || route.name === 'comments';
+  const info: ReactNode =
+    ctx &&
+    slug &&
+    name &&
+    !onPrepare &&
+    !inReview &&
+    !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes')) ? (
+      <ScenarioStateLine route={route} slug={slug} name={name} read={read} state={state} runInfo={runInfo} lastTake={lastTake} />
+    ) : null;
+
+  // Prepare's buttons are on screen (its status bar is its own); a live run's screen claims the bar until the run ends.
+  const showButtons = !claimed && !onPrepare && !inReview && ctx !== null && slug !== null && name !== null;
+  const actions: ReactNode = showButtons ? <ScenarioButtons slug={slug} name={name} read={read} commands={commands} say={say} inApp={inApp} /> : null;
+
+  return { info, actions, overlay: <SessionsSheet say={say} route={route} /> };
+}
+
+type ShootStateName = ReturnType<typeof shootState>;
+type RunInfo = { status: string; mode: NonNullable<ScenarioRead['pend']>['mode']; paused?: boolean; stopping?: boolean } | null;
+type LastTakeRun = NonNullable<ScenarioRead['data']>['runs'][number];
+
+/** The scenario's state line in the status bar: its name off its own routes, the state, the last take's time, the location, Watch. */
+function ScenarioStateLine({
+  route,
+  slug,
+  name,
+  read,
+  state,
+  runInfo,
+  lastTake,
+}: {
+  route: Route;
+  slug: string;
+  name: string;
+  read: ScenarioRead;
+  state: ShootStateName;
+  runInfo: RunInfo;
+  lastTake: LastTakeRun | undefined;
+}) {
+  const { loc, onRun, running, runLive } = read;
   const word = SHOOT_STATES[state].word(runInfo?.mode ?? lastTake?.mode ?? 'dry');
   const detail = runLive
     ? runLive.paused
@@ -205,48 +266,57 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
         ? ` · step ${Math.min(runLive.steps_done + 1, runLive.steps_total)} of ${runLive.steps_total}`
         : ''
     : '';
-  // On the run routes the screen's own status bar says the state (Prepare, the live screen): not twice. In a narrow
-  // window whole segments go, by priority (never a word cut in half) — the last take's time
+  // In a narrow window whole segments go, by priority (never a word cut in half) — the last take's time
   // first, then the scenario's name and the last take itself (shell.css `data-drop`); a run going, the location and
   // the blocker's words stay.
-  // Review's two views (the report, the comments) have their own line and Render (ReviewChrome): Shoot's never show there
-  //, not even before the screen claims the slot.
-  const inReview = route.name === 'review' || route.name === 'comments';
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
-  const info: ReactNode =
-    ctx &&
-    slug &&
-    name &&
-    !onPrepare &&
-    !inReview &&
-    !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes')) ? (
-      <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
-        {!('scenario' in route) && (
-          <span className="sh-seg" data-drop="name">
-            <Txt text={name} />
+  return (
+    <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
+      {!('scenario' in route) && (
+        <span className="sh-seg" data-drop="name">
+          <Txt text={name} />
+          {' · '}
+        </span>
+      )}
+      {!runInfo && lastTake ? (
+        <span className="sh-seg" data-drop="last">
+          {shown(markNode)}
+          <span className="sh-seg" data-drop="when">
             {' · '}
+            <When iso={lastTake.finished_at ?? lastTake.started_at} />
           </span>
-        )}
-        {!runInfo && lastTake ? (
-          <span className="sh-seg" data-drop="last">
-            {shown(markNode)}
-            <span className="sh-seg" data-drop="when">
-              {' · '}
-              <When iso={lastTake.finished_at ?? lastTake.started_at} />
-            </span>
-          </span>
-        ) : (
-          shown(markNode)
-        )}
-        {loc.sent && <Txt className="sh-scenario-env" text={` · on ${loc.sent}`} />}
-        {running && !onRun && (
-          <LinkButton size="sm" variant="ghost" to={{ name: 'run', slug, scenario: name, run: running.id }} testId="status-watch">
-            Watch
-          </LinkButton>
-        )}
-      </span>
-    ) : null;
+        </span>
+      ) : (
+        shown(markNode)
+      )}
+      {loc.sent && <Txt className="sh-scenario-env" text={` · on ${loc.sent}`} />}
+      {running && !onRun && (
+        <LinkButton size="sm" variant="ghost" to={{ name: 'run', slug, scenario: name, run: running.id }} testId="status-watch">
+          Watch
+        </LinkButton>
+      )}
+    </span>
+  );
+}
 
+/** The status bar's row of actions: the one blocker line, Pause / Stop while a run goes, Rehearse, Capture, Render, and why each is off. */
+function ScenarioButtons({
+  slug,
+  name,
+  read,
+  commands,
+  say,
+  inApp,
+}: {
+  slug: string;
+  name: string;
+  read: ScenarioRead;
+  commands: ReturnType<typeof useScenarioCommands>;
+  say: (s: string) => void;
+  inApp: boolean;
+}) {
+  const { loc, sending, running, progress, runLive } = read;
+  const { why, renderWhy, renderRun, act, render, stop } = commands;
   const dryWhy = why('dry');
   const capWhy = why('capture');
   const rWhy = renderWhy();
@@ -254,9 +324,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const ids = { dry: 'sh-why-dry', capture: 'sh-why-capture', render: 'sh-why-render', stop: 'sh-why-stop' };
   const paused = Boolean(runLive?.paused || runLive?.pausing);
   const terminal = running?.job === null;
-  // Prepare's buttons are on screen (its status bar is its own); a live run's screen claims the bar until the run ends.
-  const showButtons = !claimed && !onPrepare && !inReview && ctx !== null && slug !== null && name !== null;
-  const actions: ReactNode = showButtons ? (
+  return (
     // biome-ignore lint/a11y/useSemanticElements: the status bar's row of actions; <fieldset> would bring its own border, padding and min-width
     <div className="sh-actions" role="group" aria-label={`Actions for ${name}`} data-testid="status-actions">
       {line && <ShortBlocker b={line.b} slug={slug} name={name} mode={line.mode} testId={line.mode === 'capture' ? 'blockers-capture' : 'blockers-dry-run'} />}
@@ -302,9 +370,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
         )}
       </span>
     </div>
-  ) : null;
-
-  return { info, actions, overlay: <SessionsSheet say={say} route={route} /> };
+  );
 }
 
 /** A blocker in the status bar's one line: the gate's short words and its one action. */

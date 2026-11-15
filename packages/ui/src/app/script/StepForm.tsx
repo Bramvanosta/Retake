@@ -11,234 +11,18 @@
  * before sending and again on the server (its issues come back at their fields).
  */
 import { useEffect, useId, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import type { ActionName } from '@retake/core/language';
-import type { FormField, SceneBlock, StepBlock, StepForms } from '@retake/core/scenario';
-import { Txt, shown, visibleControls } from '../bits.js';
+import type { SceneBlock, StepBlock, StepForms } from '@retake/core/scenario';
+import { Txt, shown } from '../bits.js';
 import { useUnsavedMark } from '../drafts.js';
-import { actionForm, fieldLabel, fieldWords, fieldsOf, formChanges, groupLabel, inputsOf, isRequired, issueField, readInputs } from './forms.js';
+import { actionForm, fieldWords, fieldsOf, formChanges, inputsOf, issueField, readInputs } from './forms.js';
 import type { Inputs } from './forms.js';
 import type { StepEditor } from './StepEditing.js';
 import type { FieldValue, StepEditOp } from './step-edit.js';
-import { Button, Callout, Disclosure, Select, Switch, TextField } from '../ui-kit/index.js';
+import { Button, Callout, Select } from '../ui-kit/index.js';
+import { Fields } from './form-fields.js';
 
 type InsertStep = Extract<StepEditOp, { kind: 'insert_step' }>;
-
-/** One field's input in the inspector's row: a text box, a yes / no / not set choice, or a choice of its options. */
-function FieldInput({
-  f,
-  value,
-  onChange,
-  required,
-  error,
-  disabled,
-  locked,
-}: {
-  f: FormField;
-  value: string;
-  onChange: (v: string) => void;
-  required: boolean;
-  error?: string;
-  disabled: boolean;
-  locked?: string;
-}) {
-  const name = f.group !== undefined ? f.key.slice(f.group.length + 1).replace(/_/g, ' ') : f.label;
-  const label = (
-    <>
-      {shown(fieldLabel(name))}
-      {required && <span className="sc-quiet">{' (required)'}</span>}
-    </>
-  );
-  // The error said in words at its field (the kit adds "Error:").
-  const err =
-    error !== undefined ? (
-      <span data-testid="field-error">
-        <Txt text={error} />
-      </span>
-    ) : undefined;
-  const hint = locked !== undefined ? <Txt text={locked} /> : undefined;
-  if (f.kind === 'boolean' || f.kind === 'enum') {
-    const options = [
-      ...(!required ? [{ value: '', label: 'not set' }] : value === '' ? [{ value: '', label: 'choose…' }] : []),
-      ...(f.kind === 'boolean'
-        ? [
-            { value: 'true', label: 'yes' },
-            { value: 'false', label: 'no' },
-          ]
-        : (f.options ?? []).map((o) => ({ value: o, label: o }))),
-    ];
-    return (
-      <Select
-        layout="row"
-        label={label}
-        value={value}
-        options={options}
-        onChange={onChange}
-        disabled={disabled || locked !== undefined}
-        hint={hint}
-        error={err}
-        dataField={f.key}
-        title={f.description}
-      />
-    );
-  }
-  return (
-    <TextField
-      layout="row"
-      label={label}
-      value={value}
-      onChange={onChange}
-      // The form owns its unsaved mark (StepForm's useUnsavedMark): the quit question never lists a field twice.
-      unsaved={null}
-      disabled={disabled || locked !== undefined}
-      hint={hint}
-      error={err}
-      dataField={f.key}
-      title={f.description}
-      inputMode={f.kind === 'text' ? undefined : f.kind === 'integer' ? 'numeric' : 'decimal'}
-      spellCheck={f.kind === 'text' ? undefined : false}
-      autoComplete="off"
-    />
-  );
-}
-
-/** The modifiers a form edits (core MODIFIER_KEYS: the page imports no runtime code from core). */
-const MODIFIERS = ['caption', 'hold', 'speed', 'mark'] as const;
-type Modifier = (typeof MODIFIERS)[number];
-const MODIFIER_LABEL: Record<Modifier, string> = { caption: 'Caption', hold: 'Hold', speed: 'Speed', mark: 'Mark' };
-const MODIFIER_OFF: Record<Modifier, string> = { caption: 'No caption on this step', hold: 'No hold after it', speed: 'Normal speed', mark: 'No mark for the edit' };
-
-/** The modifier a field belongs to ("caption.text" → caption), or undefined for an argument. */
-function modifierOf(f: FormField): Modifier | undefined {
-  const top = f.key.split('.')[0];
-  return (MODIFIERS as readonly string[]).includes(top) ? (top as Modifier) : undefined;
-}
-
-/**
- * The fields of a form: the arguments (a target's fields grouped, folded while empty), then the modifiers as switches.
- * In the inspector (`fold`: the values on disk) the empty optional fields fold under "More: …" (a set target's empty
- * keys under "Other ways to find it"), decided by the file's values so a field never moves while it is typed in.
- */
-function Fields({
-  fields,
-  stepAction: action,
-  inputs,
-  setInput,
-  errors,
-  disabled,
-  locked,
-  modifiersFrom,
-  fold,
-}: {
-  fields: FormField[];
-  stepAction: ActionName;
-  inputs: Inputs;
-  setInput: (k: string, v: string) => void;
-  errors: Record<string, string>;
-  disabled: boolean;
-  locked: Record<string, string>;
-  /** Index of the first modifier field, or -1 (the palette: no modifiers). */
-  modifiersFrom: number;
-  fold?: Inputs;
-}) {
-  // A modifier switched on with its fields still empty (shown until switched off; the form is keyed by its step).
-  const [opened, setOpened] = useState<ReadonlySet<Modifier>>(new Set());
-  const args = modifiersFrom >= 0 ? fields.slice(0, modifiersFrom) : fields;
-  const mods = modifiersFrom >= 0 ? fields.slice(modifiersFrom) : [];
-  const parts: Array<{ group?: string; fields: FormField[] }> = [];
-  for (const f of args) {
-    const last = parts[parts.length - 1];
-    if (last && last.group === f.group) last.fields.push(f);
-    else parts.push({ ...(f.group !== undefined ? { group: f.group } : {}), fields: [f] });
-  }
-  const one = (f: FormField) => (
-    <FieldInput
-      key={f.key}
-      f={f}
-      value={inputs[f.key] ?? ''}
-      onChange={(v) => setInput(f.key, v)}
-      required={isRequired(f, fields, inputs)}
-      {...(errors[f.key] !== undefined ? { error: errors[f.key] } : {})}
-      disabled={disabled}
-      {...(locked[f.key] !== undefined ? { locked: locked[f.key] } : {})}
-    />
-  );
-  const onDisk = (f: FormField) => (fold?.[f.key] ?? '') !== '';
-  /** A part's fields: those shown, then the empty optional ones folded (two or more; the fold's state is the person's). */
-  const split = (fs: FormField[], group: string | undefined, key: string): ReactNode[] => {
-    if (!fold || (group !== undefined && !fs.some(onDisk))) return fs.map(one);
-    const keep = (f: FormField) => onDisk(f) || locked[f.key] !== undefined || isRequired(f, fields, fold);
-    const more = fs.filter((f) => !keep(f));
-    if (more.length < 2) return fs.map(one);
-    const words = more.map((f) => (f.group !== undefined ? f.key.slice(f.group.length + 1) : f.label).replace(/_/g, ' '));
-    return [
-      ...fs.filter(keep).map(one),
-      <Disclosure key={`more-${key}`} testId="form-more" summary={group !== undefined ? `Other ways to find it (${more.length})` : `More: ${words.join(', ')}`}>
-        <div className="sb-fields">{more.map(one)}</div>
-      </Disclosure>,
-    ];
-  };
-  const byMod = new Map<Modifier, FormField[]>();
-  for (const f of mods) {
-    const m = modifierOf(f);
-    if (m) byMod.set(m, [...(byMod.get(m) ?? []), f]);
-  }
-  return (
-    <>
-      <div className="sb-fields">
-        {parts.map((p, i) => {
-          if (p.group === undefined) return split(p.fields, undefined, String(i));
-          const set = p.fields.some((f) => (inputs[f.key] ?? '') !== '' || errors[f.key] !== undefined || locked[f.key] !== undefined);
-          const target = p.group !== action && p.group !== 'caption';
-          return (
-            <Disclosure
-              key={`g-${p.group}`}
-              defaultOpen={set || p.group === action || p.group === 'caption'}
-              summary={`${groupLabel(p.group, action)}${target ? ' (a target: fill one way to find it)' : ''}`}
-            >
-              <div className="sb-fields">{shown(split(p.fields, p.group, String(i)))}</div>
-            </Disclosure>
-          );
-        })}
-      </div>
-      {byMod.size > 0 && (
-        <div className="sb-fields">
-          <h4 className="sb-h4">Modifiers</h4>
-          {[...byMod].map(([m, fs]) => {
-            const filled = fs.some((f) => (inputs[f.key] ?? '') !== '');
-            const on = filled || opened.has(m) || fs.some((f) => errors[f.key] !== undefined);
-            const value = fs
-              .map((f) => inputs[f.key] ?? '')
-              .filter(Boolean)
-              .join(' · ');
-            return (
-              <div key={m} className="sb-modifier">
-                <Switch
-                  layout="row"
-                  label={MODIFIER_LABEL[m]}
-                  hint={on ? (value ? visibleControls(value) : 'On: fill its value below') : MODIFIER_OFF[m]}
-                  checked={on}
-                  disabled={disabled || fs.some((f) => locked[f.key] !== undefined)}
-                  dataField={m}
-                  onChange={(next) => {
-                    setOpened((cur) => {
-                      const s = new Set(cur);
-                      if (next) s.add(m);
-                      else s.delete(m);
-                      return s;
-                    });
-                    if (!next) for (const f of fs) setInput(f.key, '');
-                  }}
-                />
-                {on && <div className="sb-fields">{fs.map(one)}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-}
 
 /**
  * The selected step's form (inspector). Its values reset when the step changes on disk (its guard); a step changed
@@ -271,16 +55,7 @@ export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string;
   // The modifiers follow the action's own fields (a hold step's `hold` is its argument, not the modifier).
   const own = actionForm(forms, form.action)?.fields.length ?? 0;
   const modifiersFrom = fields.length > own ? own : -1;
-  // The server's refusal of this step's form, at its field.
-  const refused = ed.error?.op?.kind === 'set_step' && ed.error.op.at.scene === scene.id && ed.error.op.at.index === step.index ? ed.error : null;
-  const serverErrors: Record<string, string> = {};
-  if (refused) {
-    if (refused.field !== undefined) serverErrors[refused.field] = refused.message.replace(/^not saved: /, '');
-    for (const i of refused.issues) {
-      const k = issueField(i.path, scene.index, step.index, fields);
-      if (k !== undefined && i.severity === 'error' && serverErrors[k] === undefined) serverErrors[k] = i.message;
-    }
-  }
+  const serverErrors = serverErrorsOf(ed, scene, step, fields);
   const shownErrors = { ...serverErrors, ...Object.fromEntries(Object.entries(errors).filter(([k]) => (inputs[k] ?? '') !== (shownInputs[k] ?? '') || serverErrors[k] === undefined)) };
   const canEdit = ed.enabled && !ed.busy && step.locked === undefined;
   const invalid = Object.keys(errors).length > 0;
@@ -302,19 +77,7 @@ export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string;
       <h4 id={`${idBase}-h`} className="sb-h4">
         Action
       </h4>
-      {changedOnDisk && (
-        <Callout state="warn" role="alert" title="This step changed on disk">
-          <p>The form now shows its new values; your changes were not saved:</p>
-          <ul data-testid="form-dropped">
-            {changedOnDisk.map((t, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the dropped changes, fixed once said, text only: the index is the identity
-              <li key={i}>
-                <Txt text={t} />
-              </li>
-            ))}
-          </ul>
-        </Callout>
-      )}
+      {changedOnDisk && <DroppedChanges lines={changedOnDisk} />}
       {/* Keyed by the step: a modifier switched on for one step is not on for the next. */}
       <Fields
         key={step.key}
@@ -343,6 +106,37 @@ export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string;
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The server's refusal of this step's form, at its field. */
+function serverErrorsOf(ed: StepEditor, scene: SceneBlock, step: StepBlock, fields: ReturnType<typeof fieldsOf>): Record<string, string> {
+  const refused = ed.error?.op?.kind === 'set_step' && ed.error.op.at.scene === scene.id && ed.error.op.at.index === step.index ? ed.error : null;
+  const serverErrors: Record<string, string> = {};
+  if (refused) {
+    if (refused.field !== undefined) serverErrors[refused.field] = refused.message.replace(/^not saved: /, '');
+    for (const i of refused.issues) {
+      const k = issueField(i.path, scene.index, step.index, fields);
+      if (k !== undefined && i.severity === 'error' && serverErrors[k] === undefined) serverErrors[k] = i.message;
+    }
+  }
+  return serverErrors;
+}
+
+/** What was typed when the step changed on disk, said with the text (to copy). */
+function DroppedChanges({ lines }: { lines: string[] }) {
+  return (
+    <Callout state="warn" role="alert" title="This step changed on disk">
+      <p>The form now shows its new values; your changes were not saved:</p>
+      <ul data-testid="form-dropped">
+        {lines.map((t, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the dropped changes, fixed once said, text only: the index is the identity
+          <li key={i}>
+            <Txt text={t} />
+          </li>
+        ))}
+      </ul>
+    </Callout>
   );
 }
 
@@ -416,22 +210,7 @@ export function Palette({
   const titleId = `${idBase}-palette`;
   return (
     <section className="sb-palette" aria-labelledby={titleId} data-testid="palette">
-      <div className="sb-palette-head">
-        <h2 id={titleId} className="sc-h2">
-          Add a step
-        </h2>
-        <Button size="sm" variant="ghost" icon="close" onClick={onClose}>
-          Close
-        </Button>
-      </div>
-      {/* biome-ignore lint/a11y/useSemanticElements: a row of palette buttons; <fieldset> would bring its own border, padding and min-width */}
-      <div className="sb-palette-actions" role="group" aria-label="Actions">
-        {forms.palette.map((a) => (
-          <Button key={a} size="sm" variant={action === a ? 'primary' : 'secondary'} aria-pressed={action === a} onClick={() => pick(a)} data-palette={a}>
-            {shown(a.replace(/_/g, ' '))}
-          </Button>
-        ))}
-      </div>
+      <PaletteHead titleId={titleId} onClose={onClose} palette={forms.palette} chosen={action} onPick={pick} />
       {form && (
         <form
           className="sb-form"
@@ -475,5 +254,41 @@ export function Palette({
         </form>
       )}
     </section>
+  );
+}
+
+/** The palette's title and Close, and its row of actions (the one chosen pressed). */
+function PaletteHead({
+  titleId,
+  onClose,
+  palette,
+  chosen,
+  onPick,
+}: {
+  titleId: string;
+  onClose: () => void;
+  palette: StepForms['palette'];
+  chosen: ActionName | null;
+  onPick: (a: ActionName) => void;
+}) {
+  return (
+    <>
+      <div className="sb-palette-head">
+        <h2 id={titleId} className="sc-h2">
+          Add a step
+        </h2>
+        <Button size="sm" variant="ghost" icon="close" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: a row of palette buttons; <fieldset> would bring its own border, padding and min-width */}
+      <div className="sb-palette-actions" role="group" aria-label="Actions">
+        {palette.map((a) => (
+          <Button key={a} size="sm" variant={chosen === a ? 'primary' : 'secondary'} aria-pressed={chosen === a} onClick={() => onPick(a)} data-palette={a}>
+            {shown(a.replace(/_/g, ' '))}
+          </Button>
+        ))}
+      </div>
+    </>
   );
 }

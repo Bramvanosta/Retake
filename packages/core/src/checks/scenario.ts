@@ -175,7 +175,7 @@ class ScenarioChecker {
    */
   private readOnly(): void {
     // Entry by entry: one malformed mock does not hide the others' problems.
-    checkWriteRules(this.s.mocks, ['mocks'], this.pages ? Object.keys(this.pages) : undefined, this.ctx, 'mock', this.envName);
+    checkWriteRules(this.s.mocks, ['mocks'], this.ctx, { what: 'mock', pages: this.pages ? Object.keys(this.pages) : undefined, envName: this.envName });
     const project = this.opts.project;
     if (!project || this.envName === undefined) return;
     const settings = project.config.environment_settings;
@@ -848,18 +848,18 @@ class ScenarioChecker {
       const list = this.s[key];
       if (!Array.isArray(list)) continue;
       list.forEach((v, i) => {
-        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], key === 'scenes' ? scope : hookScope, this.ctx, false, key === 'scenes' ? sceneRules : undefined);
+        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], key === 'scenes' ? scope : hookScope, this.ctx, { rules: key === 'scenes' ? sceneRules : undefined });
       });
     }
     if (isObj(this.s.hooks)) {
       for (const [name, v] of Object.entries(this.s.hooks)) {
-        if (!this.ctx.broken(['hooks', name])) checkTokens(v, ['hooks', name], hookScope, this.ctx, false);
+        if (!this.ctx.broken(['hooks', name])) checkTokens(v, ['hooks', name], hookScope, this.ctx);
       }
     }
     if (this.s.vars !== undefined && !this.ctx.broken(['vars'])) checkVarsValues(this.s.vars, ['vars'], this.ctx);
     // The video's title, intro, outro and tutorial switches are templated too (shown in the video: no secrets).
     for (const key of ['title', 'intro', 'outro', 'tutorial'] as const) {
-      if (this.s[key] !== undefined && !this.ctx.broken([key])) checkTokens(this.s[key], [key], scope, this.ctx, false, { noSecret: () => true });
+      if (this.s[key] !== undefined && !this.ctx.broken([key])) checkTokens(this.s[key], [key], scope, this.ctx, { rules: { noSecret: () => true } });
     }
   }
 

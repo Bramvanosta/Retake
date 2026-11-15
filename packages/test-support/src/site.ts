@@ -127,10 +127,9 @@ export interface BrandSite {
   close(): Promise<void>;
 }
 
-/** Start the fixture site and its escape listeners. */
-export async function startBrandSite(): Promise<BrandSite> {
+/** A throwaway self-signed certificate for `names` (its files removed once read). */
+function selfSignedCert(names: readonly string[]): { key: Buffer; cert: Buffer } {
   const dir = mkdtempSync(join(tmpdir(), 'brand-site-cert-'));
-  const names = ['brand.test', 'www.brand.test', 'cdn.test', 'esc.test', 'hostile.test', 'elsewhere.test'];
   execFileSync(
     'openssl',
     [
@@ -155,7 +154,11 @@ export async function startBrandSite(): Promise<BrandSite> {
   const key = readFileSync(join(dir, 'k.pem'));
   const cert = readFileSync(join(dir, 'c.pem'));
   rmSync(dir, { recursive: true, force: true });
+  return { key, cert };
+}
 
+/** The escape listeners: a TCP server and a UDP socket on 127.0.0.1 that count what reaches them (must stay 0). */
+async function startEscapes() {
   const escapes = { tcp: 0, udp: 0, upgrades: 0 };
   const esc = createTcpServer((s) => {
     escapes.tcp++;
@@ -167,6 +170,13 @@ export async function startBrandSite(): Promise<BrandSite> {
   await new Promise<void>((r) => udp.bind(0, '127.0.0.1', () => r()));
   const escPort = (esc.address() as { port: number }).port;
   const udpPort = udp.address().port;
+  return { escapes, esc, udp, escPort, udpPort };
+}
+
+/** Start the fixture site and its escape listeners. */
+export async function startBrandSite(): Promise<BrandSite> {
+  const { key, cert } = selfSignedCert(['brand.test', 'www.brand.test', 'cdn.test', 'esc.test', 'hostile.test', 'elsewhere.test']);
+  const { escapes, esc, udp, escPort, udpPort } = await startEscapes();
 
   const html = readFileSync(join(SITE_DIR, 'index.html'), 'utf8').replaceAll('{{ESC}}', String(escPort)).replaceAll('{{UDP}}', String(udpPort));
   const css = readFileSync(join(SITE_DIR, 'site.css'));

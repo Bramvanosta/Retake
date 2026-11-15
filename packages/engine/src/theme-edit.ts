@@ -329,6 +329,94 @@ async function usedBy(ws: OpenedWorkspace, memos: ThemeEditMemos, name: string):
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
+type ComponentCalls = Awaited<ReturnType<typeof componentCalls>>;
+
+/** What a theme writes for one component kind (its resolved component is set by the caller). */
+function writtenComponent(w: unknown): ThemeComponentView {
+  return w === undefined
+    ? { written: 'absent', resolved: null }
+    : w === null
+      ? { written: 'none', resolved: null }
+      : typeof w === 'string'
+        ? { written: 'id', id: w, resolved: null }
+        : isObj(w) && typeof w.id === 'string'
+          ? { written: 'params', id: w.id, ...(isObj(w.params) ? { params: w.params } : {}), resolved: null }
+          : isTemplateMediaRef(w as never)
+            ? { written: 'file', resolved: null }
+            : { written: 'other', resolved: null };
+}
+
+/** The theme folder's fonts and images, each read and sniffed (a problem said per file), and the font names it claims. */
+function themeAssets(
+  dir: string,
+  files: readonly string[],
+  lib: ComponentCalls,
+): { fonts: ThemeEditView['fonts']; images: ThemeEditView['images']; untrustedFonts: ThemeEditView['untrusted']['fonts'] } {
+  const fonts: ThemeEditView['fonts'] = [];
+  const images: ThemeEditView['images'] = [];
+  const untrustedFonts: ThemeEditView['untrusted']['fonts'] = [];
+  for (const file of files) {
+    if (FONT_RE.test(file)) {
+      const r = readPlainFile(join(dir, ...file.split('/')), FONT_MAX_BYTES);
+      if (!r.ok) {
+        fonts.push({ file, problem: `cannot be read (${r.reason})` });
+        continue;
+      }
+      try {
+        const info = sniffFont({ ref: file, ext: file.slice(file.lastIndexOf('.')).toLowerCase(), bytes: r.bytes });
+        const face = lib.fontFileFace(join(dir, ...file.split('/')));
+        fonts.push({ file, format: info.format, weight: info.weight ?? face.weight, italic: info.italic ?? face.style === 'italic' });
+        if (info.names.family || info.names.subfamily)
+          untrustedFonts.push({ file, ...(info.names.family ? { family: info.names.family.slice(0, 120) } : {}), ...(info.names.subfamily ? { subfamily: info.names.subfamily.slice(0, 120) } : {}) });
+      } catch (e) {
+        fonts.push({ file, problem: toEngineError(e).message });
+      }
+    } else if (IMAGE_RE.test(file)) {
+      const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
+      const r = readPlainFile(join(dir, ...file.split('/')), ext === '.svg' ? SVG_MAX_BYTES : IMAGE_MAX_BYTES);
+      if (!r.ok) {
+        images.push({ file, bytes: r.size ?? 0, problem: `cannot be read (${r.reason})` });
+        continue;
+      }
+      try {
+        const info = checkImage({ ref: file, ext, bytes: r.bytes }, 'image');
+        images.push({ file, format: info.format, ...(info.width !== undefined ? { width: info.width } : {}), ...(info.height !== undefined ? { height: info.height } : {}), bytes: r.bytes.length });
+      } catch (e) {
+        images.push({ file, bytes: r.bytes.length, problem: toEngineError(e).message });
+      }
+    }
+  }
+  return { fonts, images, untrustedFonts };
+}
+
+/** The palette checks of the theme's colours, when every colour is a hex one (null otherwise). */
+function themePalette(template: Template | undefined, lib: ComponentCalls): ThemeEditView['palette'] {
+  let palette: ThemeEditView['palette'] = null;
+  const c = template?.colors;
+  if (c && [c.accent, c.text, c.muted, c.paper].every((x) => HEX.test(x)) && (c.dark === undefined || HEX.test(c.dark))) {
+    const bg = template!.background;
+    const background =
+      bg.type === 'solid'
+        ? bg.color && HEX.test(bg.color)
+          ? bg.color
+          : undefined
+        : bg.from && bg.to && HEX.test(bg.from) && HEX.test(bg.to)
+          ? { type: bg.type, from: bg.from, to: bg.to }
+          : undefined;
+    const p = lib.derivePalette({
+      accent: c.accent,
+      text: c.text,
+      muted: c.muted,
+      paper: c.paper,
+      ...(c.dark !== undefined ? { dark: c.dark } : {}),
+      ...(background !== undefined ? { background } : {}),
+      adjust: false,
+    });
+    palette = { checks: p.checks, warnings: p.warnings };
+  }
+  return palette;
+}
+
 /** One theme as its editor shows it (see the header); remembers the version shown (undo restores only those). */
 export async function themeEditView(ws: OpenedWorkspace, name: string, memos: ThemeEditMemos): Promise<ThemeEditView> {
   const loc = await locateTheme(ws, name);
@@ -365,80 +453,13 @@ export async function themeEditView(ws: OpenedWorkspace, name: string, memos: Th
     }
   }
   for (const kind of COMPONENT_KINDS) {
-    const w = comps[kind];
-    const view: ThemeComponentView =
-      w === undefined
-        ? { written: 'absent', resolved: null }
-        : w === null
-          ? { written: 'none', resolved: null }
-          : typeof w === 'string'
-            ? { written: 'id', id: w, resolved: null }
-            : isObj(w) && typeof w.id === 'string'
-              ? { written: 'params', id: w.id, ...(isObj(w.params) ? { params: w.params } : {}), resolved: null }
-              : isTemplateMediaRef(w as never)
-                ? { written: 'file', resolved: null }
-                : { written: 'other', resolved: null };
+    const view = writtenComponent(comps[kind]);
     view.resolved = resolved[kind] ?? null;
     componentsView[kind] = view;
   }
   const { files, links } = await themeFiles(loc.realDir);
-  const fonts: ThemeEditView['fonts'] = [];
-  const images: ThemeEditView['images'] = [];
-  const untrustedFonts: ThemeEditView['untrusted']['fonts'] = [];
-  for (const file of files) {
-    if (FONT_RE.test(file)) {
-      const r = readPlainFile(join(loc.realDir, ...file.split('/')), FONT_MAX_BYTES);
-      if (!r.ok) {
-        fonts.push({ file, problem: `cannot be read (${r.reason})` });
-        continue;
-      }
-      try {
-        const info = sniffFont({ ref: file, ext: file.slice(file.lastIndexOf('.')).toLowerCase(), bytes: r.bytes });
-        const face = lib.fontFileFace(join(loc.realDir, ...file.split('/')));
-        fonts.push({ file, format: info.format, weight: info.weight ?? face.weight, italic: info.italic ?? face.style === 'italic' });
-        if (info.names.family || info.names.subfamily)
-          untrustedFonts.push({ file, ...(info.names.family ? { family: info.names.family.slice(0, 120) } : {}), ...(info.names.subfamily ? { subfamily: info.names.subfamily.slice(0, 120) } : {}) });
-      } catch (e) {
-        fonts.push({ file, problem: toEngineError(e).message });
-      }
-    } else if (IMAGE_RE.test(file)) {
-      const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
-      const r = readPlainFile(join(loc.realDir, ...file.split('/')), ext === '.svg' ? SVG_MAX_BYTES : IMAGE_MAX_BYTES);
-      if (!r.ok) {
-        images.push({ file, bytes: r.size ?? 0, problem: `cannot be read (${r.reason})` });
-        continue;
-      }
-      try {
-        const info = checkImage({ ref: file, ext, bytes: r.bytes }, 'image');
-        images.push({ file, format: info.format, ...(info.width !== undefined ? { width: info.width } : {}), ...(info.height !== undefined ? { height: info.height } : {}), bytes: r.bytes.length });
-      } catch (e) {
-        images.push({ file, bytes: r.bytes.length, problem: toEngineError(e).message });
-      }
-    }
-  }
-  let palette: ThemeEditView['palette'] = null;
-  const c = parsed.template?.colors;
-  if (c && [c.accent, c.text, c.muted, c.paper].every((x) => HEX.test(x)) && (c.dark === undefined || HEX.test(c.dark))) {
-    const bg = parsed.template!.background;
-    const background =
-      bg.type === 'solid'
-        ? bg.color && HEX.test(bg.color)
-          ? bg.color
-          : undefined
-        : bg.from && bg.to && HEX.test(bg.from) && HEX.test(bg.to)
-          ? { type: bg.type, from: bg.from, to: bg.to }
-          : undefined;
-    const p = lib.derivePalette({
-      accent: c.accent,
-      text: c.text,
-      muted: c.muted,
-      paper: c.paper,
-      ...(c.dark !== undefined ? { dark: c.dark } : {}),
-      ...(background !== undefined ? { background } : {}),
-      adjust: false,
-    });
-    palette = { checks: p.checks, warnings: p.warnings };
-  }
+  const { fonts, images, untrustedFonts } = themeAssets(loc.realDir, files, lib);
+  const palette = themePalette(parsed.template, lib);
   return {
     name,
     source: loc.entry.source,

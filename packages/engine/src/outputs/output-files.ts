@@ -208,19 +208,74 @@ export function outputsOn(fs: OutputFs): Outputs {
   };
 }
 
+/** The run ids of a runs folder, in the one order of runs (none when the folder is not there). */
+async function runIdsOn(fs: OutputFs, runsDir: string): ReturnType<RunOutputs['ids']> {
+  let entries: Awaited<ReturnType<OutputFs['readdir']>>;
+  try {
+    entries = await fs.readdir(runsDir);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException | null)?.code === 'ENOENT') return [];
+    throw e;
+  }
+  return orderRuns(entries.filter((d) => d.isDirectory()).map((d) => d.name));
+}
+
+/** A run file's size and hash, a link followed only inside the run folder (RunOutputs `describe`). */
+async function describeOn(fs: OutputFs, dir: string, file: string, o: NonNullable<Parameters<RunOutputs['describe']>[2]>): ReturnType<RunOutputs['describe']> {
+  const path = fileOf(dir, file);
+  let st: OutputStat;
+  try {
+    st = await fs.lstat(path);
+  } catch {
+    return undefined;
+  }
+  // A link is followed only while its real path stays in the run folder; one that leaves it (or leads nowhere), and
+  // a file that has another name (a hard link: any file of the machine), is said as a refused link: no size, no hash
+  // of what lies elsewhere.
+  let target = path;
+  if (st.isSymbolicLink()) {
+    try {
+      const [real, root] = await Promise.all([fs.realpath(path), fs.realpath(dir)]);
+      if (!within(real, root) || real === root) return { link: 'refused' };
+      target = real;
+      st = await fs.lstat(real);
+    } catch {
+      return { link: 'refused' };
+    }
+  }
+  if (!st.isFile()) return {};
+  if (!oneName(st)) return { link: 'refused' };
+  let sha256: string | undefined;
+  try {
+    if (o.hash) sha256 = await fs.hash(target);
+  } catch (e) {
+    // Turned into a link, or given another name, between the look and the read (the hash opens without following
+    // one and checks the opened file's names): a refused link.
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ELOOP' || code === 'EMLINK') return { link: 'refused' };
+    throw e;
+  }
+  return { bytes: st.size, ...(sha256 !== undefined ? { sha256 } : {}) };
+}
+
+/** Whether `id` is a run folder inside the project's runs folder, by real paths (RunOutputs `inside`). */
+async function runInsideOn(fs: OutputFs, projectDir: string, id: string): Promise<boolean> {
+  if (!isRunId(id)) return false;
+  const runsDir = runsDirOf(projectDir);
+  const dir = join(runsDir, id);
+  try {
+    if (!(await fs.lstat(dir)).isDirectory()) return false;
+    const [project, root, real] = await Promise.all([fs.realpath(projectDir), fs.realpath(runsDir), fs.realpath(dir)]);
+    return within(root, project) && within(real, root) && real !== root;
+  } catch {
+    return false;
+  }
+}
+
 /** The RunOutputs of the storage `fs`. */
 export function runOutputsOn(fs: OutputFs): RunOutputs {
   return {
-    ids: async (runsDir) => {
-      let entries: Awaited<ReturnType<OutputFs['readdir']>>;
-      try {
-        entries = await fs.readdir(runsDir);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException | null)?.code === 'ENOENT') return [];
-        throw e;
-      }
-      return orderRuns(entries.filter((d) => d.isDirectory()).map((d) => d.name));
-    },
+    ids: (runsDir) => runIdsOn(fs, runsDir),
     folder: (runsDir, name, o = {}) =>
       readRunFolder(runsDir, name, {
         fs,
@@ -251,60 +306,14 @@ export function runOutputsOn(fs: OutputFs): RunOutputs {
         throw e;
       }
     },
-    describe: async (dir, file, o = {}) => {
-      const path = fileOf(dir, file);
-      let st: OutputStat;
-      try {
-        st = await fs.lstat(path);
-      } catch {
-        return undefined;
-      }
-      // A link is followed only while its real path stays in the run folder; one that leaves it (or leads nowhere), and
-      // a file that has another name (a hard link: any file of the machine), is said as a refused link: no size, no hash
-      // of what lies elsewhere.
-      let target = path;
-      if (st.isSymbolicLink()) {
-        try {
-          const [real, root] = await Promise.all([fs.realpath(path), fs.realpath(dir)]);
-          if (!within(real, root) || real === root) return { link: 'refused' };
-          target = real;
-          st = await fs.lstat(real);
-        } catch {
-          return { link: 'refused' };
-        }
-      }
-      if (!st.isFile()) return {};
-      if (!oneName(st)) return { link: 'refused' };
-      let sha256: string | undefined;
-      try {
-        if (o.hash) sha256 = await fs.hash(target);
-      } catch (e) {
-        // Turned into a link, or given another name, between the look and the read (the hash opens without following
-        // one and checks the opened file's names): a refused link.
-        const code = (e as NodeJS.ErrnoException).code;
-        if (code === 'ELOOP' || code === 'EMLINK') return { link: 'refused' };
-        throw e;
-      }
-      return { bytes: st.size, ...(sha256 !== undefined ? { sha256 } : {}) };
-    },
+    describe: (dir, file, o = {}) => describeOn(fs, dir, file, o),
     signature: (path, o) => signatureOf(fs, path, o),
     names: (runsDir) => namesOf(fs, runsDir),
     readCapped: (dir, file, o) => fs.text(fileOf(dir, file), o),
     size: (path) => sizeOf(fs, path),
     remove: (dir) => fs.remove(dir),
     unreserve: (dir) => fs.rmdir(dir).catch(() => undefined),
-    inside: async (projectDir, id) => {
-      if (!isRunId(id)) return false;
-      const runsDir = runsDirOf(projectDir);
-      const dir = join(runsDir, id);
-      try {
-        if (!(await fs.lstat(dir)).isDirectory()) return false;
-        const [project, root, real] = await Promise.all([fs.realpath(projectDir), fs.realpath(runsDir), fs.realpath(dir)]);
-        return within(root, project) && within(real, root) && real !== root;
-      } catch {
-        return false;
-      }
-    },
+    inside: (projectDir, id) => runInsideOn(fs, projectDir, id),
     reserve: (runsDir, scenario, at) => reserveRunId(runsDir, scenario, at, fs),
     write: async (dir, file, data) => fs.writeAtomic(fileOf(dir, file), data),
     writeJson: async (dir, file, value) => fs.writeAtomic(fileOf(dir, file), JSON.stringify(value, null, 2) + '\n'),

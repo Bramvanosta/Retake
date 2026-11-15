@@ -25,24 +25,19 @@
  * - Every switch is an edit change (said once and after each switch): a render of this take shows it, no
  *   new capture. Text from the server is a text node.
  */
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import type { TimelineView } from '@retake/engine';
-import { CallError, errorText } from '../api.js';
-import { scenarioEdit } from '../data/scenarios.js';
-import type { ScenarioEdit } from '../data/scenarios.js';
-import type { ScenarioEditAnswer } from '../data/scenarios.js';
 import { Txt, plural } from '../bits.js';
-import { SessionEnded } from '../session.js';
-import { EditHistory, inField } from '../script/step-edit.js';
 import { choiceKey, inRange, switchAgain, switchEdit, switchEditWords, switchKind, switchLegend, switchOptions, valueWords } from '../script/field-switch.js';
 import type { Choice, SwitchEdit, SwitchValue } from '../script/field-switch.js';
 import { segmentWords, timecode } from '../words/timeline-words.js';
 import { Button, Callout, ChoiceChips, InspectorSection, NumberField, Tag } from '../ui-kit/index.js';
+import { useSwitchRun, useSwitchState, useUndoRedo } from './switch-loop.js';
+import type { SwitchView } from './switch-loop.js';
 
 type Segment = TimelineView['model']['segments'][number];
 
-/** The parts of the timeline view the switches need (the file's text: what undo restores). */
-export type SwitchView = Pick<TimelineView, 'hash' | 'editable' | 'choices'> & { text?: string };
+export type { SwitchView } from './switch-loop.js';
 
 /** Said after a switch (every switch is an edit value). */
 export const SWITCH_CHANGE_WORDS = 'Only the edit changed: a render of this take shows it, no new capture.';
@@ -68,83 +63,12 @@ export interface SwitchEditor {
 
 /** The screen's switch loop (useStepEditor's, for `set_field`): send, undo / redo, the 409 offer. */
 export function useSwitchEditor(slug: string, name: string, v: SwitchView, reload: () => void): SwitchEditor {
-  const history = useRef<EditHistory>(new EditHistory());
-  const [, bump] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const waitHash = useRef<string | null>(null);
-  const [announce, setAnnounce] = useState('');
-  const [error, setError] = useState<SwitchEditor['error']>(null);
-  const [conflict, setConflict] = useState<SwitchEditor['conflict']>(null);
-  /** An undo / redo asked while a write was in flight: it runs once the write's view lands (BL-122: never dropped). */
-  const queued = useRef<'undo' | 'redo' | null>(null);
-  const vRef = useRef(v);
-  vRef.current = v;
-
-  const hash = v.hash ?? null;
-  // Each view: the switch's own version lands (picks back on), or a version this screen did not make (history cleared).
-  useEffect(() => {
-    if (hash === null) return;
-    const h = history.current;
-    if (waitHash.current !== null) {
-      if (hash !== waitHash.current && h.knows(hash)) return; // an older read: the switch's view is still coming
-      waitHash.current = null;
-      busyRef.current = false;
-      setBusy(false);
-    }
-    if (h.size === 0 && !h.knows(hash)) {
-      h.know(hash);
-      return;
-    }
-    if (!h.knows(hash)) {
-      h.clear();
-      h.know(hash);
-      setAnnounce('The file changed outside this screen: the undo history was cleared.');
-      bump((n) => n + 1);
-    }
-  }, [hash]);
+  const st = useSwitchState(v);
+  const { history, busy, busyRef, announce, error, setError, conflict, setConflict, vRef } = st;
 
   const enabled = v.editable === true && v.hash !== undefined && v.text !== undefined;
 
-  /** Send one edit on the version shown; `after` runs with the answer (the history's bookkeeping) and gives the words. */
-  const run = useCallback(
-    (edit: ScenarioEdit, after: (r: ScenarioEditAnswer, shown: SwitchView) => string, op?: SwitchEdit) => {
-      const shown = vRef.current;
-      if (busyRef.current || shown.hash === undefined) return;
-      busyRef.current = true;
-      setBusy(true);
-      setError(null);
-      scenarioEdit({ project: slug, name, hash: shown.hash, edit }).then(
-        (r) => {
-          history.current.know(r.hash);
-          const words = after(r, shown);
-          setAnnounce(`${words}${r.notices.length ? ` ${r.notices.join(' ')}` : ''}${r.warnings.length ? ` ${r.warnings.length} warning${r.warnings.length === 1 ? '' : 's'} in the file.` : ''}`);
-          waitHash.current = r.hash;
-          bump((n) => n + 1);
-          reload();
-        },
-        (e: unknown) => {
-          busyRef.current = false;
-          // An undo / redo queued behind a write that failed or met another writer (409)
-          // is dropped and said once — it meant "undo THIS switch", never the one before it.
-          const dropped = queued.current;
-          queued.current = null;
-          setBusy(false);
-          if (dropped) setAnnounce(`${dropped === 'undo' ? 'Undo' : 'Redo'} cancelled: the switch was not saved, so there is nothing to ${dropped}.`);
-          if (e instanceof SessionEnded) return;
-          if (e instanceof CallError && e.error.code === 'conflict' && e.error.details?.stale !== true && op) {
-            const c = [...shown.choices.video, ...Object.values(shown.choices.segments).flat()].find((x) => choiceKey(x) === choiceKey(op));
-            setConflict({ edit: op, words: switchEditWords(op, c) });
-            reload();
-            return;
-          }
-          if (e instanceof CallError && e.error.code === 'conflict') reload();
-          setError({ title: 'Not saved', message: errorText(e) });
-        },
-      );
-    },
-    [slug, name, reload],
-  );
+  const run = useSwitchRun(slug, name, reload, st);
 
   const send = useCallback(
     (edit: SwitchEdit, c?: Choice) => {
@@ -157,7 +81,7 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
         edit,
       );
     },
-    [run],
+    [run, history],
   );
 
   const pick = useCallback(
@@ -168,75 +92,10 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
       setConflict(null);
       send(switchEdit(c, value), c);
     },
-    [enabled, send],
+    [enabled, send, busyRef, setConflict],
   );
 
-  const undo = useCallback(() => {
-    if (busyRef.current) {
-      queued.current = 'undo';
-      setAnnounce('Undo in a moment: the switch is still saving.');
-      return;
-    }
-    const h = history.current;
-    const e = h.undo.at(-1);
-    if (!e || !enabled) return;
-    if (vRef.current.hash !== e.hashAfter) {
-      h.clear();
-      bump((n) => n + 1);
-      setError({ title: 'Undo is not possible', message: 'The file changed since this switch: the undo history was cleared.' });
-      return;
-    }
-    run({ kind: 'restore', text: e.before, text_hash: e.hashBefore }, (_r, shown) => {
-      h.undone(shown.text!);
-      return `Undone: ${e.label}.`;
-    });
-  }, [enabled, run]);
-
-  const redo = useCallback(() => {
-    if (busyRef.current) {
-      queued.current = 'redo';
-      setAnnounce('Redo in a moment: the switch is still saving.');
-      return;
-    }
-    const h = history.current;
-    const e = h.redo.at(-1);
-    if (!e || e.after === null || !enabled) return;
-    if (vRef.current.hash !== e.hashBefore) {
-      h.clear();
-      bump((n) => n + 1);
-      setError({ title: 'Redo is not possible', message: 'The file changed since this switch was undone: the history was cleared.' });
-      return;
-    }
-    run({ kind: 'restore', text: e.after, text_hash: e.hashAfter }, () => {
-      h.redone();
-      return `Redone: ${e.label}.`;
-    });
-  }, [enabled, run]);
-
-  // The write landed: an undo / redo asked meanwhile runs now (a failed write dropped it above).
-  useEffect(() => {
-    if (busy || queued.current === null) return;
-    const q = queued.current;
-    queued.current = null;
-    if (q === 'undo') undo();
-    else redo();
-  }, [busy, undo, redo]);
-
-  // ⌘Z / Ctrl+Z undo, Shift+⌘Z / Ctrl+Y redo — not while typing in a field (its own undo).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || inField(e.target)) return;
-      const k = e.key.toLowerCase();
-      if (k === 'z' || k === 'y') {
-        e.preventDefault();
-        if (e.repeat) return;
-        if (k === 'y' || e.shiftKey) redo();
-        else undo();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo]);
+  const { undo, redo } = useUndoRedo(st, enabled, run);
 
   const again = conflict ? switchAgain(conflict.edit, v) : null;
   const h = history.current;
@@ -356,6 +215,56 @@ function segmentFacts(s: Segment, fps: number, steps: number): string {
   return `${timecode(s.from, fps)} – ${timecode(s.to, fps)}${s.kind === 'clip' ? ` · ${plural(steps, 'step')}` : ''}`;
 }
 
+/** Stays on top while the switches scroll: what was just done, a refusal or the 409 offer. */
+function InspectorTop({ ed }: { ed: SwitchEditor }) {
+  return (
+    <div className="ed-inspector-top">
+      <p className="ed-live" role="status" aria-live="polite" data-testid="switch-live">
+        {ed.busy || ed.announce ? (
+          <>
+            {ed.busy && <Tag>Saving…</Tag>}
+            {ed.busy && ed.announce ? ' ' : null}
+            <Txt text={ed.announce} />
+          </>
+        ) : null}
+      </p>
+      {ed.conflict && (
+        <Callout state="warn" role="alert" title="The file changed on disk">
+          <p data-testid="switch-conflict">
+            {'Your switch ('}
+            <Txt text={ed.conflict.words} />
+            {') was not applied. The timeline now shows the new version.'}
+          </p>
+          {ed.conflictOff !== null && (
+            <p className="ed-quiet" data-testid="switch-conflict-off">
+              {'It cannot be applied to the new version: '}
+              <Txt text={ed.conflictOff} />
+            </p>
+          )}
+          <p className="ed-actions">
+            <Button size="sm" variant={ed.conflictOff === null ? 'primary' : 'secondary'} disabled={ed.busy || ed.conflictOff !== null} onClick={ed.applyConflict}>
+              Apply it to the new version
+            </Button>
+            <Button size="sm" variant="ghost" onClick={ed.dismiss}>
+              Leave it
+            </Button>
+          </p>
+        </Callout>
+      )}
+      {ed.error && (
+        <Callout state="fail" role="alert" title={ed.error.title}>
+          <p className="ed-pre" data-testid="switch-error">
+            <Txt text={ed.error.title === 'Not saved' ? ed.error.message.replace(/^not saved: /, '') : ed.error.message} />
+          </p>
+          <Button size="sm" variant="ghost" onClick={ed.dismiss}>
+            Dismiss
+          </Button>
+        </Callout>
+      )}
+    </div>
+  );
+}
+
 /**
  * The inspector (the shell's pane): what was just done, a refusal or the 409 offer (on top while the switches scroll);
  * the selected segment's switches, then the video's. `fps` and `steps` say where the segment is.
@@ -373,51 +282,7 @@ export function TimelineInspector({ v, segment, ed, fps, stepsOf }: { v: SwitchV
   }, [segKey]);
   return (
     <div className="ed-inspector" data-testid="inspector">
-      {/* Stays on top while the switches scroll: what was just done, a refusal or the 409 offer. */}
-      <div className="ed-inspector-top">
-        <p className="ed-live" role="status" aria-live="polite" data-testid="switch-live">
-          {ed.busy || ed.announce ? (
-            <>
-              {ed.busy && <Tag>Saving…</Tag>}
-              {ed.busy && ed.announce ? ' ' : null}
-              <Txt text={ed.announce} />
-            </>
-          ) : null}
-        </p>
-        {ed.conflict && (
-          <Callout state="warn" role="alert" title="The file changed on disk">
-            <p data-testid="switch-conflict">
-              {'Your switch ('}
-              <Txt text={ed.conflict.words} />
-              {') was not applied. The timeline now shows the new version.'}
-            </p>
-            {ed.conflictOff !== null && (
-              <p className="ed-quiet" data-testid="switch-conflict-off">
-                {'It cannot be applied to the new version: '}
-                <Txt text={ed.conflictOff} />
-              </p>
-            )}
-            <p className="ed-actions">
-              <Button size="sm" variant={ed.conflictOff === null ? 'primary' : 'secondary'} disabled={ed.busy || ed.conflictOff !== null} onClick={ed.applyConflict}>
-                Apply it to the new version
-              </Button>
-              <Button size="sm" variant="ghost" onClick={ed.dismiss}>
-                Leave it
-              </Button>
-            </p>
-          </Callout>
-        )}
-        {ed.error && (
-          <Callout state="fail" role="alert" title={ed.error.title}>
-            <p className="ed-pre" data-testid="switch-error">
-              <Txt text={ed.error.title === 'Not saved' ? ed.error.message.replace(/^not saved: /, '') : ed.error.message} />
-            </p>
-            <Button size="sm" variant="ghost" onClick={ed.dismiss}>
-              Dismiss
-            </Button>
-          </Callout>
-        )}
-      </div>
+      <InspectorTop ed={ed} />
       <p className="k-sr" role="status" aria-live="polite" data-testid="inspector-selected">
         <Txt text={selectedWords} />
       </p>

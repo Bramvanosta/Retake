@@ -68,6 +68,62 @@ function ReviewLink({ v, mine, slug, name }: { v: ScenarioRendersView; mine: Rea
   );
 }
 
+/** What is on screen, in plain words: today's edit of the take, the take as captured, or the proposal. */
+function SourceWords({ source }: { source: EditSource }) {
+  return (
+    <>
+      {source.proposal ? (
+        'The edit Claude proposed, on the take its comment was made on — not written'
+      ) : source.edit === 'scenario' ? (
+        <>
+          {"Today's edit of take "}
+          <Txt className="k-mono" text={source.run} />
+          {source.changes?.length ? (
+            <>
+              {' — changed since the take: '}
+              <Txt text={source.changes.join(', ')} />
+            </>
+          ) : null}
+        </>
+      ) : (
+        'The take as it was captured'
+      )}
+    </>
+  );
+}
+
+/** Undo · Redo of the switches (each named by what it undoes or redoes: the k-sr lines below). */
+function UndoRedo({ ed }: { ed: SwitchEditor }) {
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="undo"
+        data-testid="tl-undo"
+        disabled={!ed.enabled || ed.undoLabel === null}
+        aria-keyshortcuts="Meta+Z Control+Z"
+        aria-describedby="ed-undo-what"
+        onClick={ed.undo}
+      >
+        Undo
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="redo"
+        data-testid="tl-redo"
+        disabled={!ed.enabled || ed.redoLabel === null}
+        aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z Control+Y"
+        aria-describedby="ed-redo-what"
+        onClick={ed.redo}
+      >
+        Redo
+      </Button>
+    </>
+  );
+}
+
 export function EditStatus({
   slug,
   name,
@@ -96,22 +152,7 @@ export function EditStatus({
     <>
       <span className="sh-scenario ed-status" data-testid="edit-state">
         <span className="ed-status-seg ed-status-source" data-testid="timeline-source">
-          {source.proposal ? (
-            'The edit Claude proposed, on the take its comment was made on — not written'
-          ) : source.edit === 'scenario' ? (
-            <>
-              {"Today's edit of take "}
-              <Txt className="k-mono" text={source.run} />
-              {source.changes?.length ? (
-                <>
-                  {' — changed since the take: '}
-                  <Txt text={source.changes.join(', ')} />
-                </>
-              ) : null}
-            </>
-          ) : (
-            'The take as it was captured'
-          )}
+          <SourceWords source={source} />
         </span>
         <span className="ed-status-sep" aria-hidden="true">
           {' · '}
@@ -133,30 +174,7 @@ export function EditStatus({
           {stopping ? 'Stopping…' : job.reviewing ? 'Stop the review' : 'Cancel the render'}
         </Button>
       )}
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="undo"
-        data-testid="tl-undo"
-        disabled={!ed.enabled || ed.undoLabel === null}
-        aria-keyshortcuts="Meta+Z Control+Z"
-        aria-describedby="ed-undo-what"
-        onClick={ed.undo}
-      >
-        Undo
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="redo"
-        data-testid="tl-redo"
-        disabled={!ed.enabled || ed.redoLabel === null}
-        aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z Control+Y"
-        aria-describedby="ed-redo-what"
-        onClick={ed.redo}
-      >
-        Redo
-      </Button>
+      <UndoRedo ed={ed} />
       <span className="k-sr">
         <span id="ed-undo-what">
           <Txt text={ed.undoLabel ? `Undo: ${ed.undoLabel}` : 'Nothing to undo'} />

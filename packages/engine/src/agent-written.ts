@@ -660,18 +660,6 @@ function held(now: TrustedHookFiles, trusted: unknown): TrustedHookFiles {
   return out;
 }
 
-/** scenarioHooksCheck's `ask`: the hooks to list and ask about, or null. */
-export async function agentWrittenShellHooks(
-  wsRoot: string,
-  project: LoadedProject,
-  loaded: { file: string; sha256?: string; scenario: Scenario },
-  tpl: () => Promise<ListingContext>,
-  runner: Pick<HookRunner, 'approval'>,
-  phases: ScenarioHookPhases = ALL_PHASES,
-): Promise<AgentWrittenShellHooks | null> {
-  return (await scenarioHooksCheck(wsRoot, project, loaded, tpl, runner, phases)).ask;
-}
-
 /**
  * A run id reserved before the listing (the Outputs port's runs.reserve: its folder made, named after the Clock port's time), so the listing shows the `{{run.id}}` /
  * `{{run.dir}}` the run will have; `release` removes the folder again when it is still empty (the run did not start).

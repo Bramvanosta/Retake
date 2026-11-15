@@ -123,7 +123,6 @@ export function shellRuns(cmd: string): ShellRun {
     for (let k = 0; k < words.length && OPENERS.has(words[k] as string); k++) depth++;
     const cw = commandWordAt(plain);
     const name = cw < 0 ? '' : commandName(words[cw] as string);
-    const tokenAt = (k: number | undefined) => (k === undefined ? undefined : plain[k]);
     const received = pipe !== undefined && args.length > 0;
     /** What a shell reading its standard input runs. */
     const stdinScript = () => {
@@ -133,70 +132,11 @@ export function shellRuns(cmd: string): ShellRun {
       else if (input === 'file') return;
       else if (received && pipe) follow(pipe.direct && pipe.depth === depth ? pipe.upstream : undefined);
     };
-    /** A shell at `k` run with its call: its `-c` script, its standard input, or a script file. */
-    const shellCall = (call: ShellCall, k: number, readsInput: boolean) => {
-      if (call.script !== undefined) follow(call.script, computed(tokenAt(call.scriptAt)));
-      else if (call.stdin) {
-        if (readsInput) stdinScript();
-      } else if (call.fileAt !== undefined && k === cw) {
-        const file = tokenAt(call.fileAt);
-        if (computed(file) || /^\/dev\/fd\//.test(file?.text ?? '')) unreadable = true;
-        else if (file?.text === '/dev/stdin') stdinScript();
-      }
+    const markUnreadable = () => {
+      unreadable = true;
     };
-    // xargs and parallel feed their input to the command they run; find -exec its file names.
-    const prefix = words.slice(0, cw < 0 ? words.length : cw).map(commandName);
-    const viaXargs = prefix.indexOf('xargs');
-    for (let k = 0; k < words.length; k++) {
-      if (k === cw || (k > cw && cw >= 0 && name === 'find')) continue;
-      const call = shellInvocation(words, k);
-      if (call?.script !== undefined && !computed(tokenAt(call.scriptAt))) scripts.add(call.script); // `echo bash -c 'x'`: followed as before
-    }
-    const busybox = name === 'busybox' && SHELLS.has(commandName(words[cw + 1] ?? ''));
-    if (cw >= 0 && viaXargs >= 0 && shellLike(name)) {
-      const replace = xargsReplace(words.slice(viaXargs + 1, cw));
-      const call = shellInvocation(words, cw, true) as ShellCall;
-      follow(call.script, call.script === undefined || computed(tokenAt(call.scriptAt)) || (replace !== undefined && call.script.includes(replace)));
-    } else if (cw >= 0 && (shellLike(name) || busybox)) {
-      const k = busybox ? cw + 1 : cw;
-      shellCall(shellInvocation(words, k, true) as ShellCall, cw, true);
-    } else if (name === 'source' || name === '.') {
-      const file = tokenAt(cw + 1);
-      if (computed(file) || /^\/dev\/fd\//.test(file?.text ?? '')) unreadable = true;
-      else if (file?.text === '/dev/stdin' || file?.text === '-') stdinScript();
-    } else if (name === 'eval') follow(words.slice(cw + 1).join(' '), plain.slice(cw + 1).some(computed));
-    else if (name === 'trap') {
-      const at1 = words[cw + 1] === '--' ? cw + 2 : cw + 1;
-      const first = words[at1];
-      if (first !== undefined && !first.startsWith('-')) follow(first, computed(tokenAt(at1)));
-    } else if (name === 'alias') {
-      plain.slice(cw + 1).forEach((t) => {
-        if (t.text.includes('=')) follow(t.text.slice(t.text.indexOf('=') + 1), t.computed === true);
-      });
-    } else if (name === 'su') {
-      const c = words.findIndex((w, k) => k > cw && (w === '-c' || w === '--command' || w.startsWith('--command=')));
-      if (c < 0) stdinScript();
-      else if ((words[c] as string).startsWith('--command=')) follow((words[c] as string).slice(10), computed(tokenAt(c)));
-      else follow(words[c + 1], computed(tokenAt(c + 1)));
-    } else if (name === 'parallel') {
-      let k = cw + 1;
-      while (k < words.length && (words[k] as string).startsWith('-')) k++;
-      const end = words.findIndex((w, j) => j >= k && (w === ':::' || w === '::::'));
-      const run = plain.slice(k, end < 0 ? words.length : end);
-      follow(run.length ? run.map((t) => t.text).join(' ') : undefined, run.some(computed) || run.some((t) => t.text.includes('{')));
-    } else if (name === 'find') findExec(plain, cw, follow);
-    // Wrappers before the command word that run a script themselves.
-    for (let k = 0; k < prefix.length; k++) {
-      if (prefix[k] === 'env') {
-        const split = envSplit(plain, k + 1, prefix.length);
-        if (split) follow(split.script, split.computed);
-      }
-      if (prefix[k] === 'watch' && cw >= 0 && !words.slice(k + 1, cw).some((w) => w === '-x' || w === '--exec' || /^-[a-z]*x/.test(w))) {
-        follow(words.slice(cw).join(' '), plain.slice(cw).some(computed));
-      }
-      if (prefix[k] === 'sudo' && cw < 0 && words.slice(k + 1).some((w) => w === '--shell' || w === '--login' || /^-[A-Za-z]*[si]/.test(w))) stdinScript();
-    }
-    if (!(cw >= 0 && (shellLike(name) || busybox)) && heredoc && !heredoc.quoted) substitutions(heredoc.body, sub); // the shell expands an unquoted body
+    const shell = followRuns({ plain, words, cw, name, scripts, follow, stdinScript, unreadable: markUnreadable });
+    if (!shell && heredoc && !heredoc.quoted) substitutions(heredoc.body, sub); // the shell expands an unquoted body
     if (args.length) commands.push({ args, ...(after !== undefined ? { after } : {}) });
     for (const w of words) if (CLOSERS.has(w)) depth = Math.max(0, depth - 1);
     if (op === '(') depth++;
@@ -219,6 +159,91 @@ export function shellRuns(cmd: string): ShellRun {
     }
   }
   return { commands, scripts: [...scripts], unreadable };
+}
+
+/** One command of a script, as shellRuns reads it to follow the scripts it makes a program run. */
+interface CommandRead {
+  /** Its words (input redirections aside), as tokens and as texts. */
+  plain: readonly ShellToken[];
+  words: readonly string[];
+  /** Index of its command word (-1: none), and that command's name. */
+  cw: number;
+  name: string;
+  scripts: Set<string>;
+  /** A script: followed when it is exact, else the run is unreadable. */
+  follow: (script: string | undefined, isComputed?: boolean) => void;
+  /** What a shell reading its standard input runs. */
+  stdinScript: () => void;
+  unreadable: () => void;
+}
+
+/** The scripts one command makes a program run (shells, source, eval, trap, alias, su, parallel, find, wrappers); whether its command is a shell. */
+function followRuns({ plain, words, cw, name, scripts, follow, stdinScript, unreadable }: CommandRead): boolean {
+  const tokenAt = (k: number | undefined) => (k === undefined ? undefined : plain[k]);
+  /** A shell at `k` run with its call: its `-c` script, its standard input, or a script file. */
+  const shellCall = (call: ShellCall, k: number, readsInput: boolean) => {
+    if (call.script !== undefined) follow(call.script, computed(tokenAt(call.scriptAt)));
+    else if (call.stdin) {
+      if (readsInput) stdinScript();
+    } else if (call.fileAt !== undefined && k === cw) {
+      const file = tokenAt(call.fileAt);
+      if (computed(file) || /^\/dev\/fd\//.test(file?.text ?? '')) unreadable();
+      else if (file?.text === '/dev/stdin') stdinScript();
+    }
+  };
+  // xargs and parallel feed their input to the command they run; find -exec its file names.
+  const prefix = words.slice(0, cw < 0 ? words.length : cw).map(commandName);
+  const viaXargs = prefix.indexOf('xargs');
+  for (let k = 0; k < words.length; k++) {
+    if (k === cw || (k > cw && cw >= 0 && name === 'find')) continue;
+    const call = shellInvocation(words, k);
+    if (call?.script !== undefined && !computed(tokenAt(call.scriptAt))) scripts.add(call.script); // `echo bash -c 'x'`: followed as before
+  }
+  const busybox = name === 'busybox' && SHELLS.has(commandName(words[cw + 1] ?? ''));
+  if (cw >= 0 && viaXargs >= 0 && shellLike(name)) {
+    const replace = xargsReplace(words.slice(viaXargs + 1, cw));
+    const call = shellInvocation(words, cw, true) as ShellCall;
+    follow(call.script, call.script === undefined || computed(tokenAt(call.scriptAt)) || (replace !== undefined && call.script.includes(replace)));
+  } else if (cw >= 0 && (shellLike(name) || busybox)) {
+    const k = busybox ? cw + 1 : cw;
+    shellCall(shellInvocation(words, k, true) as ShellCall, cw, true);
+  } else if (name === 'source' || name === '.') {
+    const file = tokenAt(cw + 1);
+    if (computed(file) || /^\/dev\/fd\//.test(file?.text ?? '')) unreadable();
+    else if (file?.text === '/dev/stdin' || file?.text === '-') stdinScript();
+  } else if (name === 'eval') follow(words.slice(cw + 1).join(' '), plain.slice(cw + 1).some(computed));
+  else if (name === 'trap') {
+    const at1 = words[cw + 1] === '--' ? cw + 2 : cw + 1;
+    const first = words[at1];
+    if (first !== undefined && !first.startsWith('-')) follow(first, computed(tokenAt(at1)));
+  } else if (name === 'alias') {
+    plain.slice(cw + 1).forEach((t) => {
+      if (t.text.includes('=')) follow(t.text.slice(t.text.indexOf('=') + 1), t.computed === true);
+    });
+  } else if (name === 'su') {
+    const c = words.findIndex((w, k) => k > cw && (w === '-c' || w === '--command' || w.startsWith('--command=')));
+    if (c < 0) stdinScript();
+    else if ((words[c] as string).startsWith('--command=')) follow((words[c] as string).slice(10), computed(tokenAt(c)));
+    else follow(words[c + 1], computed(tokenAt(c + 1)));
+  } else if (name === 'parallel') {
+    let k = cw + 1;
+    while (k < words.length && (words[k] as string).startsWith('-')) k++;
+    const end = words.findIndex((w, j) => j >= k && (w === ':::' || w === '::::'));
+    const run = plain.slice(k, end < 0 ? words.length : end);
+    follow(run.length ? run.map((t) => t.text).join(' ') : undefined, run.some(computed) || run.some((t) => t.text.includes('{')));
+  } else if (name === 'find') findExec(plain, cw, follow);
+  // Wrappers before the command word that run a script themselves.
+  for (let k = 0; k < prefix.length; k++) {
+    if (prefix[k] === 'env') {
+      const split = envSplit(plain, k + 1, prefix.length);
+      if (split) follow(split.script, split.computed);
+    }
+    if (prefix[k] === 'watch' && cw >= 0 && !words.slice(k + 1, cw).some((w) => w === '-x' || w === '--exec' || /^-[a-z]*x/.test(w))) {
+      follow(words.slice(cw).join(' '), plain.slice(cw).some(computed));
+    }
+    if (prefix[k] === 'sudo' && cw < 0 && words.slice(k + 1).some((w) => w === '--shell' || w === '--login' || /^-[A-Za-z]*[si]/.test(w))) stdinScript();
+  }
+  return cw >= 0 && (shellLike(name) || busybox);
 }
 
 /** The replace string of xargs options (`-I X`, `-IX`, `-J X`, `-i`, `--replace[=X]`), if any. */

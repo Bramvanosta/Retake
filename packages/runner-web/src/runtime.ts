@@ -421,6 +421,78 @@ export class Runtime {
     return (this.scenePageIds ?? []).map((id) => this.panes.get(id)!).filter(Boolean);
   }
 
+  /** A page's own cursor in a multi-page scene (its samples go to the page's track). */
+  private newPane(pg: ResolvedScenePage, page: Page): ScenePane {
+    const id = pg.id;
+    const pointer: Pointer = new Pointer({
+      page: () => page,
+      kit: () => this.session.kit(page),
+      timeline: this.timeline,
+      pacing: this.pacing,
+      signal: this.signal,
+      scale: this.capture.scale,
+      sample: (s) => this.tracks.get(id)?.builder.sampleCursor(s),
+      beforePress: (): Promise<void> => this.awaitCaughtUp(page, pointer),
+      afterPress: () => this.recorderFor(page)?.pressed(),
+    });
+    const pane = { id, page, viewport: pg.viewport, pointer };
+    this.panes.set(id, pane);
+    return pane;
+  }
+
+  /** A page's own track in a multi-page scene: its timeline track, and (capture mode) its recorder and encoder. */
+  private newTrack(pg: ResolvedScenePage): PageTrack {
+    const slug = fileSlug(pg.id);
+    const builder = new TrackBuilder(
+      {
+        id: pg.id,
+        file: `capture-${slug}.mp4`,
+        frames_file: `frames-${slug}.jsonl`,
+        width: pg.viewport.width,
+        height: pg.viewport.height,
+        scale: this.capture.scale,
+        fps: this.capture.fps,
+        ...(pg.viewport.mobile ? { mobile: true } : {}),
+        ...(pg.viewport.touch ? { touch: true } : {}),
+        ...(pg.viewport.preset ? { preset: pg.viewport.preset } : {}),
+      },
+      this.timeline.clock,
+    );
+    this.timeline.tracks.push(builder);
+    let recorder: ScreencastRecorder | null = null;
+    const encoder =
+      this.mode === 'capture'
+        ? (this.encoderFor?.({
+            out: join(this.runDir, `capture-${slug}.mp4`),
+            width: pg.viewport.width * this.capture.scale,
+            height: pg.viewport.height * this.capture.scale,
+            horizon: () => recorder?.horizon() ?? 0,
+          }) ?? null)
+        : null;
+    encoder?.start();
+    recorder =
+      this.mode === 'capture'
+        ? new ScreencastRecorder({
+            framesDir: join(this.runDir, `frames-${slug}`),
+            indexFile: join(this.runDir, `frames-${slug}.jsonl`),
+            format: this.capture.format,
+            quality: this.capture.quality,
+            width: pg.viewport.width,
+            height: pg.viewport.height,
+            scale: this.capture.scale,
+            mobile: pg.viewport.mobile,
+            clock: this.timeline.clock,
+            onError: (m) => this.timeline.warn(`page ${pg.id}: ${m}`),
+            pageId: () => pg.id,
+            keepFrames: this.capture.keep_frames,
+            ...(encoder ? { sink: encoder } : {}),
+          })
+        : null;
+    const track = { builder, recorder, encoder, started: false, viewport: pg.viewport };
+    this.tracks.set(pg.id, track);
+    return track;
+  }
+
   /**
    * Start a multi-page scene: every page exists (created blank when new) with its viewport, the main capture
    * pauses and each page is recorded on its own track, at the same time, on the capture clock; each page gets its own
@@ -445,73 +517,8 @@ export class Runtime {
       }
       if (!isDesktopViewport(pg.viewport, capture) || this.session.emulated(page)) await this.session.emulate(page, pg.viewport);
       let pane = this.panes.get(pg.id);
-      if (!pane || pane.page !== page) {
-        const id = pg.id;
-        const pointer: Pointer = new Pointer({
-          page: () => page,
-          kit: () => this.session.kit(page),
-          timeline: this.timeline,
-          pacing: this.pacing,
-          signal: this.signal,
-          scale: this.capture.scale,
-          sample: (s) => this.tracks.get(id)?.builder.sampleCursor(s),
-          beforePress: (): Promise<void> => this.awaitCaughtUp(page, pointer),
-          afterPress: () => this.recorderFor(page)?.pressed(),
-        });
-        pane = { id, page, viewport: pg.viewport, pointer };
-        this.panes.set(id, pane);
-      }
-      let track = this.tracks.get(pg.id);
-      if (!track) {
-        const slug = fileSlug(pg.id);
-        const builder = new TrackBuilder(
-          {
-            id: pg.id,
-            file: `capture-${slug}.mp4`,
-            frames_file: `frames-${slug}.jsonl`,
-            width: pg.viewport.width,
-            height: pg.viewport.height,
-            scale: this.capture.scale,
-            fps: this.capture.fps,
-            ...(pg.viewport.mobile ? { mobile: true } : {}),
-            ...(pg.viewport.touch ? { touch: true } : {}),
-            ...(pg.viewport.preset ? { preset: pg.viewport.preset } : {}),
-          },
-          this.timeline.clock,
-        );
-        this.timeline.tracks.push(builder);
-        let recorder: ScreencastRecorder | null = null;
-        const encoder =
-          this.mode === 'capture'
-            ? (this.encoderFor?.({
-                out: join(this.runDir, `capture-${slug}.mp4`),
-                width: pg.viewport.width * this.capture.scale,
-                height: pg.viewport.height * this.capture.scale,
-                horizon: () => recorder?.horizon() ?? 0,
-              }) ?? null)
-            : null;
-        encoder?.start();
-        recorder =
-          this.mode === 'capture'
-            ? new ScreencastRecorder({
-                framesDir: join(this.runDir, `frames-${slug}`),
-                indexFile: join(this.runDir, `frames-${slug}.jsonl`),
-                format: this.capture.format,
-                quality: this.capture.quality,
-                width: pg.viewport.width,
-                height: pg.viewport.height,
-                scale: this.capture.scale,
-                mobile: pg.viewport.mobile,
-                clock: this.timeline.clock,
-                onError: (m) => this.timeline.warn(`page ${pg.id}: ${m}`),
-                pageId: () => pg.id,
-                keepFrames: this.capture.keep_frames,
-                ...(encoder ? { sink: encoder } : {}),
-              })
-            : null;
-        track = { builder, recorder, encoder, started: false, viewport: pg.viewport };
-        this.tracks.set(pg.id, track);
-      }
+      if (!pane || pane.page !== page) pane = this.newPane(pg, page);
+      const track = this.tracks.get(pg.id) ?? this.newTrack(pg);
       if (track.recorder) {
         if (!track.started) await track.recorder.start(page);
         else await track.recorder.switchTo(page);

@@ -386,6 +386,134 @@ export interface PreparedScenarioEdit {
   before?: Scenario;
 }
 
+type PrepareOptions = Parameters<typeof prepareScenarioEdit>[3];
+type EditOfRequest = ScenarioEditRequest['edit'];
+/** An edit built on the file's text, not yet checked as a whole. */
+interface BuiltEdit {
+  text: string;
+  label: string;
+  select: string | null;
+  notices: string[];
+  change: 'filmed' | 'edit' | undefined;
+}
+
+/** A step or field edit's refusal as the engine's error (a step no longer where the edit says: a stale conflict). */
+function stepEditRefusal(e: unknown, base: ScenarioText): never {
+  if (!(e instanceof StepEditError)) throw e;
+  const field = e.field !== undefined ? { field: e.field } : {};
+  if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
+  throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
+}
+
+/** A restore's text: only a version of this file this engine showed or wrote (undo / redo), never any text a page makes up. */
+function restoredText(base: ScenarioText, edit: Extract<EditOfRequest, { kind: 'restore' }>, o: PrepareOptions): string {
+  if (sha256Hex(edit.text) !== edit.text_hash) {
+    throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
+  }
+  if (!o.seen?.knows(base.path, edit.text_hash)) {
+    throw new EngineError('refused', `the text to restore is not a version of ${base.file} the Studio showed or wrote: nothing written — read the file again`, {
+      details: { argument: 'edit.text_hash' },
+    });
+  }
+  return edit.text;
+}
+
+/** A block edit (move, delete, duplicate, a form's fields, a new step) spliced and verified. */
+function stepEdited(base: ScenarioText, edit: Parameters<typeof applyStepEdit>[1]): BuiltEdit {
+  let applied: ReturnType<typeof applyStepEdit>;
+  try {
+    applied = applyStepEdit(base.yaml, edit);
+  } catch (e) {
+    // stale: the step the edit names is no longer at that place in this version (never edit a neighbour).
+    stepEditRefusal(e, base);
+  }
+  // The verify: the spliced text, re-parsed, must be exactly the edit applied to the file's value.
+  const wrong = verifyEditText(applied.text, applied.intended);
+  if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
+  const { text, label, select, notices } = applied;
+  // Said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
+  // speed or mark alone is an edit change (a render of the same run re-plans it).
+  const change = filmedChangesOf(applied.intended, parseYaml(base.yaml).value).length ? 'filmed' : 'edit';
+  return { text, label, select, notices, change };
+}
+
+/**
+ * One edit value of the video, a scene, a card or an interstitial (core applyFieldEdit: allow-list, from / guard,
+ * splice), refused when the component or frame does not fit the use (the inspector shows such an option disabled with
+ * the same reason).
+ */
+async function fieldEdited(project: LoadedProject, base: ScenarioText, edit: Extract<EditOfRequest, { kind: 'set_field' }>, o: PrepareOptions): Promise<BuiltEdit> {
+  let applied: ReturnType<typeof applyFieldEdit>;
+  try {
+    applied = applyFieldEdit(base.yaml, edit);
+  } catch (e) {
+    stepEditRefusal(e, base);
+  }
+  const wrong = verifyEditText(applied.text, applied.intended);
+  if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
+  const c = await componentCalls();
+  const registry = await o.registry();
+  const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
+  if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
+  // A scenario's theme is a theme the workspace lists (by name, never a path).
+  if (edit.field === 'template' && typeof edit.to === 'string') {
+    const names = (await o.reads.listTemplates(project.root)).map((t) => t.name);
+    if (!names.includes(edit.to)) {
+      throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this workspace (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
+    }
+  }
+  // Defence: every path of the allow-list is an edit value — a field edit never changes what a take films.
+  const filmed = filmedChangesOf(applied.intended, parseYaml(base.yaml).value);
+  if (filmed.length) throw new EngineError('refused', `not saved: this edit would change the filmed part (${filmed.slice(0, 3).join('; ')})`);
+  return { text: applied.text, label: applied.label, select: null, notices: [], change: 'edit' };
+}
+
+/** The text an edit writes, by its kind. */
+async function builtEdit(project: LoadedProject, base: ScenarioText, edit: EditOfRequest, o: PrepareOptions): Promise<BuiltEdit> {
+  switch (edit.kind) {
+    case 'replace_text':
+      return {
+        text: edit.text.endsWith('\n') || edit.text === '' ? edit.text : `${edit.text}${textEol(edit.text)}`,
+        label: 'Saved the YAML',
+        select: null,
+        notices: [],
+        change: undefined,
+      };
+    case 'restore':
+      return { text: restoredText(base, edit, o), label: 'Restored an earlier version', select: null, notices: [], change: undefined };
+    case 'move_step':
+    case 'delete_step':
+    case 'duplicate_step':
+    case 'set_step':
+    case 'insert_step':
+      return stepEdited(base, edit);
+    case 'set_field':
+      return fieldEdited(project, base, edit, o);
+    default:
+      throw new EngineError('invalid', `unknown edit kind "${String((edit as { kind?: unknown }).kind).slice(0, 40)}"`);
+  }
+}
+
+/** The new text's size, no hidden character added, and (agent channels) its hooks and their inputs unchanged. */
+function checkEditText(base: ScenarioText, edit: EditOfRequest, text: string, agent: boolean): void {
+  if (text.length > SCENARIO_EDIT_MAX_CHARS) {
+    throw new EngineError('invalid', `the scenario would hold ${text.length.toLocaleString('en')} characters: the Studio writes at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, {
+      fix: 'shorten it, or edit it in your editor',
+    });
+  }
+  // A restored version was on disk once (the engine's ledger knows it): its hidden characters are the person's own.
+  const hidden = edit.kind === 'restore' ? null : newHiddenCharProblem(text, base.yaml);
+  if (hidden) throw new EngineError('invalid', `not saved: ${hidden}`);
+  if (agent) {
+    const before = base.utf8 ? parseYaml(base.yaml).value : undefined;
+    const after = parseYaml(text).value;
+    const changed = changedHookSections(before, after);
+    if (changed.length) throw new EngineError('refused', `not saved: ${hooksChangedMessage(changed)}`, { details: { sections: changed } });
+    const inputs = changedHookInputs(before, after);
+    if (inputs.length) throw new EngineError('refused', `not saved: ${hookInputsChangedMessage(inputs)}`, { details: { sections: inputs } });
+  }
+}
+
 /**
  * Everything editScenario does before the write: the file read with the edit's hash, the file not blocked,
  * the edit built and verified, the size, no hidden character added, hooks and mocks unchanged (and vars / env while
@@ -417,106 +545,8 @@ export async function prepareScenarioEdit(
     });
   }
   const edit = req.edit;
-  let text: string;
-  let label: string;
-  let select: string | null = null;
-  let notices: string[] = [];
-  let change: 'filmed' | 'edit' | undefined;
-  switch (edit.kind) {
-    case 'replace_text':
-      text = edit.text.endsWith('\n') || edit.text === '' ? edit.text : `${edit.text}${textEol(edit.text)}`;
-      label = 'Saved the YAML';
-      break;
-    case 'restore':
-      if (sha256Hex(edit.text) !== edit.text_hash) {
-        throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
-      }
-      // Only a version of this file this engine showed or wrote (undo / redo), never any text a page makes
-      // up.
-      if (!o.seen?.knows(base.path, edit.text_hash)) {
-        throw new EngineError('refused', `the text to restore is not a version of ${base.file} the Studio showed or wrote: nothing written — read the file again`, {
-          details: { argument: 'edit.text_hash' },
-        });
-      }
-      text = edit.text;
-      label = 'Restored an earlier version';
-      break;
-    case 'move_step':
-    case 'delete_step':
-    case 'duplicate_step':
-    case 'set_step':
-    case 'insert_step': {
-      let applied: ReturnType<typeof applyStepEdit>;
-      try {
-        applied = applyStepEdit(base.yaml, edit);
-      } catch (e) {
-        if (!(e instanceof StepEditError)) throw e;
-        // stale: the step the edit names is no longer at that place in this version (never edit a neighbour).
-        const field = e.field !== undefined ? { field: e.field } : {};
-        if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
-        throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
-      }
-      // The verify: the spliced text, re-parsed, must be exactly the edit applied to the file's value.
-      const wrong = verifyEditText(applied.text, applied.intended);
-      if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
-      ({ text, label, select, notices } = applied);
-      // Said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
-      // speed or mark alone is an edit change (a render of the same run re-plans it).
-      change = filmedChangesOf(applied.intended, parseYaml(base.yaml).value).length ? 'filmed' : 'edit';
-      break;
-    }
-    case 'set_field': {
-      // One edit value of the video, a scene, a card or an interstitial (core applyFieldEdit: allow-list, from /
-      // guard, splice), refused when the component or frame does not fit the use (the inspector shows such an option
-      // disabled with the same reason).
-      let applied: ReturnType<typeof applyFieldEdit>;
-      try {
-        applied = applyFieldEdit(base.yaml, edit);
-      } catch (e) {
-        if (!(e instanceof StepEditError)) throw e;
-        const field = e.field !== undefined ? { field: e.field } : {};
-        if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
-        throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
-      }
-      const wrong = verifyEditText(applied.text, applied.intended);
-      if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
-      const c = await componentCalls();
-      const registry = await o.registry();
-      const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
-      if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
-      // A scenario's theme is a theme the workspace lists (by name, never a path).
-      if (edit.field === 'template' && typeof edit.to === 'string') {
-        const names = (await o.reads.listTemplates(project.root)).map((t) => t.name);
-        if (!names.includes(edit.to)) {
-          throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this workspace (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
-        }
-      }
-      // Defence: every path of the allow-list is an edit value — a field edit never changes what a take films.
-      const filmed = filmedChangesOf(applied.intended, parseYaml(base.yaml).value);
-      if (filmed.length) throw new EngineError('refused', `not saved: this edit would change the filmed part (${filmed.slice(0, 3).join('; ')})`);
-      ({ text, label } = applied);
-      change = 'edit';
-      break;
-    }
-    default:
-      throw new EngineError('invalid', `unknown edit kind "${String((edit as { kind?: unknown }).kind).slice(0, 40)}"`);
-  }
-  if (text.length > SCENARIO_EDIT_MAX_CHARS) {
-    throw new EngineError('invalid', `the scenario would hold ${text.length.toLocaleString('en')} characters: the Studio writes at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, {
-      fix: 'shorten it, or edit it in your editor',
-    });
-  }
-  // A restored version was on disk once (the engine's ledger knows it): its hidden characters are the person's own.
-  const hidden = edit.kind === 'restore' ? null : newHiddenCharProblem(text, base.yaml);
-  if (hidden) throw new EngineError('invalid', `not saved: ${hidden}`);
-  if (o.agent) {
-    const before = base.utf8 ? parseYaml(base.yaml).value : undefined;
-    const after = parseYaml(text).value;
-    const changed = changedHookSections(before, after);
-    if (changed.length) throw new EngineError('refused', `not saved: ${hooksChangedMessage(changed)}`, { details: { sections: changed } });
-    const inputs = changedHookInputs(before, after);
-    if (inputs.length) throw new EngineError('refused', `not saved: ${hookInputsChangedMessage(inputs)}`, { details: { sections: inputs } });
-  }
+  const { text, label, select, notices, change } = await builtEdit(project, base, edit, o);
+  checkEditText(base, edit, text, o.agent);
   const { scenario, issues: parsed } = parseScenario(text, checkOpts);
   const issues = o.agent ? [...parsed, ...agentIssues(project, scenario, text, o.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, base.path)}`, issues, base.path);

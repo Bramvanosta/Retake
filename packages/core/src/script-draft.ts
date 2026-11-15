@@ -14,9 +14,10 @@ import { Document, isMap, isPair, isScalar, visit } from 'yaml';
 import { inspectPathProblem } from './inspect.js';
 import type { ResolvedEnvironment } from './types/environment.js';
 import { didYouMean } from './validation/suggest.js';
+import { TYPES, clock, durationCell, norm, tables, timeCell, usable } from './script-table.js';
+import type { Cell, ScriptColumn, ScriptRowType, Table } from './script-table.js';
 
-export type ScriptColumn = 'time' | 'end' | 'duration' | 'scene' | 'action' | 'caption' | 'kicker' | 'page' | 'type';
-export type ScriptRowType = 'scene' | 'interstitial' | 'title' | 'outro';
+export type { ScriptColumn, ScriptRowType } from './script-table.js';
 
 /** A problem of the script, positioned in the Markdown (1-based line and column). */
 export interface ScriptIssue {
@@ -86,110 +87,6 @@ export const SCRIPT_DEFAULT_ROW_S = 5;
 /** Timing targets of the reference look (review's default rules): video 60–120 s (± 25 %), scene 4–25 s, < 2 s unreadable. */
 export const SCRIPT_TIMING = Object.freeze({ video_min_s: 45, video_max_s: 150, scene_min_s: 4, scene_max_s: 25, scene_too_short_s: 2 });
 
-/** Lower case, no accents, no Markdown emphasis, no "(…)" note, single spaces, straight apostrophes. */
-function norm(s: string): string {
-  return s
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[’‘`]/g, "'")
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/[*_:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-const ALIASES: Record<ScriptColumn, string[]> = {
-  time: ['time', 'timecode', 'tc', 'start', 'temps', 'debut', 'minutage'],
-  end: ['end', 'fin'],
-  duration: ['duration', 'length', 'duree'],
-  scene: ['scene', 'section', 'chapter', 'sequence', 'chapitre'],
-  action: ['action', 'on screen', 'screen', 'visual', "a l'ecran", 'ecran', 'visuel'],
-  caption: ['caption', 'text', 'subtitle', 'voice-over', 'voice over', 'vo', 'texte', 'legende', 'sous-titre', 'voix off'],
-  kicker: ['kicker', 'surtitre'],
-  page: ['page', 'url'],
-  type: ['type', 'kind'],
-};
-
-const TYPES: Record<ScriptRowType, string[]> = {
-  scene: ['', 'scene', 'sequence'],
-  interstitial: ['interstitial', 'intertitre', 'carton'],
-  title: ['title', 'titre', 'intro'],
-  outro: ['outro', 'end', 'fin', 'conclusion'],
-};
-
-function columnOf(header: string): ScriptColumn | undefined {
-  const h = norm(header);
-  for (const [col, names] of Object.entries(ALIASES) as Array<[ScriptColumn, string[]]>) if (names.includes(h)) return col;
-  return undefined;
-}
-
-interface Cell {
-  text: string;
-  /** 1-based column of the cell's text (or of where it would be). */
-  col: number;
-}
-
-/** The cells of a table line: optional outer pipes, `\|` for a pipe inside a cell, trimmed texts with their columns. */
-function cells(line: string): Cell[] {
-  const out: Cell[] = [];
-  let i = 0;
-  while (i < line.length && /\s/.test(line[i])) i++;
-  if (line[i] === '|') i++;
-  let text = '';
-  let start = i;
-  const push = () => {
-    const lead = text.length - text.trimStart().length;
-    out.push({ text: text.trim(), col: start + lead + 1 });
-  };
-  for (; i < line.length; i++) {
-    const c = line[i];
-    if (c === '\\' && line[i + 1] === '|') {
-      text += '|';
-      i++;
-    } else if (c === '|') {
-      push();
-      text = '';
-      start = i + 1;
-    } else text += c;
-  }
-  if (text.trim() !== '' || !/\|\s*$/.test(line)) push();
-  return out;
-}
-
-const SEPARATOR_RE = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
-
-/** Seconds of `M:SS` (minutes may exceed 59); null when it is not that. */
-function clock(s: string): number | null {
-  const m = /^(\d{1,3}):([0-5]\d)$/.exec(s.trim());
-  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-}
-
-/** `M:SS` or a range `M:SS–M:SS` (en dash, hyphen, em dash, arrow, "to", "à"). */
-function timeCell(s: string): { start: number; end?: number } | null {
-  const parts = s
-    .trim()
-    .split(/\s*(?:–|—|→|->|-)\s*|\s+(?:to|à|a)\s+/i)
-    .filter((p) => p !== '');
-  if (parts.length === 1) {
-    const start = clock(parts[0]);
-    return start === null ? null : { start };
-  }
-  if (parts.length === 2) {
-    const start = clock(parts[0]);
-    const end = clock(parts[1]);
-    return start === null || end === null ? null : { start, end };
-  }
-  return null;
-}
-
-/** `5`, `5s`, `5 s`, `4.5` or `M:SS`. */
-function durationCell(s: string): number | null {
-  const m = /^(\d+(?:[.,]\d+)?)\s*s?$/i.exec(s.trim());
-  if (m) return Number(m[1].replace(',', '.'));
-  return clock(s);
-}
-
 const round = (n: number) => Math.round(n * 100) / 100;
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
@@ -200,39 +97,6 @@ interface Row {
   start: number;
   duration: number;
 }
-
-interface Table {
-  header: number;
-  columns: Map<ScriptColumn, number>;
-  written: Partial<Record<ScriptColumn, string>>;
-  lines: Array<{ line: number; cells: Cell[] }>;
-}
-
-/** Every pipe table of the Markdown (header line, separator, body lines up to the first non-table line). */
-function tables(lines: string[]): Table[] {
-  const out: Table[] = [];
-  for (let i = 0; i + 1 < lines.length; i++) {
-    if (!lines[i].includes('|') || !SEPARATOR_RE.test(lines[i + 1]) || !lines[i + 1].includes('-')) continue;
-    const head = cells(lines[i]);
-    const columns = new Map<ScriptColumn, number>();
-    const written: Partial<Record<ScriptColumn, string>> = {};
-    head.forEach((c, k) => {
-      const col = columnOf(c.text);
-      if (col && !columns.has(col)) {
-        columns.set(col, k);
-        written[col] = c.text;
-      }
-    });
-    const body: Table['lines'] = [];
-    let j = i + 2;
-    for (; j < lines.length && lines[j].includes('|') && lines[j].trim() !== ''; j++) body.push({ line: j + 1, cells: cells(lines[j]) });
-    out.push({ header: i + 1, columns, written, lines: body });
-    i = j - 1;
-  }
-  return out;
-}
-
-const usable = (t: Table) => (t.columns.has('time') || t.columns.has('duration')) && (t.columns.has('scene') || t.columns.has('action') || t.columns.has('caption'));
 
 /** A slug-like scene id from a scene name ("" when nothing is left). */
 function sceneSlug(name: string): string {
@@ -322,8 +186,32 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
   outline.columns = table.written;
   if (table.lines.length > SCRIPT_ROWS_MAX) return fail(table.lines[SCRIPT_ROWS_MAX].line, `more than ${SCRIPT_ROWS_MAX} rows`);
 
-  // Cells, types and explicit times.
-  const parsed: Array<{ line: number; get(c: ScriptColumn): Cell | undefined; type: ScriptRowType; start?: number; end?: number; duration?: number }> = [];
+  const parsed = parseRows(table, issues);
+  if (!parsed.length) return fail(table.header, 'the script table has no rows');
+  const rows = timeRows(parsed, issues);
+  outline.rows = rows.length;
+  outline.total_s = round(rows.reduce((s, r) => s + r.duration, 0));
+  outlineRows(rows, outline, opts.env, issues);
+  timingIssues(outline, table.header, issues);
+  if (!outline.scenes.some((s) => s.kind === 'scene')) return fail(table.header, 'the script has no scene row (only title, outro or interstitial rows): a scenario needs at least one captured scene');
+
+  issues.sort((a, b) => a.line - b.line || (a.col ?? 0) - (b.col ?? 0));
+  return { outline, yaml: draftYaml(outline, opts.video ?? 'draft'), issues };
+}
+
+/** A body row as written: its cells, its type and the times it states. */
+interface ParsedRow {
+  line: number;
+  get(c: ScriptColumn): Cell | undefined;
+  type: ScriptRowType;
+  start?: number;
+  end?: number;
+  duration?: number;
+}
+
+/** Cells, types and explicit times of the table's non-empty rows. */
+function parseRows(table: Table, issues: ScriptIssue[]): ParsedRow[] {
+  const parsed: ParsedRow[] = [];
   for (const { line, cells: cs } of table.lines) {
     if (cs.every((c) => c.text === '')) continue;
     const get = (c: ScriptColumn): Cell | undefined => {
@@ -345,7 +233,7 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
       if (found) type = found[0];
       else issues.push({ severity: 'warning', line, col: typeCell.col, message: `type "${typeCell.text}": not one of scene, interstitial, title, outro — read as a scene` });
     }
-    const row: (typeof parsed)[number] = { line, get, type };
+    const row: ParsedRow = { line, get, type };
     const time = get('time');
     if (time) {
       const t = timeCell(time.text);
@@ -368,9 +256,11 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     }
     parsed.push(row);
   }
-  if (!parsed.length) return fail(table.header, 'the script table has no rows');
+  return parsed;
+}
 
-  // Starts and durations: a range or an end, else the duration column, else up to the next row's start, else a default.
+/** Starts and durations: a range or an end, else the duration column, else up to the next row's start, else a default. */
+function timeRows(parsed: readonly ParsedRow[], issues: ScriptIssue[]): Row[] {
   const rows: Row[] = [];
   let prevEnd = 0;
   for (let i = 0; i < parsed.length; i++) {
@@ -402,14 +292,15 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     rows.push({ line: p.line, get: p.get, type: p.type, start, duration: round(duration) });
     prevEnd = start + duration;
   }
-  outline.rows = rows.length;
-  outline.total_s = round(rows.reduce((s, r) => s + r.duration, 0));
+  return rows;
+}
 
-  // Rows → outline entries.
+/** Rows → outline entries: the title, the outro, interstitials and capture scenes with their beats. */
+function outlineRows(rows: readonly Row[], outline: ScriptOutline, env: ScriptDraftOptions['env'], issues: ScriptIssue[]): void {
   const ids = new Set<string>();
   let current: OutlineScene | undefined;
   let page: string | undefined;
-  const firstPage = Object.keys(opts.env.pages)[0];
+  const firstPage = Object.keys(env.pages)[0];
   const captionOf = (r: Row): { kicker?: string; text: string } | undefined => {
     const text = r.get('caption')?.text;
     const kicker = r.get('kicker')?.text;
@@ -423,16 +314,7 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     const sceneName = r.get('scene')?.text;
     const action = r.get('action')?.text;
     if (r.type === 'title' || r.type === 'outro') {
-      const text = r.get('caption')?.text ?? action ?? sceneName;
-      if (!text) {
-        issues.push({ severity: 'warning', line: r.line, message: `a ${r.type} row with no text: left out` });
-        continue;
-      }
-      if (r.type === 'title') {
-        if (outline.title) issues.push({ severity: 'warning', line: r.line, message: `a second title row: line ${outline.title.line} is kept` });
-        else outline.title = { line: r.line, ...(r.get('kicker') ? { kicker: r.get('kicker')!.text } : {}), text, duration_s: r.duration };
-      } else if (outline.outro) issues.push({ severity: 'warning', line: r.line, message: `a second outro row: line ${outline.outro.line} is kept` });
-      else outline.outro = { line: r.line, text, duration_s: r.duration };
+      outlineEnds(r, outline, issues);
       continue;
     }
     if (r.type === 'interstitial') {
@@ -449,7 +331,7 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     const pageText = r.get('page');
     let at: { page: string; path: string } | undefined;
     if (pageText) {
-      const m = pageCell(pageText.text, opts.env, page);
+      const m = pageCell(pageText.text, env, page);
       if (typeof m === 'string') issues.push({ severity: 'warning', line: r.line, col: pageText.col, message: m });
       else at = m;
     }
@@ -482,11 +364,27 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     current.beats.push({ line: r.line, start_s: r.start, duration_s: r.duration, ...(action ? { action } : {}), ...(caption ? { caption } : {}) });
     current.duration_s = round(current.duration_s + r.duration);
   }
+}
 
-  // Timing against the reference look.
+/** A title or outro row: its text (caption, else action, else scene), the first of each kept. */
+function outlineEnds(r: Row, outline: ScriptOutline, issues: ScriptIssue[]): void {
+  const text = r.get('caption')?.text ?? r.get('action')?.text ?? r.get('scene')?.text;
+  if (!text) {
+    issues.push({ severity: 'warning', line: r.line, message: `a ${r.type} row with no text: left out` });
+    return;
+  }
+  if (r.type === 'title') {
+    if (outline.title) issues.push({ severity: 'warning', line: r.line, message: `a second title row: line ${outline.title.line} is kept` });
+    else outline.title = { line: r.line, ...(r.get('kicker') ? { kicker: r.get('kicker')!.text } : {}), text, duration_s: r.duration };
+  } else if (outline.outro) issues.push({ severity: 'warning', line: r.line, message: `a second outro row: line ${outline.outro.line} is kept` });
+  else outline.outro = { line: r.line, text, duration_s: r.duration };
+}
+
+/** Timing against the reference look: the whole script, then each capture scene. */
+function timingIssues(outline: ScriptOutline, header: number, issues: ScriptIssue[]): void {
   const t = SCRIPT_TIMING;
   if (outline.total_s < t.video_min_s || outline.total_s > t.video_max_s) {
-    issues.push({ severity: 'warning', line: table.header, message: `the script lasts ${fmt(outline.total_s)} (${outline.total_s} s): the reference look targets 1:00–2:00` });
+    issues.push({ severity: 'warning', line: header, message: `the script lasts ${fmt(outline.total_s)} (${outline.total_s} s): the reference look targets 1:00–2:00` });
   }
   for (const s of outline.scenes) {
     if (s.kind !== 'scene') continue;
@@ -497,10 +395,6 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
     else if (s.duration_s > t.scene_max_s)
       issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: long — split it (the look: ${t.scene_min_s}–${t.scene_max_s} s per scene)` });
   }
-  if (!outline.scenes.some((s) => s.kind === 'scene')) return fail(table.header, 'the script has no scene row (only title, outro or interstitial rows): a scenario needs at least one captured scene');
-
-  issues.sort((a, b) => a.line - b.line || (a.col ?? 0) - (b.col ?? 0));
-  return { outline, yaml: draftYaml(outline, opts.video ?? 'draft'), issues };
 }
 
 /** The draft scenario of an outline: stable key order, captions in flow style, a header comment saying what it is. */

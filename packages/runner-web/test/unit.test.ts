@@ -244,16 +244,16 @@ describe('timeline helpers', () => {
       ...Array.from({ length: 30 }, (_, i) => 1 + i / 60), // 60 fps during the first move
       ...Array.from({ length: 3 }, (_, i) => 3 + i / 6), // 6 fps during the second
     ];
-    const m = motionCapture(frames, cursor, 18);
+    const m = motionCapture({ frameTimes: frames, samples: cursor, minFps: 18 });
     expect(m.moves).toBe(2); // the 0.1 s move is too short to judge
     expect(m.slow).toBe(1);
     expect(m.worst?.t).toBe(3);
     expect(m.worst?.fps).toBeCloseTo(6, 0);
-    expect(motionCapture([], [], 18)).toEqual({ moves: 0, slow: 0, stalls: [] });
+    expect(motionCapture({ frameTimes: [], samples: [], minFps: 18 })).toEqual({ moves: 0, slow: 0, stalls: [] });
     // A slow page also slows the dispatch of mouse moves down: 10 positions per second is choppy even at 60 fps.
     const sparse = Array.from({ length: 6 }, (_, i) => ({ t: 1 + i / 10, x: i * 40, y: 0, visible: true }));
     const dense = Array.from({ length: 31 }, (_, i) => 1 + i / 60);
-    expect(motionCapture(dense, sparse, 18)).toMatchObject({ moves: 1, slow: 1 });
+    expect(motionCapture({ frameTimes: dense, samples: sparse, minFps: 18 })).toMatchObject({ moves: 1, slow: 1 });
   });
 
   it('reports stalls: frame gaps ≥ 150 ms (STALL_MIN_S) while the cursor moves or a click ripple plays, not while it rests', () => {
@@ -281,7 +281,7 @@ describe('timeline helpers', () => {
       ...Array.from({ length: 12 }, (_, i) => 3 + i / 60),
       ...Array.from({ length: 10 }, (_, i) => 3.46 + i / 60),
     ];
-    const m = motionCapture(frames, cursor, 18, effects);
+    const m = motionCapture({ frameTimes: frames, samples: cursor, minFps: 18, effects });
     expect(m.stalls).toEqual([
       { t: 1.2, t_end: 1.465, ms: 265, during: 'move' },
       { t: 3.183, t_end: 3.46, ms: 277, during: 'ripple' },
@@ -290,22 +290,22 @@ describe('timeline helpers', () => {
     expect(m.moves).toBe(1);
     expect(m.worst!.fps).toBeCloseTo(22 / 0.6, 0);
     // Without the ripple effect, the second hole is idle time: nothing changes on screen then.
-    expect(motionCapture(frames, cursor, 18).stalls.map((s) => s.during)).toEqual(['move']);
+    expect(motionCapture({ frameTimes: frames, samples: cursor, minFps: 18 }).stalls.map((s) => s.during)).toEqual(['move']);
     // The run warnings say where.
     const w = motionWarnings(m, 18, '');
     expect(w).toHaveLength(1);
     expect(w[0]).toMatch(/^the capture froze 2 times while the cursor moved or a click ripple played \(longest 277 ms\): 1\.2 s \(265 ms, cursor moving\), 3\.2 s \(277 ms, click ripple\)/);
     expect(w[0]).toContain('the edit cuts the frozen part');
-    expect(motionWarnings(motionCapture(frames, cursor, 18), 18, '')[0]).not.toContain('the edit cuts');
+    expect(motionWarnings(motionCapture({ frameTimes: frames, samples: cursor, minFps: 18 }), 18, '')[0]).not.toContain('the edit cuts');
     expect(motionWarnings(null, 18, '')).toEqual([]);
     // A gap while the page changes (navigation, new route) is the product's loading, not a stall.
-    expect(motionCapture(frames, cursor, 18, effects, [1.3]).stalls.map((s) => s.during)).toEqual(['ripple']);
+    expect(motionCapture({ frameTimes: frames, samples: cursor, minFps: 18, effects, pageChanges: [1.3] }).stalls.map((s) => s.during)).toEqual(['ripple']);
     // Nor a page load the recorder held (R-ISS-08): no frame until the new page painted.
-    expect(motionCapture(frames, cursor, 18, effects, [], [{ t_start: 3.1, t_end: 3.46 }]).stalls.map((s) => s.during)).toEqual(['move']);
-    expect(motionCapture(frames, cursor, 18, effects, [], [{ t_start: 5, t_end: 6 }]).stalls).toHaveLength(2);
+    expect(motionCapture({ frameTimes: frames, samples: cursor, minFps: 18, effects, pageChanges: [], held: [{ t_start: 3.1, t_end: 3.46 }] }).stalls.map((s) => s.during)).toEqual(['move']);
+    expect(motionCapture({ frameTimes: frames, samples: cursor, minFps: 18, effects, pageChanges: [], held: [{ t_start: 5, t_end: 6 }] }).stalls).toHaveLength(2);
     // Shorter gaps (a hover hitch of 120 ms) are not reported.
     const hitch = [...Array.from({ length: 13 }, (_, i) => 1 + i / 60), ...Array.from({ length: 20 }, (_, i) => 1.32 + i / 60)];
-    expect(motionCapture(hitch, move, 18).stalls).toEqual([]);
+    expect(motionCapture({ frameTimes: hitch, samples: move, minFps: 18 }).stalls).toEqual([]);
   });
 
   it('a 1 px nudge of the resting cursor is no motion (it waits for a fresh frame after a scroll)', () => {
@@ -314,13 +314,13 @@ describe('timeline helpers', () => {
     const cursor = [{ t: 0.5, x: 100, y: 100, visible: true }, { t: 2.0, x: 101, y: 100, visible: true }, { t: 2.06, x: 100, y: 100, visible: true }, ...glide.slice(1)];
     // No frame from 2.0 to 2.4 s (the stall the cursor waited out), then 60 fps.
     const frames = [2.0, ...Array.from({ length: 31 }, (_, i) => 2.4 + i / 60)];
-    const m = motionCapture(frames, cursor, 18);
+    const m = motionCapture({ frameTimes: frames, samples: cursor, minFps: 18 });
     expect(m.stalls).toEqual([]);
     expect(m.moves).toBe(1);
     expect(m.worst!.t).toBeCloseTo(2.4 + 1 / 60, 3); // the move starts with the glide, not with the nudges
     // The probing can end on a nudge that goes straight home (< 30 ms later), the glide starting a while after.
     const quickBack = [{ t: 0.5, x: 100, y: 100, visible: true }, { t: 2.0, x: 101, y: 100, visible: true }, { t: 2.014, x: 100, y: 100, visible: true }, ...glide.slice(1)];
-    expect(motionCapture(frames, quickBack, 18).stalls).toEqual([]);
+    expect(motionCapture({ frameTimes: frames, samples: quickBack, minFps: 18 }).stalls).toEqual([]);
   });
 
   it('timeline and tracks list the page loads the capture held only when there are some (R-ISS-08)', () => {

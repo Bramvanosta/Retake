@@ -119,21 +119,45 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     return out;
   }
   if (kind === 'lottie') {
-    try {
-      out.lottie = readLottieMeta(files.readText(abs));
-    } catch (e) {
-      ctx.error([...p, kind], `"${path}": ${errorMessage(e)}`);
-      return out;
-    }
-    if (out.lottie.external_images > 0) {
-      ctx.warning(
-        [...p, kind],
-        `"${path}" refers to ${out.lottie.external_images} image file${out.lottie.external_images > 1 ? 's' : ''} that ${out.lottie.external_images > 1 ? 'are' : 'is'} not embedded: they will not show — export with images embedded (base64)`,
-      );
-    }
+    checkLottieFile({ p, kind, path, abs, out }, files, ctx);
     return out;
   }
+  checkVideoFile({ p, kind, path, abs, out }, { spec, ext, from, to, overlay: opts.overlay }, files, ctx);
+  return out;
+}
 
+/** The media file being checked: where it is written, its kind and path, and the result being filled. */
+interface MediaFile {
+  p: IssuePath;
+  kind: MediaFileKind;
+  path: string;
+  abs: string;
+  out: MediaCheckResult;
+}
+
+/** A Lottie file: its metadata read, and images it refers to without embedding them. */
+function checkLottieFile({ p, kind, path, abs, out }: MediaFile, files: FileFacts, ctx: CheckContext): void {
+  try {
+    out.lottie = readLottieMeta(files.readText(abs));
+  } catch (e) {
+    ctx.error([...p, kind], `"${path}": ${errorMessage(e)}`);
+    return;
+  }
+  if (out.lottie.external_images > 0) {
+    ctx.warning(
+      [...p, kind],
+      `"${path}" refers to ${out.lottie.external_images} image file${out.lottie.external_images > 1 ? 's' : ''} that ${out.lottie.external_images > 1 ? 'are' : 'is'} not embedded: they will not show — export with images embedded (base64)`,
+    );
+  }
+}
+
+/** A video file: what ffprobe reads of it (codec, container, duration against from / to / duration, alpha, sound). */
+function checkVideoFile(
+  { p, kind, path, abs, out }: MediaFile,
+  { spec, ext, from, to, overlay }: { spec: Record<string, unknown>; ext: string; from: number | undefined; to: number | undefined; overlay: boolean | undefined },
+  files: FileFacts,
+  ctx: CheckContext,
+): void {
   const prober = needProber(files, 'a video file check');
   let v: VideoProbe;
   try {
@@ -143,7 +167,7 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     if (!(e instanceof MediaProbeError)) throw e;
     if (e.reason === 'no-ffprobe') ctx.warning([...p, kind], `cannot check "${path}": ${e.message} (the render needs it too)`);
     else ctx.error([...p, kind], `"${path}" is not a video the renderer can read: ${e.message}`);
-    return out;
+    return;
   }
   out.video = v;
   if (!Object.hasOwn(VIDEO_CODECS, v.codec)) {
@@ -162,13 +186,12 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     if (d !== undefined && part > 0 && d > part + 0.05 && spec.loop !== true) {
       ctx.warning(
         [...p, 'duration'],
-        `the video part lasts ${Math.round(part * 100) / 100} s: its last frame is held for ${Math.round((d - part) * 100) / 100} s${opts.overlay ? ' (`loop: true` replays it instead)' : ''}`,
+        `the video part lasts ${Math.round(part * 100) / 100} s: its last frame is held for ${Math.round((d - part) * 100) / 100} s${overlay ? ' (`loop: true` replays it instead)' : ''}`,
       );
     }
   }
-  if (opts.overlay && !v.alpha) {
+  if (overlay && !v.alpha) {
     ctx.warning([...p, kind], `"${path}" has no alpha channel: it covers the capture inside its box — export ProRes 4444 (.mov) or VP9 with alpha (.webm) for a transparent overlay (${DOC})`);
   }
   if (typeof spec.volume === 'number' && spec.volume > 0 && !v.audio) ctx.warning([...p, 'volume'], `"${path}" has no sound: \`volume\` changes nothing`);
-  return out;
 }

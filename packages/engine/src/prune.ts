@@ -52,16 +52,18 @@ import type { LoadedProject } from '@retake/core/project';
 import type { PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid } from '@retake/core/run';
 import type { RenderNot, RenderSaid } from '@retake/core/render';
 import { RENDER_RECORD_MAX, RUN_RECORD_MAX } from '@retake/core/io';
-import { listCommentsAndUnread } from './comments/views.js';
 import { FORMAT_VERSIONS, errorMessage, newerFormatMessage } from '@retake/core/base';
-import { isMadeRunId, parseRenderId, runIdOfScenario } from '@retake/core/ids';
+import { isMadeRunId } from '@retake/core/ids';
 import { projectRef } from '@retake/core/project';
 import { isFinishedRunStatus, orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
 import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
 import { EngineError } from './errors.js';
 import type { Outputs } from './outputs/outputs.js';
-import type { ProjectStores } from './store/store.js';
 import { runsDirOf } from './outputs/outputs.js';
+import { threadFacts, unreadJudge } from './prune-threads.js';
+import type { PrunePorts, ThreadFacts } from './prune-threads.js';
+
+export type { PrunePorts } from './prune-threads.js';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -196,81 +198,6 @@ async function renderSaid(outputs: Outputs, file: string): Promise<RenderSaid | 
   } catch {
     return null;
   }
-}
-
-/** What prune reads and deletes through: the outputs port, and the stores port's folders (the threads' scenario text). */
-export interface PrunePorts {
-  outputs: Outputs;
-  stores: Pick<ProjectStores, 'folder'>;
-}
-
-/** What the comment threads keep: the renders and takes they name, and what stays because some do not read. */
-interface ThreadFacts {
-  /** The render each thread was made (or resolved) on. */
-  threadRenders: Set<string>;
-  /** That render's take. */
-  threadRuns: Set<string>;
-  /** Every render and take stays (the threads are not listed, or not all read). */
-  keepAll: boolean;
-  /** Why the threads are not listed at all (the result's sentence). */
-  notListed?: string;
-  /** The scenarios whose threads are not all read. */
-  keepOf: string[];
-}
-
-/** Comment threads: the render each was made (or resolved) on, and that render's take. */
-async function threadFacts(ports: PrunePorts, project: LoadedProject): Promise<ThreadFacts> {
-  const { outputs } = ports;
-  const f: ThreadFacts = { threadRenders: new Set(), threadRuns: new Set(), keepAll: false, keepOf: [] };
-  try {
-    const { list, unread } = await listCommentsAndUnread({ renders: outputs.renders, stores: ports.stores }, project, { status: 'all' });
-    for (const t of list.threads) {
-      f.threadRenders.add(t.render_id);
-      f.threadRuns.add(t.run_id);
-      if (t.resolution?.render_id) f.threadRenders.add(t.resolution.render_id);
-    }
-    // Not "no thread" either: a file or a folder that does not read as threads may hold one of its scenario.
-    if (unread.all) f.keepAll = true;
-    else f.keepOf.push(...unread.scenarios);
-  } catch (e) {
-    // Not "no threads": what a thread could keep is unknown, so every render and every take stays.
-    const why = (e as NodeJS.ErrnoException | null)?.code;
-    f.keepAll = true;
-    f.notListed = `the comment threads of ${project.slug} cannot be listed${typeof why === 'string' && /^[A-Z0-9_]{1,40}$/.test(why) ? ` (${why})` : ''}: every render and take is kept (make ${projectRef('comments')}/ of the project readable, then prune again)`;
-  }
-  return f;
-}
-
-/**
- * Whether an unread thread may name this render or take: one of a scenario whose threads are not all read — by the
- * scenario its record names or by the one its id names, without regard to case (a folder of comments/ on a disk that
- * ignores case may differ from its scenario by case only). `held`: the unread scenarios something stays for.
- */
-function unreadJudge(f: ThreadFacts) {
-  const { keepAll, keepOf } = f;
-  const held = new Set<string>();
-  const unreadBy = (...is: Array<(s: string) => boolean>): boolean => {
-    let any = keepAll;
-    for (const s of keepOf) {
-      if (is.some((g) => g(s))) {
-        held.add(s);
-        any = true;
-      }
-    }
-    return any;
-  };
-  const sameName = (a: unknown, s: string): boolean => typeof a === 'string' && a.toLowerCase() === s.toLowerCase();
-  const unreadRender = (r: { id: string; scenario: string }) =>
-    unreadBy(
-      (s) => sameName(r.scenario, s),
-      (s) => sameName(parseRenderId(r.id)?.scenario, s),
-    );
-  const unreadRun = (r: { id: string; scenario: string }) =>
-    unreadBy(
-      (s) => sameName(r.scenario, s),
-      (s) => runIdOfScenario(r.id, s),
-    );
-  return { held, unreadRender, unreadRun };
 }
 
 /** One pass of prune: what it reads through, what is busy, and the items it lists. */

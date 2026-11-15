@@ -23,6 +23,14 @@ const shortId = (id: string) => id.slice(id.lastIndexOf('/') + 1);
 
 const SPEED = (s: number) => `${Number(s.toFixed(2))}×`;
 
+/** What every track reads: the model, the view's untrusted words, the seek, and the span's words. */
+interface TrackArgs {
+  m: Model;
+  u: TimelineView['untrusted'];
+  onSeek(frame: number): void;
+  span(from: number, to: number): string;
+}
+
 export interface TracksProps {
   view: TimelineView;
   onSeek(frame: number): void;
@@ -34,210 +42,259 @@ export interface TracksProps {
   at?: { slug: string; scenario: string };
 }
 
-function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps) {
-  const m: Model = view.model;
-  const u = view.untrusted;
-  const fps = m.fps;
+/** The segments: a click selects one (the inspector) and seeks to it. */
+function SegmentTrack({ m, span, selected, onSelect }: Pick<TrackArgs, 'm' | 'span'> & Pick<TracksProps, 'selected' | 'onSelect'>) {
+  const n = m.frames;
+  return (
+    <Track name="Segments" testId="track-segments" count={m.segments.length}>
+      {m.segments.map((s) => {
+        const comp = `${s.component.id}${s.component.missing ? ' (missing: its stand-in draws)' : ''}`;
+        const into = s.transition ? `, ${s.transition.kind === 'cut' ? 'a cut' : `${s.transition.kind} of ${s.transition.frames} frames`} into it` : s.joined ? ', continues the previous scene' : '';
+        const words = `${segmentWords(s)}, ${comp}${into}, ${span(s.from, s.to)}`;
+        return (
+          <TrackItem
+            key={`${s.index}`}
+            variant="segment"
+            place={{ from: s.from, to: s.to }}
+            frames={n}
+            label={words}
+            title={words}
+            states={[s.kind, ...(s.component.missing ? ['missing'] : []), ...(s.joined ? ['joined'] : [])]}
+            pressed={selected === s.id}
+            {...(s.transition && s.transition.kind !== 'cut' ? { band: s.transition.frames / Math.max(1, s.to - s.from) } : {})}
+            testId="tl-segment"
+            data={{ id: s.id, from: s.from }}
+            onActivate={() => onSelect(s.id, landingOf(s))}
+          >
+            <Txt text={s.kind === 'clip' ? s.id : segmentWords(s)} />
+            <span className="ed-seg-comp">
+              {' · '}
+              <Txt text={shortId(s.component.id)} />
+            </span>
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The captions, their words from the view's untrusted part. */
+function CaptionTrack({ m, u, onSeek, span }: TrackArgs) {
+  const n = m.frames;
+  return (
+    <Track name="Captions" testId="track-captions" count={m.captions.length}>
+      {m.captions.map((c) => {
+        const text = u.captions[c.i] ? `${u.captions[c.i].kicker ? `${u.captions[c.i].kicker} — ` : ''}${u.captions[c.i].text}` : '';
+        return (
+          <TrackItem
+            key={c.i}
+            variant="caption"
+            place={{ from: c.from, to: c.to }}
+            frames={n}
+            label={`Caption of scene ${c.scene}: ${text}, ${span(c.from, c.to)}`}
+            title={text}
+            testId="tl-caption"
+            data={{ from: c.from }}
+            onActivate={() => onSeek(c.from)}
+          >
+            <Txt text={text} />
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The steps (the page before them is a still). */
+function StepTrack({ m, u, onSeek, span }: TrackArgs) {
   const n = m.frames;
   // Each item is its identity, never its frames: its step, else its scene and its rank there, so a retime (a speed
   // change, a trim) keeps the items mounted and a focused one keeps its focus.
   const stepKeys = contentKeys(m.steps, (s) => s.key);
-  const cameraKeys = contentKeys(m.camera, (z) => z.key);
-  const speedKeys = contentKeys(m.speed, (s) => s.scene);
-  const cutKeys = contentKeys(m.cuts, (c) => c.scene);
-  const span = (from: number, to: number) => `${timecode(from, fps)} to ${timecode(to, fps)}`;
   const stepLabel = (key: string, action: string) => u.steps[key] ?? action;
   return (
-    <div className="ed-track-rows" data-testid="tracks">
-      <Track name="Segments" testId="track-segments" count={m.segments.length}>
-        {m.segments.map((s) => {
-          const comp = `${s.component.id}${s.component.missing ? ' (missing: its stand-in draws)' : ''}`;
-          const into = s.transition ? `, ${s.transition.kind === 'cut' ? 'a cut' : `${s.transition.kind} of ${s.transition.frames} frames`} into it` : s.joined ? ', continues the previous scene' : '';
-          const words = `${segmentWords(s)}, ${comp}${into}, ${span(s.from, s.to)}`;
-          return (
-            <TrackItem
-              key={`${s.index}`}
-              variant="segment"
-              place={{ from: s.from, to: s.to }}
-              frames={n}
-              label={words}
-              title={words}
-              states={[s.kind, ...(s.component.missing ? ['missing'] : []), ...(s.joined ? ['joined'] : [])]}
-              pressed={selected === s.id}
-              {...(s.transition && s.transition.kind !== 'cut' ? { band: s.transition.frames / Math.max(1, s.to - s.from) } : {})}
-              testId="tl-segment"
-              data={{ id: s.id, from: s.from }}
-              onActivate={() => onSelect(s.id, landingOf(s))}
-            >
-              <Txt text={s.kind === 'clip' ? s.id : segmentWords(s)} />
-              <span className="ed-seg-comp">
-                {' · '}
-                <Txt text={shortId(s.component.id)} />
-              </span>
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Captions" testId="track-captions" count={m.captions.length}>
-        {m.captions.map((c) => {
-          const text = u.captions[c.i] ? `${u.captions[c.i].kicker ? `${u.captions[c.i].kicker} — ` : ''}${u.captions[c.i].text}` : '';
-          return (
-            <TrackItem
-              key={c.i}
-              variant="caption"
-              place={{ from: c.from, to: c.to }}
-              frames={n}
-              label={`Caption of scene ${c.scene}: ${text}, ${span(c.from, c.to)}`}
-              title={text}
-              testId="tl-caption"
-              data={{ from: c.from }}
-              onActivate={() => onSeek(c.from)}
-            >
-              <Txt text={text} />
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Steps" testId="track-steps" count={m.steps.length}>
-        {m.steps.map((s, i) => {
-          const label = s.step < 0 ? 'the page before its steps' : `step ${s.step + 1} ${stepLabel(s.key, s.action)}`;
-          return (
-            <TrackItem
-              key={stepKeys[i]}
-              variant="step"
-              place={{ from: s.from, to: s.to }}
-              frames={n}
-              label={`Scene ${s.scene}, ${label}, ${span(s.from, s.to)}`}
-              title={label}
-              {...(s.step < 0 ? { states: ['still'] } : {})}
-              testId="tl-step"
-              data={{ key: s.key, from: s.from }}
-              onActivate={() => onSeek(s.from)}
-            >
-              <Txt text={s.step < 0 ? s.scene : String(s.step + 1)} />
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Camera" testId="track-camera" count={m.camera.length}>
-        {m.camera.map((z, i) => {
-          const words = `Zoom ${SPEED(z.zoom)} on step ${z.step + 1} of ${z.scene}${z.requested_zoom !== undefined && z.requested_zoom !== z.zoom ? ` (asked ${SPEED(z.requested_zoom)})` : ''}${z.source === 'theme' ? ', the theme’s' : ''}, ${span(z.from, z.to)}`;
-          return (
-            <TrackItem
-              key={cameraKeys[i]}
-              variant="camera"
-              place={{ from: z.from, to: z.to }}
-              frames={n}
-              label={words}
-              title={words}
-              band={(z.in_to - z.from) / Math.max(1, z.to - z.from)}
-              testId="tl-zoom"
-              data={{ from: z.from }}
-              onActivate={() => onSeek(z.from)}
-            >
-              <Txt text={SPEED(z.zoom)} />
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Speed" testId="track-speed" count={m.speed.length + m.cuts.length}>
-        {m.speed.map((s, i) => {
-          const held = s.speed === 0 && s.to_speed === 0;
-          const words = held
-            ? `The last frame of scene ${s.scene} held (under the transition), ${span(s.from, s.to)}`
-            : `Speed ${SPEED(s.speed)}${s.to_speed !== s.speed ? ` to ${SPEED(s.to_speed)}` : ''} in scene ${s.scene}${s.protected ? ' (kept at its pace: a step that must read)' : ''}, ${span(s.from, s.to)}`;
-          return (
-            <TrackItem
-              key={speedKeys[i]}
-              variant="speed"
-              place={{ from: s.from, to: s.to }}
-              frames={n}
-              label={words}
-              title={words}
-              {...(held ? { states: ['held'] } : s.speed !== 1 || s.to_speed !== 1 ? { states: ['fast'] } : {})}
-              testId="tl-speed"
-              data={{ from: s.from }}
-              onActivate={() => onSeek(s.from)}
-            >
-              <Txt text={held ? 'held' : `${SPEED(s.speed)}${s.to_speed !== s.speed ? `→${SPEED(s.to_speed)}` : ''}`} />
-            </TrackItem>
-          );
-        })}
-        {m.cuts.map((c, i) => {
-          const words = cutWords(c, fps);
-          return (
-            <TrackItem
-              key={cutKeys[i]}
-              variant="cut"
-              place={{ at: c.at }}
-              frames={n}
-              label={words}
-              title={words}
-              states={[c.reason]}
-              testId="tl-cut"
-              data={{ at: c.at }}
-              onActivate={() => onSeek(c.at)}
-            >
-              <span aria-hidden="true">✂</span>
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Markers" testId="track-markers" count={m.markers.length}>
-        {m.markers.map((k) => {
-          const name = u.markers[k.i] ?? '';
-          const words = `Marker ${name} at ${timecode(k.frame, fps)}${k.done !== undefined ? `, done at ${timecode(k.done, fps)}` : ''}`;
-          return (
-            <TrackItem key={k.i} variant="marker" place={{ at: k.frame }} frames={n} label={words} title={words} testId="tl-marker" data={{ frame: k.frame }} onActivate={() => onSeek(k.frame)}>
-              <span aria-hidden="true">◆</span>
-            </TrackItem>
-          );
-        })}
-      </Track>
-      <Track name="Comments" testId="track-comments" count={view.pins.placed.length}>
-        {view.pins.placed.map((p) => {
-          const t = u.threads[p.id];
-          const words = `Comment, ${p.status}, at ${timecode(p.frame, fps)}${t ? ` by ${t.author}: ${t.text}` : ''}`;
-          return (
-            <TrackItem
-              key={p.id}
-              variant="pin"
-              place={{ at: p.frame }}
-              frames={n}
-              label={words}
-              states={[p.status]}
-              testId="tl-pin"
-              data={{ id: p.id, frame: p.frame, status: p.status }}
-              onActivate={() => onSeek(p.frame)}
-              tip={
-                <>
+    <Track name="Steps" testId="track-steps" count={m.steps.length}>
+      {m.steps.map((s, i) => {
+        const label = s.step < 0 ? 'the page before its steps' : `step ${s.step + 1} ${stepLabel(s.key, s.action)}`;
+        return (
+          <TrackItem
+            key={stepKeys[i]}
+            variant="step"
+            place={{ from: s.from, to: s.to }}
+            frames={n}
+            label={`Scene ${s.scene}, ${label}, ${span(s.from, s.to)}`}
+            title={label}
+            {...(s.step < 0 ? { states: ['still'] } : {})}
+            testId="tl-step"
+            data={{ key: s.key, from: s.from }}
+            onActivate={() => onSeek(s.from)}
+          >
+            <Txt text={s.step < 0 ? s.scene : String(s.step + 1)} />
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The camera zooms. */
+function CameraTrack({ m, onSeek, span }: Omit<TrackArgs, 'u'>) {
+  const n = m.frames;
+  const cameraKeys = contentKeys(m.camera, (z) => z.key);
+  return (
+    <Track name="Camera" testId="track-camera" count={m.camera.length}>
+      {m.camera.map((z, i) => {
+        const words = `Zoom ${SPEED(z.zoom)} on step ${z.step + 1} of ${z.scene}${z.requested_zoom !== undefined && z.requested_zoom !== z.zoom ? ` (asked ${SPEED(z.requested_zoom)})` : ''}${z.source === 'theme' ? ', the theme’s' : ''}, ${span(z.from, z.to)}`;
+        return (
+          <TrackItem
+            key={cameraKeys[i]}
+            variant="camera"
+            place={{ from: z.from, to: z.to }}
+            frames={n}
+            label={words}
+            title={words}
+            band={(z.in_to - z.from) / Math.max(1, z.to - z.from)}
+            testId="tl-zoom"
+            data={{ from: z.from }}
+            onActivate={() => onSeek(z.from)}
+          >
+            <Txt text={SPEED(z.zoom)} />
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The speed ramps and the cuts. */
+function SpeedTrack({ m, onSeek, span }: Omit<TrackArgs, 'u'>) {
+  const n = m.frames;
+  const fps = m.fps;
+  const speedKeys = contentKeys(m.speed, (s) => s.scene);
+  const cutKeys = contentKeys(m.cuts, (c) => c.scene);
+  return (
+    <Track name="Speed" testId="track-speed" count={m.speed.length + m.cuts.length}>
+      {m.speed.map((s, i) => {
+        const held = s.speed === 0 && s.to_speed === 0;
+        const words = held
+          ? `The last frame of scene ${s.scene} held (under the transition), ${span(s.from, s.to)}`
+          : `Speed ${SPEED(s.speed)}${s.to_speed !== s.speed ? ` to ${SPEED(s.to_speed)}` : ''} in scene ${s.scene}${s.protected ? ' (kept at its pace: a step that must read)' : ''}, ${span(s.from, s.to)}`;
+        return (
+          <TrackItem
+            key={speedKeys[i]}
+            variant="speed"
+            place={{ from: s.from, to: s.to }}
+            frames={n}
+            label={words}
+            title={words}
+            {...(held ? { states: ['held'] } : s.speed !== 1 || s.to_speed !== 1 ? { states: ['fast'] } : {})}
+            testId="tl-speed"
+            data={{ from: s.from }}
+            onActivate={() => onSeek(s.from)}
+          >
+            <Txt text={held ? 'held' : `${SPEED(s.speed)}${s.to_speed !== s.speed ? `→${SPEED(s.to_speed)}` : ''}`} />
+          </TrackItem>
+        );
+      })}
+      {m.cuts.map((c, i) => {
+        const words = cutWords(c, fps);
+        return (
+          <TrackItem key={cutKeys[i]} variant="cut" place={{ at: c.at }} frames={n} label={words} title={words} states={[c.reason]} testId="tl-cut" data={{ at: c.at }} onActivate={() => onSeek(c.at)}>
+            <span aria-hidden="true">✂</span>
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The markers. */
+function MarkerTrack({ m, u, onSeek }: Omit<TrackArgs, 'span'>) {
+  const n = m.frames;
+  const fps = m.fps;
+  return (
+    <Track name="Markers" testId="track-markers" count={m.markers.length}>
+      {m.markers.map((k) => {
+        const name = u.markers[k.i] ?? '';
+        const words = `Marker ${name} at ${timecode(k.frame, fps)}${k.done !== undefined ? `, done at ${timecode(k.done, fps)}` : ''}`;
+        return (
+          <TrackItem key={k.i} variant="marker" place={{ at: k.frame }} frames={n} label={words} title={words} testId="tl-marker" data={{ frame: k.frame }} onActivate={() => onSeek(k.frame)}>
+            <span aria-hidden="true">◆</span>
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+/** The comment pins: a pin seeks to its frame; its tip opens its thread. */
+function CommentTrack({ view, onSeek, where }: { view: TimelineView; onSeek(frame: number): void; where: TracksProps['at'] }) {
+  const u = view.untrusted;
+  const fps = view.model.fps;
+  const n = view.model.frames;
+  return (
+    <Track name="Comments" testId="track-comments" count={view.pins.placed.length}>
+      {view.pins.placed.map((p) => {
+        const t = u.threads[p.id];
+        const words = `Comment, ${p.status}, at ${timecode(p.frame, fps)}${t ? ` by ${t.author}: ${t.text}` : ''}`;
+        return (
+          <TrackItem
+            key={p.id}
+            variant="pin"
+            place={{ at: p.frame }}
+            frames={n}
+            label={words}
+            states={[p.status]}
+            testId="tl-pin"
+            data={{ id: p.id, frame: p.frame, status: p.status }}
+            onActivate={() => onSeek(p.frame)}
+            tip={
+              <>
+                <span aria-hidden="true">
+                  <Txt text={`${p.status} · ${timecode(p.frame, fps)}`} />
+                  {t ? ' · ' : ''}
+                  {t && <Txt text={t.author} />}
+                </span>
+                {t && (
                   <span aria-hidden="true">
-                    <Txt text={`${p.status} · ${timecode(p.frame, fps)}`} />
-                    {t ? ' · ' : ''}
-                    {t && <Txt text={t.author} />}
+                    <Txt text={t.text} />
                   </span>
-                  {t && (
-                    <span aria-hidden="true">
-                      <Txt text={t.text} />
-                    </span>
-                  )}
-                  {where && (
-                    <a
-                      href={hrefTo({ name: 'comments', slug: where.slug, scenario: where.scenario, thread: p.id })}
-                      data-testid="pin-open-thread"
-                      aria-label={`Open the thread of the comment at ${timecode(p.frame, fps)}`}
-                    >
-                      Open thread
-                    </a>
-                  )}
-                </>
-              }
-            >
-              <span aria-hidden="true">{p.status === 'open' ? '●' : '○'}</span>
-            </TrackItem>
-          );
-        })}
-      </Track>
+                )}
+                {where && (
+                  <a
+                    href={hrefTo({ name: 'comments', slug: where.slug, scenario: where.scenario, thread: p.id })}
+                    data-testid="pin-open-thread"
+                    aria-label={`Open the thread of the comment at ${timecode(p.frame, fps)}`}
+                  >
+                    Open thread
+                  </a>
+                )}
+              </>
+            }
+          >
+            <span aria-hidden="true">{p.status === 'open' ? '●' : '○'}</span>
+          </TrackItem>
+        );
+      })}
+    </Track>
+  );
+}
+
+function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps) {
+  const m: Model = view.model;
+  const u = view.untrusted;
+  const fps = m.fps;
+  // Each track keys its items by their identity, never their frames (contentKeys).
+  const span = (from: number, to: number) => `${timecode(from, fps)} to ${timecode(to, fps)}`;
+  return (
+    <div className="ed-track-rows" data-testid="tracks">
+      <SegmentTrack m={m} span={span} selected={selected} onSelect={onSelect} />
+      <CaptionTrack m={m} u={u} onSeek={onSeek} span={span} />
+      <StepTrack m={m} u={u} onSeek={onSeek} span={span} />
+      <CameraTrack m={m} onSeek={onSeek} span={span} />
+      <SpeedTrack m={m} onSeek={onSeek} span={span} />
+      <MarkerTrack m={m} u={u} onSeek={onSeek} />
+      <CommentTrack view={view} onSeek={onSeek} where={where} />
     </div>
   );
 }

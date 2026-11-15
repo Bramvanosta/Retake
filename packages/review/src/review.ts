@@ -7,15 +7,12 @@
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import sharp from 'sharp';
-import type { ComponentRegistry } from '@retake/components/geometry';
-import { printableText, bestEffort, errorMessage } from '@retake/core/base';
+import { bestEffort } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import type { Timeline } from '@retake/core/run';
 import {
-  captionRegion,
   checkArtefactOrder,
   checkCamera,
   checkCaptions,
@@ -34,35 +31,31 @@ import {
   checkOverlaysKept,
   checkTransitionsOnClicks,
   checkTutorial,
-  planFontFiles,
   reviewEnvironment,
   segmentDurations,
 } from './checks.js';
-import type { CheckContext } from './checks.js';
-import { diffFindings, diffRecords, framePairs } from './diff.js';
-import { extractFrames, probeVideo } from './ffmpeg.js';
-import type { VideoInfo } from './ffmpeg.js';
-import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, handedProject, handedRegistry, locateRender, renderRun, renderTimeline, reviewsDir } from './load.js';
-import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
-import type { FrameAnalysis, PixelCheckInput } from './pixel-checks.js';
-import type { RegionStats, RgbImage } from './pixels.js';
-import { compareSignatures, regionStats, signature, uniformity } from './pixels.js';
+import { diffFindings } from './diff.js';
+import { reviewsDir } from './load.js';
+import { checkPixels, stillPair } from './pixel-checks.js';
+import type { PixelCheckInput } from './pixel-checks.js';
 import { reportMarkdown } from './report.js';
-import { makeTile, thumbnailOf, writeSheet } from './sheets.js';
+import { thumbnailOf, writeSheet } from './sheets.js';
 import type { Tile } from './sheets.js';
-import { isClip, round, segmentLabel, segmentSpans, spanAt, stepAt, timecode, transitionAt, transitionSpans } from './spans.js';
+import { isClip, round, segmentLabel, spanAt, stepAt, timecode, transitionAt } from './spans.js';
 import type { SegmentSpan } from './spans.js';
-import { buildOutputTimeline, outputClicks } from './timeline.js';
-import { DEFAULT_RULES, DEFAULT_SHEET } from './types.js';
-import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewProgress, ReviewResult, ReviewRules, ReviewThumbnail, SegmentDuration, Severity } from './types.js';
+import { buildOutputTimeline } from './timeline.js';
+import type { Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewResult, ReviewThumbnail, SegmentDuration, Severity } from './types.js';
 import { ReviewCancelledError } from './types.js';
 import { summaryLine } from './report-lines.js';
 import { reviewImages, safeName } from './images.js';
 import { pidExists } from '@retake/core/io';
+import { finalPath, loadReview } from './review-inputs.js';
+import type { FrameTile, RenderFrames, ReviewRun, ReviewSamples } from './review-inputs.js';
+import { capturePass, previousPass, renderPass } from './review-passes.js';
+
+export { reviewRules } from './review-inputs.js';
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
-const MAX_DIFF_PAIRS = 30;
 
 /** Sample frames at `rate` per second over output frames [from, to): the middle of each interval. */
 export function sampleFrames(from: number, to: number, fps: number, rate: number): number[] {
@@ -136,21 +129,6 @@ function sortFindings(list: Finding[]): Finding[] {
   return [...list].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || diff(a) - diff(b) || (a.at?.frame ?? -1) - (b.at?.frame ?? -1) || a.code.localeCompare(b.code));
 }
 
-function inset(r: { x: number; y: number; w: number; h: number }, d: number) {
-  return { x: r.x + d, y: r.y + d, w: Math.max(1, r.w - 2 * d), h: Math.max(1, r.h - 2 * d) };
-}
-
-/** The rules of a review: the defaults, the scenario's target length (R-FLD-05), then the caller's. */
-export function reviewRules(plan: Pick<EditPlan, 'target_length'>, given: Partial<ReviewRules> = {}): ReviewRules {
-  const rules: ReviewRules = { ...DEFAULT_RULES, ...given };
-  if (plan.target_length && given.video_min_s === undefined && given.video_max_s === undefined) {
-    rules.video_min_s = plan.target_length.min_s;
-    rules.video_max_s = plan.target_length.max_s;
-    rules.video_target = 'scenario';
-  }
-  return rules;
-}
-
 export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
   try {
     return await reviewRenderOnce(opts);
@@ -158,40 +136,6 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     if (opts.signal?.aborted && !(e instanceof ReviewCancelledError)) throw new ReviewCancelledError();
     throw e;
   }
-}
-
-/** A review under way: what was loaded, the frames it samples, where it writes, and how it reports and stops. */
-type ReviewRun = LoadedReview & {
-  opts: ReviewOptions;
-  started: number;
-  progress: (p: ReviewProgress) => void;
-  signal?: AbortSignal;
-  /** Stop between stages (and ffmpeg at once: it gets the signal) when cancelled. */
-  check: () => void;
-  samples: ReviewSamples;
-  finalDir: string;
-  tmpDir: string;
-};
-
-type LoadedReview = Awaited<ReturnType<typeof loadReview>>;
-
-/** The output frames a review looks at. */
-interface ReviewSamples {
-  mainFrames: number[];
-  sceneSamples: Map<string, number[]>;
-  mainSet: Set<number>;
-  sceneSet: Set<number>;
-  keyByFrame: Map<number, string[]>;
-  wanted: Set<number>;
-}
-
-type FrameTile = { data: Buffer; width: number; height: number };
-
-/** What the decoding of the render gave: contact sheet tiles, frame analyses, key frame files. */
-interface RenderFrames {
-  tiles: Map<number, FrameTile>;
-  analyses: Map<number, FrameAnalysis>;
-  keyFiles: Record<string, string>;
 }
 
 async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
@@ -233,61 +177,6 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   }
 }
 
-/** Load what a review reads: the render, its plan, registry, timeline, run, the previous render and the video's probe. */
-async function loadReview(opts: ReviewOptions) {
-  const project = handedProject(opts.project);
-  const source = handedRegistry(opts.registry);
-  const found = await locateRender(project, opts.render, opts.scenario);
-  const record = found.record;
-  // The name of its folder of review/ (never an empty name or a path: an id written by hand is any text).
-  const name = found.output;
-  const plan = record.plan;
-  if (!existsSync(record.file)) throw new ReviewError(`the video of render ${printableText(name)} is missing: ${record.file ? printableText(record.file) : 'no "file" in its record'}`);
-  const fps = opts.fps ?? 1;
-  if (fps !== 1 && fps !== 2) throw new ReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
-  const rules = reviewRules(plan, opts.rules);
-  const layout = { ...DEFAULT_SHEET, ...opts.sheet };
-  const thumbPx = Math.max(64, Math.min(1280, Math.round(opts.thumbnail_px ?? 1280)));
-  // Findings about the review itself (what could not be loaded or read), in the order they were met.
-  const notes: Finding[] = [];
-
-  let registry: ComponentRegistry | undefined = typeof source === 'function' ? undefined : source;
-  if (typeof source === 'function') {
-    try {
-      registry = await source(project.root);
-    } catch (e) {
-      notes.push({ severity: 'info', code: 'registry-unavailable', message: `component registry not loaded (${errorMessage(e)}): text slot limits not checked` });
-    }
-  }
-  const { timeline } = await renderTimeline(project, record);
-  if (!timeline) notes.push({ severity: 'info', code: 'timeline-missing', message: `the run ${record.run_id} (timeline.json) is not available: clicks, cursor and capture captions not checked` });
-  const previous = await findPrevious(project, record, opts.previous);
-  const probed = await probeVideo(record.file, opts.policy);
-
-  const spans = segmentSpans(plan);
-  const transitions = transitionSpans(plan);
-  const clicks = outputClicks(plan, timeline);
-  const run = await renderRun(project, record);
-  const ctx: CheckContext = { record, plan, timeline, rules, spans, transitions, clicks, registry, measure: fontFileMeasurer(planFontFiles(plan)), ...(run ? { run } : {}) };
-  return {
-    project,
-    record,
-    name,
-    plan,
-    fps,
-    rules,
-    layout,
-    thumbPx,
-    notes,
-    ...(timeline ? { timeline } : {}),
-    ...(previous ? { previous } : {}),
-    probed,
-    spans,
-    transitions,
-    ctx,
-  };
-}
-
 /** The frames to look at: the contact sheet's, each scene's (2 fps), the key frames and the still pairs. */
 function planSamples(plan: EditPlan, spans: SegmentSpan[], fps: number, timeline: Timeline | undefined): ReviewSamples {
   const F = plan.fps;
@@ -303,171 +192,6 @@ function planSamples(plan: EditPlan, spans: SegmentSpan[], fps: number, timeline
   for (const [name, f] of keyframes) keyByFrame.set(f, [...(keyByFrame.get(f) ?? []), name]);
   const wanted = new Set<number>([...mainFrames, ...sceneSet, ...keyframes.values(), ...stills.flat()]);
   return { mainFrames, sceneSamples, mainSet, sceneSet, keyByFrame, wanted };
-}
-
-/** The decoding options of a video, at the size a pass reads it. */
-function decodeOptions(r: ReviewRun, width: number, height: number, info: VideoInfo) {
-  return { width, height, videoWidth: info.width, videoHeight: info.height, policy: r.opts.policy, ...(r.signal ? { signal: r.signal } : {}) };
-}
-
-/** Pass 1, the render: tiles, key frames and each frame's analysis (the screen, the caption area, the signature). */
-async function renderPass(r: ReviewRun): Promise<RenderFrames> {
-  const { plan, spans, samples, previous } = r;
-  r.check();
-  r.progress({ stage: 'frames', progress: 0 });
-  const tiles = new Map<number, FrameTile>();
-  const analyses = new Map<number, FrameAnalysis>();
-  const keyFiles: Record<string, string> = {};
-  const fullStep = Math.max(2, Math.round(Math.min(plan.width, plan.height) / 180));
-  let done = 0;
-  const delivered = await extractFrames(r.record.file, [...samples.wanted], decodeOptions(r, plan.width, plan.height, r.probed), async (f, img) => {
-    const span = spanAt(spans, f);
-    if (samples.mainSet.has(f) || samples.sceneSet.has(f)) tiles.set(f, await makeTile(img, r.layout.tile));
-    for (const name of samples.keyByFrame.get(f) ?? []) {
-      const file = join(r.tmpDir, 'keyframes', `${name}.png`);
-      await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
-        .png({ compressionLevel: 6 })
-        .toFile(file);
-      keyFiles[name] = file;
-    }
-    const a: FrameAnalysis = { frame: f, full: regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: fullStep }) };
-    if (span && isClip(span.segment)) {
-      const cap = span.segment.layout.capture;
-      const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
-      a.screen = regionStats(img, screen);
-      a.screenSig = signature(img, screen, 64, 36);
-      const region = captionRegion(plan, span.segment);
-      if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
-    }
-    if (previous && samples.mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
-    analyses.set(f, a);
-    done++;
-    if (done % 10 === 0) r.progress({ stage: 'frames', progress: done / samples.wanted.size });
-  });
-  const missingFrames = [...samples.wanted].filter((f) => !delivered.includes(f));
-  if (missingFrames.length) {
-    r.notes.push({
-      severity: 'warning',
-      code: 'frames-missing',
-      message: `${missingFrames.length} of the ${samples.wanted.size} frames sampled could not be decoded (the video ends at ${r.probed.duration_s.toFixed(2)} s?)`,
-    });
-  }
-  return { tiles, analyses, keyFiles };
-}
-
-/** Pass 2, the capture behind the clips (scene starts, blank suspects): the main capture and the pages' tracks. */
-async function capturePass(r: ReviewRun, analyses: Map<number, FrameAnalysis>): Promise<{ sources?: Map<string, RegionStats>; sourceSigs?: Map<string, Float32Array> }> {
-  const { plan, spans } = r;
-  let sources: Map<string, RegionStats> | undefined;
-  let sourceSigs: Map<string, Float32Array> | undefined;
-  const captureFile = plan.source.file;
-  r.check();
-  if (!captureFile || !existsSync(captureFile)) {
-    r.notes.push({ severity: 'info', code: 'capture-missing', message: `the capture of run ${r.record.run_id} is not available: scene starts checked on the rendered frames only` });
-    return { sources, sourceSigs };
-  }
-  r.progress({ stage: 'capture' });
-  const want = new Set(sourceFramesAtStarts(spans));
-  const sigWanted = new Set(stillSourceFrames(plan, spans, plan.fps, r.timeline));
-  for (const k of sigWanted) want.add(k);
-  for (const [f, a] of analyses) {
-    const span = spanAt(spans, f);
-    if (!span || !isClip(span.segment) || !a.screen || !uniformity(a.screen, r.rules)) continue;
-    want.add(sourceKey(span.segment, span.segment.srcFrames[Math.min(span.segment.srcFrames.length - 1, f - span.segment.from)] ?? 0));
-  }
-  // Group the wanted frames by video: `main` (plan.source) or a page's track.
-  const byTrack = new Map<string, number[]>();
-  for (const k of want) {
-    const i = k.lastIndexOf(':');
-    const track = k.slice(0, i);
-    if (!byTrack.has(track)) byTrack.set(track, []);
-    byTrack.get(track)!.push(Number(k.slice(i + 1)));
-  }
-  sources = new Map();
-  sourceSigs = new Map();
-  try {
-    for (const [track, frames] of byTrack) {
-      const src = track === 'main' ? plan.source : plan.tracks?.[track];
-      if (!src || !existsSync(src.file)) continue;
-      const cw = Math.min(640, src.width);
-      const ch = Math.max(2, Math.round((cw * src.height) / src.width / 2) * 2);
-      const info = await probeVideo(src.file, r.opts.policy);
-      await extractFrames(src.file, frames, decodeOptions(r, cw, ch, info), (f, img: RgbImage) => {
-        const key = `${track}:${f}`;
-        sources!.set(key, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
-        if (sigWanted.has(key)) sourceSigs!.set(key, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
-      });
-    }
-  } catch (e) {
-    r.check();
-    sources = undefined;
-    sourceSigs = undefined;
-    r.notes.push({
-      severity: 'info',
-      code: 'capture-unreadable',
-      message: `the capture ${captureFile} could not be read (${errorMessage(e)}): scene starts checked on the rendered frames only`,
-    });
-  }
-  return { sources, sourceSigs };
-}
-
-/** Pass 3, the previous render (same segment, same offset): the diff and the tiles of its most changed frames. */
-async function previousPass(r: ReviewRun, frames: RenderFrames): Promise<{ diff?: ReviewDiff; diffTiles: Tile[] }> {
-  const { plan, record, previous, rules } = r;
-  let diff: ReviewDiff | undefined;
-  const diffTiles: Tile[] = [];
-  r.check();
-  if (!previous) return { diff, diffTiles };
-  r.progress({ stage: 'previous' });
-  const base = diffRecords(previous, record);
-  const pairs = framePairs(previous.plan, plan, r.samples.mainFrames);
-  const prevSigs = new Map<number, Float32Array>();
-  const prevTiles = new Map<number, FrameTile>();
-  try {
-    const info = await probeVideo(previous.file, r.opts.policy);
-    await extractFrames(
-      previous.file,
-      pairs.map((p) => p.previous_frame),
-      decodeOptions(r, previous.plan.width, previous.plan.height, info),
-      async (f, img) => {
-        prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
-        prevTiles.set(f, await makeTile(img, r.layout.tile));
-      },
-    );
-    const changed: DiffFrame[] = [];
-    let compared = 0;
-    for (const p of pairs) {
-      const a = frames.analyses.get(p.frame)?.sig;
-      const b = prevSigs.get(p.previous_frame);
-      if (!a || !b) continue;
-      compared++;
-      const d = compareSignatures(b, a);
-      if (d.changed > rules.diff_change_share) changed.push({ frame: p.frame, time: round(p.frame / plan.fps, 2), segment: p.segment, previous_frame: p.previous_frame, changed: round(d.changed, 4) });
-    }
-    diff = { ...base, compared, changed_frames: changed };
-    // The most changed frames, in time order.
-    const shown = [...changed]
-      .sort((x, y) => y.changed - x.changed)
-      .slice(0, MAX_DIFF_PAIRS)
-      .sort((x, y) => x.frame - y.frame);
-    for (const c of shown) {
-      const pt = prevTiles.get(c.previous_frame);
-      const ct = frames.tiles.get(c.frame);
-      if (!pt || !ct) continue;
-      diffTiles.push({ frame: c.previous_frame, ...pt, label: `${previous.id} · ${timecode(c.previous_frame / previous.plan.fps)}`, sub: `before · ${c.segment}` });
-      diffTiles.push({ frame: c.frame, ...ct, label: `${record.id} · ${timecode(c.time)}`, sub: `now · ${Math.round(c.changed * 100)} % changed`, mark: 'info' });
-    }
-  } catch (e) {
-    r.check();
-    diff = { ...base, compared: 0, changed_frames: [] };
-    r.notes.push({ severity: 'info', code: 'previous-unreadable', message: `the previous render ${previous.id} could not be read (${errorMessage(e)}): plan diff only` });
-  }
-  return { diff, diffTiles };
-}
-
-/** A file of the review's temporary folder, at its place in the final one. */
-function finalPath(r: Pick<ReviewRun, 'finalDir' | 'tmpDir'>, p: string): string {
-  return join(r.finalDir, relative(r.tmpDir, p));
 }
 
 /** The diff sheet (before the checks: the diff findings point at it). */

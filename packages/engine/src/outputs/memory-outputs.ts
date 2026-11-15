@@ -133,6 +133,93 @@ export class MemoryOutputs implements Outputs {
     };
   }
 
+  #readdir(path: string): Awaited<ReturnType<OutputFs['readdir']>> {
+    const p = normalize(path);
+    if (this.#files.has(p)) throw fsError('ENOTDIR', 'scandir', p);
+    if (!this.#isFolder(p)) throw fsError('ENOENT', 'scandir', p);
+    const under = p === sep ? sep : p + sep;
+    const names = new Map<string, boolean>();
+    for (const k of [...this.#files.keys(), ...this.#folders]) {
+      if (!k.startsWith(under)) continue;
+      const rest = k.slice(under.length);
+      const name = rest.split(sep)[0]!;
+      const isFile = rest === name && this.#files.has(k);
+      names.set(name, (names.get(name) ?? false) || isFile);
+    }
+    return [...names]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([name, isFile]) => ({
+        name,
+        isFile: () => isFile,
+        isDirectory: () => !isFile,
+      }));
+  }
+
+  #mkdir(path: string, opts: NonNullable<Parameters<OutputFs['mkdir']>[1]>): undefined {
+    const p = normalize(path);
+    this.#through(p, 'mkdir');
+    if (this.#files.has(p)) throw fsError('EEXIST', 'mkdir', p);
+    if (this.#isFolder(p)) {
+      if (opts.recursive) return undefined;
+      throw fsError('EEXIST', 'mkdir', p);
+    }
+    if (!opts.recursive && !this.#isFolder(dirname(p))) throw fsError('ENOENT', 'mkdir', p);
+    this.#mkdirs(p);
+    this.#touch(dirname(p));
+    return undefined;
+  }
+
+  #rmdir(path: string): void {
+    const p = normalize(path);
+    if (this.#files.has(p)) throw fsError('ENOTDIR', 'rmdir', p);
+    if (!this.#isFolder(p)) throw fsError('ENOENT', 'rmdir', p);
+    const under = p + sep;
+    if ([...this.#files.keys(), ...this.#folders].some((k) => k.startsWith(under))) throw fsError('ENOTEMPTY', 'rmdir', p);
+    this.#folders.delete(p);
+    this.#touch(dirname(p));
+  }
+
+  #plain(path: string, max: number): Awaited<ReturnType<OutputFs['plain']>> {
+    const p = normalize(path);
+    try {
+      this.#through(p, 'open');
+    } catch {
+      return { ok: false, reason: 'missing' };
+    }
+    const data = this.#files.get(p);
+    if (data === undefined && !this.#isFolder(p)) return { ok: false, reason: 'missing' };
+    // (No hard link here: every file has its one name, so `oneName` refuses nothing.)
+    const why = plainFileVerdict({ isFile: data !== undefined, size: data?.length ?? 0 }, max);
+    if (why) return why === 'too_large' ? { ok: false, reason: why, size: data!.length } : { ok: false, reason: why };
+    return { ok: true, bytes: Buffer.from(data!) };
+  }
+
+  #rename(from: string, to: string): void {
+    const a = normalize(from);
+    const b = normalize(to);
+    this.#stat(a, 'rename');
+    this.#through(b, 'rename');
+    if (this.#files.has(b) || this.#isFolder(b)) throw fsError('EEXIST', 'rename', b);
+    const under = a + sep;
+    const moved = (k: string) => (k === a ? b : b + sep + k.slice(under.length));
+    for (const k of [...this.#files.keys()])
+      if (k === a || k.startsWith(under)) {
+        const data = this.#files.get(k)!;
+        this.#files.delete(k);
+        this.#mkdirs(dirname(moved(k)));
+        this.#files.set(moved(k), data);
+        this.#touch(moved(k));
+      }
+    for (const k of [...this.#folders])
+      if (k === a || k.startsWith(under)) {
+        this.#folders.delete(k);
+        this.#mkdirs(moved(k));
+      }
+    this.#mkdirs(dirname(b));
+    this.#touch(dirname(a));
+    this.#touch(dirname(b));
+  }
+
   #fs(): OutputFs {
     return {
       lstat: async (path) => this.#stat(path, 'lstat'),
@@ -149,40 +236,8 @@ export class MemoryOutputs implements Outputs {
         if (data === undefined) throw this.#isFolder(p) ? fsError('EISDIR', 'read', p) : fsError('ENOENT', 'open', p);
         return Uint8Array.from(data);
       },
-      readdir: async (path) => {
-        const p = normalize(path);
-        if (this.#files.has(p)) throw fsError('ENOTDIR', 'scandir', p);
-        if (!this.#isFolder(p)) throw fsError('ENOENT', 'scandir', p);
-        const under = p === sep ? sep : p + sep;
-        const names = new Map<string, boolean>();
-        for (const k of [...this.#files.keys(), ...this.#folders]) {
-          if (!k.startsWith(under)) continue;
-          const rest = k.slice(under.length);
-          const name = rest.split(sep)[0]!;
-          const isFile = rest === name && this.#files.has(k);
-          names.set(name, (names.get(name) ?? false) || isFile);
-        }
-        return [...names]
-          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-          .map(([name, isFile]) => ({
-            name,
-            isFile: () => isFile,
-            isDirectory: () => !isFile,
-          }));
-      },
-      mkdir: async (path, opts = {}) => {
-        const p = normalize(path);
-        this.#through(p, 'mkdir');
-        if (this.#files.has(p)) throw fsError('EEXIST', 'mkdir', p);
-        if (this.#isFolder(p)) {
-          if (opts.recursive) return undefined;
-          throw fsError('EEXIST', 'mkdir', p);
-        }
-        if (!opts.recursive && !this.#isFolder(dirname(p))) throw fsError('ENOENT', 'mkdir', p);
-        this.#mkdirs(p);
-        this.#touch(dirname(p));
-        return undefined;
-      },
+      readdir: async (path) => this.#readdir(path),
+      mkdir: async (path, opts = {}) => this.#mkdir(path, opts),
       writeAtomic: async (path, data) => {
         const p = normalize(path);
         this.#through(p, 'open');
@@ -228,54 +283,9 @@ export class MemoryOutputs implements Outputs {
         if (this.#isFolder(p)) throw fsError('EISDIR', 'rm', p);
         if (this.#files.delete(p)) this.#touch(dirname(p));
       },
-      rmdir: async (path) => {
-        const p = normalize(path);
-        if (this.#files.has(p)) throw fsError('ENOTDIR', 'rmdir', p);
-        if (!this.#isFolder(p)) throw fsError('ENOENT', 'rmdir', p);
-        const under = p + sep;
-        if ([...this.#files.keys(), ...this.#folders].some((k) => k.startsWith(under))) throw fsError('ENOTEMPTY', 'rmdir', p);
-        this.#folders.delete(p);
-        this.#touch(dirname(p));
-      },
-      plain: async (path, max) => {
-        const p = normalize(path);
-        try {
-          this.#through(p, 'open');
-        } catch {
-          return { ok: false, reason: 'missing' };
-        }
-        const data = this.#files.get(p);
-        if (data === undefined && !this.#isFolder(p)) return { ok: false, reason: 'missing' };
-        // (No hard link here: every file has its one name, so `oneName` refuses nothing.)
-        const why = plainFileVerdict({ isFile: data !== undefined, size: data?.length ?? 0 }, max);
-        if (why) return why === 'too_large' ? { ok: false, reason: why, size: data!.length } : { ok: false, reason: why };
-        return { ok: true, bytes: Buffer.from(data!) };
-      },
-      rename: async (from, to) => {
-        const a = normalize(from);
-        const b = normalize(to);
-        this.#stat(a, 'rename');
-        this.#through(b, 'rename');
-        if (this.#files.has(b) || this.#isFolder(b)) throw fsError('EEXIST', 'rename', b);
-        const under = a + sep;
-        const moved = (k: string) => (k === a ? b : b + sep + k.slice(under.length));
-        for (const k of [...this.#files.keys()])
-          if (k === a || k.startsWith(under)) {
-            const data = this.#files.get(k)!;
-            this.#files.delete(k);
-            this.#mkdirs(dirname(moved(k)));
-            this.#files.set(moved(k), data);
-            this.#touch(moved(k));
-          }
-        for (const k of [...this.#folders])
-          if (k === a || k.startsWith(under)) {
-            this.#folders.delete(k);
-            this.#mkdirs(moved(k));
-          }
-        this.#mkdirs(dirname(b));
-        this.#touch(dirname(a));
-        this.#touch(dirname(b));
-      },
+      rmdir: async (path) => this.#rmdir(path),
+      plain: async (path, max) => this.#plain(path, max),
+      rename: async (from, to) => this.#rename(from, to),
       realpath: async (path) => {
         const p = normalize(path);
         this.#stat(p, 'realpath');

@@ -497,7 +497,7 @@ export class ScenarioViews {
     // Single flight: a second read of the same file while the first computes waits for it.
     const pending = this.textsPending.get(key);
     if (pending) return pending;
-    const job = this.computeText(p, slug, name, file, env, key);
+    const job = this.computeText(p, { slug, name, file, env, key });
     this.textsPending.set(key, job);
     try {
       return await job;
@@ -506,7 +506,8 @@ export class ScenarioViews {
     }
   }
 
-  private async computeText(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined, key: string): Promise<TextLayer> {
+  private async computeText(p: LoadedProject, o: { slug: string; name: string; file: ScenarioText; env: string | undefined; key: string }): Promise<TextLayer> {
+    const { slug, name, file, env, key } = o;
     const { yaml } = file;
     this.stats.text++;
     const { ok, issues } = await validateScenarioText(p, yaml, { files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads, name, ...(env !== undefined ? { env } : {}) });
@@ -622,7 +623,8 @@ export class ScenarioViews {
    * What the picker says of a run beyond run.json's summary — its pictures and where a failed run failed — held while
    * the run folder's signature holds (a finished run's files do not change; deleting frames changes the folder).
    */
-  private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean, capture: boolean): Promise<RunFacts> {
+  private async factsOf(projectDir: string, id: string, mode: string, o: { finished: boolean; failed: boolean; capture: boolean }): Promise<RunFacts> {
+    const { finished, failed, capture } = o;
     // A succeeded capture's verdict also reads its timeline's head: that file's signature is in its key.
     const runs = this.ctx.ws.outputs.runs;
     const runDir = join(runsDirOf(projectDir), id);
@@ -651,7 +653,7 @@ export class ScenarioViews {
     // run.json is a file anyone may write: a status the runner never writes is `unknown`, never shown as written.
     const status: ViewRunStatus = isRunViewStatus(raw) ? raw : 'unknown';
     const finished = isFinishedRunStatus(status);
-    const { pictures, snapshot, failedAt, take } = await this.factsOf(projectDir, r.id, r.mode, finished, status === 'failed', r.mode === 'capture' && status === 'succeeded');
+    const { pictures, snapshot, failedAt, take } = await this.factsOf(projectDir, r.id, r.mode, { finished, failed: status === 'failed', capture: r.mode === 'capture' && status === 'succeeded' });
     let partial: string | undefined;
     if (status === 'cancelled') partial = 'cancelled';
     else if (status === 'interrupted') partial = 'interrupted';

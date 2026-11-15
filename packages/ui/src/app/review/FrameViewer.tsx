@@ -16,16 +16,16 @@
  * - The arrows never move the frame behind an open modal (the palette, a sheet).
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
 import { renderFrame, useRenderOutline } from '../data/renders.js';
 import type { FrameAnswer, Outline } from '../data/ops.js';
 import { Txt } from '../bits.js';
-import { FrameRequests, frameTime, newSessionId, parseTimecode, pointIn, regionOfDrag, renderWords, timeExample, viewerKey } from '../words/comment-words.js';
+import { FrameRequests, frameTime, newSessionId, renderWords } from '../words/comment-words.js';
 import type { FrameAsk, Region } from '../words/comment-words.js';
 import { Jpeg } from '../Thumb.js';
 import { SHEET_DATA_MAX } from '../thumbs.js';
-import type { KeyTarget } from '../words/timeline-words.js';
-import { Button, Callout, RegionOverlay, Scrubber, TextField, Track, TrackItem, modalOpen } from '../ui-kit/index.js';
+import { Callout, RegionOverlay, Scrubber } from '../ui-kit/index.js';
+import { useRegionDrag } from './region-drag.js';
+import { FrameControls, ViewerTicks, useViewerKeys } from './viewer-controls.js';
 
 /** This tab's render_frame session: its newest request of a render wins on the server. */
 const SESSION = newSessionId();
@@ -38,14 +38,38 @@ export interface Shown {
   created_at: string;
 }
 
-function keyTarget(t: EventTarget | null): KeyTarget {
-  const el = t instanceof Element ? t : null;
-  return {
-    tag: el?.tagName ?? 'body',
-    ...(el instanceof HTMLInputElement ? { type: el.type } : {}),
-    ...(el instanceof HTMLElement && el.isContentEditable ? { editable: true } : {}),
-    ...(el?.closest('[role="radiogroup"]') ? { inRadioGroup: true } : {}),
-  };
+/** The frames: one request in flight, the newest wins (FrameRequests); a 409 says the render was replaced. */
+function useFrameImage(slug: string, onReplaced: () => void, want: { o: Outline | null; frame: number; last: number; shown: Shown }) {
+  const { o, frame, last, shown } = want;
+  const [image, setImage] = useState<FrameAnswer | null>(null);
+  const [frameError, setFrameError] = useState<string | null>(null);
+  const requests = useRef<FrameRequests<FrameAnswer> | null>(null);
+  const replaced = useRef(onReplaced);
+  replaced.current = onReplaced;
+  useEffect(() => {
+    const r = new FrameRequests<FrameAnswer>({
+      fetch: (ask: FrameAsk, signal) => renderFrame({ project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
+      onResult: (res) => {
+        if (res.ok) {
+          setImage(res.data);
+          setFrameError(null);
+        } else if (res.error.code !== 'cancelled') {
+          setFrameError(res.error.message);
+          if (res.error.status === 409) replaced.current();
+        }
+      },
+    });
+    requests.current = r;
+    return () => {
+      r.close();
+      requests.current = null;
+    };
+  }, [slug]);
+  useEffect(() => {
+    if (!o || frame > last) return;
+    requests.current?.want({ render_id: shown.render_id, created_at: shown.created_at, frame });
+  }, [o, frame, last, shown.render_id, shown.created_at]);
+  return { image, frameError };
 }
 
 export function FrameViewer(p: {
@@ -89,49 +113,10 @@ export function FrameViewer(p: {
     if (o && frame > last) setFrame(last);
   }, [o, frame, last, setFrame]);
 
-  // The frames: one request in flight, the newest wins (FrameRequests).
-  const [image, setImage] = useState<FrameAnswer | null>(null);
-  const [frameError, setFrameError] = useState<string | null>(null);
-  const requests = useRef<FrameRequests<FrameAnswer> | null>(null);
-  const replaced = useRef(p.onReplaced);
-  replaced.current = p.onReplaced;
-  useEffect(() => {
-    const r = new FrameRequests<FrameAnswer>({
-      fetch: (ask: FrameAsk, signal) => renderFrame({ project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
-      onResult: (res) => {
-        if (res.ok) {
-          setImage(res.data);
-          setFrameError(null);
-        } else if (res.error.code !== 'cancelled') {
-          setFrameError(res.error.message);
-          if (res.error.status === 409) replaced.current();
-        }
-      },
-    });
-    requests.current = r;
-    return () => {
-      r.close();
-      requests.current = null;
-    };
-  }, [slug]);
-  useEffect(() => {
-    if (!o || frame > last) return;
-    requests.current?.want({ render_id: shown.render_id, created_at: shown.created_at, frame });
-  }, [o, frame, last, shown.render_id, shown.created_at]);
+  const { image, frameError } = useFrameImage(slug, p.onReplaced, { o, frame, last, shown });
 
   // ← / → one frame, Shift one second (never while typing, never doubling the slider's own arrows).
-  useEffect(() => {
-    if (!o) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (modalOpen()) return;
-      const by = viewerKey(e, keyTarget(e.target), o.fps);
-      if (by === null) return;
-      e.preventDefault();
-      go(frameRef.current + by);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [o, go]);
+  useViewerKeys(o, go, frameRef);
 
   const [time, setTime] = useState('');
   const [timeError, setTimeError] = useState<string | null>(null);
@@ -173,98 +158,9 @@ export function FrameViewer(p: {
           valueText={`frame ${frame.toLocaleString('en')}, ${frameTime(frame, d.fps)}`}
           onChange={go}
         />
-        {ticks > 0 && (
-          <Track name="Marks & pins" testId="viewer-ticks" count={ticks}>
-            {d.markers.map((k, i) => {
-              const words = `Marker ${d.untrusted.markers[i] ?? ''} at ${frameTime(k.frame, d.fps)}`;
-              return (
-                <TrackItem
-                  // biome-ignore lint/suspicious/noArrayIndexKey: markers in render order, the index also reads their names (untrusted.markers[i]): the index is the marker
-                  key={`m${i}`}
-                  variant="marker"
-                  place={{ at: k.frame }}
-                  frames={d.frames}
-                  label={words}
-                  title={words}
-                  testId="viewer-marker"
-                  data={{ frame: k.frame }}
-                  onActivate={() => go(k.frame)}
-                >
-                  <span aria-hidden="true">◆</span>
-                </TrackItem>
-              );
-            })}
-            {d.pins.map((pin) => {
-              const words = `Comment, ${pin.status}, at ${frameTime(pin.frame, d.fps)}: open the thread`;
-              return (
-                <TrackItem
-                  key={pin.id}
-                  variant="pin"
-                  place={{ at: pin.frame }}
-                  frames={d.frames}
-                  label={words}
-                  title={words}
-                  states={[pin.status]}
-                  testId="viewer-pin"
-                  data={{ id: pin.id, frame: pin.frame, status: pin.status }}
-                  to={{ name: 'comments', slug, scenario: p.name, thread: pin.id }}
-                >
-                  <span aria-hidden="true">{pin.status === 'open' ? '●' : '○'}</span>
-                </TrackItem>
-              );
-            })}
-          </Track>
-        )}
+        {ticks > 0 && <ViewerTicks d={d} ticks={ticks} slug={slug} name={p.name} go={go} />}
       </div>
-      {/* biome-ignore lint/a11y/useSemanticElements: a toolbar-like row of frame buttons; <fieldset> would bring its own border, padding and min-width */}
-      <div className="cm-controls" role="group" aria-label="Frame controls">
-        <Button size="sm" aria-label="Back one second" onClick={() => go(frame - Math.round(d.fps))}>
-          −1 s
-        </Button>
-        <Button size="sm" icon="chevron-left" aria-label="Previous frame" data-testid="viewer-prev" onClick={() => go(frame - 1)}>
-          Frame
-        </Button>
-        <Button size="sm" icon="chevron-right" aria-label="Next frame" data-testid="viewer-next" onClick={() => go(frame + 1)}>
-          Frame
-        </Button>
-        <Button size="sm" aria-label="Forward one second" onClick={() => go(frame + Math.round(d.fps))}>
-          +1 s
-        </Button>
-        <output className="cm-time k-mono" data-testid="viewer-time" aria-live="off">
-          <Txt text={`${frameTime(frame, d.fps)} / ${frameTime(d.frames, d.fps)} · frame ${frame.toLocaleString('en')} of ${d.frames.toLocaleString('en')}`} />
-        </output>
-        <form
-          className="cm-goto"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const r = parseTimecode(time, d.fps, d.frames);
-            if ('error' in r) setTimeError(r.error);
-            else {
-              setTimeError(null);
-              go(r.frame);
-            }
-          }}
-        >
-          <TextField
-            id={timeId}
-            label="Go to a time"
-            labelHidden
-            layout="inline"
-            inputMode="decimal"
-            placeholder={timeExample(d.frames, d.fps)}
-            value={time}
-            onChange={setTime}
-            unsaved={null}
-            error={timeError ?? undefined}
-            testId="viewer-time-input"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Button size="sm" submit>
-            Go
-          </Button>
-        </form>
-      </div>
+      <FrameControls d={d} frame={frame} go={go} time={time} setTime={setTime} timeError={timeError} setTimeError={setTimeError} timeId={timeId} />
       <p className="cm-quiet">
         <Txt text={`← → one frame · Shift + ← → one second · ${d.width}×${d.height}, ${d.fps} fps${d.variant !== 'landscape' ? `, ${d.variant}` : ''}`} />
       </p>
@@ -277,58 +173,7 @@ export function FrameViewer(p: {
  * `drawing` (the pointer surface: its keyboard alternative is the composer's four % fields).
  */
 function FramePicture(p: { o: Outline; image: FrameAnswer | null; frame: number; drawing: boolean; region: Region | null; setRegion: (r: Region | null) => void; regionLabel: string }) {
-  const box = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ id: number; from: { x: number; y: number }; before: Region | null } | null>(null);
-  const [draft, setDraft] = useState<Region | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const { setRegion } = p;
-  // Esc cancels a drag (the region before it stays).
-  useEffect(() => {
-    if (!dragging) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !drag.current) return;
-      e.preventDefault();
-      const el = box.current;
-      if (el?.hasPointerCapture(drag.current.id)) el.releasePointerCapture(drag.current.id);
-      drag.current = null;
-      setDraft(null);
-      setDragging(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [dragging]);
-  const rect = () => box.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 };
-  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!p.drawing || !p.image || e.button !== 0) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { id: e.pointerId, from: pointIn(rect(), e.clientX, e.clientY), before: p.region };
-    setDraft(null);
-    setDragging(true);
-  };
-  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    setDraft(regionOfDrag(d.from, pointIn(rect(), e.clientX, e.clientY)));
-  };
-  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    drag.current = null;
-    setDragging(false);
-    setDraft(null);
-    // A click (no drag) makes no region: the one before stays.
-    const r = regionOfDrag(d.from, pointIn(rect(), e.clientX, e.clientY));
-    if (r) setRegion(r);
-  };
-  // A cancelled pointer (a system gesture took it, the capture was lost) cancels like Esc: the region before it stays.
-  const onCancel = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    drag.current = null;
-    setDraft(null);
-    setDragging(false);
-  };
+  const { box, draft, onDown, onMove, onUp, onCancel } = useRegionDrag({ drawing: p.drawing, image: p.image, region: p.region, setRegion: p.setRegion });
   const shownRegion = draft ?? p.region;
   const { width: w, height: h } = p.o;
   // The one status line: a frame slow to come is said after a pause (never once per arrow press); the first picture too.

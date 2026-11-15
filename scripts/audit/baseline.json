@@ -35,12 +35,13 @@
   },
   {
    "rule": "R14",
-   "reason": "Real value dependencies, kept on purpose: the editor is the renderer of the component system — it bundles a workspace's component folders with the kit and the geometry entry (render/bundle.ts: the component files' layout, manifests, unhashed-file rules, kit and geometry entry paths), its compositions draw with the kit's Logo, Wordmark and backgroundCss (remotion/PlanVideo.tsx, Preview.tsx: bundled code, so a port cannot hand them), a component preview fills its slots and samples with the components' layout maths (preview.ts, render/preview.ts: source hashes, preview README blocks); the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg). A plan, a render and a review load no registry: the engine hands it (its ComponentRegistries port).",
+   "reason": "Real value dependencies, kept on purpose: the editor is the renderer of the component system — it bundles a workspace's component folders with the kit and the geometry entry (render/bundle.ts: the component files' layout, manifests, unhashed-file rules, kit and geometry entry paths), its compositions draw with the kit's Logo, Wordmark and backgroundCss (remotion/PlanVideo.tsx, Preview.tsx: bundled code, so a port cannot hand them), a component preview fills its slots and samples with the components' layout maths (preview.ts, render/preview.ts: source hashes, preview README blocks; render/preview-session.ts, the preview session split out of render/preview.ts: the component system's themeTokens and paramDefaults fill a previewed component's theme and params, the same dependency as its file's); the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg). A plan, a render and a review load no registry: the engine hands it (its ComponentRegistries port).",
    "entries": [
     "packages/editor/src/preview.ts → @retake/components",
     "packages/editor/src/remotion/PlanVideo.tsx → @retake/components/kit",
     "packages/editor/src/remotion/Preview.tsx → @retake/components/kit",
     "packages/editor/src/render/bundle.ts → @retake/components",
+    "packages/editor/src/render/preview-session.ts → @retake/components",
     "packages/editor/src/render/preview.ts → @retake/components",
     "packages/sandbox/src/seed.ts → @retake/hooks/db-url",
     "packages/sandbox/src/snapshot-postgres.ts → @retake/hooks/db-url"

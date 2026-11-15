@@ -32,6 +32,27 @@ export interface ThemeFile {
 
 const PALETTE_KEYS = ['accent', 'text', 'muted', 'paper', 'dark'];
 
+/** The starters' style: flow collections for short sections, block maps for colours, fonts and components. */
+function applyStarterStyle(contents: unknown): void {
+  if (!isMap(contents)) return;
+  for (const pair of contents.items) {
+    if (!isPair(pair) || !isScalar(pair.key)) continue;
+    styleSection(String(pair.key.value), pair.value);
+  }
+}
+
+/** One top-level section in the starters' style (colours as a block map; fonts, components and captions per entry). */
+function styleSection(key: string, v: unknown): void {
+  if (isSeq(v)) {
+    v.flow = true;
+    return;
+  }
+  if (!isMap(v) || key === 'colors') return;
+  if (key === 'fonts' || key === 'components' || key === 'captions') {
+    for (const sub of v.items) if (isPair(sub) && (isMap(sub.value) || isSeq(sub.value))) sub.value.flow = true;
+  } else v.flow = true;
+}
+
 /** The new theme's template.yaml (object and text) over its base. */
 export function generateThemeFile(i: ThemeFileInput): ThemeFile {
   const base = structuredClone(i.base) as Record<string, unknown>;
@@ -68,21 +89,7 @@ export function generateThemeFile(i: ThemeFileInput): ThemeFile {
     ' (template_create_from_brand / retake theme create): colours from the palette rules, fonts and logo copied into',
     ' this folder (see LICENSES.md). Edit it freely — once a file of this folder changes, the tool no longer replaces it.',
   ].join('\n');
-  // The starters' style: flow collections for short sections, block maps for colours, fonts and components.
-  if (isMap(doc.contents)) {
-    for (const pair of doc.contents.items) {
-      if (!isPair(pair) || !isScalar(pair.key)) continue;
-      const key = String(pair.key.value);
-      const v = pair.value;
-      if (isSeq(v)) v.flow = true;
-      else if (isMap(v)) {
-        if (key === 'colors') continue;
-        if (key === 'fonts' || key === 'components' || key === 'captions') {
-          for (const sub of v.items) if (isPair(sub) && (isMap(sub.value) || isSeq(sub.value))) sub.value.flow = true;
-        } else v.flow = true;
-      }
-    }
-  }
+  applyStarterStyle(doc.contents);
   const yaml = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
   return { file: out as TemplateFile, yaml, kept_colors: Object.keys(extra) };
 }

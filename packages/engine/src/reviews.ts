@@ -102,6 +102,104 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
 /** What makes a review's report.json one: this version and its findings (the rest is read member by member). */
 const ReviewReportSchema = z.object({ version: z.literal(1), findings: z.array(z.unknown()) });
 
+/**
+ * The review's files, rebuilt from review/<render_id>/ by their base names (never the paths written in report.json),
+ * set on the view; its scene sheets, key frames and diff sheet for the images.
+ */
+async function reviewFiles(reviews: OutputFolder, dir: string, files: Record<string, unknown>, reportFile: string, view: ReviewView) {
+  const list = async (v: unknown, sub?: string): Promise<string[]> => {
+    const out: string[] = [];
+    if (Array.isArray(v))
+      for (const p of v) {
+        const f = await rebuilt(reviews, dir, p, sub);
+        if (f !== undefined) out.push(f);
+      }
+    return out;
+  };
+  const sceneSheets: Record<string, string[]> = {};
+  // Keys are re-derived from the rebuilt file names (sheet_scene_<id>[_pN].jpg, keyframes/<name>.png), never copied.
+  for (const v of Object.values((files.scene_sheets ?? {}) as Record<string, unknown>)) {
+    const l = (await list(v)).filter((f) => /^sheet_scene_.+\.jpg$/.test(basename(f)));
+    if (!l.length) continue;
+    const k = basename(l[0])
+      .replace(/^sheet_scene_/, '')
+      .replace(/(?:_p\d+)?\.jpg$/, '');
+    if (SAFE_ID.test(k) && !sceneSheets[k]) sceneSheets[k] = l;
+  }
+  const keyframes: Record<string, string> = {};
+  for (const v of Object.values((files.keyframes ?? {}) as Record<string, unknown>)) {
+    const f = await rebuilt(reviews, dir, v, 'keyframes');
+    if (f?.endsWith('.png')) keyframes[basename(f, '.png')] = f;
+  }
+  const diffSheet = await rebuilt(reviews, dir, files.diff_sheet);
+  const sheets = await list(files.sheets);
+  const timeline = await rebuilt(reviews, dir, 'timeline.json');
+  const reportMd = await rebuilt(reviews, dir, 'report.md');
+  view.files = {
+    sheets,
+    scene_sheets: sceneSheets,
+    keyframes,
+    ...(timeline ? { timeline: join(dir, 'timeline.json') } : {}),
+    report_json: reportFile,
+    ...(reportMd ? { report_md: join(dir, 'report.md') } : {}),
+    ...(diffSheet ? { diff_sheet: diffSheet } : {}),
+  };
+  return { sheets, sceneSheets, keyframes, diffSheet };
+}
+
+/** The report's findings on the view: codes and ids that pass, the rest and the messages under `untrusted`. */
+function findingsOf(findings: Array<Record<string, unknown>>, view: ReviewView): void {
+  const held: NonNullable<ReviewView['untrusted']['findings']> = {};
+  view.findings = findings.map((f, i) => {
+    const code = typeof f.code === 'string' && FINDING_CODES.has(f.code) ? f.code : 'unknown';
+    const at = (f.at && typeof f.at === 'object' ? f.at : {}) as Record<string, unknown>;
+    const out: ReviewFindingView['at'] = {};
+    for (const k of ['frame', 'time', 'step'] as const) if (typeof at[k] === 'number' && Number.isFinite(at[k])) out[k] = at[k];
+    for (const k of ['segment', 'scene'] as const) {
+      if (typeof at[k] === 'string' && SAFE_ID.test(at[k])) out[k] = at[k];
+      else if (at[k] !== undefined) (held[i] ??= {})[k] = at[k];
+    }
+    if (code === 'unknown' && f.code !== undefined) (held[i] ??= {}).code = f.code;
+    return { severity: f.severity === 'error' || f.severity === 'warning' ? f.severity : 'info', code, ...(Object.keys(out).length ? { at: out } : {}) };
+  });
+  if (Object.keys(held).length) view.untrusted.findings = held;
+  view.untrusted.messages = findings.map((f) => str(f.message) ?? '');
+}
+
+/** The report's segment durations on the view: fields that pass, the rest under `untrusted.segments`. */
+function durationsOf(durations: { total_s?: unknown; segments?: unknown } | undefined, view: ReviewView): void {
+  if (durations && Array.isArray(durations.segments)) {
+    const heldSegments: NonNullable<ReviewView['untrusted']['segments']> = {};
+    const segments: NonNullable<ReviewView['durations']>['segments'] = [];
+    (durations.segments as Array<Record<string, unknown>>).forEach((s, i) => {
+      if (!s || typeof s !== 'object') return;
+      const bad: Record<string, unknown> = {};
+      const id = typeof s.id === 'string' && SAFE_ID.test(s.id) ? s.id : undefined;
+      if (!id) bad.id = s.id;
+      const kind = typeof s.kind === 'string' && SEGMENT_KINDS.has(s.kind) ? s.kind : 'unknown';
+      if (kind === 'unknown') bad.kind = s.kind;
+      const component = typeof s.component === 'string' && COMPONENT_ID_RE.test(s.component) ? s.component : 'unknown';
+      if (component === 'unknown') bad.component = s.component;
+      const scene = typeof s.scene === 'string' && SAFE_ID.test(s.scene) ? s.scene : undefined;
+      if (s.scene !== undefined && !scene) bad.scene = s.scene;
+      if (Object.keys(bad).length) heldSegments[i] = bad;
+      if (!id) return;
+      segments.push({
+        id,
+        kind,
+        ...(scene ? { scene } : {}),
+        from_s: num(s.from_s),
+        to_s: num(s.to_s),
+        duration_s: num(s.duration_s),
+        component,
+        ...(typeof s.speed === 'number' && Number.isFinite(s.speed) ? { speed: s.speed } : {}),
+      });
+    });
+    view.durations = { total_s: num(durations.total_s), segments };
+    if (Object.keys(heldSegments).length) view.untrusted.segments = heldSegments;
+  }
+}
+
 /** Read a review (report.json, as data) and its newest job. `latest`: the review of the newest render (of `scenario`). */
 export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
   checkProjectSlug(slug);
@@ -143,43 +241,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   if (!report) return view;
 
   const files = (report.files ?? {}) as Record<string, unknown>;
-  const list = async (v: unknown, sub?: string): Promise<string[]> => {
-    const out: string[] = [];
-    if (Array.isArray(v))
-      for (const p of v) {
-        const f = await rebuilt(reviews, dir, p, sub);
-        if (f !== undefined) out.push(f);
-      }
-    return out;
-  };
-  const sceneSheets: Record<string, string[]> = {};
-  // Keys are re-derived from the rebuilt file names (sheet_scene_<id>[_pN].jpg, keyframes/<name>.png), never copied.
-  for (const v of Object.values((files.scene_sheets ?? {}) as Record<string, unknown>)) {
-    const l = (await list(v)).filter((f) => /^sheet_scene_.+\.jpg$/.test(basename(f)));
-    if (!l.length) continue;
-    const k = basename(l[0])
-      .replace(/^sheet_scene_/, '')
-      .replace(/(?:_p\d+)?\.jpg$/, '');
-    if (SAFE_ID.test(k) && !sceneSheets[k]) sceneSheets[k] = l;
-  }
-  const keyframes: Record<string, string> = {};
-  for (const v of Object.values((files.keyframes ?? {}) as Record<string, unknown>)) {
-    const f = await rebuilt(reviews, dir, v, 'keyframes');
-    if (f?.endsWith('.png')) keyframes[basename(f, '.png')] = f;
-  }
-  const diffSheet = await rebuilt(reviews, dir, files.diff_sheet);
-  const sheets = await list(files.sheets);
-  const timeline = await rebuilt(reviews, dir, 'timeline.json');
-  const reportMd = await rebuilt(reviews, dir, 'report.md');
-  view.files = {
-    sheets,
-    scene_sheets: sceneSheets,
-    keyframes,
-    ...(timeline ? { timeline: join(dir, 'timeline.json') } : {}),
-    report_json: reportFile,
-    ...(reportMd ? { report_md: join(dir, 'report.md') } : {}),
-    ...(diffSheet ? { diff_sheet: diffSheet } : {}),
-  };
+  const { sheets, sceneSheets, keyframes, diffSheet } = await reviewFiles(reviews, dir, files, reportFile, view);
   view.dir = dir;
   const rev = (report.review ?? {}) as Record<string, unknown>;
   const fps: 1 | 2 = rev.fps === 2 ? 2 : 1;
@@ -189,52 +251,9 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   const counts = (report.counts ?? {}) as Record<string, unknown>;
   view.counts = { error: num(counts.error), warning: num(counts.warning), info: num(counts.info) };
   const findings = report.findings as Array<Record<string, unknown>>;
-  const held: NonNullable<ReviewView['untrusted']['findings']> = {};
-  view.findings = findings.map((f, i) => {
-    const code = typeof f.code === 'string' && FINDING_CODES.has(f.code) ? f.code : 'unknown';
-    const at = (f.at && typeof f.at === 'object' ? f.at : {}) as Record<string, unknown>;
-    const out: ReviewFindingView['at'] = {};
-    for (const k of ['frame', 'time', 'step'] as const) if (typeof at[k] === 'number' && Number.isFinite(at[k])) out[k] = at[k];
-    for (const k of ['segment', 'scene'] as const) {
-      if (typeof at[k] === 'string' && SAFE_ID.test(at[k])) out[k] = at[k];
-      else if (at[k] !== undefined) (held[i] ??= {})[k] = at[k];
-    }
-    if (code === 'unknown' && f.code !== undefined) (held[i] ??= {}).code = f.code;
-    return { severity: f.severity === 'error' || f.severity === 'warning' ? f.severity : 'info', code, ...(Object.keys(out).length ? { at: out } : {}) };
-  });
-  if (Object.keys(held).length) view.untrusted.findings = held;
-  view.untrusted.messages = findings.map((f) => str(f.message) ?? '');
+  findingsOf(findings, view);
   const durations = report.durations as { total_s?: unknown; segments?: unknown } | undefined;
-  if (durations && Array.isArray(durations.segments)) {
-    const heldSegments: NonNullable<ReviewView['untrusted']['segments']> = {};
-    const segments: NonNullable<ReviewView['durations']>['segments'] = [];
-    (durations.segments as Array<Record<string, unknown>>).forEach((s, i) => {
-      if (!s || typeof s !== 'object') return;
-      const bad: Record<string, unknown> = {};
-      const id = typeof s.id === 'string' && SAFE_ID.test(s.id) ? s.id : undefined;
-      if (!id) bad.id = s.id;
-      const kind = typeof s.kind === 'string' && SEGMENT_KINDS.has(s.kind) ? s.kind : 'unknown';
-      if (kind === 'unknown') bad.kind = s.kind;
-      const component = typeof s.component === 'string' && COMPONENT_ID_RE.test(s.component) ? s.component : 'unknown';
-      if (component === 'unknown') bad.component = s.component;
-      const scene = typeof s.scene === 'string' && SAFE_ID.test(s.scene) ? s.scene : undefined;
-      if (s.scene !== undefined && !scene) bad.scene = s.scene;
-      if (Object.keys(bad).length) heldSegments[i] = bad;
-      if (!id) return;
-      segments.push({
-        id,
-        kind,
-        ...(scene ? { scene } : {}),
-        from_s: num(s.from_s),
-        to_s: num(s.to_s),
-        duration_s: num(s.duration_s),
-        component,
-        ...(typeof s.speed === 'number' && Number.isFinite(s.speed) ? { speed: s.speed } : {}),
-      });
-    });
-    view.durations = { total_s: num(durations.total_s), segments };
-    if (Object.keys(heldSegments).length) view.untrusted.segments = heldSegments;
-  }
+  durationsOf(durations, view);
   if (report.environment) view.untrusted.environment = report.environment;
   const diff = report.diff as Record<string, unknown> | undefined;
   if (diff) {
@@ -256,7 +275,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
     const segmentNames = new Set((view.durations?.segments ?? []).flatMap((s) => [`${s.id}-first`, `${s.id}-last`, `${s.id}-hold`].map(safeName)));
     const markers = Object.keys(keyframes).filter((k) => !segmentNames.has(k));
     const pairs = reviewImages(
-      { dir, sheets: view.files.sheets, scene_sheets: sceneSheets, keyframes, timeline: '', report_json: reportFile, report_md: '', ...(diffSheet ? { diff_sheet: diffSheet } : {}) },
+      { dir, sheets, scene_sheets: sceneSheets, keyframes, timeline: '', report_json: reportFile, report_md: '', ...(diffSheet ? { diff_sheet: diffSheet } : {}) },
       { fps, markers, mode },
     );
     view.images = pairs.map(([name, file]) => ({ label: imageLabel(name, fps), file }));

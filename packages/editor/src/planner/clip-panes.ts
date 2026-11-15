@@ -28,10 +28,62 @@ export type PlanPanes = (
   range: { k0: number; k1: number },
 ) => { layout: PlanLayout; panes: PlanPane[]; inset?: PlanInset } | null;
 
+/** The zooms of a pane over its clip (output frames of the clip), each with the view it shows. */
+function paneZooms(moves: RunCamera['moves'], range: { k0: number }, src: { cssWidth: number; cssHeight: number }): ZoomSpan[] {
+  return moves.map((m): ZoomSpan => {
+    const [vx, vy] = clampView(m.zoom, m.focus.x, m.focus.y, src.cssWidth, src.cssHeight);
+    const z: ZoomSpan = {
+      scene: m.scene,
+      step: m.step,
+      from: m.start - range.k0,
+      in_frames: round(m.frames),
+      out_at: round(Math.max(m.outAt, m.start + m.frames) - range.k0),
+      out_frames: round(m.outFrames ?? m.frames),
+      zoom: m.zoom,
+      focus: m.focus,
+      view: { x: round(vx, 2), y: round(vy, 2) },
+    };
+    if (m.requested !== m.zoom) z.requested_zoom = m.requested;
+    if (m.source === 'theme') z.source = 'theme';
+    return z;
+  });
+}
+
+/** The reframe track of a page over its whole run: its steps' and overlays' targets, settling where the page only rests. */
+function paneReframe(
+  s: PlanScope,
+  overlays: Pick<StepOverlays, 'overlayKeepOf'>,
+  r: { run: RunTiming; entries: ClipEntry[] },
+  pg: TimelineScenePage,
+  view: { pc: RunCamera | undefined; src: { cssWidth: number; cssHeight: number }; crop: { w: number; h: number } },
+): Array<[number, number]> {
+  const { timelineTracks, tutorialOn, stateOf, srcFps, outFps } = s;
+  const { overlayKeepOf } = overlays;
+  const { pc, src, crop } = view;
+  const tl = timelineTracks.get(pg.track)!;
+  const evsOf = (x: ClipEntry) => x.events.filter((ev) => ev.page === pg.id);
+  const targets = r.entries.flatMap((x) => [...reframeTargets(evsOf(x), overlayKeepOf(x)), ...(tutorialOn ? tutorialReframeTargets(evsOf(x), (ev) => stateOf(x.scene, ev)) : [])]);
+  const camTrack = pc?.track ?? cameraTrack([], r.run.src.length, src.cssWidth, src.cssHeight);
+  // A scene where this page only rests (the other page acts) lets its view settle on the page's content.
+  const settle = r.entries
+    .slice(1)
+    .filter((x) => !x.events.some((ev) => ev.step >= 0 && ev.status !== 'skipped' && ev.page === pg.id))
+    .map((x) => x.s0);
+  return reframeTrack({
+    times: r.run.p.map((p) => p / srcFps),
+    camera: camTrack,
+    cursor: tl.cursor,
+    crop,
+    css: { w: src.cssWidth, h: src.cssHeight },
+    outFps,
+    targets,
+    settle,
+  });
+}
+
 /** The planner of multi-page clips (the reframe of a page is planned once per run and page). */
 export function panePlanner(s: PlanScope, camByRun: RunCameras, overlays: Pick<StepOverlays, 'overlayKeepOf'>): PlanPanes {
-  const { resolver, variant, warnings, notes, trackSources, unit, timelineTracks, tutorialOn, stateOf, srcFps, outFps, t } = s;
-  const { overlayKeepOf } = overlays;
+  const { resolver, variant, warnings, notes, trackSources, unit, t } = s;
   const paneReframeByRun = new Map<string, Array<[number, number]>>();
   let runKeys = 0;
   const runKey = new Map<RunTiming, number>();
@@ -93,47 +145,13 @@ export function panePlanner(s: PlanScope, camByRun: RunCameras, overlays: Pick<S
       if (pg.label !== undefined) pane.label = pg.label;
       if (inset) pane.inset = true;
       if (!inset) {
-        pane.zooms = moves.map((m): ZoomSpan => {
-          const [vx, vy] = clampView(m.zoom, m.focus.x, m.focus.y, src.cssWidth, src.cssHeight);
-          const z: ZoomSpan = {
-            scene: m.scene,
-            step: m.step,
-            from: m.start - range.k0,
-            in_frames: round(m.frames),
-            out_at: round(Math.max(m.outAt, m.start + m.frames) - range.k0),
-            out_frames: round(m.outFrames ?? m.frames),
-            zoom: m.zoom,
-            focus: m.focus,
-            view: { x: round(vx, 2), y: round(vy, 2) },
-          };
-          if (m.requested !== m.zoom) z.requested_zoom = m.requested;
-          if (m.source === 'theme') z.source = 'theme';
-          return z;
-        });
+        pane.zooms = paneZooms(moves, range, src);
       }
       if (paneLayout.crop) {
         const key = `${runKey.get(r.run)}:${pg.id}`;
         let track = paneReframeByRun.get(key);
         if (!track) {
-          const tl = timelineTracks.get(pg.track)!;
-          const evsOf = (x: ClipEntry) => x.events.filter((ev) => ev.page === pg.id);
-          const targets = r.entries.flatMap((x) => [...reframeTargets(evsOf(x), overlayKeepOf(x)), ...(tutorialOn ? tutorialReframeTargets(evsOf(x), (ev) => stateOf(x.scene, ev)) : [])]);
-          const camTrack = pc?.track ?? cameraTrack([], r.run.src.length, src.cssWidth, src.cssHeight);
-          // A scene where this page only rests (the other page acts) lets its view settle on the page's content.
-          const settle = r.entries
-            .slice(1)
-            .filter((x) => !x.events.some((ev) => ev.step >= 0 && ev.status !== 'skipped' && ev.page === pg.id))
-            .map((x) => x.s0);
-          track = reframeTrack({
-            times: r.run.p.map((p) => p / srcFps),
-            camera: camTrack,
-            cursor: tl.cursor,
-            crop: paneLayout.crop,
-            css: { w: src.cssWidth, h: src.cssHeight },
-            outFps,
-            targets,
-            settle,
-          });
+          track = paneReframe(s, overlays, r, pg, { pc, src, crop: paneLayout.crop });
           paneReframeByRun.set(key, track);
         }
         pane.reframe = track.slice(range.k0, range.k1);

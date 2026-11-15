@@ -87,7 +87,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
     const env = req.env ?? sel.env;
     const resolved = resolveEnvironment(project, env);
     if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client, resolved);
-    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
+    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env, { fix: hooksCommandLine(ctx.cli, req), via: agentChannel(ctx.client) });
     if (!dry) {
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
       // A scenario's hooks are the agent's (trust `mcp`); hooks/<name>.yaml and project.yaml's reset are a person's.
@@ -132,7 +132,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
   let approvals: JobApproval[] = [];
   try {
     resolveEnvironment(project, req.env);
-    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, req.env, envResetCommandLine(ctx.cli, req), agentChannel(ctx.client));
+    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, req.env, { fix: envResetCommandLine(ctx.cli, req), via: agentChannel(ctx.client) });
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });

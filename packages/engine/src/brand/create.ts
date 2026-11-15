@@ -16,14 +16,14 @@
  * this tool's provenance file or nothing) are removed by the next create; any other hidden folder is never touched.
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
-import { basename, dirname, extname, join, relative, sep } from 'node:path';
-import { RETAKE_VERSION, parseYaml, printableText } from '@retake/core/base';
+import { dirname, join } from 'node:path';
+import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
 import { NEW_THEME_NAME_RE } from '@retake/core/ids';
 import { insideFolder } from '@retake/core/scenario';
-import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, fontRefFile, parseTemplateYaml, siteRef } from '@retake/core/theme';
+import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, parseTemplateYaml, siteRef } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
-import type { BrandFontRef, BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
+import type { BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
 import type { Palette } from '@retake/components/geometry';
 import { workspaceRegistry } from '../components.js';
 import { componentCalls } from '../registries/component-calls.js';
@@ -32,8 +32,14 @@ import { sha256Hex } from '../storage.js';
 import type { StoreScope } from '../store/store.js';
 import { dateOf } from '../clock.js';
 import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
-import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
+import { BRAND_TOTAL_MAX_BYTES, checkImage, readBrandFile } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
+import { licencesMarkdown } from './licences.js';
+import { planThemeFonts, readOwnThemeFile } from './theme-fonts.js';
+import type { FontPlan, ThemeFontView } from './theme-fonts.js';
+
+export { fileNameFace } from './theme-fonts.js';
+export type { ThemeFontView } from './theme-fonts.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { storedJson } from '../stored-json.js';
 import { z } from 'zod';
@@ -47,20 +53,6 @@ export const PACKAGE_ROOT = dirname(STARTER_TEMPLATES_DIR);
 const STALE_MS = 60 * 60 * 1000;
 /** A build or swap folder of this tool: `.tmp-<name>-<12 hex>` / `.old-<name>-<12 hex>`. */
 const WORK_DIR_RE = /^\.(?:tmp|old)-(.+)-[0-9a-f]{12}$/;
-
-export interface ThemeFontView {
-  /** The copy in the theme folder (relative). */
-  file: string;
-  role: 'display' | 'body';
-  /** As given; for the base theme's fonts, `base:<theme>/<file>`. */
-  source: string;
-  format: string;
-  weight: number;
-  italic: boolean;
-  /** Where the weight came from. */
-  weight_from: 'input' | 'font' | 'file name' | 'base';
-  licence_notes: string[];
-}
 
 export interface ThemeCreated {
   name: string;
@@ -101,17 +93,6 @@ interface Provenance {
   site_id?: string;
   /** sha256 of every file written (relative path → hex), the provenance file excepted. */
   files: Record<string, string>;
-}
-
-/**
- * A base theme's own file, read to be copied into the new theme (its fonts, LICENSES.md): a regular file with one name
- * only — a symbolic or hard link would turn bytes from elsewhere into the new theme's own file.
- */
-async function readOwnThemeFile(abs: string, theme: string): Promise<Buffer> {
-  const st = await lstat(abs);
-  if (!st.isFile()) throw new EngineError('refused', `base theme ${theme}: ${basename(abs)} is not a regular file (a link?): a new theme copies only the base's own files`);
-  if (st.nlink > 1) throw new EngineError('refused', `base theme ${theme}: ${basename(abs)} has another name (a hard link): a new theme copies only the base's own files`);
-  return readFile(abs);
 }
 
 function parseInput(raw: unknown, trust: BrandTrust): BrandInput {
@@ -245,148 +226,122 @@ export async function checkNewName(templatesDir: string, name: NewThemeName, rep
   return { existing: true };
 }
 
-/** A file reference inside a code span of LICENSES.md (one line; no backtick, pipe or control). */
-function mdCode(s: string | undefined): string {
-  return s ? printableText(s).replace(/[|`]+/g, ' ').trim() : '—';
+/** The base theme of a new one: loaded, its assets inside it, its template.yaml as written. */
+async function loadBase(ws: OpenedWorkspace, baseName: string): Promise<{ base: LoadedTemplate; baseFile: TemplateFile }> {
+  let base: LoadedTemplate;
+  try {
+    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
+  } catch (e) {
+    throw toEngineError(e);
+  }
+  const leaks = themeAssetProblems(base);
+  if (leaks.length) throw new EngineError('refused', `base theme ${baseName}: ${leaks.join('; ')}`);
+  const baseText = await readFile(join(base.dir, TEMPLATE_FILE), 'utf8');
+  const baseFile = parseYaml(baseText).value as TemplateFile;
+  return { base, baseFile };
 }
 
-/**
- * Third-party text (a font's name strings) as plain Markdown text: one line, every character Markdown or HTML reads as
- * syntax escaped (links, images, emphasis, code, tables, tags) — never a link or a remote image in LICENSES.md.
- */
-function mdText(s: string | undefined): string {
-  return s ? printableText(s).replace(/[\\`*_[\]()!<>|#~&]/g, '\\$&') || '—' : '—';
+/** The logo and the wordmark of a new theme, read and checked, with the names of their copies. */
+async function readArtwork(input: BrandInput, read: (ref: string, kind: 'logo' | 'wordmark') => Promise<ResolvedBrandFile>, warnings: string[]) {
+  const logoFile = await read(input.logo, 'logo');
+  const logoInfo = checkImage(logoFile, 'logo');
+  const logoName = `logo${logoFile.ext}`;
+  let wordmarkFile: ResolvedBrandFile | undefined;
+  let wordmarkInfo: ImageInfo | undefined;
+  if (input.wordmark !== undefined) {
+    wordmarkFile = await read(input.wordmark, 'wordmark');
+    wordmarkInfo = checkImage(wordmarkFile, 'wordmark');
+  }
+  const wordmarkName = wordmarkFile ? `wordmark${wordmarkFile.ext}` : undefined;
+  if (!wordmarkFile && input.brand?.name === undefined) warnings.push('no wordmark and no brand.name: the outro shows the logo alone');
+  return { logoFile, logoInfo, logoName, wordmarkFile, wordmarkInfo, wordmarkName };
 }
 
-function licencesMarkdown(o: {
-  name: string;
-  base: string;
-  date: string;
-  logo: { file: string; source: string };
-  wordmark?: { file: string; source: string };
-  fonts: ThemeFontView[];
-  names: Map<string, FontInfo['names']>;
-  baseLicences?: string;
-}): string {
-  const lines = [
-    `# Licences — \`${o.name}\` theme`,
-    '',
-    `Made by Retake from brand inputs on ${o.date}, over the \`${o.base}\` theme.`,
-    '',
-    '## Brand artwork',
-    '',
-    `- \`${o.logo.file}\` — copied from \`${mdCode(o.logo.source)}\`.`,
-    ...(o.wordmark ? [`- \`${o.wordmark.file}\` — copied from \`${mdCode(o.wordmark.source)}\`.`] : []),
-    '',
-    "The logo and wordmark are the brand's own artwork, supplied by the user of this workspace.",
-    '',
-    '## Fonts',
-    '',
-    '| File | Supplied as | Face | Notes |',
-    '| --- | --- | --- | --- |',
-    ...o.fonts.map(
-      (f) => `| \`${f.file}\` | \`${mdCode(f.source)}\` | ${f.role}, ${f.weight}${f.italic ? ' italic' : ''} (${f.format}) | ${f.licence_notes.length ? mdText(f.licence_notes.join('; ')) : '—'} |`,
-    ),
-    '',
-  ];
-  const own = o.fonts.filter((f) => f.weight_from !== 'base');
-  if (own.length) {
-    lines.push(
-      'Fonts supplied by the user: check that their licence allows use in videos (text rendered to pixels) and',
-      'redistribution with your projects. What each file declares about itself, as found in it:',
-      '',
+/** The new theme's palette from the brand colours, over the base theme's tone (a change of tone warned). */
+function paletteOver(lib: Awaited<ReturnType<typeof componentCalls>>, o: { input: BrandInput; base: LoadedTemplate; baseName: string; warnings: string[] }) {
+  const { input, base, baseName, warnings } = o;
+  const baseTone = lib.paletteTone(base.template.colors.paper.startsWith('#') ? base.template.colors.paper : '#ffffff');
+  const palette = lib.derivePalette({ ...input.colors, ...(input.background !== undefined ? { background: input.background } : {}), adjust: input.adjust !== false, tone: baseTone });
+  if (palette.tone !== baseTone) {
+    warnings.push(
+      `the paper ${palette.colors.paper} makes a ${palette.tone} theme over ${baseName}, a ${baseTone} one (its cursor and interstitial styles were chosen for a ${baseTone} paper): consider base ${palette.tone === 'dark' ? 'motion' : 'editorial'}`,
     );
-    for (const f of own) {
-      const n = o.names.get(f.file) ?? {};
-      lines.push(
-        `### \`${f.file}\``,
-        '',
-        `- Family: ${mdText(n.family)} ${n.subfamily ? `(${mdText(n.subfamily)})` : ''}`.trimEnd(),
-        `- Copyright: ${mdText(n.copyright)}`,
-        `- Licence: ${mdText(n.licence)}`,
-        `- Licence URL: ${mdText(n.licence_url)}`,
-        ...(f.licence_notes.length ? [`- Embedding: ${mdText(f.licence_notes.join('; '))}`] : []),
-        '',
-      );
+  }
+  warnings.push(...palette.warnings);
+  return palette;
+}
+
+/** The base theme's LICENSES.md when a font file comes from it (else undefined; a missing one said and warned). */
+async function baseLicencesOf(uniqueFonts: FontPlan[], o: { base: LoadedTemplate; baseName: string; warnings: string[] }): Promise<string | undefined> {
+  const { base, baseName, warnings } = o;
+  let baseLicences: string | undefined;
+  if (uniqueFonts.some((f) => f.view.weight_from === 'base')) {
+    try {
+      baseLicences = (await readOwnThemeFile(join(base.dir, 'LICENSES.md'), baseName)).toString('utf8');
+    } catch {
+      baseLicences = `(${baseName} has no LICENSES.md: check the licences of fonts/${'…'} yourself)`;
+      warnings.push(`base theme ${baseName} has no LICENSES.md for the font files copied from it`);
     }
   }
-  if (o.baseLicences !== undefined) {
-    lines.push(
-      `## Fonts of the base theme \`${o.base}\``,
-      '',
-      `Some font files come from the \`${o.base}\` theme; its LICENSES.md follows as it is (its notes on artwork do not`,
-      "apply to this theme's logo and wordmark).",
-      '',
-      ...o.baseLicences
-        .trimEnd()
-        .split('\n')
-        .map((l) => (l.startsWith('#') ? `##${l}` : l)),
-      '',
-    );
-  }
-  return `${lines.join('\n').trimEnd()}\n`;
+  return baseLicences;
 }
 
-interface FontPlan {
-  view: ThemeFontView;
-  bytes: Buffer;
-  names?: FontInfo['names'];
+/** The provenance file of a new theme: what made it, from what, and the sha256 of every file written. */
+function provenanceOf(o: { input: BrandInput; now: Date; name: string; baseName: string; trust: BrandTrust; written: Map<string, Buffer> }): Provenance {
+  const { input, now, name, baseName, written } = o;
+  const { replace: _replace, ...inputs } = input;
+  const siteId = [input.logo, input.wordmark].map((r) => (r !== undefined ? siteRef(r)?.site_id : undefined)).find((x) => x !== undefined);
+  const provenance: Provenance = {
+    version: 1,
+    made_by: 'retake',
+    tool_version: RETAKE_VERSION,
+    created_at: now.toISOString(),
+    name,
+    base: baseName,
+    trust: o.trust,
+    inputs,
+    ...(siteId ? { site_id: siteId } : {}),
+    files: Object.fromEntries([...written].map(([f, b]) => [f, sha256Hex(b)])),
+  };
+  return provenance;
 }
-
-const STYLE_WEIGHTS: Record<string, number> = {
-  thin: 100,
-  hairline: 100,
-  extralight: 200,
-  ultralight: 200,
-  light: 300,
-  regular: 400,
-  normal: 400,
-  book: 400,
-  roman: 400,
-  medium: 500,
-  semibold: 600,
-  demibold: 600,
-  bold: 700,
-  extrabold: 800,
-  ultrabold: 800,
-  black: 900,
-  heavy: 900,
-};
 
 /**
- * Weight and style from a font file name's style token — the part after its last "-" or "_" ("Brand-SemiBoldItalic"
- * → 600 italic, "Brand_700" → 700) — so a word of the family ("Lighthouse", "Boldwick") never reads as a weight.
- * Null when there is no such token or it names no weight.
+ * The new theme's folder, built hidden by the store (the provenance file first, then every file), validated as a render
+ * will load it, then moved into place.
  */
-export function fileNameFace(file: string): { weight: number; italic: boolean } | null {
-  const base = basename(file).replace(/\.[^.]+$/, '');
-  const cut = Math.max(base.lastIndexOf('-'), base.lastIndexOf('_'));
-  if (cut < 0) return null;
-  const token = base.slice(cut + 1).toLowerCase();
-  const italic = /(?:italic|oblique)$/.test(token);
-  const word = token.replace(/(?:italic|oblique)$/, '');
-  if (word === '') return italic ? { weight: 400, italic } : null;
-  if (/^[1-9]00$/.test(word)) return { weight: Number(word), italic };
-  const weight = STYLE_WEIGHTS[word];
-  return weight === undefined ? null : { weight, italic };
-}
-
-function fontFace(info: FontInfo, ref: BrandFontRef): { weight: number; italic: boolean; from: ThemeFontView['weight_from']; warning?: string } {
-  const given: { weight?: number; italic?: boolean } = typeof ref === 'string' ? {} : ref;
-  const fromName = fileNameFace(fontRefFile(ref));
-  const italic = given.italic ?? info.italic ?? fromName?.italic ?? false;
-  if (given.weight !== undefined) return { weight: standardWeight(given.weight), italic, from: 'input' };
-  if (info.weight !== undefined && info.weight >= 1 && info.weight <= 1000) return { weight: standardWeight(info.weight), italic, from: 'font' };
-  // WOFF / WOFF2 (their OS/2 table is compressed): the style token of the file name, else regular — said either way.
-  const file = fontRefFile(ref);
-  if (!fromName)
-    return { weight: 400, italic, from: 'file name', warning: `${file}: no weight in the file (${info.format.toUpperCase()}) nor in its name: 400 assumed — give {file, weight} to set it` };
-  return {
-    weight: standardWeight(fromName.weight),
-    italic,
-    from: 'file name',
-    warning: `${file}: weight ${standardWeight(fromName.weight)}${italic ? ' italic' : ''} read from the file name (${info.format.toUpperCase()} files keep it compressed) — give {file, weight} if it is wrong`,
-  };
+async function buildThemeFolder(
+  ws: OpenedWorkspace,
+  o: ThemeCreateOptions,
+  t: { templatesDir: string; name: NewThemeName; replace: boolean; baseName: string; provenance: Provenance; written: Map<string, Buffer>; yaml: string },
+): Promise<{ dir: string; replaced: boolean }> {
+  const { templatesDir, name, replace, baseName, provenance, written } = t;
+  let made: { dir: string; replaced: boolean };
+  try {
+    made = await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
+      what: 'theme',
+      build: async (stage) => {
+        // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
+        await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
+        for (const [f, b] of written) await stage.write(f, b);
+        // What a render will load: the loader, the files inside the folder, the components it picks.
+        const parsed = parseTemplateYaml(t.yaml, { dir: stage.dir, files: ws.reads.fileFacts(ws.policy) });
+        if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
+        const loaded = await ws.reads.loadTemplate(stage.dir, undefined, { files: ws.reads.fileFacts(ws.policy) });
+        const outside = themeAssetProblems(loaded);
+        if (outside.length) throw new EngineError('internal', outside.join('; '));
+        try {
+          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+        } catch (e) {
+          throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
+        }
+      },
+      recheck: () => checkNewName(templatesDir, name, replace, o.trust),
+    });
+  } catch (e) {
+    throw toEngineError(e);
+  }
+  return made;
 }
 
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
@@ -412,16 +367,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   if (baseName.toLowerCase() === name.toLowerCase()) throw new EngineError('invalid', `the base theme cannot be the theme being created (${name})`);
 
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
-  let base: LoadedTemplate;
-  try {
-    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
-  } catch (e) {
-    throw toEngineError(e);
-  }
-  const leaks = themeAssetProblems(base);
-  if (leaks.length) throw new EngineError('refused', `base theme ${baseName}: ${leaks.join('; ')}`);
-  const baseText = await readFile(join(base.dir, TEMPLATE_FILE), 'utf8');
-  const baseFile = parseYaml(baseText).value as TemplateFile;
+  const { base, baseFile } = await loadBase(ws, baseName);
 
   const lib = await componentCalls();
   const warnings: string[] = [];
@@ -429,91 +375,13 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const read = (ref: string, kind: 'logo' | 'wordmark' | 'font') => readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget });
 
   // Logo and wordmark.
-  const logoFile = await read(input.logo, 'logo');
-  const logoInfo = checkImage(logoFile, 'logo');
-  const logoName = `logo${logoFile.ext}`;
-  let wordmarkFile: ResolvedBrandFile | undefined;
-  let wordmarkInfo: ImageInfo | undefined;
-  if (input.wordmark !== undefined) {
-    wordmarkFile = await read(input.wordmark, 'wordmark');
-    wordmarkInfo = checkImage(wordmarkFile, 'wordmark');
-  }
-  const wordmarkName = wordmarkFile ? `wordmark${wordmarkFile.ext}` : undefined;
-  if (!wordmarkFile && input.brand?.name === undefined) warnings.push('no wordmark and no brand.name: the outro shows the logo alone');
+  const { logoFile, logoInfo, logoName, wordmarkFile, wordmarkInfo, wordmarkName } = await readArtwork(input, read, warnings);
 
   // Fonts: the brand's (sniffed, renamed by role and weight), else the base's (copied as they are).
-  const fonts: FontPlan[] = [];
-  const planFont = async (ref: BrandFontRef, role: 'display' | 'body'): Promise<FontPlan> => {
-    const f = await read(fontRefFile(ref), 'font');
-    const info = sniffFont(f, `${role} font`);
-    const face = fontFace(info, ref);
-    if (face.warning) warnings.push(`${role} font ${face.warning}`);
-    const file = fontCopyName(role, face.weight, face.italic, f.ext);
-    for (const note of info.licence_notes) warnings.push(`${role} font ${fontRefFile(ref)}: ${note} — check its licence before using it in videos`);
-    return {
-      view: { file, role, source: fontRefFile(ref), format: info.format, weight: face.weight, italic: face.italic, weight_from: face.from, licence_notes: info.licence_notes },
-      bytes: f.bytes,
-      names: info.names,
-    };
-  };
-  const baseFont = async (abs: string, role: 'display' | 'body'): Promise<FontPlan> => {
-    const bytes = await readOwnThemeFile(abs, baseName);
-    const info = sniffFont({ ref: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`, ext: extname(abs).toLowerCase(), bytes }, `${role} font of ${baseName}`);
-    const face = lib.fontFileFace(abs);
-    return {
-      view: {
-        file: `fonts/${basename(abs)}`,
-        role,
-        source: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`,
-        format: info.format,
-        weight: face.weight,
-        italic: face.style === 'italic',
-        weight_from: 'base',
-        licence_notes: info.licence_notes,
-      },
-      bytes,
-    };
-  };
-  const given = input.fonts ?? {};
-  const display = given.display !== undefined ? await planFont(given.display, 'display') : await baseFont(base.assets.display, 'display');
-  fonts.push(display);
-  const body: FontPlan[] = [];
-  if (given.body !== undefined) for (const ref of given.body) body.push(await planFont(ref, 'body'));
-  else for (const abs of base.assets.body) body.push(await baseFont(abs, 'body'));
-  const seen = new Map<string, FontPlan>([[display.view.file, display]]);
-  for (const b of body) {
-    const prior = seen.get(b.view.file);
-    if (prior && !(prior.view.weight_from === 'base' && b.view.weight_from === 'base' && prior.bytes.equals(b.bytes))) {
-      throw new EngineError(
-        'invalid',
-        `two body fonts have the same weight and style (${b.view.weight}${b.view.italic ? ' italic' : ''}): ${prior.view.source} and ${b.view.source} — give each weight once`,
-      );
-    }
-    seen.set(b.view.file, b);
-    fonts.push(b);
-  }
-  if (given.body !== undefined) {
-    const caps = base.template.captions;
-    for (const [k, s] of [
-      ['kicker', caps.kicker],
-      ['line', caps.line],
-    ] as const) {
-      if (s.font !== 'body') continue;
-      const w = s.weight ?? 400;
-      if (!body.some((b) => b.view.weight === w && !b.view.italic))
-        warnings.push(`captions.${k} of ${baseName} uses the body font at weight ${w}, which no body file has: the browser synthesises it (give a body file of weight ${w})`);
-    }
-  }
+  const { fonts, display, body } = await planThemeFonts({ input, base, baseName, lib, read, warnings });
 
   // Palette.
-  const baseTone = lib.paletteTone(base.template.colors.paper.startsWith('#') ? base.template.colors.paper : '#ffffff');
-  const palette = lib.derivePalette({ ...input.colors, ...(input.background !== undefined ? { background: input.background } : {}), adjust: input.adjust !== false, tone: baseTone });
-  if (palette.tone !== baseTone) {
-    warnings.push(
-      `the paper ${palette.colors.paper} makes a ${palette.tone} theme over ${baseName}, a ${baseTone} one (its cursor and interstitial styles were chosen for a ${baseTone} paper): consider base ${palette.tone === 'dark' ? 'motion' : 'editorial'}`,
-    );
-  }
-  warnings.push(...palette.warnings);
+  const palette = paletteOver(lib, { input, base, baseName, warnings });
 
   const uniqueFonts = [...new Map(fonts.map((f) => [f.view.file, f])).values()];
   const generated = lib.generateThemeFile({
@@ -531,15 +399,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const check = parseTemplateYaml(generated.yaml);
   if (check.issues.length) throw new EngineError('internal', `the generated template.yaml does not validate: ${check.issues.map((i) => i.message).join('; ')}`);
 
-  let baseLicences: string | undefined;
-  if (uniqueFonts.some((f) => f.view.weight_from === 'base')) {
-    try {
-      baseLicences = (await readOwnThemeFile(join(base.dir, 'LICENSES.md'), baseName)).toString('utf8');
-    } catch {
-      baseLicences = `(${baseName} has no LICENSES.md: check the licences of fonts/${'…'} yourself)`;
-      warnings.push(`base theme ${baseName} has no LICENSES.md for the font files copied from it`);
-    }
-  }
+  const baseLicences = await baseLicencesOf(uniqueFonts, { base, baseName, warnings });
   const names = new Map(uniqueFonts.filter((f) => f.names).map((f) => [f.view.file, f.names!]));
   const logo = { file: logoName, source: input.logo, ...logoInfo };
   const wordmark = wordmarkFile && wordmarkName ? { file: wordmarkName, source: input.wordmark!, ...wordmarkInfo! } : undefined;
@@ -561,46 +421,9 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
     ...uniqueFonts.map((f) => [f.view.file, f.bytes] as [string, Buffer]),
     ['LICENSES.md', Buffer.from(licences)],
   ]);
-  const { replace: _replace, ...inputs } = input;
-  const siteId = [input.logo, input.wordmark].map((r) => (r !== undefined ? siteRef(r)?.site_id : undefined)).find((x) => x !== undefined);
-  const provenance: Provenance = {
-    version: 1,
-    made_by: 'retake',
-    tool_version: RETAKE_VERSION,
-    created_at: now.toISOString(),
-    name,
-    base: baseName,
-    trust: o.trust,
-    inputs,
-    ...(siteId ? { site_id: siteId } : {}),
-    files: Object.fromEntries([...written].map(([f, b]) => [f, sha256Hex(b)])),
-  };
+  const provenance = provenanceOf({ input, now, name, baseName, trust: o.trust, written });
 
-  let made: { dir: string; replaced: boolean };
-  try {
-    made = await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
-      what: 'theme',
-      build: async (stage) => {
-        // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
-        await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
-        for (const [f, b] of written) await stage.write(f, b);
-        // What a render will load: the loader, the files inside the folder, the components it picks.
-        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir, files: ws.reads.fileFacts(ws.policy) });
-        if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
-        const loaded = await ws.reads.loadTemplate(stage.dir, undefined, { files: ws.reads.fileFacts(ws.policy) });
-        const outside = themeAssetProblems(loaded);
-        if (outside.length) throw new EngineError('internal', outside.join('; '));
-        try {
-          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
-        } catch (e) {
-          throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
-        }
-      },
-      recheck: () => checkNewName(templatesDir, name, replace, o.trust),
-    });
-  } catch (e) {
-    throw toEngineError(e);
-  }
+  const made = await buildThemeFolder(ws, o, { templatesDir, name, replace, baseName, provenance, written, yaml: generated.yaml });
   const final = made.dir;
   return {
     name,

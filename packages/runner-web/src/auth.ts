@@ -275,6 +275,55 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
 }
 
 /**
+ * One persona's session for prepareSessions, pushed on `out` (a profile copy before it is filled: its folder is then
+ * removed with the others on a failure).
+ */
+async function prepareSession(persona: ResolvedPersona, opts: { runId: string; log: Log; failure?: string }, out: PreparedSession[]): Promise<void> {
+  const snapshot = persona.snapshot ? await readSnapshot(persona.snapshot) : null;
+  if (persona.legacy && persona.snapshot && !snapshot) {
+    throw preflightFailure(
+      [`  ${personaLabel(persona)}: its auth.storage_state file does not exist: ${persona.snapshot}`, '    export it again, or name the account in auth.personas and sign it in with `retake login`'],
+      opts.failure,
+    );
+  }
+  const meta = (snapshot as { retake?: { machine?: unknown } } | undefined)?.retake;
+  const machine = typeof meta?.machine === 'string' && meta.machine ? meta.machine : undefined;
+  if (machine && !isThisHost(machine)) {
+    opts.log('warn', `${personaLabel(persona)}: its saved session was made on another computer (${machine}): sessions are tied to one computer — sign in here if the check fails`);
+  }
+  const state: StorageStateFile | undefined = snapshot ? { cookies: snapshot.cookies ?? [], origins: snapshot.origins ?? [] } : undefined;
+  if (persona.session === 'profile' && persona.profileDir && (await isProfileDir(persona.profileDir))) {
+    const lock = await profileLock(persona.profileDir);
+    if (lock.state === 'live') {
+      throw preflightFailure(
+        [
+          `  ${personaLabel(persona)}: its profile is open in another browser${lock.pid ? ` (pid ${lock.pid}${lock.host && !isThisHost(lock.host) ? ` on ${lock.host}` : ''})` : ''} — the \`retake login\` window? Close it, then ${opts.failure ? 'try' : 'run'} again`,
+          `    profile: ${persona.profileDir}`,
+        ],
+        opts.failure,
+      );
+    }
+    const dest = await mkdtemp(join(tmpdir(), `retake-session-${fileSlug(opts.runId)}-${fileSlug(persona.name)}-`));
+    registerSessionCopy(dest);
+    // Profile personas take only the snapshot's cookies: localStorage travels in the profile (an init script would
+    // bring back keys the app removed during the run).
+    const applied = state ? (persona.legacy ? state : { cookies: state.cookies }) : undefined;
+    out.push({ persona, realm: { name: persona.name, userDataDir: dest, cleanup: [dest], ...(applied ? { storageState: applied } : {}) }, source: 'copy' });
+    const t = wallNow();
+    try {
+      await copyProfile(persona.profileDir, dest);
+    } catch (e) {
+      throw new RunnerError(`${personaLabel(persona)}: its profile could not be copied for this run (${persona.profileDir}): ${errorMessage(e)}`, { cause: e });
+    }
+    opts.log('debug', `${personaLabel(persona)}: copied its profile for this run in ${Math.round(wallNow() - t)} ms`);
+  } else if (state) {
+    out.push({ persona, realm: { name: persona.name, storageState: state }, source: 'snapshot' });
+  } else {
+    out.push({ persona, realm: { name: persona.name }, source: 'fresh' });
+  }
+}
+
+/**
  * Prepare each persona's browser for one run, never touching its master: a `profile` persona runs on a copy of its
  * master profile (caches, locks and saved passwords left out) plus its snapshot's cookies (session cookies are lost
  * when a profile closes; the snapshot keeps them) — the legacy form applies the whole storage state, as before; with no
@@ -289,53 +338,7 @@ export async function prepareSessions(personas: readonly ResolvedPersona[], opts
   const swept = await sweepStaleSessionCopies();
   if (swept.length) opts.log('debug', `removed ${swept.length} session cop${swept.length === 1 ? 'y' : 'ies'} a killed run left in ${tmpdir()}`);
   try {
-    for (const persona of personas) {
-      const snapshot = persona.snapshot ? await readSnapshot(persona.snapshot) : null;
-      if (persona.legacy && persona.snapshot && !snapshot) {
-        throw preflightFailure(
-          [
-            `  ${personaLabel(persona)}: its auth.storage_state file does not exist: ${persona.snapshot}`,
-            '    export it again, or name the account in auth.personas and sign it in with `retake login`',
-          ],
-          opts.failure,
-        );
-      }
-      const meta = (snapshot as { retake?: { machine?: unknown } } | undefined)?.retake;
-      const machine = typeof meta?.machine === 'string' && meta.machine ? meta.machine : undefined;
-      if (machine && !isThisHost(machine)) {
-        opts.log('warn', `${personaLabel(persona)}: its saved session was made on another computer (${machine}): sessions are tied to one computer — sign in here if the check fails`);
-      }
-      const state: StorageStateFile | undefined = snapshot ? { cookies: snapshot.cookies ?? [], origins: snapshot.origins ?? [] } : undefined;
-      if (persona.session === 'profile' && persona.profileDir && (await isProfileDir(persona.profileDir))) {
-        const lock = await profileLock(persona.profileDir);
-        if (lock.state === 'live') {
-          throw preflightFailure(
-            [
-              `  ${personaLabel(persona)}: its profile is open in another browser${lock.pid ? ` (pid ${lock.pid}${lock.host && !isThisHost(lock.host) ? ` on ${lock.host}` : ''})` : ''} — the \`retake login\` window? Close it, then ${opts.failure ? 'try' : 'run'} again`,
-              `    profile: ${persona.profileDir}`,
-            ],
-            opts.failure,
-          );
-        }
-        const dest = await mkdtemp(join(tmpdir(), `retake-session-${fileSlug(opts.runId)}-${fileSlug(persona.name)}-`));
-        registerSessionCopy(dest);
-        // Profile personas take only the snapshot's cookies: localStorage travels in the profile (an init script would
-        // bring back keys the app removed during the run).
-        const applied = state ? (persona.legacy ? state : { cookies: state.cookies }) : undefined;
-        out.push({ persona, realm: { name: persona.name, userDataDir: dest, cleanup: [dest], ...(applied ? { storageState: applied } : {}) }, source: 'copy' });
-        const t = wallNow();
-        try {
-          await copyProfile(persona.profileDir, dest);
-        } catch (e) {
-          throw new RunnerError(`${personaLabel(persona)}: its profile could not be copied for this run (${persona.profileDir}): ${errorMessage(e)}`, { cause: e });
-        }
-        opts.log('debug', `${personaLabel(persona)}: copied its profile for this run in ${Math.round(wallNow() - t)} ms`);
-      } else if (state) {
-        out.push({ persona, realm: { name: persona.name, storageState: state }, source: 'snapshot' });
-      } else {
-        out.push({ persona, realm: { name: persona.name }, source: 'fresh' });
-      }
-    }
+    for (const persona of personas) await prepareSession(persona, opts, out);
   } catch (e) {
     for (const p of out) for (const dir of p.realm.cleanup ?? []) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
     throw e;

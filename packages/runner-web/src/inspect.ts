@@ -301,24 +301,9 @@ async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; re
   };
 }
 
-/**
- * Inspect the page the run shows now. Throws only a sign-in landing (the run reports it) or a cancel; any other
- * failure is a `failed` report. Writes screenshot.png (when inventoried) and inspect.json in the run folder.
- *
- * The origin is checked where the data comes from, not once: each kit call runs in one document only (a document
- * replaced during it is an error, never retried in the new one) and returns that document's origin; the page's URL is
- * checked again after the screenshot. Main-frame navigations to other origins are stopped while it runs.
- *
- * Every wait on the page is bounded (`deadlines`, INSPECT_DEADLINES): a step the page does not answer in time counts
- * as a document change — where the page is then decides between `landed_elsewhere` and `failed` (naming the step) —,
- * and a guard that cannot be removed in time is left to the page's close, with a warning.
- */
-export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResult'>, ctx: InspectContext, deadlines: InspectDeadlines = INSPECT_DEADLINES): Promise<InspectReport> {
-  const started = performance.now();
-  const file = join(rt.runDir, 'inspect.json');
-  const shot = join(rt.runDir, 'screenshot.png');
-  const limit = Math.max(1, Math.min(INSPECT_LIMIT_MAX, Math.floor(req.limit ?? INSPECT_LIMIT)));
-  const report: InspectReport = {
+/** The report before anything is read: an `ok` report of the active page, its counts at 0. */
+function emptyReport(rt: Runtime, ctx: InspectContext, file: string): InspectReport {
+  return {
     version: 1,
     status: 'ok',
     at: ctx.at,
@@ -352,6 +337,66 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
     timings: { inspect_ms: 0, kit_ms: 0 },
     untrusted: { url: '', title: '', headings: [], warnings: [], ...(ctx.error !== undefined ? { error: ctx.error } : {}) },
   };
+}
+
+/** What the inventory found, in the report: the page's title and headings, its popups, scrollers and elements. */
+function reportInventory(report: InspectReport, inv: KitInventory, warnings: string[]): void {
+  report.untrusted.title = inv.title;
+  report.untrusted.headings = inv.headings;
+  report.popups = inv.popups.map((p) => ({ kind: p.kind, bbox: p.bbox, untrusted: { name: p.name } }));
+  report.scrollers = inv.scrollers;
+  report.elements = inv.elements.map((e, i) => inspectElement(e, i + 1));
+  report.counts = { ...report.counts, ...inv.counts, partial: inv.partial, within_found: inv.within_found };
+  // A suggestion whose YAML would not read back as the verified target is dropped (never shown unverified).
+  report.counts.dropped = report.elements.filter((e, i) => !e.verified && inv.elements[i].suggested !== null).length;
+  if (inv.partial) warnings.push(`the in-page time budget ran out: ${inv.counts.unsuggested} listed elements have no suggestion`);
+}
+
+/** A failed inspection in the report: where the page landed when it left the environment, else the error. */
+async function reportFailure(rt: Runtime, report: InspectReport, e: unknown, read: string | null): Promise<void> {
+  // Nothing read from a document that was not the environment's is kept: the report holds its host alone.
+  // A document replaced during a kit call (or a step the page did not answer in time): where the page went, once the
+  // new one committed.
+  const changed = e instanceof DocumentChangedError || e instanceof InspectDeadlineError;
+  if (changed && read !== null) {
+    const from = read;
+    await bestEffort(
+      bounded(
+        'the new document',
+        4_000,
+        rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }),
+      ),
+      'a document that does not change in time is inspected as it is',
+    );
+  }
+  const landed = e instanceof LandedElsewhere ? e.url : changed && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
+  if (landed !== null) {
+    report.status = 'landed_elsewhere';
+    report.untrusted.landed_host = hostOf(landed);
+  } else {
+    report.status = 'failed';
+    report.untrusted.error = errorMessage(e);
+  }
+}
+
+/**
+ * Inspect the page the run shows now. Throws only a sign-in landing (the run reports it) or a cancel; any other
+ * failure is a `failed` report. Writes screenshot.png (when inventoried) and inspect.json in the run folder.
+ *
+ * The origin is checked where the data comes from, not once: each kit call runs in one document only (a document
+ * replaced during it is an error, never retried in the new one) and returns that document's origin; the page's URL is
+ * checked again after the screenshot. Main-frame navigations to other origins are stopped while it runs.
+ *
+ * Every wait on the page is bounded (`deadlines`, INSPECT_DEADLINES): a step the page does not answer in time counts
+ * as a document change — where the page is then decides between `landed_elsewhere` and `failed` (naming the step) —,
+ * and a guard that cannot be removed in time is left to the page's close, with a warning.
+ */
+export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResult'>, ctx: InspectContext, deadlines: InspectDeadlines = INSPECT_DEADLINES): Promise<InspectReport> {
+  const started = performance.now();
+  const file = join(rt.runDir, 'inspect.json');
+  const shot = join(rt.runDir, 'screenshot.png');
+  const limit = Math.max(1, Math.min(INSPECT_LIMIT_MAX, Math.floor(req.limit ?? INSPECT_LIMIT)));
+  const report = emptyReport(rt, ctx, file);
   const warnings: string[] = [];
   let guard: Awaited<ReturnType<typeof guardNavigation>> | null = null;
   let shotTaken = false;
@@ -415,46 +460,14 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
       return { index, count: c.count, chosen: c.index, in_view: c.in_view, bbox: c.bbox, hidden: c.hidden, scope_found: c.scope_found, untrusted: { desc: c.desc, near: c.near } };
     });
     report.counts.targets_checked = report.targets_checked.length;
-    if (inv) {
-      report.untrusted.title = inv.title;
-      report.untrusted.headings = inv.headings;
-      report.popups = inv.popups.map((p) => ({ kind: p.kind, bbox: p.bbox, untrusted: { name: p.name } }));
-      report.scrollers = inv.scrollers;
-      report.elements = inv.elements.map((e, i) => inspectElement(e, i + 1));
-      report.counts = { ...report.counts, ...inv.counts, partial: inv.partial, within_found: inv.within_found };
-      // A suggestion whose YAML would not read back as the verified target is dropped (never shown unverified).
-      report.counts.dropped = report.elements.filter((e, i) => !e.verified && inv.elements[i].suggested !== null).length;
-      if (inv.partial) warnings.push(`the in-page time budget ran out: ${inv.counts.unsuggested} listed elements have no suggestion`);
-    }
+    if (inv) reportInventory(report, inv, warnings);
   } catch (e) {
     if (shotTaken) await rm(shot, { force: true }).catch(() => undefined);
     if (isCancelled(e) || rt.loginGuardError()) {
       await removeGuard();
       throw rt.loginGuardError() ?? e;
     }
-    // Nothing read from a document that was not the environment's is kept: the report holds its host alone.
-    // A document replaced during a kit call (or a step the page did not answer in time): where the page went, once the
-    // new one committed.
-    const changed = e instanceof DocumentChangedError || e instanceof InspectDeadlineError;
-    if (changed && read !== null) {
-      const from = read;
-      await bestEffort(
-        bounded(
-          'the new document',
-          4_000,
-          rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }),
-        ),
-        'a document that does not change in time is inspected as it is',
-      );
-    }
-    const landed = e instanceof LandedElsewhere ? e.url : changed && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
-    if (landed !== null) {
-      report.status = 'landed_elsewhere';
-      report.untrusted.landed_host = hostOf(landed);
-    } else {
-      report.status = 'failed';
-      report.untrusted.error = errorMessage(e);
-    }
+    await reportFailure(rt, report, e, read);
   }
   if (guard) {
     if (guard.blocked() > 0) warnings.push(`the page tried to leave for another origin during the inspection (${guard.blocked()} navigation(s) stopped)`);

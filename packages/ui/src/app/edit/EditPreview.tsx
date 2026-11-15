@@ -56,8 +56,124 @@ export interface EditPreviewProps {
   children: ReactNode;
 }
 
+/** Over the picture: loading, buffering, a codec the browser cannot play, the preview's error, a stopped preview. */
+function PreviewNotes({ p }: { p: EditPreviewProps }) {
+  return (
+    <>
+      {p.loading && (
+        <p className="ed-preview-note" role="status" data-testid="preview-loading">
+          Loading the preview…
+        </p>
+      )}
+      {!p.loading && p.buffering && p.playing && (
+        <p className="ed-preview-note" role="status">
+          Buffering…
+        </p>
+      )}
+      {p.playable === false && (
+        <p className="ed-preview-note ed-note-message" role="status" data-testid="cannot-play">
+          <Txt text={p.cannotPlay} />
+        </p>
+      )}
+      {p.previewError !== undefined && (
+        <p className="ed-preview-note ed-note-message" role="status" data-testid="preview-error">
+          {'The preview cannot show this take: '}
+          <Txt text={p.previewError} />
+        </p>
+      )}
+      {p.stopped !== null && (
+        <div className="ed-preview-note ed-note-message" role="alert" data-testid="preview-stopped">
+          <p>
+            <Txt text={p.stopped} />.
+          </p>
+          <Button size="sm" onClick={p.onRestart}>
+            Restart the preview
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The transport: frame steps, Play / Pause, the timecode, Mute, Speed, Comment and the zoom. */
+function Transport({ p, duration }: { p: EditPreviewProps; duration: string }) {
+  const { m, frame } = p;
+  return (
+    <Toolbar label="Transport" clickLeavesKeys>
+      <IconButton icon="chevron-left" label="Previous frame" size="sm" data-testid="prev-frame" onClick={() => p.onStep(-1)} />
+      <Button size="sm" variant="primary" icon={p.playing ? 'pause' : 'play'} data-testid="play" disabled={!p.previewOn} aria-pressed={p.playing} onClick={p.onToggle}>
+        {p.playing ? 'Pause' : 'Play'}
+      </Button>
+      <IconButton icon="chevron-right" label="Next frame" size="sm" data-testid="next-frame" onClick={() => p.onStep(1)} />
+      <output className="ed-time k-mono" data-testid="timecode" aria-live="off">
+        <Txt text={`${timecode(frame, m.fps)} / ${duration} · frame ${frame.toLocaleString('en')}`} />
+      </output>
+      <Button size="sm" variant="ghost" data-testid="mute" disabled={!p.previewOn} onClick={p.onMute}>
+        {p.muted ? 'Unmute' : 'Mute'}
+      </Button>
+      <Select
+        layout="inline"
+        label="Speed"
+        testId="rate"
+        value={String(p.rate)}
+        disabled={!p.previewOn}
+        options={[
+          { value: '0.5', label: '0.5×' },
+          { value: '1', label: '1×' },
+          { value: '2', label: '2×' },
+        ]}
+        onChange={(v) => p.onRate(Number(v) as 0.5 | 1 | 2)}
+      />
+      {p.commentOn !== null ? (
+        <LinkButton
+          size="sm"
+          testId="comment-here"
+          dataRender={p.commentOn}
+          to={{ name: 'comments', slug: p.slug, scenario: p.name, at: { render: p.commentOn, frame } }}
+          label={`Comment frame ${frame.toLocaleString('en')} of render ${p.commentOn}`}
+        >
+          Comment
+        </LinkButton>
+      ) : (
+        <>
+          <Button size="sm" disabled data-testid="comment-here-off" aria-describedby="ed-comment-why">
+            Comment
+          </Button>
+          <span id="ed-comment-why" className="k-sr">
+            No render of this version yet: render it, or comment on an earlier render from Comments
+          </span>
+        </>
+      )}
+      <IconButton icon="zoom-fit" label="Fit the whole video" size="sm" pressed={p.zoom === 'fit'} data-testid="zoom-fit" onClick={() => p.onZoom('fit')} />
+      <IconButton icon="zoom-in" label="Zoom in" size="sm" pressed={p.zoom === 'zoom'} data-testid="zoom-in" onClick={() => p.onZoom('zoom')} />
+    </Toolbar>
+  );
+}
+
+/** The take's facts: capture, theme, length, frames, size, codec and keyframes. */
+function TakeFacts({ p, duration }: { p: EditPreviewProps; duration: string }) {
+  const { m, capture } = p;
+  return (
+    <p className="ed-facts" data-testid="timeline-facts">
+      {'Capture '}
+      <Txt className="k-mono" text={p.run} />
+      {' · theme '}
+      <Txt text={p.theme} />
+      <Txt text={` · ${duration} · ${plural(m.frames, 'frame')} at ${m.fps} fps · ${m.width}×${m.height}`} />
+      {capture.codec && (
+        <span data-testid="capture-codec">
+          <Txt
+            text={` · ${codecWords(capture.codec)}${capture.keyframe_interval_s !== undefined ? `, keyframes ${capture.at_least ? 'at least ' : ''}every ${capture.keyframe_interval_s.toFixed(1)} s` : ''}`}
+          />
+          {capture.b_frames ? ', B-frames' : ''}
+        </span>
+      )}
+    </p>
+  );
+}
+
 export function EditPreview(p: EditPreviewProps) {
-  const { m, frame, capture } = p;
+  const { m, frame } = p;
   const duration = timecode(m.frames, m.fps);
   // As large as the stage allows, the video's ratio kept (the stage is a size container).
   const box = { width: `min(100cqw, calc(100cqh * ${m.width} / ${m.height}))`, aspectRatio: `${m.width} / ${m.height}` };
@@ -76,105 +192,14 @@ export function EditPreview(p: EditPreviewProps) {
           style={box}
         >
           {shown(p.children)}
-          {p.loading && (
-            <p className="ed-preview-note" role="status" data-testid="preview-loading">
-              Loading the preview…
-            </p>
-          )}
-          {!p.loading && p.buffering && p.playing && (
-            <p className="ed-preview-note" role="status">
-              Buffering…
-            </p>
-          )}
-          {p.playable === false && (
-            <p className="ed-preview-note ed-note-message" role="status" data-testid="cannot-play">
-              <Txt text={p.cannotPlay} />
-            </p>
-          )}
-          {p.previewError !== undefined && (
-            <p className="ed-preview-note ed-note-message" role="status" data-testid="preview-error">
-              {'The preview cannot show this take: '}
-              <Txt text={p.previewError} />
-            </p>
-          )}
-          {p.stopped !== null && (
-            <div className="ed-preview-note ed-note-message" role="alert" data-testid="preview-stopped">
-              <p>
-                <Txt text={p.stopped} />.
-              </p>
-              <Button size="sm" onClick={p.onRestart}>
-                Restart the preview
-              </Button>
-            </div>
-          )}
+          <PreviewNotes p={p} />
         </div>
       </div>
       <p className="ed-caption">
         <Txt text={p.words} />
       </p>
-      <Toolbar label="Transport" clickLeavesKeys>
-        <IconButton icon="chevron-left" label="Previous frame" size="sm" data-testid="prev-frame" onClick={() => p.onStep(-1)} />
-        <Button size="sm" variant="primary" icon={p.playing ? 'pause' : 'play'} data-testid="play" disabled={!p.previewOn} aria-pressed={p.playing} onClick={p.onToggle}>
-          {p.playing ? 'Pause' : 'Play'}
-        </Button>
-        <IconButton icon="chevron-right" label="Next frame" size="sm" data-testid="next-frame" onClick={() => p.onStep(1)} />
-        <output className="ed-time k-mono" data-testid="timecode" aria-live="off">
-          <Txt text={`${timecode(frame, m.fps)} / ${duration} · frame ${frame.toLocaleString('en')}`} />
-        </output>
-        <Button size="sm" variant="ghost" data-testid="mute" disabled={!p.previewOn} onClick={p.onMute}>
-          {p.muted ? 'Unmute' : 'Mute'}
-        </Button>
-        <Select
-          layout="inline"
-          label="Speed"
-          testId="rate"
-          value={String(p.rate)}
-          disabled={!p.previewOn}
-          options={[
-            { value: '0.5', label: '0.5×' },
-            { value: '1', label: '1×' },
-            { value: '2', label: '2×' },
-          ]}
-          onChange={(v) => p.onRate(Number(v) as 0.5 | 1 | 2)}
-        />
-        {p.commentOn !== null ? (
-          <LinkButton
-            size="sm"
-            testId="comment-here"
-            dataRender={p.commentOn}
-            to={{ name: 'comments', slug: p.slug, scenario: p.name, at: { render: p.commentOn, frame } }}
-            label={`Comment frame ${frame.toLocaleString('en')} of render ${p.commentOn}`}
-          >
-            Comment
-          </LinkButton>
-        ) : (
-          <>
-            <Button size="sm" disabled data-testid="comment-here-off" aria-describedby="ed-comment-why">
-              Comment
-            </Button>
-            <span id="ed-comment-why" className="k-sr">
-              No render of this version yet: render it, or comment on an earlier render from Comments
-            </span>
-          </>
-        )}
-        <IconButton icon="zoom-fit" label="Fit the whole video" size="sm" pressed={p.zoom === 'fit'} data-testid="zoom-fit" onClick={() => p.onZoom('fit')} />
-        <IconButton icon="zoom-in" label="Zoom in" size="sm" pressed={p.zoom === 'zoom'} data-testid="zoom-in" onClick={() => p.onZoom('zoom')} />
-      </Toolbar>
-      <p className="ed-facts" data-testid="timeline-facts">
-        {'Capture '}
-        <Txt className="k-mono" text={p.run} />
-        {' · theme '}
-        <Txt text={p.theme} />
-        <Txt text={` · ${duration} · ${plural(m.frames, 'frame')} at ${m.fps} fps · ${m.width}×${m.height}`} />
-        {capture.codec && (
-          <span data-testid="capture-codec">
-            <Txt
-              text={` · ${codecWords(capture.codec)}${capture.keyframe_interval_s !== undefined ? `, keyframes ${capture.at_least ? 'at least ' : ''}every ${capture.keyframe_interval_s.toFixed(1)} s` : ''}`}
-            />
-            {capture.b_frames ? ', B-frames' : ''}
-          </span>
-        )}
-      </p>
+      <Transport p={p} duration={duration} />
+      <TakeFacts p={p} duration={duration} />
     </section>
   );
 }

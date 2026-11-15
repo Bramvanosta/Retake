@@ -256,6 +256,115 @@ export async function transcodeMp4(bin: string, input: string, size: readonly [n
   return enc;
 }
 
+/** The output of one format, as the file written reads (probed). */
+async function exportedOutput(
+  work: ExportRenderOptions['workPolicy'],
+  o: { format: ExportFormat; file: string; method: ExportOutput['method']; t0: number; extra?: Partial<ExportOutput> },
+): Promise<ExportOutput> {
+  const { format, file, method, t0, extra = {} } = o;
+  const probe = await probeMedia(file, work);
+  const size = (await stat(file)).size;
+  const out: ExportOutput = {
+    format,
+    file,
+    method,
+    width: probe?.width ?? 0,
+    height: probe?.height ?? 0,
+    duration_s: probe ? round3(probe.duration_s) : 0,
+    fps: probe?.fps ?? 0,
+    audio_streams: probe?.audio_streams ?? 0,
+    size_bytes: size,
+    ms: Math.round(performance.now() - t0),
+    warnings: [],
+    ...extra,
+  };
+  if (probe?.video_codec) out.video_codec = probe.video_codec;
+  if (probe?.audio_codec) out.audio_codec = probe.audio_codec;
+  return out;
+}
+
+/** What the formats of one export share: the master, its options and the two ways to make a format. */
+interface ExportJob {
+  opts: ExportRenderOptions;
+  record: FoundRender['record'];
+  trust: 'author' | 'mcp';
+  bin: string;
+  variant: PlanVariant;
+  base: [number, number];
+  isBase: boolean;
+  finish: (format: ExportFormat, file: string, method: ExportOutput['method'], t0: number, extra?: Partial<ExportOutput>) => Promise<ExportOutput>;
+  rerender: (format: ExportFormat, file: string, over: { variant: PlanVariant; scale?: number }) => Promise<ExportOutput>;
+}
+
+/** One format of an export, written through `tmp` to `file`. */
+async function exportFormat(job: ExportJob, format: ExportFormat, file: string, tmp: string, t0: number): Promise<ExportOutput> {
+  const { opts, record, trust, bin, variant, base, isBase, finish, rerender } = job;
+  if (format === 'mp4_1080p') {
+    if (isBase) {
+      await copyFile(record.file, tmp);
+      await rename(tmp, file);
+      return finish(format, file, 'copy', t0);
+    } else {
+      await transcodeMp4(bin, record.file, base, tmp, opts.signal);
+      await rename(tmp, file);
+      return finish(format, file, 'transcode', t0);
+    }
+  } else if (format === 'mp4_4k') {
+    if (exportMethod(record, format, { trust }) === 'copy') {
+      await copyFile(record.file, tmp);
+      await rename(tmp, file);
+      return finish(format, file, 'copy', t0);
+    } else return rerender(format, file, { variant, scale: 2 });
+  } else if (format === 'webm') {
+    // VP9 (constant quality) + Opus at the variant's base size: the web / embed format.
+    const scale = isBase ? [] : ['-vf', `scale=${base[0]}:${base[1]}:flags=lanczos`];
+    await ffmpeg(
+      bin,
+      [
+        '-i',
+        record.file,
+        ...scale,
+        '-c:v',
+        'libvpx-vp9',
+        '-crf',
+        '32',
+        '-b:v',
+        '0',
+        '-row-mt',
+        '1',
+        '-deadline',
+        'good',
+        '-cpu-used',
+        '4',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'libopus',
+        '-b:a',
+        '128k',
+        tmp,
+      ],
+      opts.signal,
+    );
+    await rename(tmp, file);
+    return finish(format, file, 'transcode', t0);
+  } else if (format === 'gif_preview') {
+    const w = gifWindow(record, opts.gif);
+    const g = GIF_PREVIEW;
+    const filter = `fps=${g.fps},scale=${g.width}:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=${g.colors}:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`;
+    await ffmpeg(bin, ['-ss', String(w.start_s), '-t', String(w.duration_s), '-i', record.file, '-filter_complex', filter, '-loop', '0', tmp], opts.signal);
+    await rename(tmp, file);
+    return finish(format, file, 'transcode', t0, { window: w });
+  } else {
+    const v: PlanVariant = format === 'vertical_9x16' ? 'vertical' : 'square';
+    if (exportMethod(record, format, { trust }) === 'copy') {
+      await copyFile(record.file, tmp);
+      await rename(tmp, file);
+      return finish(format, file, 'copy', t0);
+    } else return rerender(format, file, { variant: v });
+  }
+}
+
 /**
  * Export `render` to `formats` (default: mp4_1080p, webm, gif_preview) into the folder `place` names. Each format is
  * written under a temporary name and renamed when complete; a format that fails is reported in `failures` and the
@@ -296,27 +405,8 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportMad
   const outputs: ExportOutput[] = [];
   const failures: ExportMade['failures'] = [];
 
-  const finish = async (format: ExportFormat, file: string, method: ExportOutput['method'], t0: number, extra: Partial<ExportOutput> = {}): Promise<ExportOutput> => {
-    const probe = await probeMedia(file, opts.workPolicy);
-    const size = (await stat(file)).size;
-    const out: ExportOutput = {
-      format,
-      file,
-      method,
-      width: probe?.width ?? 0,
-      height: probe?.height ?? 0,
-      duration_s: probe ? round3(probe.duration_s) : 0,
-      fps: probe?.fps ?? 0,
-      audio_streams: probe?.audio_streams ?? 0,
-      size_bytes: size,
-      ms: Math.round(performance.now() - t0),
-      warnings: [],
-      ...extra,
-    };
-    if (probe?.video_codec) out.video_codec = probe.video_codec;
-    if (probe?.audio_codec) out.audio_codec = probe.audio_codec;
-    return out;
-  };
+  const finish = (format: ExportFormat, file: string, method: ExportOutput['method'], t0: number, extra: Partial<ExportOutput> = {}): Promise<ExportOutput> =>
+    exportedOutput(opts.workPolicy, { format, file, method, t0, extra });
 
   // A re-render of the master's run, theme and overrides with another variant / scale; written to `file` (+ .json).
   const rerender = async (format: ExportFormat, file: string, over: { variant: PlanVariant; scale?: number }): Promise<ExportOutput> => {
@@ -352,71 +442,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportMad
     emit({ format, stage: 'start', progress: 0 });
     const t0 = performance.now();
     try {
-      let out: ExportOutput;
-      if (format === 'mp4_1080p') {
-        if (isBase) {
-          await copyFile(record.file, tmp);
-          await rename(tmp, file);
-          out = await finish(format, file, 'copy', t0);
-        } else {
-          await transcodeMp4(bin, record.file, base, tmp, opts.signal);
-          await rename(tmp, file);
-          out = await finish(format, file, 'transcode', t0);
-        }
-      } else if (format === 'mp4_4k') {
-        if (exportMethod(record, format, { trust }) === 'copy') {
-          await copyFile(record.file, tmp);
-          await rename(tmp, file);
-          out = await finish(format, file, 'copy', t0);
-        } else out = await rerender(format, file, { variant, scale: 2 });
-      } else if (format === 'webm') {
-        // VP9 (constant quality) + Opus at the variant's base size: the web / embed format.
-        const scale = isBase ? [] : ['-vf', `scale=${base[0]}:${base[1]}:flags=lanczos`];
-        await ffmpeg(
-          bin,
-          [
-            '-i',
-            record.file,
-            ...scale,
-            '-c:v',
-            'libvpx-vp9',
-            '-crf',
-            '32',
-            '-b:v',
-            '0',
-            '-row-mt',
-            '1',
-            '-deadline',
-            'good',
-            '-cpu-used',
-            '4',
-            '-pix_fmt',
-            'yuv420p',
-            '-c:a',
-            'libopus',
-            '-b:a',
-            '128k',
-            tmp,
-          ],
-          opts.signal,
-        );
-        await rename(tmp, file);
-        out = await finish(format, file, 'transcode', t0);
-      } else if (format === 'gif_preview') {
-        const w = gifWindow(record, opts.gif);
-        const g = GIF_PREVIEW;
-        const filter = `fps=${g.fps},scale=${g.width}:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=${g.colors}:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`;
-        await ffmpeg(bin, ['-ss', String(w.start_s), '-t', String(w.duration_s), '-i', record.file, '-filter_complex', filter, '-loop', '0', tmp], opts.signal);
-        await rename(tmp, file);
-        out = await finish(format, file, 'transcode', t0, { window: w });
-      } else {
-        const v: PlanVariant = format === 'vertical_9x16' ? 'vertical' : 'square';
-        if (exportMethod(record, format, { trust }) === 'copy') {
-          await copyFile(record.file, tmp);
-          await rename(tmp, file);
-          out = await finish(format, file, 'copy', t0);
-        } else out = await rerender(format, file, { variant: v });
-      }
+      const out = await exportFormat({ opts, record, trust, bin, variant, base, isBase, finish, rerender }, format, file, tmp, t0);
       outputs.push(out);
       emit({ format, stage: 'done', progress: 1, message: file });
     } catch (e) {

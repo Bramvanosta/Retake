@@ -45,6 +45,36 @@ function markMoment(e: TimelineEvent): number {
   return typeof e.t_click === 'number' ? e.t_click : e.t_start;
 }
 
+/** A clip's caption markers: the scene's from the start, a step's from its start; each until the next one (or the clip end). */
+function addCaptions(
+  clip: RawClipPlan,
+  steps: readonly TimelineEvent[],
+  at: (t: number) => number | null,
+  add: (m: Omit<RawMarker, 'clip' | 'seq' | 'color'> & { color?: MarkerColor }) => void,
+): void {
+  const cues: Array<{ frame: number; text: string; step?: TimelineEvent }> = [];
+  if (clip.caption) cues.push({ frame: 0, text: captionText(clip.caption) });
+  for (const e of steps) {
+    if (!e.caption) continue;
+    const f = at(e.t_start);
+    if (f !== null) cues.push({ frame: f, text: captionText(e.caption), step: e });
+  }
+  cues.sort((a, b) => a.frame - b.frame);
+  cues.forEach((c, i) => {
+    const next = cues.slice(i + 1).find((x) => x.frame > c.frame);
+    add({
+      kind: 'caption',
+      name: short(c.text),
+      comment: c.text,
+      frame: c.frame,
+      duration: (next ? next.frame : clip.frames) - c.frame,
+      capture_t: c.step ? c.step.t_start : clip.t0,
+      scene: clip.scene,
+      ...(c.step ? { step: c.step.step, ...(c.step.id ? { step_id: c.step.id } : {}) } : {}),
+    });
+  });
+}
+
 /** The markers of a raw export, on each scene's sequence clip, sorted by sequence frame. */
 export function rawMarkers(plan: RawPlan): RawMarker[] {
   const fps = plan.fps;
@@ -80,27 +110,7 @@ export function rawMarkers(plan: RawPlan): RawMarker[] {
     });
     const steps = clip.events.filter((e) => e.step >= 0 && e.status !== 'skipped').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
     // Captions: the scene's from the start, a step's from its start; each until the next one (or the clip end).
-    const cues: Array<{ frame: number; text: string; step?: TimelineEvent }> = [];
-    if (clip.caption) cues.push({ frame: 0, text: captionText(clip.caption) });
-    for (const e of steps) {
-      if (!e.caption) continue;
-      const f = at(e.t_start);
-      if (f !== null) cues.push({ frame: f, text: captionText(e.caption), step: e });
-    }
-    cues.sort((a, b) => a.frame - b.frame);
-    cues.forEach((c, i) => {
-      const next = cues.slice(i + 1).find((x) => x.frame > c.frame);
-      add({
-        kind: 'caption',
-        name: short(c.text),
-        comment: c.text,
-        frame: c.frame,
-        duration: (next ? next.frame : clip.frames) - c.frame,
-        capture_t: c.step ? c.step.t_start : clip.t0,
-        scene: clip.scene,
-        ...(c.step ? { step: c.step.step, ...(c.step.id ? { step_id: c.step.id } : {}) } : {}),
-      });
-    });
+    addCaptions(clip, steps, at, add);
     for (const e of steps) {
       const f = at(e.t_start);
       if (f === null) continue;
@@ -370,6 +380,70 @@ export function writeEdl(plan: RawPlan, markers: readonly RawMarker[], files: Pa
 const rt = (value: number, rate: number) => ({ OTIO_SCHEMA: 'RationalTime.1', rate, value });
 const range = (start: number, duration: number, rate: number) => ({ OTIO_SCHEMA: 'TimeRange.1', duration: rt(duration, rate), start_time: rt(start, rate) });
 
+/** An OTIO clip of a package file: its media reference at its timecode (or 0) and, on the sequence clips, its markers. */
+function otioClip(plan: RawPlan, markers: readonly RawMarker[], o: { clip: RawClipPlan; file: string; name: string; enabled: boolean; withMarkers: boolean; timecoded?: boolean }) {
+  const fps = plan.fps;
+  const { clip: c, file, name, enabled, withMarkers, timecoded = true } = o;
+  const seq = sequenceStartOf(plan, c);
+  // Media time: the clip's start timecode (its place on the sequence), or 0 for media without one.
+  const start = timecoded ? seq : 0;
+  return {
+    OTIO_SCHEMA: 'Clip.2',
+    metadata: { retake: { scene: c.scene, ...(c.page !== undefined ? { page: c.page } : {}), capture: { t0: c.t0, t1: c.t1 } } },
+    name,
+    source_range: range(start, c.frames, fps),
+    effects: [],
+    markers: withMarkers
+      ? markers
+          .filter((m) => m.clip === c.index)
+          .map((m) => ({
+            OTIO_SCHEMA: 'Marker.2',
+            metadata: {
+              retake: {
+                kind: m.kind,
+                scene: m.scene,
+                ...(m.step !== undefined ? { step: m.step } : {}),
+                ...(m.step_id ? { step_id: m.step_id } : {}),
+                ...(m.page ? { page: m.page } : {}),
+                capture_t: m.capture_t,
+              },
+            },
+            name: m.name,
+            color: m.color,
+            marked_range: range(start + m.frame, m.duration, fps),
+            comment: m.comment,
+          }))
+      : [],
+    enabled,
+    color: null,
+    media_references: {
+      DEFAULT_MEDIA: {
+        OTIO_SCHEMA: 'ExternalReference.1',
+        metadata: {},
+        name: name,
+        available_range: range(start, c.frames, fps),
+        available_image_bounds: null,
+        target_url: fileUrl(file),
+      },
+    },
+    active_media_reference_key: 'DEFAULT_MEDIA',
+  };
+}
+
+const otioGap = (frames: number, fps: number) => ({ OTIO_SCHEMA: 'Gap.1', metadata: {}, name: '', source_range: range(0, frames, fps), effects: [], markers: [], enabled: true, color: null });
+const otioTrack = (name: string, children: unknown[], enabled = true) => ({
+  OTIO_SCHEMA: 'Track.1',
+  metadata: {},
+  name,
+  source_range: null,
+  effects: [],
+  markers: [],
+  enabled,
+  color: null,
+  children,
+  kind: 'Video',
+});
+
 /**
  * OpenTimelineIO JSON (schema of OTIO 0.17/0.18): a Timeline whose video track V1 holds the sequence clips; with
  * cursor layers a track "Cursor" above them; with multi-page scenes a track per extra page (disabled clips, gaps
@@ -379,65 +453,8 @@ const range = (start: number, duration: number, rate: number) => ({ OTIO_SCHEMA:
  */
 export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: PackageFiles, meta: InterchangeMeta): string {
   const fps = plan.fps;
-  const clipItem = (c: RawClipPlan, file: string, name: string, enabled: boolean, withMarkers: boolean, timecoded = true) => {
-    const seq = sequenceStartOf(plan, c);
-    // Media time: the clip's start timecode (its place on the sequence), or 0 for media without one.
-    const start = timecoded ? seq : 0;
-    return {
-      OTIO_SCHEMA: 'Clip.2',
-      metadata: { retake: { scene: c.scene, ...(c.page !== undefined ? { page: c.page } : {}), capture: { t0: c.t0, t1: c.t1 } } },
-      name,
-      source_range: range(start, c.frames, fps),
-      effects: [],
-      markers: withMarkers
-        ? markers
-            .filter((m) => m.clip === c.index)
-            .map((m) => ({
-              OTIO_SCHEMA: 'Marker.2',
-              metadata: {
-                retake: {
-                  kind: m.kind,
-                  scene: m.scene,
-                  ...(m.step !== undefined ? { step: m.step } : {}),
-                  ...(m.step_id ? { step_id: m.step_id } : {}),
-                  ...(m.page ? { page: m.page } : {}),
-                  capture_t: m.capture_t,
-                },
-              },
-              name: m.name,
-              color: m.color,
-              marked_range: range(start + m.frame, m.duration, fps),
-              comment: m.comment,
-            }))
-        : [],
-      enabled,
-      color: null,
-      media_references: {
-        DEFAULT_MEDIA: {
-          OTIO_SCHEMA: 'ExternalReference.1',
-          metadata: {},
-          name: name,
-          available_range: range(start, c.frames, fps),
-          available_image_bounds: null,
-          target_url: fileUrl(file),
-        },
-      },
-      active_media_reference_key: 'DEFAULT_MEDIA',
-    };
-  };
-  const gap = (frames: number) => ({ OTIO_SCHEMA: 'Gap.1', metadata: {}, name: '', source_range: range(0, frames, fps), effects: [], markers: [], enabled: true, color: null });
-  const track = (name: string, children: unknown[], enabled = true) => ({
-    OTIO_SCHEMA: 'Track.1',
-    metadata: {},
-    name,
-    source_range: null,
-    effects: [],
-    markers: [],
-    enabled,
-    color: null,
-    children,
-    kind: 'Video',
-  });
+  const gap = (frames: number) => otioGap(frames, fps);
+  const track = otioTrack;
   /** A track with an item per sequence slot: `pick(primary)` or a gap. */
   const slotted = (pick: (primary: RawClipPlan) => unknown | null): unknown[] => {
     const out: unknown[] = [];
@@ -459,7 +476,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
   const tracks: unknown[] = [
     track(
       'V1',
-      slotted((p) => clipItem(p, files.clips[p.index], p.name, true, true)),
+      slotted((p) => otioClip(plan, markers, { clip: p, file: files.clips[p.index], name: p.name, enabled: true, withMarkers: true })),
     ),
   ];
   const tc = files.layersTimecoded !== false;
@@ -467,7 +484,9 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
     tracks.push(
       track(
         'Cursor',
-        slotted((p) => (files.layers![p.index] ? clipItem(p, files.layers![p.index], `${p.name}-cursor`, true, false, tc) : null)),
+        slotted((p) =>
+          files.layers![p.index] ? otioClip(plan, markers, { clip: p, file: files.layers![p.index], name: `${p.name}-cursor`, enabled: true, withMarkers: false, timecoded: tc }) : null,
+        ),
       ),
     );
   const extra = Math.max(0, ...plan.sequence.map((s) => plan.clips.filter((c) => c.number === plan.clips[s.clip].number).length - 1));
@@ -478,7 +497,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
         `Page ${k + 2}`,
         slotted((p) => {
           const o = other(p);
-          return o ? clipItem(o, files.clips[o.index], o.name, false, false) : null;
+          return o ? otioClip(plan, markers, { clip: o, file: files.clips[o.index], name: o.name, enabled: false, withMarkers: false }) : null;
         }),
       ),
     );
@@ -488,7 +507,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
           `Page ${k + 2} cursor`,
           slotted((p) => {
             const o = other(p);
-            return o && files.layers![o.index] ? clipItem(o, files.layers![o.index], `${o.name}-cursor`, false, false, tc) : null;
+            return o && files.layers![o.index] ? otioClip(plan, markers, { clip: o, file: files.layers![o.index], name: `${o.name}-cursor`, enabled: false, withMarkers: false, timecoded: tc }) : null;
           }),
         ),
       );

@@ -238,7 +238,7 @@ export async function submitInspectJob(
   const fix = inspectCommandLine(ctx.cli, project.slug, p.source, req.env);
   // What an agent may run (agent-trust) and where (the workspace's protected hosts), as for run_dry.
   checkAgentTrust(project, p.scenario.scenario, fix, ctx.client, p.env === env.name ? env : resolveEnvironment(project, p.env));
-  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, p.env, fix, agentChannel(ctx.client));
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, p.env, { fix, via: agentChannel(ctx.client) });
   const id = newInspectId();
   const dir = inspectDir(project, id);
   // Made inside the project only (the port refuses a .retake/inspect, or a folder of it, that leads out): before

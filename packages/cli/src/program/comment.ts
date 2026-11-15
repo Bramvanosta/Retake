@@ -23,7 +23,7 @@ export function registerCommentCommands({ program, action }: ProgramContext): vo
     .option('--scenario <name>', 'with "latest": the latest render of this scenario')
     .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
-    .action(action((u, g, p: string, r: string, t: string, o: CommentAddOptions) => commentAddCommand(u, g, p, r, t, o)));
+    .action(action((u, g, p: string, r: string, t: string, o: CommentAddOptions) => commentAddCommand(u, g, { project: p, render: r, text: t }, o)));
   comment
     .command('list')
     .description('threads of a project: anchor, texts, entries, still')
@@ -42,7 +42,7 @@ export function registerCommentCommands({ program, action }: ProgramContext): vo
     .argument('<text>', 'the reply (at most 2000 characters)')
     .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
-    .action(action((u, g, p: string, id: string, t: string, o: CommentWriteOptions) => commentReplyCommand(u, g, p, id, t, o)));
+    .action(action((u, g, p: string, id: string, t: string, o: CommentWriteOptions) => commentReplyCommand(u, g, { project: p, id, text: t }, o)));
   comment
     .command('resolve')
     .description('resolve an open thread, optionally with the later render that answers it')

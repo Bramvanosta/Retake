@@ -43,7 +43,7 @@ function templatedStrings(v: unknown, path: IssuePath, out: IssuePath[] = []): I
  * Mocks and allow entries of a scenario or an environment: the page key of each pattern must be one of the
  * environment's pages, a mock has at most one of `json` / `body`, and nothing in a mock is templated.
  */
-export function checkWriteRules(list: unknown, base: IssuePath, pages: readonly string[] | undefined, ctx: CheckContext, what: 'mock' | 'allow', envName?: string): void {
+export function checkWriteRules(list: unknown, base: IssuePath, ctx: CheckContext, { what, pages, envName }: { what: 'mock' | 'allow'; pages: readonly string[] | undefined; envName?: string }): void {
   if (!Array.isArray(list)) return;
   list.forEach((entry, i) => {
     const p = [...base, i];
@@ -72,8 +72,8 @@ function checkReadOnly(env: Record<string, unknown>, envName: string, pages: rea
   const ro = env.read_only;
   if (!isObj(ro) || ctx.broken(['environments', envName, 'read_only'])) return;
   const base: IssuePath = ['environments', envName, 'read_only'];
-  checkWriteRules(ro.allow, [...base, 'allow'], pages, ctx, 'allow', envName);
-  checkWriteRules(ro.mocks, [...base, 'mocks'], pages, ctx, 'mock', envName);
+  checkWriteRules(ro.allow, [...base, 'allow'], ctx, { what: 'allow', pages, envName });
+  checkWriteRules(ro.mocks, [...base, 'mocks'], ctx, { what: 'mock', pages, envName });
   const production = env.production === true;
   const access = env.access === 'read-only' || env.access === 'read-write' ? env.access : undefined;
   if (!production && environmentAccess({ access }) === 'read-write') {

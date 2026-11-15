@@ -22,6 +22,21 @@ export interface MenuEntry {
 }
 export type MenuItemDef = MenuEntry | 'separator';
 
+/** Where a key on the item at `at` (of the enabled ones) moves the focus: an item's index (-1: nowhere), or `close` (Tab, Escape). */
+function itemKeyTarget(key: string, at: number, enabled: number[], entries: MenuEntry[]): number | 'close' {
+  if (key === 'ArrowDown') return enabled[(at + 1) % enabled.length];
+  if (key === 'ArrowUp') return enabled[(at - 1 + enabled.length) % enabled.length];
+  if (key === 'Home') return enabled[0];
+  if (key === 'End') return enabled.at(-1)!;
+  if (key === 'Tab' || key === 'Escape') return 'close';
+  if (key.length === 1 && /\S/.test(key)) {
+    const k = key.toLowerCase();
+    const order = [...enabled.slice(at + 1), ...enabled.slice(0, at + 1)];
+    return order.find((j) => entries[j].label.toLowerCase().startsWith(k)) ?? -1;
+  }
+  return -1;
+}
+
 export function Menu({ label, icon, text, items, onSelect }: { label: string; icon?: IconName; text?: ReactNode; items: MenuItemDef[]; onSelect: (id: string) => void }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -76,27 +91,17 @@ export function Menu({ label, icon, text, items, onSelect }: { label: string; ic
     }
   };
   const onItemKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
-    const at = enabled.indexOf(i);
-    let next = -1;
-    if (e.key === 'ArrowDown') next = enabled[(at + 1) % enabled.length];
-    else if (e.key === 'ArrowUp') next = enabled[(at - 1 + enabled.length) % enabled.length];
-    else if (e.key === 'Home') next = enabled[0];
-    else if (e.key === 'End') next = enabled.at(-1)!;
-    else if (e.key === 'Tab' || e.key === 'Escape') {
+    const next = itemKeyTarget(e.key, enabled.indexOf(i), enabled, entries);
+    if (next === 'close') {
       e.preventDefault();
       close();
       return;
-    } else if (e.key.length === 1 && /\S/.test(e.key)) {
-      const k = e.key.toLowerCase();
-      const order = [...enabled.slice(at + 1), ...enabled.slice(0, at + 1)];
-      next = order.find((j) => entries[j].label.toLowerCase().startsWith(k)) ?? -1;
     }
     if (next >= 0) {
       e.preventDefault();
       focusAt(next);
     }
   };
-  let n = -1;
   return (
     <>
       <button
@@ -115,33 +120,58 @@ export function Menu({ label, icon, text, items, onSelect }: { label: string; ic
         {text && <Icon name="chevron-down" />}
       </button>
       <div ref={pop} id={id} popover="auto" role="menu" aria-label={label} className="k-menu">
-        {items.map((item, k) => {
-          // biome-ignore lint/suspicious/noArrayIndexKey: a separator has no identity but its place in the caller's fixed item list
-          // biome-ignore lint/a11y/useSemanticElements: a menu's separator: <hr> brings its own margins and border, and role=separator is what a menu allows
-          if (item === 'separator') return <div key={`sep-${k}`} role="separator" className="k-menu-sep" />;
-          const i = ++n;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              className={item.danger ? 'k-menu-item is-danger' : 'k-menu-item'}
-              tabIndex={i === active ? 0 : -1}
-              disabled={item.disabled}
-              onKeyDown={(e) => onItemKey(e, i)}
-              onClick={() => {
-                close();
-                onSelect(item.id);
-              }}
-            >
-              <span className="k-menu-label">
-                <Txt text={item.label} />
-              </span>
-              {item.kbd && <Kbd keys={item.kbd} />}
-            </button>
-          );
-        })}
+        <MenuItems
+          items={items}
+          active={active}
+          onItemKey={onItemKey}
+          onChoose={(itemId) => {
+            close();
+            onSelect(itemId);
+          }}
+        />
       </div>
+    </>
+  );
+}
+
+/** The menu's items (one roving tab stop: the active one) and its separators. */
+function MenuItems({
+  items,
+  active,
+  onItemKey,
+  onChoose,
+}: {
+  items: MenuItemDef[];
+  active: number;
+  onItemKey: (e: KeyboardEvent<HTMLButtonElement>, i: number) => void;
+  onChoose: (id: string) => void;
+}) {
+  let n = -1;
+  return (
+    <>
+      {items.map((item, k) => {
+        // biome-ignore lint/suspicious/noArrayIndexKey: a separator has no identity but its place in the caller's fixed item list
+        // biome-ignore lint/a11y/useSemanticElements: a menu's separator: <hr> brings its own margins and border, and role=separator is what a menu allows
+        if (item === 'separator') return <div key={`sep-${k}`} role="separator" className="k-menu-sep" />;
+        const i = ++n;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitem"
+            className={item.danger ? 'k-menu-item is-danger' : 'k-menu-item'}
+            tabIndex={i === active ? 0 : -1}
+            disabled={item.disabled}
+            onKeyDown={(e) => onItemKey(e, i)}
+            onClick={() => onChoose(item.id)}
+          >
+            <span className="k-menu-label">
+              <Txt text={item.label} />
+            </span>
+            {item.kbd && <Kbd keys={item.kbd} />}
+          </button>
+        );
+      })}
     </>
   );
 }

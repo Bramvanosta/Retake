@@ -269,6 +269,18 @@ function themeIdentity(p: LoadedProject, ref: string | undefined): string | unde
   return SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
 }
 
+/** What one board read holds for all its scenarios: the project, the jobs pass and the render records. */
+interface BoardPass {
+  p: LoadedProject;
+  slug: string;
+  pass: { jobs: JobRecord[]; complete: boolean };
+  runJobs: Map<string, JobRecord>;
+  renderJobs: JobRecord[];
+  reviewJobs: JobRecord[];
+  records: Map<string, StoredRenderRecord[]>;
+  shownJobs: Set<string>;
+}
+
 /** The project boards of one engine (memos apart from the scenario views'). */
 export class ProjectBoards {
   private readonly files = new Map<string, BoardFileFacts>();
@@ -300,6 +312,7 @@ export class ProjectBoards {
     const runJobs = new Map(jobs.filter((j) => j.input.kind === 'run').map((j) => [j.input.kind === 'run' ? j.input.run_id : '', j]));
     const records = await this.renderRecordsOf(p, new Set(names));
     const shownJobs = new Set<string>();
+    const b: BoardPass = { p, slug, pass, runJobs, renderJobs, reviewJobs, records, shownJobs };
     // Today's theme folder of each reference (core io projectTemplateFolderId, the editor's rule), once per board.
     const folders = new Map<string, Promise<string | undefined>>();
     const folderIds = (ref: string | undefined): Promise<string | undefined> => {
@@ -327,81 +340,9 @@ export class ProjectBoards {
       const themeFolder = await folderIds(ref);
       if (f.title) s.untrusted.title = f.title;
       if (f.error) s.untrusted.error = f.error;
-      // The running take, its job's state overlaid (a worker that died: interrupted).
-      if (g.running) {
-        const job = runJobs.get(g.running.id);
-        // Not in the pass: a take from a terminal (no job) — unless the pass stopped at its cap.
-        // A group's running take is one whose record says queued or running (runGroups).
-        const raw: RunStatus = g.running.record.status === 'queued' ? 'queued' : 'running';
-        const status = job ? (overlaid(raw, job) ?? raw) : pass.complete ? this.statusOf(raw) : await this.ctx.overlay(slug, { id: g.running.id, status: raw });
-        const run = this.boardRun(g.running.id, g.running.record, status, job?.id);
-        // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read.
-        if (status === 'queued' || status === 'running') s.running = run;
-        else if (!g.last || run.id > g.last.id) g.lastRun = run;
-      }
-      if (!g.lastRun && g.last) g.lastRun = this.boardRun(g.last.id, g.last.record, this.statusOf(g.last.record.status), runJobs.get(g.last.id)?.id);
-      if (g.lastRun) s.last_run = g.lastRun;
-      if (g.capture) {
-        const current = f.yaml !== undefined && f.hash ? await this.current(p, g.capture.id, f.yaml, f.hash) : null;
-        const fin = iso(g.capture.record.finished_at);
-        s.capture = {
-          id: g.capture.id,
-          env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown',
-          ...(fin ? { finished_at: fin } : {}),
-          current,
-        };
-      }
-      if (g.dry) {
-        const fin = iso(g.dry.record.finished_at);
-        s.dry = { id: g.dry.id, ...(fin ? { finished_at: fin } : {}) };
-      }
-      // Renders: the newest succeeded landscape one, a newer failure, the job running.
-      const recs = records.get(name) ?? [];
-      const mine = renderJobs.filter((j) => j.input.kind === 'render' && j.input.scenario === name);
-      // The newest render that shows today's file (render-words sameVersion's rule), else the newest one.
-      const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
-      const views: Array<{ r: StoredRenderRecord; v: ScenarioRenderView }> = [];
-      for (const r of landscape) views.push({ r, v: await renderView(this.ctx.renderMemos, this.ctx.ws.outputs.reviews, p.dir, r, mine, reviewJobs) });
-      // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
-      // themes); an older record, which holds no folder, by its folder's name — also when it is no theme name.
-      const sameTheme = (r: StoredRenderRecord): boolean =>
-        typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
-      const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
-        !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && sameTheme(x.r) && x.v.overrides.length === 0;
-      const shown = views.find(shows);
-      const pick = shown ?? views[0];
-      const best = pick?.r;
-      if (pick) {
-        s.render = pick.v;
-        s.render_current = shown !== undefined;
-      }
-      const newestRec = recs[0];
-      if (newestRec && newestRec.status === 'failed' && newestRec !== best) s.render_failed = { render_id: newestRec.id, at: newestRec.created_at };
-      const newestJob = mine[0];
-      if (newestJob && newestJob.input.kind === 'render' && (newestJob.state === 'failed' || newestJob.state === 'interrupted')) {
-        const at = newestJob.finished_at ?? newestJob.created_at;
-        if (!newestRec || at > newestRec.created_at) s.render_failed = { render_id: newestJob.input.render_id, at };
-      }
-      const open = mine.find((j) => !FINISHED_JOB_STATES.has(j.state));
-      if (open) {
-        s.render_job = {
-          job: open.id,
-          state: open.state === 'running' ? 'running' : 'queued',
-          reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'),
-          ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}),
-        };
-        shownJobs.add(open.id);
-      }
-      for (const j of reviewJobs) if (j.input.kind === 'review' && recs.some((r) => r.id === (j.input as { render_id: string }).render_id)) shownJobs.add(j.id);
-      // Poster: a failed take newer than the capture shows its error screenshot when it has one (the production's
-      // word is that failure), else the capture's picture, else the dry run's. Length: the capture's.
-      const failed = s.last_run && s.last_run.status === 'failed' && (!g.capture || s.last_run.id > g.capture.id) ? await this.poster(p, s.last_run.id) : undefined;
-      const pictured = g.capture?.id ?? g.dry?.id;
-      const fromCapture = pictured ? await this.poster(p, pictured) : undefined;
-      const poster = failed?.key ? failed : fromCapture;
-      if (poster?.key) s.poster = { run: poster.run, key: poster.key };
-      if (s.render && s.render.duration_s > 0) s.length = { seconds: s.render.duration_s, from: 'render' };
-      else if (g.capture && pictured === g.capture.id && fromCapture?.seconds !== undefined) s.length = { seconds: fromCapture.seconds, from: 'capture' };
+      await this.scenarioRuns(b, s, f, g);
+      await this.scenarioRenders(b, s, f, g, { themeId, themeFolder });
+      await this.scenarioPoster(b.p, s, g);
       out.push(s);
     }
     return {
@@ -411,6 +352,94 @@ export class ProjectBoards {
       ...(p.scenarios.length > names.length ? { truncated: { shown: names.length, total: p.scenarios.length } } : {}),
       jobs: [...shownJobs].sort(),
     };
+  }
+
+  /** A scenario's running take (its job's state overlaid: a worker that died is interrupted), last run, capture and dry run. */
+  private async scenarioRuns(b: BoardPass, s: BoardScenario, f: BoardFileFacts, g: RunGroup): Promise<void> {
+    // The running take, its job's state overlaid (a worker that died: interrupted).
+    if (g.running) {
+      const job = b.runJobs.get(g.running.id);
+      // Not in the pass: a take from a terminal (no job) — unless the pass stopped at its cap.
+      // A group's running take is one whose record says queued or running (runGroups).
+      const raw: RunStatus = g.running.record.status === 'queued' ? 'queued' : 'running';
+      const status = job ? (overlaid(raw, job) ?? raw) : b.pass.complete ? this.statusOf(raw) : await this.ctx.overlay(b.slug, { id: g.running.id, status: raw });
+      const run = this.boardRun(g.running.id, g.running.record, status, job?.id);
+      // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read.
+      if (status === 'queued' || status === 'running') s.running = run;
+      else if (!g.last || run.id > g.last.id) g.lastRun = run;
+    }
+    if (!g.lastRun && g.last) g.lastRun = this.boardRun(g.last.id, g.last.record, this.statusOf(g.last.record.status), b.runJobs.get(g.last.id)?.id);
+    if (g.lastRun) s.last_run = g.lastRun;
+    if (g.capture) {
+      const current = f.yaml !== undefined && f.hash ? await this.current(b.p, g.capture.id, f.yaml, f.hash) : null;
+      const fin = iso(g.capture.record.finished_at);
+      s.capture = {
+        id: g.capture.id,
+        env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown',
+        ...(fin ? { finished_at: fin } : {}),
+        current,
+      };
+    }
+    if (g.dry) {
+      const fin = iso(g.dry.record.finished_at);
+      s.dry = { id: g.dry.id, ...(fin ? { finished_at: fin } : {}) };
+    }
+  }
+
+  /** A scenario's render (the newest that shows today's file, else the newest), a newer failure and the job running. */
+  private async scenarioRenders(b: BoardPass, s: BoardScenario, f: BoardFileFacts, g: RunGroup, t: { themeId: string | undefined; themeFolder: string | undefined }): Promise<void> {
+    const { themeId, themeFolder } = t;
+    // Renders: the newest succeeded landscape one, a newer failure, the job running.
+    const recs = b.records.get(s.name) ?? [];
+    const mine = b.renderJobs.filter((j) => j.input.kind === 'render' && j.input.scenario === s.name);
+    // The newest render that shows today's file (render-words sameVersion's rule), else the newest one.
+    const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
+    const views: Array<{ r: StoredRenderRecord; v: ScenarioRenderView }> = [];
+    for (const r of landscape) views.push({ r, v: await renderView({ memos: this.ctx.renderMemos, reviews: this.ctx.ws.outputs.reviews, projectDir: b.p.dir }, r, mine, b.reviewJobs) });
+    // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
+    // themes); an older record, which holds no folder, by its folder's name — also when it is no theme name.
+    const sameTheme = (r: StoredRenderRecord): boolean =>
+      typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
+    const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
+      !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && sameTheme(x.r) && x.v.overrides.length === 0;
+    const shown = views.find(shows);
+    const pick = shown ?? views[0];
+    const best = pick?.r;
+    if (pick) {
+      s.render = pick.v;
+      s.render_current = shown !== undefined;
+    }
+    const newestRec = recs[0];
+    if (newestRec && newestRec.status === 'failed' && newestRec !== best) s.render_failed = { render_id: newestRec.id, at: newestRec.created_at };
+    const newestJob = mine[0];
+    if (newestJob && newestJob.input.kind === 'render' && (newestJob.state === 'failed' || newestJob.state === 'interrupted')) {
+      const at = newestJob.finished_at ?? newestJob.created_at;
+      if (!newestRec || at > newestRec.created_at) s.render_failed = { render_id: newestJob.input.render_id, at };
+    }
+    const open = mine.find((j) => !FINISHED_JOB_STATES.has(j.state));
+    if (open) {
+      s.render_job = {
+        job: open.id,
+        state: open.state === 'running' ? 'running' : 'queued',
+        reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'),
+        ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}),
+      };
+      b.shownJobs.add(open.id);
+    }
+    for (const j of b.reviewJobs) if (j.input.kind === 'review' && recs.some((r) => r.id === (j.input as { render_id: string }).render_id)) b.shownJobs.add(j.id);
+  }
+
+  /** A scenario's poster and length. */
+  private async scenarioPoster(p: LoadedProject, s: BoardScenario, g: RunGroup): Promise<void> {
+    // Poster: a failed take newer than the capture shows its error screenshot when it has one (the production's
+    // word is that failure), else the capture's picture, else the dry run's. Length: the capture's.
+    const failed = s.last_run && s.last_run.status === 'failed' && (!g.capture || s.last_run.id > g.capture.id) ? await this.poster(p, s.last_run.id) : undefined;
+    const pictured = g.capture?.id ?? g.dry?.id;
+    const fromCapture = pictured ? await this.poster(p, pictured) : undefined;
+    const poster = failed?.key ? failed : fromCapture;
+    if (poster?.key) s.poster = { run: poster.run, key: poster.key };
+    if (s.render && s.render.duration_s > 0) s.length = { seconds: s.render.duration_s, from: 'render' };
+    else if (g.capture && pictured === g.capture.id && fromCapture?.seconds !== undefined) s.length = { seconds: fromCapture.seconds, from: 'capture' };
   }
 
   /** The last pictured step of a run's timeline and its scenes' length (memoised by the folder's and timeline's stat). */

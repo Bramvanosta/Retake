@@ -70,6 +70,48 @@ function ThreadRow({ t, slug, name, current }: { t: ThreadItem; slug: string; na
   );
 }
 
+/** The groups shown: under "All", Open then Resolved with their counts (an empty one left out); else one group, untitled. */
+function threadGroups(threads: ThreadItem[], shownFilter: Filter): Array<{ key: string; title: string | null; items: ThreadItem[] }> {
+  return shownFilter === 'all'
+    ? [
+        { key: 'open', title: `Open (${threads.filter((t) => t.status === 'open').length})`, items: threads.filter((t) => t.status === 'open') },
+        { key: 'resolved', title: `Resolved (${threads.filter((t) => t.status !== 'open').length})`, items: threads.filter((t) => t.status !== 'open') },
+      ].filter((g) => g.items.length > 0)
+    : [{ key: shownFilter, title: null, items: threads }];
+}
+
+/** The filters: Open · Resolved · All, and This render only (off while the viewer shows no render). */
+function ListFilters({
+  filter,
+  setFilter,
+  onlyRender,
+  setOnlyRender,
+  noRender,
+}: {
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+  onlyRender: boolean;
+  setOnlyRender: (b: boolean) => void;
+  noRender: boolean;
+}) {
+  return (
+    <div className="cm-list-filters">
+      <Segmented
+        label="Show"
+        size="sm"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: 'open', label: 'Open', testId: 'filter-open' },
+          { value: 'resolved', label: 'Resolved', testId: 'filter-resolved' },
+          { value: 'all', label: 'All', testId: 'filter-all' },
+        ]}
+      />
+      <Switch label="This render only" checked={onlyRender} disabled={noRender} onChange={setOnlyRender} testId="filter-render" />
+    </div>
+  );
+}
+
 /** Memoised: a frame step of the viewer re-renders the screen, never this list (its props are stable). */
 export const ThreadList = memo(function ThreadList(p: {
   slug: string;
@@ -100,14 +142,7 @@ export const ThreadList = memo(function ThreadList(p: {
   // The words describe the list on screen: the filter (and render) it was read with.
   const shownFilter = list.read?.filter ?? p.filter;
   const shownRender = list.read?.render ?? null;
-  const groups: Array<{ key: string; title: string | null; items: ThreadItem[] }> = !d
-    ? []
-    : shownFilter === 'all'
-      ? [
-          { key: 'open', title: `Open (${d.threads.filter((t) => t.status === 'open').length})`, items: d.threads.filter((t) => t.status === 'open') },
-          { key: 'resolved', title: `Resolved (${d.threads.filter((t) => t.status !== 'open').length})`, items: d.threads.filter((t) => t.status !== 'open') },
-        ].filter((g) => g.items.length > 0)
-      : [{ key: shownFilter, title: null, items: d.threads }];
+  const groups = d ? threadGroups(d.threads, shownFilter) : [];
   return (
     <nav className="cm-list" aria-labelledby={h} data-testid="thread-list">
       <h2 id={h} className="cm-list-h">
@@ -118,20 +153,7 @@ export const ThreadList = memo(function ThreadList(p: {
           </span>
         )}
       </h2>
-      <div className="cm-list-filters">
-        <Segmented
-          label="Show"
-          size="sm"
-          value={p.filter}
-          onChange={p.setFilter}
-          options={[
-            { value: 'open', label: 'Open', testId: 'filter-open' },
-            { value: 'resolved', label: 'Resolved', testId: 'filter-resolved' },
-            { value: 'all', label: 'All', testId: 'filter-all' },
-          ]}
-        />
-        <Switch label="This render only" checked={p.onlyRender} disabled={p.render === null} onChange={p.setOnlyRender} testId="filter-render" />
-      </div>
+      <ListFilters filter={p.filter} setFilter={p.setFilter} onlyRender={p.onlyRender} setOnlyRender={p.setOnlyRender} noRender={p.render === null} />
       {list.error !== null ? (
         <Callout state="fail" role="alert" title="The threads cannot be read">
           <p className="cm-pre">

@@ -63,8 +63,7 @@ function isPointSpec(t: unknown): t is { x: number; y: number } {
 
 /** Rewrite a run's timeline with today's edit (see the module comment). Pure. */
 export function replanEdit(input: ReplanEditInput): ReplanEditResult {
-  const { now, then, ctx } = input;
-  const src = input.timeline;
+  const { ctx } = input;
   const changes: string[] = [];
   const warnings: string[] = [];
   /** A changed edit value templated now; `keep` when a token only the take knew is in it. */
@@ -77,11 +76,29 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
       return keep;
     }
   };
+  const r: Replan = { ...input, src: input.timeline, changes, warnings, tpl, thenScene: (id) => input.then.scenes.find((e): e is Scene => isCaptureScene(e) && e.id === id) };
+  const video = replanVideo(r);
+  const scenes = replanScenes(r);
+  const { events, markers } = replanEvents(r);
+  const timeline: Timeline = { ...r.src, video, scenes, events, markers };
+  return { timeline, changes: [...new Set(changes)], warnings };
+}
 
-  // ── Video ───────────────────────────────────────────────────────────────────
+/** What every part of the re-plan reads and adds to. */
+interface Replan extends ReplanEditInput {
+  src: Timeline;
+  changes: string[];
+  warnings: string[];
+  tpl: <T>(value: T, path: (string | number)[], keep: T, where: string) => T;
+  /** The run's snapshot of a capture scene, by id. */
+  thenScene(id: string): Scene | undefined;
+}
+
+/** The video block: today's title, intro / outro, music, tutorial, frame, template, target length, caption component. */
+function replanVideo({ now, then, project, src, changes, tpl }: Replan): TimelineVideo {
   // An older run without a video block: the snapshot's (the planner reads it from there for such a run).
-  const video: TimelineVideo = { ...(src.video ?? timelineVideo(then, input.project)) };
-  const vNow = timelineVideo(now, input.project);
+  const video: TimelineVideo = { ...(src.video ?? timelineVideo(then, project)) };
+  const vNow = timelineVideo(now, project);
   for (const k of ['title', 'intro', 'outro', 'music', 'tutorial'] as const) {
     if (same(now[k], then[k])) continue;
     changes.push(k);
@@ -94,7 +111,7 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
   }
   if (!same(now.template, then.template)) {
     changes.push('template');
-    video.template = now.template ?? input.project.template;
+    video.template = now.template ?? project.template;
   }
   if (now.target_length !== undefined) video.target_length = { ...now.target_length };
   else delete video.target_length;
@@ -102,10 +119,13 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
   if (now.caption_component !== undefined) video.caption_component = now.caption_component;
   else delete video.caption_component;
   if (!same(now.caption_component, then.caption_component)) changes.push('caption_component');
+  return video;
+}
 
-  // ── Scenes, cards, interstitials in today's order ───────────────────────────
+/** Scenes, cards, interstitials in today's order. */
+function replanScenes(r: Replan): TimelineScene[] {
+  const { now, then, src, changes, tpl } = r;
   const thenEntries = then.scenes.map((e, i) => ({ e, id: sceneId(e, i) }));
-  const thenScene = (id: string): Scene | undefined => then.scenes.find((e): e is Scene => isCaptureScene(e) && e.id === id);
   const captured = new Map(src.scenes.filter((s) => s.kind === 'scene').map((s) => [s.id, s]));
   const nowCapture = now.scenes.filter(isCaptureScene);
   // A take that stopped early (--until) holds the first scenes only: today's entries after its last one are left out.
@@ -139,52 +159,61 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
     }
     const ts = captured.get(entry.id);
     if (!ts) continue;
-    const old = thenScene(entry.id);
-    const out: TimelineScene = { ...structuredClone(ts), index: si };
-    const where = `scene "${entry.id}"`;
-    if (!same(entry.caption, old?.caption)) {
-      changes.push(`caption of ${entry.id}`);
-      const c = captionOf(entry.caption);
-      if (c) out.caption = tpl(c, ['scenes', si, 'caption'], ts.caption ?? c, `the caption of ${where}`);
-      else delete out.caption;
-    }
-    for (const k of ['speed', 'transition', 'frame', 'tutorial'] as const) {
-      if (same(entry[k], old?.[k])) continue;
-      changes.push(`${k} of ${entry.id}`);
-      if (entry[k] === undefined) delete out[k];
-      else (out as unknown as Record<string, unknown>)[k] = k === 'speed' || k === 'frame' ? entry[k] : tpl(structuredClone(entry[k]), ['scenes', si, k], ts[k], `the ${k} of ${where}`);
-    }
-    // Off camera: the take played it either way; today's file says whether the video shows it.
-    if (!same(entry.offscreen === true, old?.offscreen === true)) changes.push(`offscreen of ${entry.id}`);
-    if (entry.offscreen === true) out.offscreen = true;
-    else delete out.offscreen;
-    for (const p of scenePageEntries(entry.pages)) if (p.spec.label !== undefined) labels.set(p.id, p.spec.label);
-    if (out.pages) {
-      for (const pg of out.pages) {
-        const label = labels.get(pg.id);
-        const before = ts.pages?.find((x) => x.id === pg.id)?.label;
-        if (label === undefined) delete pg.label;
-        else if (!same(label, scenePageEntries(old?.pages).find((x) => x.id === pg.id)?.spec.label) || before === undefined) {
-          pg.label = tpl(label, ['scenes', si, 'pages', pg.id, 'label'], before ?? label, `the label of page ${pg.id} of ${where}`);
-        }
-      }
-      if (
-        !same(
-          scenePageEntries(entry.pages).map((p) => p.spec.label),
-          scenePageEntries(old?.pages).map((p) => p.spec.label),
-        )
-      )
-        changes.push(`page labels of ${entry.id}`);
-    }
-    scenes.push(out);
+    scenes.push(replanScene(entry, ts, si, labels, r));
     tPrev = ts.t_end;
   }
   // Scenes the take recorded that today's order does not reach (never: the filmed part is the same) stay out.
+  return scenes;
+}
 
-  // ── Steps ──────────────────────────────────────────────────────────────────
+/** A captured scene with today's caption, speed, transition, frame, tutorial switches, `offscreen` and page labels. */
+function replanScene(entry: Scene, ts: TimelineScene, si: number, labels: Map<string, string>, { changes, tpl, thenScene }: Replan): TimelineScene {
+  const old = thenScene(entry.id);
+  const out: TimelineScene = { ...structuredClone(ts), index: si };
+  const where = `scene "${entry.id}"`;
+  if (!same(entry.caption, old?.caption)) {
+    changes.push(`caption of ${entry.id}`);
+    const c = captionOf(entry.caption);
+    if (c) out.caption = tpl(c, ['scenes', si, 'caption'], ts.caption ?? c, `the caption of ${where}`);
+    else delete out.caption;
+  }
+  for (const k of ['speed', 'transition', 'frame', 'tutorial'] as const) {
+    if (same(entry[k], old?.[k])) continue;
+    changes.push(`${k} of ${entry.id}`);
+    if (entry[k] === undefined) delete out[k];
+    else (out as unknown as Record<string, unknown>)[k] = k === 'speed' || k === 'frame' ? entry[k] : tpl(structuredClone(entry[k]), ['scenes', si, k], ts[k], `the ${k} of ${where}`);
+  }
+  // Off camera: the take played it either way; today's file says whether the video shows it.
+  if (!same(entry.offscreen === true, old?.offscreen === true)) changes.push(`offscreen of ${entry.id}`);
+  if (entry.offscreen === true) out.offscreen = true;
+  else delete out.offscreen;
+  for (const p of scenePageEntries(entry.pages)) if (p.spec.label !== undefined) labels.set(p.id, p.spec.label);
+  if (out.pages) {
+    for (const pg of out.pages) {
+      const label = labels.get(pg.id);
+      const before = ts.pages?.find((x) => x.id === pg.id)?.label;
+      if (label === undefined) delete pg.label;
+      else if (!same(label, scenePageEntries(old?.pages).find((x) => x.id === pg.id)?.spec.label) || before === undefined) {
+        pg.label = tpl(label, ['scenes', si, 'pages', pg.id, 'label'], before ?? label, `the label of page ${pg.id} of ${where}`);
+      }
+    }
+    if (
+      !same(
+        scenePageEntries(entry.pages).map((p) => p.spec.label),
+        scenePageEntries(old?.pages).map((p) => p.spec.label),
+      )
+    )
+      changes.push(`page labels of ${entry.id}`);
+  }
+  return out;
+}
+
+/** Steps: each event with today's caption, speed, tutorial switches, id, mark, overlay and camera; the markers rebuilt. */
+function replanEvents(r: Replan): { events: TimelineEvent[]; markers: TimelineMarker[] } {
+  const { now, src } = r;
   const events: TimelineEvent[] = [];
   const markers: TimelineMarker[] = [];
-  const sceneOf = new Map(nowCapture.map((s) => [s.id, s]));
+  const sceneOf = new Map(now.scenes.filter(isCaptureScene).map((s) => [s.id, s]));
   const multiPage = new Set(src.scenes.filter((s) => s.pages && s.pages.length > 0).map((s) => s.id));
   for (const ev0 of src.events) {
     const ev: TimelineEvent = structuredClone(ev0);
@@ -193,59 +222,64 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
     const scene = sceneOf.get(ev.scene);
     const step: Step | undefined = scene?.steps?.[ev.step];
     if (!scene || !step) continue;
-    const before: Step | undefined = thenScene(ev.scene)?.steps?.[ev.step];
-    const key = `${ev.scene}.${ev.step}`;
-    const si = now.scenes.indexOf(scene);
-    const path = (k: string): (string | number)[] => ['scenes', si, 'steps', ev.step, k];
-    if (!same(step.caption, before?.caption)) {
-      changes.push(`caption of ${key}`);
-      const c = captionOf(step.caption);
-      if (c) ev.caption = tpl(c, path('caption'), ev0.caption ?? c, `the caption of step ${key}`);
-      else delete ev.caption;
-    }
-    if (!same(step.speed, before?.speed)) {
-      changes.push(`speed of ${key}`);
-      if (step.speed === undefined) delete ev.speed;
-      else ev.speed = step.speed;
-    }
-    if (!same(step.tutorial, before?.tutorial)) {
-      changes.push(`tutorial of ${key}`);
-      if (step.tutorial === undefined) delete ev.tutorial;
-      else ev.tutorial = tpl(structuredClone(step.tutorial), path('tutorial'), ev0.tutorial ?? structuredClone(step.tutorial), `the tutorial switches of step ${key}`);
-    }
-    if (step.id === undefined) delete ev.id;
-    else ev.id = step.id;
-    if (!same(step.mark, before?.mark)) changes.push(`mark of ${key}`);
-    if (step.mark === undefined) delete ev.mark;
-    else {
-      ev.mark = step.mark;
-      const kept = src.markers.find((m) => m.scene === ev.scene && m.step === ev.step && m.name === step.mark);
-      markers.push(kept ? { ...kept } : { name: step.mark, t: ev.t_start, scene: ev.scene, step: ev.step, ...(multiPage.has(ev.scene) && ev.page ? { page: ev.page } : {}) });
-    }
-    if (!same(step.overlay, before?.overlay)) {
-      changes.push(`overlay of ${key}`);
-      if (step.overlay === undefined) delete ev.overlay;
-      else
-        ev.overlay = overlayOn(
-          ev0,
-          step.overlay,
-          before?.overlay,
-          (v, k, keep) => tpl(v, [...path('overlay'), k], keep, `the overlay of step ${key}`),
-          (w) => warnings.push(`step ${key}: ${w}`),
-        );
-    }
-    if (!same(step.camera, before?.camera)) {
-      changes.push(`camera of ${key}`);
-      if (step.camera === undefined) delete ev.camera;
-      else ev.camera = cameraOn(ev0, step.camera, before?.camera, (w) => warnings.push(`step ${key}: ${w}`));
-    }
+    const marker = replanStep(ev, ev0, step, now.scenes.indexOf(scene), r);
+    if (marker) markers.push(marker.kept ?? { name: marker.name, t: ev.t_start, scene: ev.scene, step: ev.step, ...(multiPage.has(ev.scene) && ev.page ? { page: ev.page } : {}) });
   }
   // Markers of no step (none today) keep their place.
   for (const m of src.markers) if (m.step < 0) markers.push({ ...m });
   markers.sort((a, b) => a.t - b.t);
+  return { events, markers };
+}
 
-  const timeline: Timeline = { ...src, video, scenes, events, markers };
-  return { timeline, changes: [...new Set(changes)], warnings };
+/** One step's event rewritten in place (`ev`, a copy of `ev0`); its mark's name and the take's marker of it, if any. */
+function replanStep(ev: TimelineEvent, ev0: TimelineEvent, step: Step, si: number, { src, changes, warnings, tpl, thenScene }: Replan): { name: string; kept?: TimelineMarker } | null {
+  const before: Step | undefined = thenScene(ev.scene)?.steps?.[ev.step];
+  const key = `${ev.scene}.${ev.step}`;
+  const path = (k: string): (string | number)[] => ['scenes', si, 'steps', ev.step, k];
+  if (!same(step.caption, before?.caption)) {
+    changes.push(`caption of ${key}`);
+    const c = captionOf(step.caption);
+    if (c) ev.caption = tpl(c, path('caption'), ev0.caption ?? c, `the caption of step ${key}`);
+    else delete ev.caption;
+  }
+  if (!same(step.speed, before?.speed)) {
+    changes.push(`speed of ${key}`);
+    if (step.speed === undefined) delete ev.speed;
+    else ev.speed = step.speed;
+  }
+  if (!same(step.tutorial, before?.tutorial)) {
+    changes.push(`tutorial of ${key}`);
+    if (step.tutorial === undefined) delete ev.tutorial;
+    else ev.tutorial = tpl(structuredClone(step.tutorial), path('tutorial'), ev0.tutorial ?? structuredClone(step.tutorial), `the tutorial switches of step ${key}`);
+  }
+  if (step.id === undefined) delete ev.id;
+  else ev.id = step.id;
+  if (!same(step.mark, before?.mark)) changes.push(`mark of ${key}`);
+  let marker: { name: string; kept?: TimelineMarker } | null = null;
+  if (step.mark === undefined) delete ev.mark;
+  else {
+    ev.mark = step.mark;
+    const kept = src.markers.find((m) => m.scene === ev.scene && m.step === ev.step && m.name === step.mark);
+    marker = kept ? { name: step.mark, kept: { ...kept } } : { name: step.mark };
+  }
+  if (!same(step.overlay, before?.overlay)) {
+    changes.push(`overlay of ${key}`);
+    if (step.overlay === undefined) delete ev.overlay;
+    else
+      ev.overlay = overlayOn(
+        ev0,
+        step.overlay,
+        before?.overlay,
+        (v, k, keep) => tpl(v, [...path('overlay'), k], keep, `the overlay of step ${key}`),
+        (w) => warnings.push(`step ${key}: ${w}`),
+      );
+  }
+  if (!same(step.camera, before?.camera)) {
+    changes.push(`camera of ${key}`);
+    if (step.camera === undefined) delete ev.camera;
+    else ev.camera = cameraOn(ev0, step.camera, before?.camera, (w) => warnings.push(`step ${key}: ${w}`));
+  }
+  return marker;
 }
 
 /** The box and point the take measured for a step, as an anchor: its target box, else the cursor at its end. */

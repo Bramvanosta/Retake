@@ -44,6 +44,35 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+/** The pages of a signed-in account (each a 200): the clock, the landing page, the self-routing ones, the app. */
+function signedInPage(path: string, url: URL, account: Account): string {
+  // The browser's clock: which year the page reads.
+  if (path === '/clock') {
+    return page('Clock', `<h1>Signed in as ${account.name}</h1><p id="y"></p><script>document.getElementById('y').textContent = 'Year ' + new Date().getFullYear()</script>`);
+  }
+  // The page a sign-in lands on (next=/welcome): it writes as it loads, like a product's "last seen" ping.
+  if (path === '/welcome') {
+    return page('Welcome', `<h1>Signed in as ${account.name}</h1><script>fetch('/api/last-seen', { method: 'PUT', body: '{}' }); navigator.sendBeacon('/api/onboarding', 'done');</script>`);
+  }
+  // A page that routes itself to the sign-in page after `?ms=` (default 800): a session lost while nobody acts.
+  if (path === '/later') {
+    const ms = Number(url.searchParams.get('ms') ?? 800);
+    return page(
+      'Later',
+      `<h1>Signed in as ${account.name}</h1><script>setTimeout(() => { history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'; }, ${ms});</script>`,
+    );
+  }
+  if (path === '/spa') {
+    return page('App', `<h1>Signed in as ${account.name}</h1><button onclick="history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'">Leave</button>`);
+  }
+  return page(
+    'App',
+    `<h1>Signed in as ${account.name}</h1><p>Page ${path}</p><a href="/quotes">Quotes</a> <a href="/home">Home</a>
+        <a href="/document" target="_blank">Document</a>
+        <button onclick="fetch('/expire', { method: 'POST' }).then(() => { document.querySelector('p').textContent = 'expired' })">Expire</button>`,
+  );
+}
+
 export async function startAuthServer(): Promise<AuthServer> {
   const sessions = new Map<string, string>();
   let pings = 0;
@@ -103,44 +132,7 @@ export async function startAuthServer(): Promise<AuthServer> {
     // Never answers (a check that hangs; closing the server ends it).
     if (path === '/hang') return;
     if (!who) return html(302, '', { location: `/sign-in?next=${encodeURIComponent(path + url.search)}` });
-    const account = ACCOUNTS[who];
-    // The browser's clock: which year the page reads.
-    if (path === '/clock') {
-      return html(200, page('Clock', `<h1>Signed in as ${account.name}</h1><p id="y"></p><script>document.getElementById('y').textContent = 'Year ' + new Date().getFullYear()</script>`));
-    }
-    // The page a sign-in lands on (next=/welcome): it writes as it loads, like a product's "last seen" ping.
-    if (path === '/welcome') {
-      return html(
-        200,
-        page('Welcome', `<h1>Signed in as ${account.name}</h1><script>fetch('/api/last-seen', { method: 'PUT', body: '{}' }); navigator.sendBeacon('/api/onboarding', 'done');</script>`),
-      );
-    }
-    // A page that routes itself to the sign-in page after `?ms=` (default 800): a session lost while nobody acts.
-    if (path === '/later') {
-      const ms = Number(url.searchParams.get('ms') ?? 800);
-      return html(
-        200,
-        page(
-          'Later',
-          `<h1>Signed in as ${account.name}</h1><script>setTimeout(() => { history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'; }, ${ms});</script>`,
-        ),
-      );
-    }
-    if (path === '/spa') {
-      return html(
-        200,
-        page('App', `<h1>Signed in as ${account.name}</h1><button onclick="history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'">Leave</button>`),
-      );
-    }
-    return html(
-      200,
-      page(
-        'App',
-        `<h1>Signed in as ${account.name}</h1><p>Page ${path}</p><a href="/quotes">Quotes</a> <a href="/home">Home</a>
-        <a href="/document" target="_blank">Document</a>
-        <button onclick="fetch('/expire', { method: 'POST' }).then(() => { document.querySelector('p').textContent = 'expired' })">Expire</button>`,
-      ),
-    );
+    return html(200, signedInPage(path, url, ACCOUNTS[who]));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;

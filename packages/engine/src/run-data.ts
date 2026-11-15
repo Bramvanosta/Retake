@@ -122,17 +122,31 @@ export class RunData {
   readonly scenes = new Map<string, TimelineScene>();
   readonly events = new Map<string, TimelineEvent>();
 
-  constructor(
-    readonly folder: RunFolder,
-    /** Signature of the files read (a change re-reads the run). */
-    readonly sig: string,
-    readonly record: RunRecordOnDisk | undefined,
-    readonly timeline: Timeline | undefined,
-    /** The run's `scenario.yaml` (undefined: missing, a link, too large, unreadable). */
-    readonly snapshot: string | undefined,
-    /** File names of screenshots/ (empty when it is missing or a link). */
-    readonly screenshots: ReadonlySet<string>,
-  ) {
+  readonly folder: RunFolder;
+  /** Signature of the files read (a change re-reads the run). */
+  readonly sig: string;
+  readonly record: RunRecordOnDisk | undefined;
+  readonly timeline: Timeline | undefined;
+  /** The run's `scenario.yaml` (undefined: missing, a link, too large, unreadable). */
+  readonly snapshot: string | undefined;
+  /** File names of screenshots/ (empty when it is missing or a link). */
+  readonly screenshots: ReadonlySet<string>;
+
+  constructor(o: {
+    folder: RunFolder;
+    sig: string;
+    record: RunRecordOnDisk | undefined;
+    timeline: Timeline | undefined;
+    snapshot: string | undefined;
+    screenshots: ReadonlySet<string>;
+  }) {
+    this.folder = o.folder;
+    this.sig = o.sig;
+    this.record = o.record;
+    this.timeline = o.timeline;
+    this.snapshot = o.snapshot;
+    this.screenshots = o.screenshots;
+    const timeline = o.timeline;
     for (const s of timeline?.scenes ?? []) if (isObj(s) && typeof s.id === 'string' && !this.scenes.has(s.id)) this.scenes.set(s.id, s);
     for (const e of timeline?.events ?? []) {
       // scene_open, scene_still and notifications have step −1: they belong to no step.
@@ -252,7 +266,7 @@ export class RunDataCache {
     const record = recordValue === undefined ? undefined : listedRecord(parseRunRecord(recordValue));
     const read = timelineValue === undefined ? undefined : parseTimeline(timelineValue);
     const timeline = read?.ok ? read.value : undefined;
-    return new RunData(folder, sig, record, timeline, snap.ok ? snap.bytes.toString('utf8') : undefined, new Set(shots ?? []));
+    return new RunData({ folder, sig, record, timeline, snapshot: snap.ok ? snap.bytes.toString('utf8') : undefined, screenshots: new Set(shots ?? []) });
   }
 }
 

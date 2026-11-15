@@ -13,7 +13,7 @@
  * keyCode 229 (WebKit — the desktop app's view — can end a composition with `isComposing` false).
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode, RefObject } from 'react';
 import { Kbd } from './Button.js';
 import { Icon } from './Icon.js';
 import type { IconName } from './Icon.js';
@@ -75,30 +75,7 @@ export function CommandPalette({
   // Closed, it holds no option (a hidden `[role=option][aria-selected]` would answer a screen's own queries).
   const hits = useMemo(() => (open ? filterCommands(commands, query) : []), [open, commands, query]);
   const optId = (c: Command) => `${base}-o-${c.id}`;
-  // The `close` events still to come of closings the palette made itself (the focus went back when it closed).
-  const ownCloses = useRef(0);
-  // Stable (reads the opener ref only): the effect below runs on `open` alone.
-  const giveBack = useCallback(() => {
-    const back = opener.current;
-    opener.current = null;
-    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then.
-    (back?.isConnected ? back : document.getElementById('main'))?.focus();
-  }, []);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) {
-      opener.current = document.activeElement as HTMLElement | null;
-      setQuery('');
-      setActive(0);
-      d.showModal();
-      input.current?.focus();
-    } else if (!open && d.open) {
-      ownCloses.current += 1;
-      d.close();
-      giveBack();
-    }
-  }, [open, giveBack]);
+  const onDialogClose = usePaletteDialog({ open, ref, input, opener, setQuery, setActive });
   useEffect(() => {
     if (active >= hits.length) setActive(Math.max(0, hits.length - 1));
   }, [active, hits.length]);
@@ -125,17 +102,6 @@ export function CommandPalette({
       runAt(active);
     }
   };
-  const onDialogClose = () => {
-    if (ownCloses.current > 0) {
-      ownCloses.current -= 1;
-      return;
-    }
-    // The platform closed it (an Escape the page may not refuse). A close event of an earlier closing that lands after
-    // the palette opened again is not this one's (it would take the opener away from the closing to come).
-    if (ref.current?.open) return;
-    giveBack();
-  };
-  const groups = [...new Set(hits.map((c) => c.group))];
   const current = hits[active];
   return (
     <dialog
@@ -151,30 +117,78 @@ export function CommandPalette({
       <label className="k-sr" htmlFor={`${base}-input`}>
         Command
       </label>
-      <div className="k-palette-field">
-        <input
-          ref={input}
-          id={`${base}-input`}
-          className="k-palette-input"
-          role="combobox"
-          aria-expanded={hits.length > 0}
-          aria-controls={`${base}-list`}
-          aria-autocomplete="list"
-          aria-activedescendant={current ? optId(current) : undefined}
-          placeholder={placeholder}
-          value={query}
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(e) => {
-            setQuery(e.currentTarget.value);
-            setActive(0);
-          }}
-          onKeyDown={onKey}
-        />
-        <span className="k-palette-esc" aria-hidden="true">
-          <Kbd keys={['Esc']} />
-        </span>
-      </div>
+      <PaletteField
+        base={base}
+        input={input}
+        expanded={hits.length > 0}
+        activeId={current ? optId(current) : undefined}
+        placeholder={placeholder}
+        query={query}
+        onQuery={(q) => {
+          setQuery(q);
+          setActive(0);
+        }}
+        onKey={onKey}
+      />
+      <PaletteOptions base={base} hits={hits} current={current} optId={optId} runAt={runAt} />
+      <p className="k-palette-none" role="status">
+        {open && hits.length === 0 ? 'Nothing matches' : ''}
+      </p>
+      <PaletteLegend footnote={footnote} />
+    </dialog>
+  );
+}
+
+/** The palette's field: the combobox the focus stays in (it drives the listbox), and Esc's key cap. */
+function PaletteField({
+  base,
+  input,
+  expanded,
+  activeId,
+  placeholder,
+  query,
+  onQuery,
+  onKey,
+}: {
+  base: string;
+  input: RefObject<HTMLInputElement | null>;
+  expanded: boolean;
+  activeId: string | undefined;
+  placeholder: string;
+  query: string;
+  onQuery: (q: string) => void;
+  onKey: (e: KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="k-palette-field">
+      <input
+        ref={input}
+        id={`${base}-input`}
+        className="k-palette-input"
+        role="combobox"
+        aria-expanded={expanded}
+        aria-controls={`${base}-list`}
+        aria-autocomplete="list"
+        aria-activedescendant={activeId}
+        placeholder={placeholder}
+        value={query}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => onQuery(e.currentTarget.value)}
+        onKeyDown={onKey}
+      />
+      <span className="k-palette-esc" aria-hidden="true">
+        <Kbd keys={['Esc']} />
+      </span>
+    </div>
+  );
+}
+
+/** The listbox of the options listed, in their labelled groups; the active one marked (the combobox points at it). */
+function PaletteOptions({ base, hits, current, optId, runAt }: { base: string; hits: Command[]; current: Command | undefined; optId: (c: Command) => string; runAt: (i: number) => void }) {
+  const groups = [...new Set(hits.map((c) => c.group))];
+  return (
+    <>
       {/* Never a tab stop of its own (a long list scrolls: Chromium would make the scroller focusable) — the combobox drives it. */}
       <div id={`${base}-list`} role="listbox" aria-label="Commands" className="k-palette-list" tabIndex={-1}>
         {groups.map((g, gi) => (
@@ -213,21 +227,79 @@ export function CommandPalette({
           </div>
         ))}
       </div>
-      <p className="k-palette-none" role="status">
-        {open && hits.length === 0 ? 'Nothing matches' : ''}
-      </p>
-      <p className="k-palette-legend">
-        <span className="k-palette-legend-item">
-          <Kbd keys={['↑', '↓']} /> Move
-        </span>
-        <span className="k-palette-legend-item">
-          <Kbd keys={['Return']} /> Run
-        </span>
-        <span className="k-palette-legend-item">
-          <Kbd keys={['Esc']} /> Close
-        </span>
-        {footnote !== undefined && <span className="k-palette-legend-note">{shown(footnote)}</span>}
-      </p>
-    </dialog>
+    </>
   );
+}
+
+/** The footer legend: the keys, and the caller's footnote. */
+function PaletteLegend({ footnote }: { footnote?: ReactNode }) {
+  return (
+    <p className="k-palette-legend">
+      <span className="k-palette-legend-item">
+        <Kbd keys={['↑', '↓']} /> Move
+      </span>
+      <span className="k-palette-legend-item">
+        <Kbd keys={['Return']} /> Run
+      </span>
+      <span className="k-palette-legend-item">
+        <Kbd keys={['Esc']} /> Close
+      </span>
+      {footnote !== undefined && <span className="k-palette-legend-note">{shown(footnote)}</span>}
+    </p>
+  );
+}
+
+/**
+ * The dialog shown (modal, the query cleared, the focus in the field) while `open`, closed when not — the focus given
+ * back at once; the answer is the `close` handler, for a closing the platform made (an Escape).
+ */
+function usePaletteDialog({
+  open,
+  ref,
+  input,
+  opener,
+  setQuery,
+  setActive,
+}: {
+  open: boolean;
+  ref: RefObject<HTMLDialogElement | null>;
+  input: RefObject<HTMLInputElement | null>;
+  opener: RefObject<HTMLElement | null>;
+  setQuery: (q: string) => void;
+  setActive: (i: number) => void;
+}): () => void {
+  // The `close` events still to come of closings the palette made itself (the focus went back when it closed).
+  const ownCloses = useRef(0);
+  // Stable (reads the opener ref only): the effect below runs on `open` alone.
+  const giveBack = useCallback(() => {
+    const back = opener.current;
+    opener.current = null;
+    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then.
+    (back?.isConnected ? back : document.getElementById('main'))?.focus();
+  }, [opener]);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) {
+      opener.current = document.activeElement as HTMLElement | null;
+      setQuery('');
+      setActive(0);
+      d.showModal();
+      input.current?.focus();
+    } else if (!open && d.open) {
+      ownCloses.current += 1;
+      d.close();
+      giveBack();
+    }
+  }, [open, giveBack, ref, input, opener, setQuery, setActive]);
+  return () => {
+    if (ownCloses.current > 0) {
+      ownCloses.current -= 1;
+      return;
+    }
+    // The platform closed it (an Escape the page may not refuse). A close event of an earlier closing that lands after
+    // the palette opened again is not this one's (it would take the opener away from the closing to come).
+    if (ref.current?.open) return;
+    giveBack();
+  };
 }

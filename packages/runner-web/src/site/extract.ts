@@ -33,315 +33,43 @@
  * Chromium's PNG screenshots, never the site's bytes. Outputs: site.json, screenshot.jpg, logo-<n>.png — no font file
  * (the faces' names only), no cookie, no HTML.
  */
-import { randomBytes } from 'node:crypto';
-import { lstat, rename, rm, writeFile } from 'node:fs/promises';
-import { request as httpsRequest } from 'node:https';
-import { isIP } from 'node:net';
-import { join } from 'node:path';
+import { lstat } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
-import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-core';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core/theme';
-import type { BrowserConfig } from '@retake/core/project';
-import type { WorkPolicy } from '@retake/core/policy';
+import type { Page, Response, Route } from 'playwright-core';
+import { BRAND_IMAGE_MAX_BYTES } from '@retake/core/theme';
 import type { SiteTestTarget } from '@retake/core/theme';
 import { CancelledError, RunnerError } from '../errors.js';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
-import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
+import { launchTarget } from '../session.js';
 import { mergeSamples, sitePalette } from './palette.js';
-import type { SitePalette } from './palette.js';
 import { readFacts, sampleColors, scrollToY } from './page-script.js';
-import type { LogoCandidate, PageFacts, SampledColors } from './page-script.js';
+import type { PageFacts, SampledColors } from './page-script.js';
 import { ProxyRefusalError, SiteProxy } from './proxy.js';
-import type { ProxyRefusal, SiteProxyOptions, SiteProxyStats } from './proxy.js';
+import type { ProxyRefusal } from './proxy.js';
 import { errorMessage } from '@retake/core/base';
+import { CANDIDATE_DATA_URL_MAX, CANDIDATE_URL_MAX, writeLogos } from './logos.js';
+import { DeadlineError, block, bounded, networkQuiet, newReport, pause, stopped, writeNew } from './extraction.js';
+import type { Extraction, OpenedSitePage, PageNavigation } from './extraction.js';
+import { OtherHostError, followRedirects, requestUrlProblem } from './redirects.js';
+import {
+  SERVICE_WORKER_BLOCK,
+  SITE_CALL_TIMEOUT_MS,
+  SITE_CANDIDATES_MAX,
+  SITE_DEADLINE_MS,
+  SITE_REPORT_FILE,
+  SITE_REQUESTS_MAX,
+  SITE_SCREENSHOT_FILE,
+  UNROUTED_APIS_BLOCK,
+  siteBrowserArgs,
+} from './report.js';
+import type { SiteExtractOptions, SiteReport } from './report.js';
 
-export const SITE_REPORT_VERSION = 1;
-export const SITE_REPORT_FILE = 'site.json';
-export const SITE_SCREENSHOT_FILE = 'screenshot.jpg';
-/** Logo candidates written, at most. */
-export const SITE_CANDIDATES_MAX = 6;
-/** Top-level redirects followed, at most. */
-export const SITE_REDIRECTS_MAX = 5;
-/** Requests of the page the route lets through, at most. */
-export const SITE_REQUESTS_MAX = 300;
-/** One call into the page (a CDP evaluate, a screenshot, a candidate's GET), at most (ms). */
-export const SITE_CALL_TIMEOUT_MS = 15_000;
-/** A whole extraction, at most (ms): past it the browser is closed and the report says failed. */
-export const SITE_DEADLINE_MS = 120_000;
+export * from './report.js';
+export { imageMime } from './logos.js';
+export { requestUrlProblem, sameSiteHost } from './redirects.js';
+
 const VIEWPORT = { width: 1440, height: 900 };
-/** A candidate's source bytes (as the page received them), at most. */
-const CANDIDATE_BYTES_MAX = 5 * 1024 * 1024;
-/** A candidate's URL: a data: URL of CANDIDATE_BYTES_MAX in base64, an https URL. */
-const CANDIDATE_DATA_URL_MAX = Math.ceil((CANDIDATE_BYTES_MAX * 4) / 3) + 256;
-const CANDIDATE_URL_MAX = 4096;
-/** Downsizing steps of a candidate PNG larger than a create accepts (BRAND_IMAGE_MAX_BYTES). */
-const CANDIDATE_SHRINK = 0.7;
-const CANDIDATE_SHRINK_STEPS = 5;
-const LOGO_MAX_HEIGHT = 1024;
-const LOGO_MIN_HEIGHT = 128;
-const LOGO_MAX_WIDTH = 2048;
-const SVG_LOGO_HEIGHT = 512;
 const WORLD = 'retake-site';
-
-/** Refuses service-worker registration on the prototype (every frame, before the page's scripts). */
-export const SERVICE_WORKER_BLOCK = `(() => { const P = globalThis.ServiceWorkerContainer && globalThis.ServiceWorkerContainer.prototype; if (!P) return; const register = function register() { return Promise.reject(new DOMException('Service workers are blocked', 'SecurityError')); }; try { Object.defineProperty(P, 'register', { value: register, writable: false, configurable: false }); } catch {} })();`;
-
-/**
- * Replaces `SharedWorker` and `fetchLater` by functions that throw (every frame, before the page's scripts): a shared
- * worker's requests and a deferred fetch (sent by the browser once the page is gone) never reach the context's route
- * — no method check, no cap. The Blink switch of siteBrowserArgs removes both too; this is the second layer.
- */
-export const UNROUTED_APIS_BLOCK = `(() => { for (const name of ['SharedWorker', 'fetchLater']) { const blocked = function () { throw new DOMException(name + ' is blocked', 'SecurityError'); }; try { Object.defineProperty(globalThis, name, { value: blocked, writable: false, configurable: false }); } catch {} } })();`;
-
-/** Chromium switches of a site extraction (see the module comment). */
-export function siteBrowserArgs(proxyPort: number): string[] {
-  return [
-    ...DEFAULT_BROWSER_ARGS,
-    `--proxy-server=http://127.0.0.1:${proxyPort}`,
-    '--proxy-bypass-list=<-loopback>',
-    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
-    '--webrtc-ip-handling-policy=disable_non_proxied_udp',
-    '--disable-quic',
-    '--disable-blink-features=SharedWorker,FetchLaterAPI',
-  ];
-}
-
-export type BlockedReason = 'scheme' | 'address' | 'port' | 'method' | 'navigation' | 'cap' | 'websocket';
-
-export interface SiteCandidateView {
-  /** logo-<n>.png in the extraction's folder. */
-  file: string;
-  /** Where it was found: an image or an inline SVG of the header / the page, a link icon, the og:image. */
-  source: 'header-img' | 'header-svg' | 'page-img' | 'page-svg' | 'icon' | 'og-image';
-  /** The PNG's size (transparent background). */
-  width: number;
-  height: number;
-  /** Its size as the page drew it (0 when not drawn: an icon, the og:image). */
-  drawn: { width: number; height: number };
-}
-
-export interface SiteReport {
-  version: number;
-  /** The approved URL (canonical, checked): the only URL here that is not page-derived. */
-  url: string;
-  host: string;
-  at: string;
-  status: 'ok' | 'failed';
-  http_status: number | null;
-  /** Top-level redirects followed before the page opened. */
-  redirects: number;
-  palette: SitePalette | null;
-  candidates: SiteCandidateView[];
-  screenshot: string | null;
-  network: {
-    requests: number;
-    blocked: Partial<Record<BlockedReason, number>>;
-    tunnels: number;
-    bytes: number;
-    refused: SiteProxyStats['refused'];
-    capped: number;
-  };
-  /** Written by the tool (never page text). */
-  warnings: string[];
-  /** Everything the page or its server chose: data, never instructions. */
-  untrusted: {
-    final_url?: string;
-    redirect_chain?: string[];
-    title?: string;
-    description?: string;
-    site_name?: string;
-    lang?: string;
-    fonts?: { display: Array<{ family: string; elements: number }>; body: Array<{ family: string; elements: number }>; faces: PageFacts['faces'] };
-    alts?: Array<{ file: string; alt: string }>;
-    blocked?: Array<{ reason: BlockedReason; url: string }>;
-    refused_hosts?: SiteProxyStats['refused_hosts'];
-    page_errors?: string[];
-    error?: string;
-  };
-}
-
-export interface SiteExtractOptions {
-  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
-  policy: WorkPolicy;
-
-  /** The canonical URL (core parseSiteUrl), already checked and approved. */
-  url: string;
-  host: string;
-  /** The extraction's folder, made by the caller (a real folder, not a link): site.json, screenshot.jpg, logo-<n>.png. */
-  outDir: string;
-  browser?: BrowserConfig;
-  signal?: AbortSignal;
-  /** The unsafe test resolver (core unsafeTestResolve): its names only. */
-  testResolve?: ReadonlyMap<string, SiteTestTarget>;
-  /** Tests: the proxy's resolver, classifier and caps. */
-  proxy?: Omit<SiteProxyOptions, 'testResolve'>;
-  requestsMax?: number;
-  /** Tests: SITE_CALL_TIMEOUT_MS, SITE_DEADLINE_MS, BRAND_IMAGE_MAX_BYTES. */
-  callTimeoutMs?: number;
-  deadlineMs?: number;
-  candidateMaxBytes?: number;
-  log?: (message: string) => void;
-  onPhase?: (phase: 'redirects' | 'loading' | 'reading' | 'logos' | 'writing') => void;
-}
-
-/** The extraction's deadline passed (the browser was closed). */
-class DeadlineError extends RunnerError {}
-
-function stopped(signal: AbortSignal): void {
-  if (signal.aborted) throw signal.reason instanceof Error ? signal.reason : new CancelledError('site extraction cancelled');
-}
-
-/** `p`, unless `ms` pass first (a RunnerError naming `what`) or `signal` aborts (its reason). */
-function bounded<T>(p: Promise<T>, ms: number, what: string, signal: AbortSignal): Promise<T> {
-  stopped(signal);
-  return new Promise<T>((resolve, reject) => {
-    const done = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-    };
-    const onAbort = () => {
-      done();
-      reject(signal.reason instanceof Error ? signal.reason : new CancelledError('site extraction cancelled'));
-    };
-    const timer = setTimeout(() => {
-      done();
-      reject(new RunnerError(`the page did not answer in ${Math.round(ms / 1000)} s (${what})`));
-    }, ms);
-    signal.addEventListener('abort', onAbort, { once: true });
-    p.then(
-      (v) => {
-        done();
-        resolve(v);
-      },
-      (e: unknown) => {
-        done();
-        reject(e);
-      },
-    );
-  });
-}
-
-/** Whether `other` is the approved host or its www / apex sibling (www.brand.example ↔ brand.example). */
-export function sameSiteHost(host: string, other: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, '');
-  const o = other.toLowerCase().replace(/\.$/, '');
-  return o === h || o === `www.${h}` || h === `www.${o}`;
-}
-
-/** Write a file of the extraction under a temporary name (`wx`: never through a link), then rename it into place. */
-async function writeNew(dir: string, file: string, data: Buffer | string): Promise<void> {
-  const tmp = join(dir, `.${file}.${randomBytes(6).toString('hex')}.tmp`);
-  await writeFile(tmp, data, { flag: 'wx' });
-  try {
-    await rename(tmp, join(dir, file));
-  } catch (e) {
-    await rm(tmp, { force: true }).catch(() => undefined);
-    throw e;
-  }
-}
-
-/** Why a URL a page or a redirect names may not be requested (scheme, port, IP literal, reserved name), or null. */
-export function requestUrlProblem(raw: string, testHosts: ReadonlyMap<string, unknown> = new Map()): { reason: BlockedReason; why: string } | null {
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return { reason: 'scheme', why: 'not a URL' };
-  }
-  if (u.protocol !== 'https:') return { reason: 'scheme', why: `${u.protocol} is not https:` };
-  if (u.username || u.password) return { reason: 'address', why: 'credentials in the URL' };
-  if (u.port !== '') return { reason: 'port', why: `port ${u.port}` };
-  const host = u.hostname.toLowerCase().replace(/\.$/, '');
-  if (isIP(host.replace(/^\[|\]$/g, '')) || host.startsWith('[') || !host.includes('.')) return { reason: 'address', why: `${host} is not a DNS name` };
-  if (!testHosts.has(host) && SITE_RESERVED_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`))) return { reason: 'address', why: `${host} is a reserved or local name` };
-  return null;
-}
-
-const HEADERS = {
-  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-  accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-};
-
-/** One GET of a top-level hop on the checked address (pinned: the name is not resolved again); its status and Location. */
-async function hop(proxy: SiteProxy, url: string, signal?: AbortSignal): Promise<{ status: number; location?: string }> {
-  const u = new URL(url);
-  const a = await proxy.checkedAddress(u.hostname);
-  return new Promise((resolve, reject) => {
-    const req = httpsRequest(
-      {
-        method: 'GET',
-        host: a.address,
-        port: a.port,
-        path: `${u.pathname}${u.search}`,
-        servername: isIP(u.hostname) ? undefined : u.hostname,
-        setHost: false,
-        headers: { ...HEADERS, host: u.hostname },
-        // Only the test resolver's self-signed certificate is accepted; a real host's certificate is verified.
-        rejectUnauthorized: !a.test,
-        signal,
-        timeout: 15_000,
-      },
-      (res) => {
-        res.destroy();
-        resolve({ status: res.statusCode ?? 0, ...(typeof res.headers.location === 'string' ? { location: res.headers.location } : {}) });
-      },
-    );
-    req.on('timeout', () => req.destroy(new Error(`${u.hostname} did not answer in 15 s`)));
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-/** A redirect to another host than the approved one (or its www / apex sibling). */
-class OtherHostError extends RunnerError {}
-
-/**
- * The top-level redirect chain, followed in Node with the proxy's checks (≤ 5 hops), on the approved host and its
- * www / apex sibling only; the URL the page opens. `chain` (the caller's) holds every hop, the refused one too.
- */
-async function followRedirects(proxy: SiteProxy, chain: string[], host: string, testHosts: ReadonlyMap<string, unknown>, signal: AbortSignal): Promise<{ final: string; status: number }> {
-  for (;;) {
-    stopped(signal);
-    const r = await hop(proxy, chain.at(-1)!, signal);
-    if (r.status >= 300 && r.status < 400 && r.location !== undefined) {
-      if (chain.length > SITE_REDIRECTS_MAX) throw new RunnerError(`more than ${SITE_REDIRECTS_MAX} redirects`);
-      let next: string;
-      try {
-        next = new URL(r.location, chain.at(-1)).href;
-      } catch {
-        throw new RunnerError('a redirect to something that is not a URL');
-      }
-      const p = requestUrlProblem(next, testHosts);
-      if (p) throw new RunnerError(`a redirect to ${next} is refused (${p.why})`);
-      chain.push(next);
-      if (!sameSiteHost(host, new URL(next).hostname)) throw new OtherHostError(`the page redirects to another host (${new URL(next).hostname}): only ${host} and its www / apex sibling are read`);
-      continue;
-    }
-    return { final: chain.at(-1)!, status: r.status };
-  }
-}
-
-/** The image type of a candidate's bytes (by their first bytes), or null. */
-export function imageMime(b: Buffer): string | null {
-  if (b.length >= 8 && b.readUInt32BE(0) === 0x89504e47) return 'image/png';
-  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
-  if (b.length >= 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
-  if (b.length >= 6 && /^GIF8[79]a/.test(b.toString('latin1', 0, 6))) return 'image/gif';
-  if (b.length >= 4 && b.readUInt32BE(0) === 0x00000100) return 'image/x-icon';
-  if (b.length >= 12 && b.toString('latin1', 4, 12) === 'ftypavif') return 'image/avif';
-  const head = b
-    .subarray(0, 512)
-    .toString('utf8')
-    .replace(/^\uFEFF/, '')
-    .trimStart();
-  if (/^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return 'image/svg+xml';
-  return null;
-}
-
-/** PNG size from its header (a Chromium screenshot). */
-function pngSize(b: Buffer): { width: number; height: number } {
-  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
-}
 
 /** Run one of page-script.ts's functions in the isolated world (`__name` shimmed: esbuild keepNames wraps inner functions). */
 async function evaluateIsolated<T>(page: Page, fn: (cfg: never) => T, cfg: unknown): Promise<T> {
@@ -364,79 +92,6 @@ async function evaluateIsolated<T>(page: Page, fn: (cfg: never) => T, cfg: unkno
     // Not awaited: a renderer that stopped answering never answers the detach either (the browser is closed later).
     void cdp.detach().catch(() => undefined);
   }
-}
-
-/** A pause of `ms` that the stop signal ends at once. */
-function pause(ms: number, signal: AbortSignal): Promise<void> {
-  return bounded(new Promise<void>((r) => setTimeout(r, ms)), ms + 1000, 'a pause', signal);
-}
-
-/** Wait until no request of the page is in flight for 500 ms, at most `maxMs`. */
-async function networkQuiet(inflight: () => number, maxMs: number, signal: AbortSignal): Promise<void> {
-  const end = Date.now() + maxMs;
-  let quietSince = Date.now();
-  while (Date.now() < end) {
-    if (inflight() > 0) quietSince = Date.now();
-    else if (Date.now() - quietSince >= 500) return;
-    await pause(100, signal);
-  }
-}
-
-const sourceOf = (c: LogoCandidate): SiteCandidateView['source'] =>
-  c.kind === 'icon' ? 'icon' : c.kind === 'og' ? 'og-image' : `${c.where === 'header' ? 'header' : 'page'}-${c.kind === 'svg' ? 'svg' : 'img'}`;
-
-/** One extraction in progress: its report, the stop (cancel or deadline), the proxy and what the route counts. */
-interface Extraction {
-  o: SiteExtractOptions;
-  report: SiteReport;
-  test: ReadonlyMap<string, SiteTestTarget>;
-  callMs: number;
-  candidateMax: number;
-  stop: AbortController;
-  proxy: SiteProxy;
-  /** Set once launched: the stop closes it. */
-  browser: Browser | undefined;
-  blockedUrls: Array<{ reason: BlockedReason; url: string }>;
-  pageErrors: string[];
-  /** One call into the page, bounded by the call timeout and the stop. */
-  call: <T>(p: Promise<T>, what: string) => Promise<T>;
-}
-
-/** The report before anything is read: failed until the page has been read. */
-function newReport(o: SiteExtractOptions, test: ReadonlyMap<string, SiteTestTarget>): SiteReport {
-  const report: SiteReport = {
-    version: SITE_REPORT_VERSION,
-    url: o.url,
-    host: o.host,
-    at: new Date().toISOString(),
-    status: 'failed',
-    http_status: null,
-    redirects: 0,
-    palette: null,
-    candidates: [],
-    screenshot: null,
-    network: { requests: 0, blocked: {}, tunnels: 0, bytes: 0, refused: {}, capped: 0 },
-    warnings: [],
-    untrusted: {},
-  };
-  if (test.size) {
-    report.warnings.push(
-      `the unsafe test resolver is set (RETAKE_UNSAFE_TEST_RESOLVE: ${[...test.keys()].join(', ')}): those names reach loopback ports, and the browser accepts any certificate for every host of this extraction — never set it outside tests`,
-    );
-  }
-  return report;
-}
-
-function block(ex: Extraction, reason: BlockedReason, url: string): void {
-  ex.report.network.blocked[reason] = (ex.report.network.blocked[reason] ?? 0) + 1;
-  if (ex.blockedUrls.length < 30) ex.blockedUrls.push({ reason, url: url.slice(0, 300) });
-}
-
-/** The main page's navigations: the first document opened, and the page that fetches the logo candidates. */
-interface PageNavigation {
-  page: Page;
-  fetcher: Page | undefined;
-  mainDocument: boolean;
 }
 
 /** The context's route: GET / HEAD to a checked URL, one main document, a request cap (see the module comment). */
@@ -481,14 +136,6 @@ function routeRequest(ex: Extraction, nav: PageNavigation, requestsMax: number, 
   report.network.requests++;
   ex.proxy.announce(new URL(url).hostname);
   return route.continue();
-}
-
-/** The opened page, with what its listeners keep: the images it received and the requests in flight. */
-interface OpenedSitePage {
-  context: BrowserContext;
-  nav: PageNavigation;
-  images: Map<string, Response>;
-  inflight: { n: number };
 }
 
 /** Launches the browser on the proxy and opens the page's context, its route and listeners (nothing loaded yet). */
@@ -601,142 +248,6 @@ async function readSitePage(ex: Extraction, page: Page): Promise<PageFacts> {
       .map((f) => ({ family: String(f.family).slice(0, 200), weight: String(f.weight).slice(0, 40), style: String(f.style).slice(0, 40), status: String(f.status).slice(0, 20) })),
   };
   return facts;
-}
-
-/** A candidate's bytes: as the page received them, else one GET through the same route and proxy. */
-async function candidateBytes(ex: Extraction, fetchPage: Page, images: Map<string, Response>, c: LogoCandidate): Promise<Buffer | null> {
-  if (c.kind === 'svg') return Buffer.from(c.markup, 'utf8');
-  if (c.url.startsWith('data:')) {
-    if (c.url.length > CANDIDATE_DATA_URL_MAX) return null;
-    const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(c.url);
-    if (!m) return null;
-    let b: Buffer;
-    try {
-      b = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]), 'utf8');
-    } catch {
-      return null;
-    }
-    return b.length <= CANDIDATE_BYTES_MAX ? b : null;
-  }
-  if (c.url.length > CANDIDATE_URL_MAX) return null;
-  try {
-    const seen = images.get(c.url);
-    const r = seen ?? (await ex.call(fetchPage.goto(c.url, { timeout: 10_000 }), 'a logo candidate'));
-    if (!r || r.status() >= 400) return null;
-    const len = Number(r.headers()['content-length'] ?? 0);
-    if (len > CANDIDATE_BYTES_MAX) return null;
-    const b = await ex.call(r.body(), 'a logo candidate');
-    return b.length <= CANDIDATE_BYTES_MAX ? b : null;
-  } catch (e) {
-    if (ex.stop.signal.aborted) throw e;
-    return null;
-  }
-}
-
-/** The candidate drawn at w × h, as a PNG (transparent background), or null. */
-async function shootCandidate(ex: Extraction, rp: Page, w: number, h: number): Promise<Buffer | null> {
-  await ex.call(
-    rp.evaluate(
-      ({ w, h }: { w: number; h: number }) => {
-        const i = document.getElementById('i') as HTMLImageElement;
-        i.style.width = `${w}px`;
-        i.style.height = `${h}px`;
-      },
-      { w, h },
-    ),
-    'drawing a logo candidate',
-  );
-  return ex.call(rp.locator('#i').screenshot({ omitBackground: true, type: 'png', timeout: ex.callMs }), 'drawing a logo candidate').catch((e: unknown) => {
-    if (ex.stop.signal.aborted) throw e;
-    return null;
-  });
-}
-
-/** A candidate's image decoded in the raster page and drawn as a PNG a create accepts, or null. */
-async function drawCandidate(ex: Extraction, rp: Page, b: Buffer, mime: string): Promise<{ png: Buffer; size: { width: number; height: number } } | null> {
-  const src = `data:${mime};base64,${b.toString('base64')}`;
-  await ex.call(
-    rp.setContent(`<!doctype html><html><head><style>html,body{margin:0;background:transparent}img{display:block}</style></head><body><img id="i" alt=""></body></html>`),
-    'drawing a logo candidate',
-  );
-  const loaded = await ex
-    .call(
-      rp.evaluate(async (s: string) => {
-        const i = document.getElementById('i') as HTMLImageElement;
-        i.src = s;
-        try {
-          await i.decode();
-        } catch {
-          return null;
-        }
-        return { w: i.naturalWidth, h: i.naturalHeight };
-      }, src),
-      'decoding a logo candidate',
-    )
-    .catch((e: unknown) => {
-      if (ex.stop.signal.aborted) throw e;
-      return null;
-    });
-  if (!loaded || loaded.w < 1 || loaded.h < 1) return null;
-  let h = mime === 'image/svg+xml' ? SVG_LOGO_HEIGHT : Math.min(LOGO_MAX_HEIGHT, Math.max(LOGO_MIN_HEIGHT, loaded.h));
-  let w = Math.round((loaded.w * h) / loaded.h);
-  if (w > LOGO_MAX_WIDTH) {
-    w = LOGO_MAX_WIDTH;
-    h = Math.max(1, Math.round((loaded.h * w) / loaded.w));
-  }
-  // What a create would refuse (template_create_from_brand: 64 px high at least, 2 MB at most) is never made:
-  // too low is dropped, too heavy is drawn smaller while it stays high enough.
-  if (w < 1 || h < BRAND_IMAGE_MIN_HEIGHT) return null;
-  let png = await shootCandidate(ex, rp, w, h);
-  for (let i = 0; png && png.length > ex.candidateMax && i < CANDIDATE_SHRINK_STEPS; i++) {
-    const nh = Math.round(h * CANDIDATE_SHRINK);
-    if (nh < BRAND_IMAGE_MIN_HEIGHT) {
-      png = null;
-      break;
-    }
-    w = Math.max(1, Math.round(w * CANDIDATE_SHRINK));
-    h = nh;
-    png = await shootCandidate(ex, rp, w, h);
-  }
-  if (!png || png.length > ex.candidateMax) return null;
-  const size = pngSize(png);
-  if (size.height < BRAND_IMAGE_MIN_HEIGHT) return null;
-  return { png, size };
-}
-
-/** The logo candidates, as transparent PNGs written to the folder (logo-<n>.png). */
-async function writeLogos(ex: Extraction, opened: OpenedSitePage, facts: PageFacts): Promise<void> {
-  const { o, report, callMs } = ex;
-  opened.nav.fetcher = await opened.context.newPage();
-  const fetchPage = opened.nav.fetcher;
-  // Rasterised with JavaScript off and no network: Chromium decodes the image, the PNG is its screenshot.
-  const raster: BrowserContext = await ex.browser!.newContext({
-    javaScriptEnabled: false,
-    offline: true,
-    viewport: { width: LOGO_MAX_WIDTH + 16, height: LOGO_MAX_HEIGHT + 16 },
-    deviceScaleFactor: 1,
-  });
-  raster.setDefaultTimeout(callMs);
-  await raster.route('**/*', (r) => r.abort());
-  const rp = await raster.newPage();
-  const alts: Array<{ file: string; alt: string }> = [];
-  for (const c of facts.candidates) {
-    if (report.candidates.length >= SITE_CANDIDATES_MAX) break;
-    stopped(ex.stop.signal);
-    const b = await candidateBytes(ex, fetchPage, opened.images, c);
-    const mime = b ? imageMime(b) : null;
-    if (!b || !mime) continue;
-    const drawn = await drawCandidate(ex, rp, b, mime);
-    if (!drawn) continue;
-    const { png, size } = drawn;
-    const n = report.candidates.length + 1;
-    const file = `logo-${n}.png`;
-    await writeNew(o.outDir, file, png);
-    report.candidates.push({ file, source: sourceOf(c), width: size.width, height: size.height, drawn: { width: c.width, height: c.height } });
-    if (c.alt) alts.push({ file, alt: c.alt });
-  }
-  await raster.close().catch(() => undefined);
-  if (alts.length) report.untrusted.alts = alts;
 }
 
 /** A failed extraction in the report; a cancel is thrown (the browser and proxy closed first). */

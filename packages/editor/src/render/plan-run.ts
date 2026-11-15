@@ -169,7 +169,20 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const overrides: EditOverrides = { ...(o.overrides ?? {}) };
   const scenarioSnapshot = await runScenario(run.dir);
   const envName = recordEnv(facts.facts.record);
-  const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText, fileFacts(o.workPolicy));
+  const {
+    timeline,
+    edit,
+    warnings: editWarnings,
+    text: editText,
+  } = editOfToday({
+    project,
+    run,
+    captured,
+    envName,
+    mode: o.edit ?? 'auto',
+    editText: o.editText,
+    files: fileFacts(o.workPolicy),
+  });
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests.
   const registry = await registryFrom(o.registry, root, 'plan');
@@ -229,16 +242,24 @@ export function noteEdit(plan: EditPlan, edit: PlannedEdit, warnings: readonly s
  * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured. `editText`: the
  * file's text as a render job snapshotted it, read instead of today's file. `text`: the text the edit came from.
  */
-export function editOfToday(
-  project: LoadedProject,
-  run: Pick<RunRef, 'id' | 'dir'>,
-  captured: Timeline,
-  envName: string | undefined,
-  mode: 'auto' | 'run' = 'auto',
-  editText: string | undefined,
+export function editOfToday({
+  project,
+  run,
+  captured,
+  envName,
+  mode = 'auto',
+  editText,
+  files,
+}: {
+  project: LoadedProject;
+  run: Pick<RunRef, 'id' | 'dir'>;
+  captured: Timeline;
+  envName: string | undefined;
+  mode?: 'auto' | 'run';
+  editText: string | undefined;
   /** How today's scenario's files are looked at (core FileFacts): the work's. */
-  files: WorkFileFacts,
-): { timeline: Timeline; edit: PlannedEdit; warnings: string[]; text?: string } {
+  files: WorkFileFacts;
+}): { timeline: Timeline; edit: PlannedEdit; warnings: string[]; text?: string } {
   const asCaptured = (edit: PlannedEdit, warnings: string[] = []) => ({ timeline: captured, edit, warnings });
   if (mode === 'run') return asCaptured({ from: 'run' });
   const since = scenarioSinceRun(project, run.dir, captured.scenario, editText);

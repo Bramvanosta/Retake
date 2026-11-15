@@ -196,7 +196,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       return undefined;
     },
     async () => {
-      await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env.name, fix, agentChannel(ctx.client));
+      await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env.name, { fix, via: agentChannel(ctx.client) });
       return undefined;
     },
     async () => {
@@ -423,6 +423,71 @@ export function pauseMaxMs(env: EngineEnv): number | undefined {
   return Math.round(n * 60_000);
 }
 
+/** The run's ports for a job: its issues, notes and sandbox lines as the job's log, its progress as the job's. */
+function runJobPorts(ctx: RunJobContext): RunPorts {
+  const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: stampOf(ctx.clock) };
+  const update = (patch: Partial<JobProgress>) => {
+    Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
+    if (patch.paused === undefined && 'paused' in patch) delete progress.paused;
+    ctx.progress({ ...progress });
+  };
+  return {
+    issues: (issues) => {
+      for (const i of issues) ctx.event({ type: 'log', level: 'warn', message: i.message });
+    },
+    note: (level, message) => ctx.event({ type: 'log', level, message }),
+    sandboxLog: (level, message) => {
+      if (level !== 'debug') ctx.event({ type: 'log', level: level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', message });
+    },
+    progress: (e: RunProgress) => {
+      ctx.event({ type: 'run', event: e });
+      switch (e.type) {
+        case 'run_start':
+          update({ steps_total: e.run.steps_total, phase: 'starting' });
+          break;
+        case 'hook':
+          if (e.status === 'start') update({ phase: e.phase });
+          break;
+        case 'step_start':
+          update({ phase: 'scenes', current: { scene: e.scene, step: e.step, action: e.action } });
+          break;
+        case 'step_end':
+          update({ steps_done: progress.steps_done + 1 });
+          break;
+        case 'encode':
+          if (e.status === 'start') update({ phase: 'encode' });
+          break;
+        case 'pause':
+          if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: stampOf(ctx.clock) } });
+          else if (e.state === 'resumed') update({ paused: undefined });
+          break;
+        case 'run_end':
+          update({ steps_done: e.run.steps_done, steps_total: e.run.steps_total, phase: 'done', paused: undefined });
+          break;
+      }
+    },
+    interrupts: ctx.interrupts,
+  };
+}
+
+/** What a finished run job returns (the error's words as untrusted data). */
+function runJobResult(record: Awaited<ReturnType<typeof executeRun>>): RunJobResult {
+  const err = record.error;
+  return {
+    kind: 'run',
+    run_id: record.id,
+    status: record.status,
+    mode: record.mode,
+    steps_done: record.steps_done,
+    steps_total: record.steps_total,
+    ...(record.stopped_at ? { stopped_at: record.stopped_at } : {}),
+    ...(err && (err.scene !== undefined || err.step !== undefined || err.action !== undefined)
+      ? { error: { ...(err.scene !== undefined ? { scene: err.scene } : {}), ...(err.step !== undefined ? { step: err.step } : {}), ...(err.action !== undefined ? { action: err.action } : {}) } }
+      : {}),
+    ...(err ? { untrusted: { error_message: err.message } } : {}),
+  };
+}
+
 /** Execute a `run` job: the hash check, then `executeRun` with the reserved run id. */
 export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const { input } = ctx;
@@ -440,57 +505,10 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     }).catch((e: unknown) => {
       throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
-    await checkWorkspaceProtection(
-      ctx.ws,
-      ctx.hosts,
-      project,
-      resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name,
-      undefined,
-      agentChannel(input.submitted_by),
-    );
-    const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: stampOf(ctx.clock) };
-    const update = (patch: Partial<JobProgress>) => {
-      Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
-      if (patch.paused === undefined && 'paused' in patch) delete progress.paused;
-      ctx.progress({ ...progress });
-    };
-    const ports: RunPorts = {
-      issues: (issues) => {
-        for (const i of issues) ctx.event({ type: 'log', level: 'warn', message: i.message });
-      },
-      note: (level, message) => ctx.event({ type: 'log', level, message }),
-      sandboxLog: (level, message) => {
-        if (level !== 'debug') ctx.event({ type: 'log', level: level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', message });
-      },
-      progress: (e: RunProgress) => {
-        ctx.event({ type: 'run', event: e });
-        switch (e.type) {
-          case 'run_start':
-            update({ steps_total: e.run.steps_total, phase: 'starting' });
-            break;
-          case 'hook':
-            if (e.status === 'start') update({ phase: e.phase });
-            break;
-          case 'step_start':
-            update({ phase: 'scenes', current: { scene: e.scene, step: e.step, action: e.action } });
-            break;
-          case 'step_end':
-            update({ steps_done: progress.steps_done + 1 });
-            break;
-          case 'encode':
-            if (e.status === 'start') update({ phase: 'encode' });
-            break;
-          case 'pause':
-            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: stampOf(ctx.clock) } });
-            else if (e.state === 'resumed') update({ paused: undefined });
-            break;
-          case 'run_end':
-            update({ steps_done: e.run.steps_done, steps_total: e.run.steps_total, phase: 'done', paused: undefined });
-            break;
-        }
-      },
-      interrupts: ctx.interrupts,
-    };
+    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, {
+      via: agentChannel(input.submitted_by),
+    });
+    const ports = runJobPorts(ctx);
     const record = await executeRun(
       prepared,
       { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox },
@@ -514,20 +532,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       },
       ports,
     );
-    const err = record.error;
-    return {
-      kind: 'run',
-      run_id: record.id,
-      status: record.status,
-      mode: record.mode,
-      steps_done: record.steps_done,
-      steps_total: record.steps_total,
-      ...(record.stopped_at ? { stopped_at: record.stopped_at } : {}),
-      ...(err && (err.scene !== undefined || err.step !== undefined || err.action !== undefined)
-        ? { error: { ...(err.scene !== undefined ? { scene: err.scene } : {}), ...(err.step !== undefined ? { step: err.step } : {}), ...(err.action !== undefined ? { action: err.action } : {}) } }
-        : {}),
-      ...(err ? { untrusted: { error_message: err.message } } : {}),
-    };
+    return runJobResult(record);
   } catch (e) {
     const cancelled = ctx.signal.aborted || toEngineError(e).code === 'cancelled';
     await finaliseReservedRun(ctx.ws.outputs.runs, runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e), ctx.clock);

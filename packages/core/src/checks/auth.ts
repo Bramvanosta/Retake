@@ -209,47 +209,65 @@ export function checkAuth(auth: unknown, envs: Record<string, unknown>, ctx: Che
       if (name === PERSONA_NONE) ctx.error(pp, `"${PERSONA_NONE}" is reserved (\`persona: none\` films a page without any persona): pick another name`, { path: pp, key: true });
       else if (seen.has(lower)) ctx.error(pp, `persona "${name}" differs from "${seen.get(lower)}" only by case (their session folders would be the same on macOS)`, { path: pp, key: true });
       seen.set(lower, name);
-      if (!isObj(p)) continue;
-      const pages = Array.isArray(p.pages) ? p.pages.filter((x): x is string => typeof x === 'string') : [];
-      pages.forEach((page, i) => {
-        if (!keys.includes(page)) {
-          ctx.error([...pp, 'pages', i], `unknown page "${page}"${suggestion(page, keys)} (${global ? 'environment pages' : `environment ${blockEnvs[0]}`}: ${keys.join(', ') || 'none'})`);
-          return;
-        }
-        // Several personas may list one page (one app, several roles — hotfix v0.2.2): the first one declared is the
-        // page's default, a scene names another with `persona:`.
-      });
-      const check = isObj(p.check) ? p.check : undefined;
-      if (check && typeof check.url === 'string') {
-        const u = check.url;
-        const prefix = /^([A-Za-z_][A-Za-z0-9_-]*):/.exec(u)?.[1];
-        if (prefix && !/^(https?|file|about|data)$/i.test(prefix) && !splitPageOpen(u, keys)) {
-          ctx.error([...pp, 'check', 'url'], `"${prefix}:" is not an environment page${suggestion(prefix, keys)} (pages: ${keys.join(', ') || 'none'})`);
-        } else if (u.startsWith('/') && pages.length === 0 && keys.length === 0) {
-          ctx.error([...pp, 'check', 'url'], `"${u}" is a path but persona "${name}" has no pages: write "<page>:${u}"`);
-        }
-      }
-      if (check?.expect_not_url !== undefined) checkPatterns(check.expect_not_url, [...pp, 'check', 'expect_not_url'], urls, ctx);
-      if (p.login_url !== undefined) checkPatterns(p.login_url, [...pp, 'login_url'], urls, ctx);
-      if (!check && p.login_url === undefined && block.login_url === undefined) {
-        ctx.warning(pp, `persona "${name}" has no \`check\` and no \`login_url\`: an expired session is only noticed when a step fails (add check: {url, expect_text})`);
-      }
-      if (Array.isArray(p.login) && !ctx.broken([...pp, 'login'])) {
-        p.login.forEach((step, i) => {
-          if (isObj(step) && literalPassword(step)) {
-            ctx.warning(
-              [...pp, 'login', i, 'type', 'text'],
-              opts.accounts
-                ? "a password written in a login step: write {{account.password}} (the account's password is masked in logs)"
-                : 'a password written in project.yaml: use {{env:VAR}} or {{keychain:service/account}}',
-            );
-          }
-        });
-        hookTokens(p.login, [...pp, 'login'], ctx);
-        const tokenScope: TokenScope = { pages: keys, vars: scope.vars, varsComplete: true, saved: new Set(), ...(opts.accounts ? { account: 'login' as const } : {}) };
-        checkTokens(stripHookTokens(p.login), [...pp, 'login'], tokenScope, ctx);
-      }
+      if (isObj(p)) checkPersona(name, p, pp, { keys, urls, global, blockEnvs, blockLoginUrl: block.login_url, vars: scope.vars, accounts: opts.accounts }, ctx);
     }
+  }
+}
+
+/** What a persona of an auth block is checked against. */
+interface PersonaBlock {
+  /** The page keys of the block's environments, and their base URLs. */
+  keys: string[];
+  urls: Record<string, string>;
+  /** `auth` is one block for every environment. */
+  global: boolean;
+  blockEnvs: string[];
+  /** The block's own login_url. */
+  blockLoginUrl: unknown;
+  vars: ReadonlySet<string>;
+  accounts: boolean | undefined;
+}
+
+/** One persona: its pages, check, sign-in patterns and login steps (their passwords and tokens). */
+function checkPersona(name: string, p: Record<string, unknown>, pp: IssuePath, { keys, urls, global, blockEnvs, blockLoginUrl, vars, accounts }: PersonaBlock, ctx: CheckContext): void {
+  const pages = Array.isArray(p.pages) ? p.pages.filter((x): x is string => typeof x === 'string') : [];
+  pages.forEach((page, i) => {
+    if (!keys.includes(page)) {
+      ctx.error([...pp, 'pages', i], `unknown page "${page}"${suggestion(page, keys)} (${global ? 'environment pages' : `environment ${blockEnvs[0]}`}: ${keys.join(', ') || 'none'})`);
+      return;
+    }
+    // Several personas may list one page (one app, several roles — hotfix v0.2.2): the first one declared is the
+    // page's default, a scene names another with `persona:`.
+  });
+  const check = isObj(p.check) ? p.check : undefined;
+  if (check && typeof check.url === 'string') {
+    const u = check.url;
+    const prefix = /^([A-Za-z_][A-Za-z0-9_-]*):/.exec(u)?.[1];
+    if (prefix && !/^(https?|file|about|data)$/i.test(prefix) && !splitPageOpen(u, keys)) {
+      ctx.error([...pp, 'check', 'url'], `"${prefix}:" is not an environment page${suggestion(prefix, keys)} (pages: ${keys.join(', ') || 'none'})`);
+    } else if (u.startsWith('/') && pages.length === 0 && keys.length === 0) {
+      ctx.error([...pp, 'check', 'url'], `"${u}" is a path but persona "${name}" has no pages: write "<page>:${u}"`);
+    }
+  }
+  if (check?.expect_not_url !== undefined) checkPatterns(check.expect_not_url, [...pp, 'check', 'expect_not_url'], urls, ctx);
+  if (p.login_url !== undefined) checkPatterns(p.login_url, [...pp, 'login_url'], urls, ctx);
+  if (!check && p.login_url === undefined && blockLoginUrl === undefined) {
+    ctx.warning(pp, `persona "${name}" has no \`check\` and no \`login_url\`: an expired session is only noticed when a step fails (add check: {url, expect_text})`);
+  }
+  if (Array.isArray(p.login) && !ctx.broken([...pp, 'login'])) {
+    p.login.forEach((step, i) => {
+      if (isObj(step) && literalPassword(step)) {
+        ctx.warning(
+          [...pp, 'login', i, 'type', 'text'],
+          accounts
+            ? "a password written in a login step: write {{account.password}} (the account's password is masked in logs)"
+            : 'a password written in project.yaml: use {{env:VAR}} or {{keychain:service/account}}',
+        );
+      }
+    });
+    hookTokens(p.login, [...pp, 'login'], ctx);
+    const tokenScope: TokenScope = { pages: keys, vars, varsComplete: true, saved: new Set(), ...(accounts ? { account: 'login' as const } : {}) };
+    checkTokens(stripHookTokens(p.login), [...pp, 'login'], tokenScope, ctx);
   }
 }
 

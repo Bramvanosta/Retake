@@ -21,14 +21,12 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
 import { errorMessage, pathInside } from '@retake/core/base';
 import type { LoadedTemplate } from '@retake/core/theme';
-import type { RenderSettings, WorkFileFacts } from '@retake/core/model';
+import type { WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { GpuInfo } from '@retake/core/render';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -37,33 +35,21 @@ import {
   PREVIEW_SIZE,
   componentSourceFiles,
   componentSourceHash,
-  paramDefaults,
   mergePreviewReadme,
   previewReadmeBlock,
-  themeTokens,
   writePreviewReadme,
 } from '@retake/components';
-import type { ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
-import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
-import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
-import { PREVIEW_COMPOSITION, previewProps } from '../remotion/contract.js';
-import { startAssetServer } from './asset-server.js';
-import { assertRenderBrowser, renderBrowser } from './browser.js';
-import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
-import { handedRegistry } from './registry-source.js';
-import type { BundleComponent } from './bundle.js';
-import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, pickFreePort } from './network-guard.js';
-import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
-import { guardEncoderPipe } from './render.js';
-import type { RenderNetwork } from './render.js';
-import { openRenderBrowser, renderPolicy } from './policy.js';
-import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
-import { errorKindOf } from '@retake/core/base';
-import { handedDriver } from './driver-guard.js';
-import { rendererLibrary } from './library.js';
-import type { RenderBrowserHandle } from './library.js';
-import type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, RenderDriver } from './driver-types.js';
+import type { PreviewMeta } from '@retake/components';
+import type { BuiltPreview, ComponentPreviewSpec } from '../preview.js';
+import { PREVIEW_COMPOSITION } from '../remotion/contract.js';
+import { previewSession } from './preview-session.js';
+import type { PreviewBundleMode, PreviewFailure, PreviewSessionOptions, SessionContext, SessionItem, Variant } from './preview-session.js';
+import { RenderError, isDiskFullError } from './types.js';
 import type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedLoop, RenderedLoopItem } from '../work-types.js';
+export { REMOTION_PREVIEW_BACKEND, previewDriver } from './preview-backend.js';
+export type { PreviewBackend, PreviewRenderer } from './preview-backend.js';
+export { previewBundleComponents } from './preview-session.js';
+export type { PreviewBundleMode, PreviewFailure } from './preview-session.js';
 export type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedPoster, RenderedLoop, RenderedLoopItem } from '../work-types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
@@ -87,75 +73,6 @@ export { PREVIEW_COMPOSITION };
  * rendered again at 480×270, still over → no loop ("too large").
  */
 export const LOOP_FORMAT = { width: 640, height: 360, fps: 15, max_s: 6, max_bytes: 1_500_000, fallback_width: 480 } as const;
-
-/** Which components a preview session bundles. */
-export type PreviewBundleMode =
-  /** The targets and the context components their specs use (one bundle per set: the default). */
-  | 'used'
-  /** Every usable registry component and the scaffolds: one bundle per registry state, whatever the targets. */
-  | 'registry';
-
-/** What renders a session's frames: Remotion in the render browser (the default), or a test's stand-in. */
-export interface PreviewBackend {
-  /** The bundle of these components (default: ensureBundle in the workspace cache). */
-  bundle(o: { root: string; components: BundleComponent[]; cacheDir?: string; signal?: AbortSignal }): Promise<{ serveUrl: string; hash: string; cached: boolean }>;
-  /**
-   * Start the renderer on that bundle (default: the render browser as the render policy draws — the GPU checked before it
-   * is reported or guarded; no fallback mid-way: a failure is said as it is —, guarded when asked).
-   */
-  open(o: {
-    serveUrl: string;
-    assetPrefix: string;
-    network?: RenderNetwork;
-    signal?: AbortSignal;
-    onBrowser?: (b: BrowserProcessInfo) => void;
-    settings?: RenderSettings;
-    /** What the work runs under (core WorkPolicy). */
-    workPolicy: WorkPolicy;
-    /** Tests: the browser's GPU status. */
-    gpuInfo?: (browser: RenderBrowserHandle) => Promise<GpuInfo | undefined>;
-  }): Promise<PreviewRenderer>;
-}
-
-export interface PreviewRenderer {
-  /** A PNG of `spec` at `spec.frame`, scaled. */
-  still(spec: ComponentPreviewSpec, out: string, scale: number): Promise<void>;
-  /** A GIF of `spec` over the composition frames `frames` [first, last], every `everyNthFrame`, scaled, looping forever. */
-  gif(spec: ComponentPreviewSpec, out: string, o: { scale: number; everyNthFrame: number; frames: [number, number] }): Promise<void>;
-  /** The guard's blocked origins so far. */
-  warnings(): string[];
-  close(): Promise<void>;
-}
-
-/** What every preview session takes. */
-interface PreviewSessionOptions {
-  /** What the work runs under (core WorkPolicy): which ffmpeg and render browser, its workspace's render settings. */
-  workPolicy: WorkPolicy;
-  /** Workspace root (bundle cache). */
-  root: string;
-  /** Theme of the previews (the committed built-in previews use the editorial theme). */
-  template: LoadedTemplate;
-  /** Context components (the theme's layout, caption, card) come from it: required, a preview loads no registry by itself. */
-  registry: ComponentRegistry;
-  cacheDir?: string;
-  samples?: PreviewSamples;
-  /** Checked between previews: an abort stops before the next one (RenderCancelledError). */
-  signal?: AbortSignal;
-  /** `guard`: the previews' Chromium loads only the asset and bundle servers (network-guard.ts; the jobs worker). */
-  network?: RenderNetwork;
-  /** Called once the browser runs, with its process (the jobs worker records it to kill it after a crash). */
-  onBrowser?: (b: BrowserProcessInfo) => void;
-  /** Receives the guard's blocked-origin warnings once the previews are done. */
-  onWarnings?: (warnings: string[]) => void;
-  /** Bundle the components shown (default) or the whole registry. */
-  bundle?: PreviewBundleMode;
-  /** What renders the previews (no such key: this package's driver — Remotion, with `cacheDir`; with one, `cacheDir` and `backend` are refused: driver-guard.ts). */
-  renderer?: Pick<RenderDriver, 'previews'>;
-  /** Tests of this package, standalone: render with this instead of Remotion. Never beside `renderer` (refused). */
-  backend?: PreviewBackend;
-  /** Render settings over the process's (./policy.ts). */
-  settings?: RenderSettings;
-}
 
 export interface RenderPreviewsOptions extends PreviewSessionOptions {
   targets: PreviewComponentTarget[];
@@ -182,12 +99,6 @@ export interface RenderedPreview {
   /** Written in the component folder (without outDir). */
   meta?: PreviewMeta;
   readme?: string;
-}
-
-/** A component of a session that could not be built or rendered. `reason` may carry the component's own words: untrusted text. */
-export interface PreviewFailure {
-  id: string;
-  reason: string;
 }
 
 export interface RenderLoopsOptions extends PreviewSessionOptions {
@@ -218,380 +129,10 @@ async function quantizePng(src: string, out: string, work: WorkPolicy): Promise<
   return r.code === 0;
 }
 
-function bundleComponentOf(t: Pick<PreviewComponentTarget, 'id' | 'dir' | 'entry' | 'manifest'>): BundleComponent {
-  return { id: t.id, kind: t.manifest.kind, dir: t.dir, entry: t.entry, defaults: paramDefaults(t.manifest.params as JsonSchemaNode | undefined) };
-}
-
-/**
- * The bundle components of the previews: every component shown (targets + context) and the per-kind scaffolds. A target
- * that IS a package scaffold (same id, same folder) is bundled once, as the scaffold (flagged: the bundle guard's
- * "belongs to no component" holder check does not apply to the package's own kit imports); any other target — a
- * workspace component reusing a scaffold's id from another folder — stays unflagged, under the holder check. Exported
- * for its test (editor preview-scaffold.test.ts).
- */
-export async function previewBundleComponents(targets: readonly PreviewComponentTarget[], ids: readonly string[], registry: ComponentRegistry): Promise<BundleComponent[]> {
-  const out = new Map<string, BundleComponent>();
-  for (const t of targets) out.set(t.id, bundleComponentOf(t));
-  for (const id of ids) {
-    if (out.has(id)) continue;
-    const info = registry.get(id);
-    out.set(id, bundleComponentOf({ id, dir: info.dir, entry: info.entry, manifest: info.manifest }));
-  }
-  // A scaffold shown as a target is the scaffold itself: once, flagged (its kit imports are the package's own, the
-  // first run that previewed every scaffold at once met the bundle guard's "belongs to no component").
-  const scaffolds = await scaffoldComponents();
-  for (const s of scaffolds) if (out.has(s.id) && resolve(out.get(s.id)!.dir) === resolve(s.dir)) out.delete(s.id);
-  return [...out.values(), ...scaffolds];
-}
-
-/**
- * The whole registry's bundle components; a target outside the registry (a scaffold, a folder) is added, and a target
- * whose folder differs from its registry entry's replaces it (the bundle then is that set's own).
- */
-async function registryPreviewComponents(targets: readonly PreviewComponentTarget[], registry: ComponentRegistry): Promise<BundleComponent[]> {
-  const all = await registryBundleComponents(registry);
-  const byId = new Map(all.map((c) => [c.id, c]));
-  for (const t of targets) {
-    const have = byId.get(t.id);
-    if (!have || resolve(have.dir) !== resolve(t.dir) || resolve(have.entry) !== resolve(t.entry)) byId.set(t.id, bundleComponentOf(t));
-  }
-  return [...byId.values()];
-}
-
 /** `<outDir>/<namespace>/<name>.png` for an id ("scaffolds/layout" → scaffolds/layout.png). */
 function outFile(outDir: string, id: string): string {
   const [ns, name] = id.includes('/') ? id.split('/') : ['_', id];
   return join(resolve(outDir), ns, `${name}.png`);
-}
-
-function cancelled(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new RenderCancelledError();
-}
-
-/** The default backend: the workspace's bundle cache and Remotion in the render browser (guarded when asked). */
-export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
-  async bundle(o) {
-    const b = await ensureBundle({ root: o.root, components: o.components, ...(o.cacheDir ? { cacheDir: o.cacheDir } : {}), ...(o.signal ? { signal: o.signal } : {}) });
-    return { serveUrl: b.serveUrl, hash: b.hash, cached: b.cached };
-  },
-  async open(o) {
-    const browser = renderBrowser();
-    const browserExe = assertRenderBrowser(browser, o.workPolicy);
-    const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await rendererLibrary();
-    const policy = renderPolicy(o.workPolicy, o.settings);
-    guardEncoderPipe();
-    let opened: Awaited<ReturnType<typeof openRenderBrowser<Awaited<ReturnType<typeof openBrowser>>>>>;
-    try {
-      opened = await openRenderBrowser({
-        policy,
-        launch: (chromium) => openBrowser('chrome', { browserExecutable: browserExe, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
-        ...(o.gpuInfo ? { gpuInfo: o.gpuInfo } : {}),
-      });
-    } catch (e) {
-      throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${errorMessage(e).split('\n')[0]}`);
-    }
-    const puppeteer = opened.puppeteer;
-    let guard: NetworkGuard | undefined;
-    let remotion: { port?: number; onDownload?: (src: string) => undefined } = {};
-    try {
-      if (o.onBrowser) {
-        const info = await browserProcessInfo(puppeteer);
-        if (info) o.onBrowser(info);
-      }
-      if (o.network === 'guard') {
-        try {
-          const port = await pickFreePort();
-          guard = await armNetworkGuard(puppeteer, { assetPrefix: o.assetPrefix, bundlePort: port });
-          remotion = { port, onDownload: (src: string) => guard!.onDownload(src) };
-        } catch (e) {
-          throw new RenderError(`the previews cannot run with their network guard: ${errorMessage(e)}`);
-        }
-      }
-    } catch (e) {
-      await puppeteer.close({ silent: true }).catch(() => undefined);
-      throw e;
-    }
-    const common = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 60_000 } as const;
-    // Guarded: a browser that is no program for every Remotion call — a page that fails ends that preview, never a
-    // browser Remotion opens itself (network-guard.ts).
-    const executable = guard ? GUARDED_NO_OTHER_BROWSER : browserExe;
-    const plainly = async (run: () => Promise<unknown>): Promise<void> => {
-      try {
-        await run();
-      } catch (e) {
-        if (guard && !(e instanceof RenderError) && guardedPageFailure(e)) throw new RenderError(guardedPageFailed('preview'));
-        throw e;
-      }
-    };
-    const select = (spec: ComponentPreviewSpec) =>
-      selectComposition({
-        ...common,
-        serveUrl: o.serveUrl,
-        id: PREVIEW_COMPOSITION,
-        inputProps: previewProps(spec),
-        puppeteerInstance: puppeteer,
-        browserExecutable: executable,
-        ...(remotion.port !== undefined ? { port: remotion.port } : {}),
-      });
-    return {
-      async still(spec, out, scale) {
-        const composition = await select(spec);
-        await plainly(() =>
-          renderStill({
-            ...common,
-            composition,
-            serveUrl: o.serveUrl,
-            frame: spec.frame,
-            output: out,
-            imageFormat: 'png',
-            scale,
-            overwrite: true,
-            inputProps: previewProps(spec),
-            puppeteerInstance: puppeteer,
-            browserExecutable: executable,
-            ...remotion,
-          }),
-        );
-      },
-      async gif(spec, out, g) {
-        const composition = await select(spec);
-        const { cancelSignal, cancel } = makeCancelSignal();
-        const onAbort = () => cancel();
-        o.signal?.addEventListener('abort', onAbort);
-        try {
-          await plainly(() =>
-            renderMedia({
-              ...common,
-              composition,
-              serveUrl: o.serveUrl,
-              codec: 'gif',
-              scale: g.scale,
-              everyNthFrame: g.everyNthFrame,
-              numberOfGifLoops: null,
-              frameRange: g.frames,
-              outputLocation: out,
-              overwrite: true,
-              inputProps: previewProps(spec),
-              cancelSignal,
-              puppeteerInstance: puppeteer,
-              browserExecutable: executable,
-              ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
-              ...remotion,
-            }),
-          );
-        } finally {
-          o.signal?.removeEventListener('abort', onAbort);
-        }
-      },
-      warnings: () => [...opened.warnings, ...(guard?.warnings() ?? [])],
-      close: () => puppeteer.close({ silent: true }).catch(() => undefined),
-    };
-  },
-};
-
-/**
- * A preview backend as the previews of a render driver: the bundle's serve URL stays here (a bundle of another driver
- * is refused), `cacheDir` and `gpuInfo` are the driver's own, and a closed session refuses to render.
- */
-export function previewDriver(backend: PreviewBackend = REMOTION_PREVIEW_BACKEND, d: { cacheDir?: string; gpuInfo?: Parameters<PreviewBackend['open']>[0]['gpuInfo'] } = {}): DriverPreviews {
-  const served = new WeakMap<DriverPreviewBundle, string>();
-  return {
-    async bundle(o) {
-      const b = await backend.bundle({ root: o.root, components: o.components, ...(d.cacheDir ? { cacheDir: d.cacheDir } : {}), ...(o.signal ? { signal: o.signal } : {}) });
-      const bundle: DriverPreviewBundle = Object.freeze({ hash: b.hash, cached: b.cached });
-      served.set(bundle, b.serveUrl);
-      return bundle;
-    },
-    async open(bundle, o) {
-      const serveUrl = served.get(bundle);
-      if (serveUrl === undefined) throw new RenderError('this preview bundle was made by another renderer');
-      const session = await backend.open({
-        serveUrl,
-        assetPrefix: o.assets,
-        ...(o.network ? { network: o.network } : {}),
-        ...(o.signal ? { signal: o.signal } : {}),
-        ...(o.onProcess ? { onBrowser: o.onProcess } : {}),
-        ...(o.settings ? { settings: o.settings } : {}),
-        workPolicy: o.workPolicy,
-        ...(d.gpuInfo ? { gpuInfo: d.gpuInfo } : {}),
-      });
-      let closed = false;
-      const ready = (): void => {
-        if (closed) throw new RenderError('this preview session is closed');
-      };
-      return {
-        still: async (spec, out, scale) => {
-          ready();
-          await session.still(spec, out, scale);
-        },
-        gif: async (spec, out, g) => {
-          ready();
-          await session.gif(spec, out, g);
-        },
-        warnings: () => session.warnings(),
-        close: async () => {
-          if (closed) return;
-          closed = true;
-          await session.close();
-        },
-      };
-    },
-  };
-}
-
-type Variant = 'still' | 'motion';
-
-interface SessionJob {
-  target: PreviewComponentTarget;
-  variants: readonly Variant[];
-}
-
-interface SessionItem<J extends SessionJob> {
-  job: J;
-  previews: Partial<Record<Variant, BuiltPreview>>;
-}
-
-interface SessionContext {
-  renderer: DriverPreviewSession;
-  /** A scratch folder of this session (removed at its end). */
-  scratch: string;
-  /** What the work runs under (core WorkPolicy): the ffmpeg that quantizes a poster. */
-  workPolicy: WorkPolicy;
-}
-
-/** A failed item of a session and the step it failed at (a `bundle` / `render` failure may be another component's). */
-interface SessionFailure<J> extends PreviewFailure {
-  job: J;
-  step: 'build' | 'bundle' | 'render';
-}
-
-/**
- * One preview session: specs built with the asset server's URLs, one bundle, one renderer; `each` per item. `isolate`:
- * an item that fails to build or render becomes a failure and the next goes on (else the first failure throws) — and
- * the renderer is opened afresh before the next item (a failed composition select can leave its pinned port taken:
- * every later item would fail for that alone); `o.bundleFailure: 'items'`: a bundle that does not build
- * fails every item instead of the session. A full disk and a cancel always stop the session.
- */
-async function previewSession<J extends SessionJob, R>(
-  opts: PreviewSessionOptions,
-  jobs: readonly J[],
-  isolate: boolean,
-  each: (ctx: SessionContext, item: SessionItem<J>, index: number) => Promise<R>,
-  o: { bundleFailure?: 'throw' | 'items'; onFailure?: (f: SessionFailure<J>) => void } = {},
-): Promise<{ results: Array<{ job: J; value: R }>; failed: Array<SessionFailure<J>>; bundle: { hash: string; cached: boolean } | null; warnings: string[] }> {
-  const failed: Array<SessionFailure<J>> = [];
-  const results: Array<{ job: J; value: R }> = [];
-  // A renderer handed renders the previews, alone (with `backend` or `cacheDir` beside it the session is refused:
-  // driver-guard.ts); standalone, the previews are this package's, on `backend` when a test hands one.
-  const previews = handedDriver('preview', opts, 'previews')?.previews ?? previewDriver(opts.backend ?? REMOTION_PREVIEW_BACKEND, opts.cacheDir ? { cacheDir: opts.cacheDir } : {});
-  // The context components come from the registry its caller hands: a preview loads none by itself.
-  const registry = handedRegistry(opts.registry, 'preview');
-  if (jobs.length === 0) return { results, failed, bundle: null, warnings: [] };
-  cancelled(opts.signal);
-  const root = resolve(opts.root);
-  const samples = opts.samples ?? loadPreviewSamples();
-  const server = await startAssetServer();
-  const tpl = opts.template;
-  const tokens = themeTokens(tpl, {
-    logo: server.urlFor(tpl.assets.logo),
-    wordmark: tpl.assets.wordmark ? server.urlFor(tpl.assets.wordmark) : undefined,
-    fonts: { display: server.urlFor(tpl.assets.display), body: tpl.assets.body.map((f) => server.urlFor(f)) },
-  });
-  const fail = (job: J, e: unknown, what: string, step: SessionFailure<J>['step']): void => {
-    const id = job.target.id;
-    const reason = `${what}: ${(e as Error)?.message ?? String(e)}`;
-    if (!isolate) throw e instanceof RenderError ? e : new RenderError(`preview of ${id}: ${(e as Error)?.message ?? String(e)}`);
-    const f = { id, reason, job, step };
-    failed.push(f);
-    o.onFailure?.(f);
-  };
-  const built: Array<SessionItem<J>> = [];
-  for (const job of jobs) {
-    const { target } = job;
-    try {
-      const previews: SessionItem<J>['previews'] = {};
-      for (const v of job.variants) {
-        previews[v] = buildComponentPreview({
-          target,
-          template: tpl,
-          tokens,
-          registry,
-          samples,
-          sampleUrl: (f) => server.urlFor(f),
-          ...(target.slots ? { slots: target.slots } : {}),
-          ...(target.params ? { params: target.params } : {}),
-          ...(target.at !== undefined ? { at: target.at } : {}),
-          ...(v === 'motion' ? { motion: true } : {}),
-        });
-      }
-      built.push({ job, previews });
-    } catch (e) {
-      fail(job, e, 'its preview could not be built', 'build');
-    }
-  }
-  if (built.length === 0) {
-    await server.close();
-    return { results, failed, bundle: null, warnings: [] };
-  }
-  let renderer: DriverPreviewSession | undefined;
-  const scratch = join(tmpdir(), `retake-preview-${process.pid}-${randomBytes(4).toString('hex')}`);
-  try {
-    const targets = built.map((b) => b.job.target);
-    const components =
-      opts.bundle === 'registry'
-        ? await registryPreviewComponents(targets, registry)
-        : await previewBundleComponents(targets, [...new Set(built.flatMap((b) => Object.values(b.previews).flatMap((p) => p!.components)))], registry);
-    let bundle: DriverPreviewBundle;
-    try {
-      bundle = await previews.bundle({ root, components, ...(opts.signal ? { signal: opts.signal } : {}) });
-    } catch (e) {
-      if (o.bundleFailure !== 'items' || errorKindOf(e) === 'cancelled' || opts.signal?.aborted || isDiskFullError(e)) throw e;
-      for (const b of built) fail(b.job, e, 'its preview could not be bundled', 'bundle');
-      return { results, failed, bundle: null, warnings: [] };
-    }
-    const open = () =>
-      previews.open(bundle, {
-        assets: server.prefix,
-        ...(opts.network ? { network: opts.network } : {}),
-        ...(opts.signal ? { signal: opts.signal } : {}),
-        ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
-        ...(opts.settings ? { settings: opts.settings } : {}),
-        workPolicy: opts.workPolicy,
-      });
-    renderer = await open();
-    await mkdir(scratch, { recursive: true });
-    const warnings = new Set<string>();
-    for (let i = 0; i < built.length; i++) {
-      cancelled(opts.signal);
-      const item = built[i];
-      try {
-        results.push({ job: item.job, value: await each({ renderer, scratch, workPolicy: opts.workPolicy }, item, i) });
-      } catch (e) {
-        if (errorKindOf(e) === 'cancelled' || opts.signal?.aborted) throw new RenderCancelledError();
-        if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${errorMessage(e)}`);
-        fail(item.job, e, 'its preview failed', 'render');
-        if (i < built.length - 1) {
-          for (const w of renderer.warnings()) warnings.add(w);
-          const old = renderer;
-          renderer = undefined;
-          await old.close().catch(() => undefined);
-          renderer = await open();
-        }
-      }
-    }
-    for (const w of renderer.warnings()) warnings.add(w);
-    opts.onWarnings?.([...warnings]);
-    return { results, failed, bundle: { hash: bundle.hash, cached: bundle.cached }, warnings: [...warnings] };
-  } catch (e) {
-    if (e instanceof RenderError) throw e;
-    if (opts.signal?.aborted || errorKindOf(e) === 'cancelled') throw new RenderCancelledError();
-    if (isDiskFullError(e)) throw new RenderDiskFullError(`component previews: ${errorMessage(e)}`);
-    throw new RenderError(`component previews failed: ${errorMessage(e)}`);
-  } finally {
-    await renderer?.close().catch(() => undefined);
-    await server.close();
-    await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
-  }
 }
 
 /** The poster of a built still: rendered at half scale, quantised over PREVIEW_MAX_BYTES; RenderError when still over. */

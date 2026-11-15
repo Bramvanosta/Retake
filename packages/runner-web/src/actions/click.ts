@@ -9,6 +9,7 @@ import { poll, resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
 import type { ClickRole, PendingPopup, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
+import { fallbackClicks, popupOpened } from './popup-evidence.js';
 import { DEAD_CLICK_MS, awaitEffect, checkInBackground, watchEffects } from './effects.js';
 import type { EffectWatch } from './effects.js';
 import type { ActionResult } from './types.js';
@@ -138,23 +139,6 @@ export function watchNavigation(page: Page) {
   };
 }
 
-/** Poll (every 40 ms, up to `ms`) for evidence that a popup opened: aria-expanded="true" on the trigger or a new visible popup. */
-async function popupOpened(ctx: StepContext, ref: string, before: Set<number>, expandedBefore: string | null, ms: number): Promise<boolean> {
-  const { kit } = ctx.rt;
-  const hit = await poll(
-    ctx,
-    async () => {
-      const now = await kit.popupState();
-      if (now.some((p) => !before.has(p.id))) return true;
-      if (expandedBefore !== 'true' && (await kit.expanded(ref)) === 'true') return true;
-      return false;
-    },
-    ms,
-    40,
-  );
-  return hit === true;
-}
-
 /**
  * Move to the element (eased), re-check that it did not move meanwhile (correct with a short move), and return
  * the travelled distance.
@@ -221,21 +205,9 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       // With fallbacks left, a click gets popup_fallback_ms to show evidence; the last strategy gets popup_timeout_ms.
       opened = await popupOpened(ctx, r.ref, before, expandedBefore, auto ? pacing.popup_fallback_ms : pacing.popup_timeout_ms);
       if (!opened && auto) {
-        const fallbacks = ['dom', 'pointer'] as const;
-        for (let i = 0; i < fallbacks.length; i++) {
-          const fallback = fallbacks[i];
-          if (nav.started() || !(await kit.visible(r.ref))) break;
-          if ((await kit.expanded(r.ref)) === 'true' || (await kit.popupState()).some((p) => !before.has(p.id))) {
-            opened = true; // late evidence: the previous strategy worked after all
-            break;
-          }
-          if (fallback === 'dom') await kit.domClick(r.ref, r.point.x, r.point.y);
-          else await kit.pointerSequence(r.ref, r.point.x, r.point.y);
-          strategy = fallback;
-          const last = i === fallbacks.length - 1;
-          opened = await popupOpened(ctx, r.ref, before, expandedBefore, last ? pacing.popup_timeout_ms : pacing.popup_fallback_ms);
-          if (opened) break;
-        }
+        const fell = await fallbackClicks(ctx, r, nav, before, expandedBefore);
+        opened = fell.opened;
+        if (fell.strategy) strategy = fell.strategy;
       }
       if (opened) popupMs = Math.round(wallNow() - clickWall);
       if (!opened) rt.warn(`${ctx.scene.id}.${ctx.step.index}: clicking ${r.spec} was expected to open a popup but none appeared`);

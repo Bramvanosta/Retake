@@ -28,17 +28,10 @@ export interface RecordingSend {
   setConfirming: (on: boolean) => void;
 }
 
-/** The recording's changes (annotate, stop, discard, save) and whether one is being written. */
-export function useRecordingActions({ slug, rec, cursor, setCursor, reload, accept, resync, latest, setNote, setTaken, setDiscarding, setConfirming }: RecordingSend): {
-  act: RecordingActions;
-  busy: boolean;
-} {
+/** The changes' queue: one in flight at a time (`run`), and whether one is being written. */
+function useChangeQueue(setNote: RecordingSend['setNote']) {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const job = () => {
-    const j = startedJobs.get(rec) ?? latest()?.job?.id;
-    return j ? { job: j } : {};
-  };
   /**
    * One change in flight at a time. Asked while one is being written: a pick waits
    * for it (the newest pick of the same step replaces an older one waiting), Stop and Discard wait for it (said, sent
@@ -67,6 +60,19 @@ export function useRecordingActions({ slug, rec, cursor, setCursor, reload, acce
     queue.current = [...queue.current.filter((j) => j.kind !== kind), { kind, f }];
     if (kind === 'stop') say('Stopping once the change being written is saved');
     else if (kind === 'discard') say('Discarding once the change being written is saved');
+  };
+  return { busy, run };
+}
+
+/** The recording's changes (annotate, stop, discard, save) and whether one is being written. */
+export function useRecordingActions({ slug, rec, cursor, setCursor, reload, accept, resync, latest, setNote, setTaken, setDiscarding, setConfirming }: RecordingSend): {
+  act: RecordingActions;
+  busy: boolean;
+} {
+  const { busy, run } = useChangeQueue(setNote);
+  const job = () => {
+    const j = startedJobs.get(rec) ?? latest()?.job?.id;
+    return j ? { job: j } : {};
   };
   const act: RecordingActions = {
     annotate: (change) =>

@@ -256,6 +256,50 @@ export class Sandbox {
     return PostgresSnapshot.open(address ? { ...target, host: address } : target, this.env);
   }
 
+  /** A snapshot kept under its earlier name (a renamed database): renamed or dropped, and the state follows. */
+  private async adoptEarlierSnapshot(ctx: ProviderContext, snap: PostgresSnapshot, recorded: SnapshotState | undefined): Promise<void> {
+    const adopted = await snap.adoptEarlier();
+    if (adopted) {
+      ctx.log(
+        'info',
+        `sandbox ${this.env}: the snapshot of ${snap.target.database} under its earlier name ${snap.target.earlier}: ${adopted === 'renamed' ? `renamed ${snap.target.template}` : `dropped (${snap.target.template} exists)`}`,
+      );
+      if (recorded) {
+        ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), snapshot: { ...recorded, template: snap.target.template } };
+        ctx.save();
+      }
+    }
+  }
+
+  /** A reset once the data is back: the mailbox emptied, `reset.restart` services restarted, the emulator's accounts put back, `reset.hooks` run. */
+  private async afterData(
+    ctx: ProviderContext,
+    by: string,
+    fa: FirebaseAuthSnapshot | null,
+  ): Promise<{ mailbox: ResetResult['mailbox']; restarted: string[]; firebaseAuth: ResetResult['firebase_auth']; hooks: ResetResult['hooks'] }> {
+    const mailbox = await clearMailbox(this.project, this.sandbox, this.resolveSecret, (port) => this.addressOf(ctx, port));
+    if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
+    const restarted: string[] = [];
+    for (const name of this.sandbox.manifest.reset?.restart ?? []) {
+      ctx.progress?.step(`restart ${name}`);
+      await this.provider.restart(ctx, name);
+      restarted.push(name);
+    }
+    // After the restarts (a restarted emulator starts empty): its accounts as the seed left them.
+    let firebaseAuth: ResetResult['firebase_auth'];
+    if (fa) {
+      ctx.progress?.step('firebase auth', 'putting back the accounts saved after the seed');
+      firebaseAuth = { accounts: await fa.restore() };
+      ctx.log('info', `sandbox ${this.env}: ${firebaseAuth.accounts} account(s) of the Firebase Auth emulator put back`);
+    }
+    // reset.hooks: what each take needs undone that the snapshot does not cover.
+    const resetHooks = this.sandbox.manifest.reset?.hooks ?? [];
+    const hooks = resetHooks.length
+      ? await runSeed(ctx, this.provider, { by, log: ctx.log, signal: ctx.signal, running: this.running, steps: resetHooks, what: 'reset hook', indexBase: (this.sandbox.manifest.seed ?? []).length })
+      : { steps: 0, ms: 0 };
+    return { mailbox, restarted, firebaseAuth, hooks };
+  }
+
   /**
    * The reset itself (lock held, services up). Strategy snapshot: a valid template (same seed hash in the state and in
    * its comment) is restored; otherwise — first time, seed or images changed, `reseed`, template gone with the
@@ -278,17 +322,7 @@ export class Sandbox {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       if (snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
-        const adopted = await snap.adoptEarlier();
-        if (adopted) {
-          ctx.log(
-            'info',
-            `sandbox ${this.env}: the snapshot of ${snap.target.database} under its earlier name ${snap.target.earlier}: ${adopted === 'renamed' ? `renamed ${snap.target.template}` : `dropped (${snap.target.template} exists)`}`,
-          );
-          if (recorded) {
-            ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), snapshot: { ...recorded, template: snap.target.template } };
-            ctx.save();
-          }
-        }
+        await this.adoptEarlierSnapshot(ctx, snap, recorded);
         const valid =
           !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
         if (valid) {
@@ -336,26 +370,7 @@ export class Sandbox {
     } finally {
       await snap?.close();
     }
-    const mailbox = await clearMailbox(this.project, this.sandbox, this.resolveSecret, (port) => this.addressOf(ctx, port));
-    if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
-    const restarted: string[] = [];
-    for (const name of this.sandbox.manifest.reset?.restart ?? []) {
-      ctx.progress?.step(`restart ${name}`);
-      await this.provider.restart(ctx, name);
-      restarted.push(name);
-    }
-    // After the restarts (a restarted emulator starts empty): its accounts as the seed left them.
-    let firebaseAuth: ResetResult['firebase_auth'];
-    if (fa) {
-      ctx.progress?.step('firebase auth', 'putting back the accounts saved after the seed');
-      firebaseAuth = { accounts: await fa.restore() };
-      ctx.log('info', `sandbox ${this.env}: ${firebaseAuth.accounts} account(s) of the Firebase Auth emulator put back`);
-    }
-    // reset.hooks: what each take needs undone that the snapshot does not cover.
-    const resetHooks = this.sandbox.manifest.reset?.hooks ?? [];
-    const hooks = resetHooks.length
-      ? await runSeed(ctx, this.provider, { by, log: ctx.log, signal: ctx.signal, running: this.running, steps: resetHooks, what: 'reset hook', indexBase: (this.sandbox.manifest.seed ?? []).length })
-      : { steps: 0, ms: 0 };
+    const { mailbox, restarted, firebaseAuth, hooks } = await this.afterData(ctx, by, fa);
     const at = new Date().toISOString();
     const ms = Date.now() - t0;
     const restored = snapshot?.action === 'restored';

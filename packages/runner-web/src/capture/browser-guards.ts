@@ -177,14 +177,24 @@ export function foreignSignIn(
  * without one with the environment's (auth.login_url) unless written `persona: none` — or opened (new_tab) from such a
  * page. Null when there is nothing to watch.
  */
-export function signInGuard(
-  project: LoadedProject,
-  env: { name: string; pages: Record<string, string> },
-  personas: readonly ResolvedPersona[],
-  plan: PersonaPlan,
-  session: () => BrowserSession | null,
-  o: { command: (persona: string) => string; hooksJustRan: () => boolean; redact: (t: string) => string; abort: (e: LoginPageError) => void },
-): LoginGuard | null {
+export function signInGuard({
+  project,
+  env,
+  personas,
+  plan,
+  session,
+  ...o
+}: {
+  project: LoadedProject;
+  env: { name: string; pages: Record<string, string> };
+  personas: readonly ResolvedPersona[];
+  plan: PersonaPlan;
+  session: () => BrowserSession | null;
+  command: (persona: string) => string;
+  hooksJustRan: () => boolean;
+  redact: (t: string) => string;
+  abort: (e: LoginPageError) => void;
+}): LoginGuard | null {
   const byPersona = new Map(personas.map((p) => [p.name, signInMatchers(project, env, p)]));
   const envMatchers = signInMatchers(project, env, null);
   if (envMatchers.length === 0 && [...byPersona.values()].every((m) => m.length === 0)) return null;

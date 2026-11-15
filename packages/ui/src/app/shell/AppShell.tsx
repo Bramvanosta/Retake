@@ -18,9 +18,9 @@
  * `desktop_answer`); a browser tab has none (only the app's window is ever asked). In the app's window, the
  * update's button in the status bar and its sheet (UpdateSheet.tsx).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { ReactNode, RefObject } from 'react';
-import type { AuthStatus, HeldWork, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { ReactNode } from 'react';
+import type { HeldWork, ProjectSummary, ProjectView } from '@retake/engine';
 import { useConnection } from '../api.js';
 import type { Connection, Loaded } from '../api.js';
 import { engineInfo } from '../data/projects.js';
@@ -33,22 +33,25 @@ import type { EventMode } from '../events.js';
 import { heldShortWords, heldWords } from '../words/render-words.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { AppMark, Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
-import type { Command, IconName, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
-import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../words/board-words.js';
+import { AppMark, Button, CommandPalette, IconButton, Menu, SegmentedLinks, StatusBar, StatusMark, studioShell } from '../ui-kit/index.js';
+import type { Command, IconName, MarkState } from '../ui-kit/index.js';
+import { BOARD_GROUPS, GROUP_LABEL } from '../words/board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
-import { isShellCommand, paletteGroup, runShellCommand } from './command-bus.js';
+import { paletteGroup, runShellCommand } from './command-bus.js';
 import type { PaletteSlot } from './command-bus.js';
 import type { ShellCommand } from './command-bus.js';
 import { MODES, contextWatch, modeOf, modeTarget, noteReviewView, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode, ScenarioContext } from './modes.js';
 import { SlotContext } from './slots.js';
-import type { SlotHost, SlotName } from './slots.js';
-import { setSay } from './say.js';
 import { useStatusActions } from './StatusActions.js';
 import { QuitSheet } from './QuitSheet.js';
 import { SetupSheet } from './SetupSheet.js';
 import { UpdateControl } from './UpdateSheet.js';
+import { BrowserPane } from './browser-pane.js';
+import type { OpenProject } from './browser-pane.js';
+import { useMenuCommands } from './menu-commands.js';
+import type { CommandInput } from './menu-commands.js';
+import { useHeld, useSaid, useScreenTop, useSlots } from './shell-hooks.js';
 
 const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
   connecting: { word: 'Connecting…', state: 'running' },
@@ -57,9 +60,6 @@ const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
   ended: { word: 'Session ended', state: 'idle' },
 };
 const UPDATES: Record<EventMode, string> = { connecting: '', stream: 'live updates', relay: 'live updates', polling: 'updates every 3 s', off: '' };
-/** How long a polite line stays (ms). */
-const SAID_MS = 6000;
-const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
 const MODE_ICON: Record<Mode, IconName> = { script: 'report', shoot: 'record', edit: 'film', review: 'check' };
 /** The Scenario menu's commands in the palette (a browser tab binds none of their keys). */
 const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[]; icon: IconName }> = [
@@ -111,294 +111,7 @@ function useEngineInfo(): EngineInfoAnswer | null {
   return v;
 }
 
-/**
- * What a filming take holds of this workspace's jobs — engine_info's `held`, then each jobs
- * event's (the server says it with every change of a job, a hold included: the job stream's signature has it).
- */
-function useHeld(info: EngineInfoAnswer | null): HeldWork | null {
-  const [v, set] = useState<HeldWork | null>(null);
-  useEffect(() => {
-    if (info && info.held !== undefined) set(info.held ?? null);
-  }, [info]);
-  useEvents((e) => {
-    if (e.type === 'jobs' && e.held !== undefined) set(e.held ?? null);
-  });
-  return v;
-}
-
-/** A Mac (its shortcuts use ⌘; Ctrl+K edits text there). */
-const MAC = typeof navigator !== 'undefined' && /^(?:mac|iphone|ipad)/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform);
-
-/** A field that takes typed text (its own Ctrl+K, if any, stays its own). */
-function inTextField(t: EventTarget | null): boolean {
-  return (
-    t instanceof HTMLElement &&
-    (t.isContentEditable ||
-      t.matches('textarea, select, input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"], [type="range"])'))
-  );
-}
-
 const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'review', 'library', 'themes', 'record']);
-
-interface OpenProject {
-  view: Loaded<ProjectView>;
-  board: Loaded<ProjectBoardView>;
-  cast: Loaded<AuthStatus>;
-}
-
-/** Welcome's browser: Projects and the projects of the workspace. */
-function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] {
-  return [
-    {
-      key: 'workspace',
-      items: [
-        {
-          key: 'projects',
-          to: { name: 'projects' },
-          label: 'Projects',
-          icon: 'folder',
-          current: route.name === 'projects' || route.name === 'setup',
-          childrenLabel: 'Projects of the workspace',
-          children: projects.map((p) => ({ key: p.slug, to: { name: 'project', slug: p.slug }, label: <Txt text={p.name} />, current: false, ...(p.error ? { flag: 'does not load' } : {}) })),
-        },
-      ],
-    },
-  ];
-}
-
-/**
- * An open project's browser: Productions and its smart groups, the Library, the Locations (environments
- * with their flags in words), the Cast (each persona's session: a shape and a word), the Project's README and Record.
- */
-function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: boolean): SourceGroup[] {
-  const board = d.board.state === 'ready' ? d.board.data : null;
-  const view = d.view.state === 'ready' ? d.view.data : null;
-  const counts = board ? groupCounts(board.scenarios) : null;
-  const total = board ? (board.truncated?.total ?? board.scenarios.length) : view?.scenarios.length;
-  const row = (key: string, to: Route, label: ReactNode, current: boolean, extra: Partial<SourceItem> = {}): SourceItem => ({ key, to, label, current, ...extra });
-  const personas = d.cast.state === 'ready' ? d.cast.data.personas : [];
-  const manyEnvs = new Set(personas.map((p) => p.env)).size > 1;
-  return [
-    {
-      key: 'productions',
-      label: 'Productions',
-      items: [
-        row('productions', { name: 'project', slug }, 'Productions', route.name === 'project', {
-          icon: 'film',
-          ...(total !== undefined ? { count: total } : {}),
-          childrenLabel: 'Smart groups',
-          children: BOARD_GROUPS.map((g) => row(`g-${g}`, { name: 'group', slug, group: g }, GROUP_LABEL[g], route.name === 'group' && route.group === g, counts ? { count: counts[g] } : {})),
-        }),
-      ],
-    },
-    {
-      key: 'library',
-      heading: 'Library',
-      label: 'Library',
-      items: [
-        row('library', { name: 'library', slug }, 'Components', route.name === 'library', { icon: 'components', testId: 'library-link' }),
-        row('themes', { name: 'themes', slug }, 'Themes', route.name === 'themes', { icon: 'theme' }),
-      ],
-    },
-    {
-      key: 'locations',
-      heading: 'Locations',
-      label: 'Locations',
-      items: view
-        ? view.environments.map((e) => {
-            const flags = envFlagWord(e, e.name === view.default_env);
-            return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, {
-              icon: 'location',
-              ...(flags ? { flag: flags } : {}),
-            });
-          })
-        : [],
-    },
-    {
-      key: 'cast',
-      heading: 'Cast',
-      label: 'Cast',
-      items: [
-        row('cast', { name: 'cast', slug }, 'Sessions', route.name === 'cast', {
-          icon: 'person',
-          ...(d.cast.state === 'ready' ? { count: personas.length } : {}),
-          childrenLabel: 'Personas',
-          children: personas.map((p) => {
-            const c = castState(p);
-            // Several locations: each one under its persona's name, on a line that wraps (never cut off).
-            return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, {
-              quiet: true,
-              flag: <StatusMark state={c.state} word={c.word} />,
-              ...(manyEnvs ? { detail: <Txt text={p.env} /> } : {}),
-            });
-          }),
-        }),
-      ],
-    },
-    {
-      key: 'project',
-      heading: 'Project',
-      label: 'Project',
-      items: [
-        row('readme', { name: 'readme', slug }, 'README', route.name === 'readme', { icon: 'report', ...(readmeDirty ? { flag: 'unsaved' } : {}) }),
-        row('record', { name: 'record', slug }, 'Record a scenario', route.name === 'record', { icon: 'record' }),
-      ],
-    },
-  ];
-}
-
-/** The centre pane back at the top when the screen changes, and the focus on it when the old screen took it away. */
-function useScreenTop(main: RefObject<HTMLElement | null>, key: string): void {
-  const firstScreen = useRef(true);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the screen key is the trigger: the pane scrolls to the top when the screen changes
-  useEffect(() => {
-    main.current?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
-    if (firstScreen.current) {
-      firstScreen.current = false;
-      return;
-    }
-    // A new screen whose old one took the focused control with it (a link, a palette command): the focus lands on the
-    // centre pane, not the document. The first screen of a load leaves it alone (Tab starts at the top).
-    if (!document.activeElement || document.activeElement === document.body) main.current?.focus({ preventScroll: true });
-  }, [key]);
-}
-
-/** The panes a screen fills (slots), the browser a screen hides, and the inspector's toggle. */
-function useSlots(main: RefObject<HTMLElement | null>) {
-  const [targets, setTargets] = useState<Partial<Record<SlotName, HTMLElement | null>>>({});
-  const [claims, setClaims] = useState<Record<SlotName, number>>({ inspector: 0, context: 0, actions: 0, browser: 0 });
-  const claim = useCallback((name: SlotName) => {
-    setClaims((c) => ({ ...c, [name]: c[name] + 1 }));
-    return () => setClaims((c) => ({ ...c, [name]: c[name] - 1 }));
-  }, []);
-  // One stable ref callback per slot (a new function each render would detach and re-attach it every time).
-  const slotRefs = useMemo(() => {
-    const at = (name: SlotName) => (el: HTMLElement | null) => setTargets((t) => (t[name] === el ? t : { ...t, [name]: el }));
-    return { inspector: at('inspector'), context: at('context'), actions: at('actions'), browser: at('browser') };
-  }, []);
-  // A screen that hides the browser pane while mounted (Edit, the Review report).
-  const [collapsed, setCollapsed] = useState(0);
-  const collapseBrowser = useCallback(() => {
-    setCollapsed((n) => n + 1);
-    return () => setCollapsed((n) => n - 1);
-  }, []);
-  const hasInspector = claims.inspector > 0;
-  const [inspectorOff, setInspectorOff] = useState(false);
-  const inspectorShown = hasInspector && !inspectorOff;
-  const host = useMemo<SlotHost>(() => ({ targets, claim, collapseBrowser, hidden: { inspector: inspectorOff } }), [targets, claim, collapseBrowser, inspectorOff]);
-  const inspector = useRef<HTMLElement>(null);
-  /** Shows or hides the inspector; hiding it with the focus inside moves the focus to the centre pane. */
-  const toggleInspector = useCallback(() => {
-    if (inspector.current?.contains(document.activeElement)) main.current?.focus({ preventScroll: true });
-    setInspectorOff((v) => !v);
-  }, [main]);
-  return { claims, slotRefs, collapsed, hasInspector, inspectorOff, inspectorShown, host, inspector, toggleInspector };
-}
-
-/**
- * What a command answers (a polite line in the status bar): one line at a time — a new one replaces it —, gone after
- * SAID_MS (announced once anyway) and when the screen changes ("queued" never stays beside the run's own
- * state). Said as text (Txt: engine and project words).
- */
-function useSaid(keyNow: RefObject<string>, saidKey: string) {
-  const [said, setSaid] = useState('');
-  const saidFor = useRef<string | null>(null);
-  const saidTimer = useRef<number | null>(null);
-  const say = useCallback(
-    (s: string) => {
-      if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
-      setSaid('');
-      saidFor.current = keyNow.current;
-      saidTimer.current = window.setTimeout(() => {
-        setSaid(s);
-        saidTimer.current = window.setTimeout(() => {
-          saidTimer.current = null;
-          setSaid('');
-        }, SAID_MS);
-      }, 30);
-    },
-    [keyNow],
-  );
-  useEffect(() => setSay(say), [say]);
-  useEffect(() => {
-    if (saidFor.current === null || saidFor.current === saidKey) return;
-    if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
-    saidTimer.current = null;
-    saidFor.current = null;
-    setSaid('');
-  }, [saidKey]);
-  useEffect(
-    () => () => {
-      if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
-    },
-    [],
-  );
-  return { said, say };
-}
-
-interface CommandInput {
-  ctx: ScenarioContext | null;
-  hasInspector: boolean;
-  say: (s: string) => void;
-  toggleInspector: () => void;
-  inApp: boolean;
-}
-
-/** The palette's open state and the shell's commands: the desktop app's menu, or ⌘K / Ctrl+K in a browser tab. */
-function useMenuCommands({ ctx, hasInspector, say, toggleInspector, inApp }: CommandInput) {
-  const [palette, setPalette] = useState(false);
-
-  const run = useCallback(
-    (id: MenuCommand) => {
-      if (modalOpen()) {
-        // A modal waits for its answer; the palette's own ⌘K closes it. ⌘. always answers (a capture may be running
-        // behind the sheet or the palette): the palette closes, then Stop's owner acts — it changes no page.
-        if (id === 'palette' && palette) setPalette(false);
-        if (id !== 'stop') return;
-        if (palette) setPalette(false);
-      }
-      if (id === 'palette') setPalette(true);
-      else if (isShellCommand(id)) {
-        // Whoever owns it acts (the status bar's defaults are always there; they say why when they cannot).
-        if (!runShellCommand(id)) say('Open a scenario first');
-      } else if (id === 'inspector') {
-        if (hasInspector) toggleInspector();
-        else say('This screen has no inspector');
-      } else {
-        const m = (Object.keys(MODE_COMMAND) as Mode[]).find((k) => MODE_COMMAND[k] === id);
-        if (!m) return;
-        if (ctx) location.hash = hrefTo(modeTarget(m, ctx));
-        else say('Open a scenario first');
-      }
-    },
-    [ctx, hasInspector, palette, say, toggleInspector],
-  );
-
-  // The desktop app's menu sends commands; a browser tab binds ⌘K / Ctrl+K only.
-  useEffect(() => {
-    const onCommand = (e: Event) => {
-      const id = (e as CustomEvent<{ id?: unknown } | null>).detail?.id;
-      if (isMenuCommand(id)) run(id);
-    };
-    window.addEventListener(COMMAND_EVENT, onCommand);
-    const onKey = (e: KeyboardEvent) => {
-      if (inApp || e.isComposing || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return;
-      // ⌘K on a Mac — never Ctrl+K there (a text field's "delete to the end of the line"); Ctrl+K elsewhere, outside a
-      // text field.
-      if (MAC ? !e.metaKey || e.ctrlKey : !e.ctrlKey || e.metaKey || inTextField(e.target)) return;
-      // A modal waiting for its answer keeps the key (the browser's own ⌘K too), but the palette's own ⌘K closes it.
-      if (modalOpen() && !document.querySelector('dialog.k-palette[open]')) return;
-      e.preventDefault();
-      run('palette');
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener(COMMAND_EVENT, onCommand);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [run, inApp]);
-  return { palette, setPalette };
-}
 
 interface PaletteInput extends CommandInput {
   project: ProjectSummary | undefined;
@@ -561,58 +274,6 @@ function TitleBar({
         {hasInspector && <IconButton icon="inspector" label="Inspector" pressed={inspectorShown} onClick={toggleInspector} />}
       </div>
     </header>
-  );
-}
-
-/** The browser pane: the source list (unless a screen fills the slot), the screen's slot, the workspace foot. */
-function BrowserPane({
-  route,
-  list,
-  projects,
-  openSlug,
-  open,
-  readmeDirty,
-  info,
-  claimed,
-  collapsed,
-  browserRef,
-}: {
-  route: Route;
-  list: Loaded<ProjectList>;
-  projects: ProjectSummary[];
-  openSlug: string | null;
-  open: OpenProject;
-  readmeDirty: boolean;
-  info: EngineInfoAnswer | null;
-  claimed: boolean;
-  collapsed: boolean;
-  browserRef: (el: HTMLElement | null) => void;
-}) {
-  return (
-    <aside className="sh-browser sidebar" aria-label="Browser" hidden={collapsed}>
-      {!claimed && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
-      <div className="sh-slot-browser" ref={browserRef} hidden={!claimed} />
-      <div className="sh-browser-foot">
-        <p className="sh-foot-line">
-          <span className="sh-foot-label">Workspace</span>
-          <Txt className="sh-foot-path k-mono" text={info?.root ?? (list.state === 'ready' ? list.data.root : '')} />
-        </p>
-        {info && (
-          <p className="sh-foot-line sh-foot-meta">
-            <span className="k-mono">v{info.version}</span>
-            {info.worker && (
-              <span className="k-mono">
-                {` · worker pid ${info.worker.pid}`}
-                {info.worker.started_by && <>, started by {info.worker.started_by === 'ui' ? 'the Studio' : <Txt text={info.worker.started_by} />}</>}
-              </span>
-            )}
-          </p>
-        )}
-        <a href={hrefTo({ name: 'ui' })} className="sh-foot-link" aria-current={route.name === 'ui' ? 'page' : undefined}>
-          UI gallery
-        </a>
-      </div>
-    </aside>
   );
 }
 

@@ -119,26 +119,20 @@ function firstLine(p: Pick<ProposalAnswer, 'rows'>): number | null {
   return null;
 }
 
-/** The thread's newest proposal: summary, diff, the offered buttons, Undo apply, the render after it and Resolve with vN. */
-export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; name: string; th: ThreadAnswer; p: ProposalAnswer; rs: RendersState; reload: () => void }) {
-  const record = useApplyRecord(slug, th.id);
-  const [busy, setBusy] = useState<Busy>(null);
-  const [said, setSaid] = useState<Said | null>(null);
-  const head = useId();
-  const card = useRef<HTMLElement>(null);
-  // Opened from the timeline's Back to the comment: the proposal is scrolled into view and its heading focused.
-  useEffect(() => {
-    if (!takeProposalFocus(slug, th.id)) return;
-    card.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
-    card.current?.querySelector<HTMLElement>('[data-testid="proposal-head"]')?.focus({ preventScroll: true });
-  }, [slug, th.id]);
-  const { buttons, why } = proposalButtons(p.offer);
-  const note = rewriteNote(p.rewrites_pct);
-  const reloadRenders = rs.reload;
-  const line = firstLine(p);
-  // The diff's rows drawn once per proposal read, not on every render of the card.
-  const rows = useMemo(() => diffRowsView(p.rows, p.untrusted.rows), [p.rows, p.untrusted.rows]);
+/** What the card's writes read and set: the thread, the proposal, its last apply and the card's state. */
+interface ProposalCtx {
+  slug: string;
+  th: ThreadAnswer;
+  p: ProposalAnswer;
+  record: ApplyRecord | undefined;
+  reload: () => void;
+  reloadRenders: () => void;
+  setBusy: (b: Busy) => void;
+  setSaid: (s: Said | null) => void;
+}
 
+/** The card's writes: Apply (and re-render), Undo apply, Resolve with vN — each says what it did and reads the thread again. */
+function proposalWrites({ slug, th, p, record, reload, reloadRenders, setBusy, setSaid }: ProposalCtx) {
   const apply = (render: boolean) => {
     setBusy(render ? 'apply_render' : 'apply');
     setSaid(null);
@@ -179,14 +173,6 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
         reload();
       });
   };
-
-  // The render the apply queued: its job, then the render once written (succeeded), or its failure.
-  const asked = record && !record.undone && record.answer.scenario.hash === p.today_sha256 ? record.render : undefined;
-  const rid = asked?.state === 'queued' ? asked.render_id : null;
-  const rv = rs.loaded.state === 'ready' ? rs.loaded.data : null;
-  const job = rid && rv ? rv.jobs.find((j) => j.render_id === rid) : undefined;
-  const done = rid && rv ? rv.renders.find((r) => r.render_id === rid && r.status === 'succeeded') : undefined;
-  const failed = rid && rv && !job && !done && rv.last_failed?.render_id === rid ? rv.last_failed : undefined;
   const resolveWith = (renderId: string) => {
     setBusy('resolve');
     setSaid(null);
@@ -203,6 +189,30 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
         reload();
       });
   };
+  return { apply, undo, resolveWith };
+}
+
+/** The thread's newest proposal: summary, diff, the offered buttons, Undo apply, the render after it and Resolve with vN. */
+export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; name: string; th: ThreadAnswer; p: ProposalAnswer; rs: RendersState; reload: () => void }) {
+  const record = useApplyRecord(slug, th.id);
+  const [busy, setBusy] = useState<Busy>(null);
+  const [said, setSaid] = useState<Said | null>(null);
+  const head = useId();
+  const card = useRef<HTMLElement>(null);
+  // Opened from the timeline's Back to the comment: the proposal is scrolled into view and its heading focused.
+  useEffect(() => {
+    if (!takeProposalFocus(slug, th.id)) return;
+    card.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    card.current?.querySelector<HTMLElement>('[data-testid="proposal-head"]')?.focus({ preventScroll: true });
+  }, [slug, th.id]);
+  const { buttons, why } = proposalButtons(p.offer);
+  const note = rewriteNote(p.rewrites_pct);
+  const reloadRenders = rs.reload;
+  const line = firstLine(p);
+  // The diff's rows drawn once per proposal read, not on every render of the card.
+  const rows = useMemo(() => diffRowsView(p.rows, p.untrusted.rows), [p.rows, p.untrusted.rows]);
+
+  const { apply, undo, resolveWith } = proposalWrites({ slug, th, p, record, reload, reloadRenders, setBusy, setSaid });
 
   return (
     <section ref={card} className="cm-proposal" aria-labelledby={head} data-testid="proposal" data-state={p.state} data-verified={p.verified ? 'yes' : 'no'} data-entry={p.entry}>
@@ -236,93 +246,150 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
         testId="proposal-diff"
         boxTestId="proposal-diff-box"
       />
-      {buttons.length > 0 && (
-        // biome-ignore lint/a11y/useSemanticElements: a row of the proposal's buttons; <fieldset> would bring its own border, padding and min-width
-        <div className="cm-actions" role="group" aria-label="The proposal">
-          {buttons.map((b) =>
-            b === 'preview' ? (
-              <LinkButton key={b} size="sm" testId="proposal-preview" to={{ name: 'proposal', slug, scenario: name, thread: th.id, entry: p.entry }}>
-                {shown(BUTTON_WORDS[b])}
-              </LinkButton>
-            ) : (
-              <Button
-                key={b}
-                size="sm"
-                variant={b === 'apply_render' ? 'primary' : 'secondary'}
-                data-testid={b === 'apply' ? 'proposal-apply' : 'proposal-apply-render'}
-                disabled={busy !== null}
-                onClick={() => apply(b === 'apply_render')}
-              >
-                {shown(busy === b ? (b === 'apply' ? 'Applying…' : 'Applying, then rendering…') : BUTTON_WORDS[b])}
-              </Button>
-            ),
-          )}
-        </div>
-      )}
+      {buttons.length > 0 && <ProposalButtons buttons={buttons} slug={slug} name={name} th={th} p={p} busy={busy} onApply={apply} />}
       {why && (
         <p className="cm-quiet" data-testid="proposal-why">
           <Txt text={`${why}.`} />
         </p>
       )}
-      <div aria-live="polite" className="cm-after">
-        {record && !record.undone && th.status === 'open' && canUndo(record.answer, p.today_sha256) && (
-          <p className="cm-line" data-testid="proposal-applied">
-            {'Applied from this page. '}
-            <Button size="sm" data-testid="proposal-undo" disabled={busy !== null} onClick={undo}>
-              {busy === 'undo' ? 'Undoing…' : 'Undo apply'}
-            </Button>
-          </p>
-        )}
-        {record?.undone && p.state === 'undone' && (
-          <p className="cm-small" data-testid="proposal-undone">
-            Undone: the scenario file is back to what it was before the apply.
-          </p>
-        )}
-        {asked?.state === 'sending' && <p className="cm-small">Starting the render…</p>}
-        {job && !done && (
-          <div className="cm-small" data-testid="proposal-render" data-state={job.state}>
-            {job.fraction !== undefined && job.state === 'running' && !job.reviewing ? (
-              <Progress label={<Txt text={jobWords(job)} />} value={Math.round(job.fraction * 100)} valueText={`${Math.round(job.fraction * 100)} %`} />
-            ) : (
-              <Txt text={jobWords(job)} />
-            )}
-          </div>
-        )}
-        {rid && !job && !done && !failed && (
-          <p className="cm-quiet">
-            <Txt text={`${versionWords(rid)} is queued…`} />
-          </p>
-        )}
-        {failed && (
-          <p className="cm-small" data-testid="proposal-render-failed">
-            <Txt text={`${versionWords(failed.render_id)} ended without a video (${failed.state}): its reason is in the Review report's Renders.`} />
-          </p>
-        )}
-        {done && (
-          <p className="cm-line" data-testid="proposal-rendered">
-            <Txt text={`${versionWords(done.render_id)} is rendered from the applied file${job ? ' (its review is still running)' : ''}. `} />
-            {th.status === 'open' && (
-              <Button size="sm" variant="primary" data-testid="resolve-with" data-render={done.render_id} disabled={busy !== null} onClick={() => resolveWith(done.render_id)}>
-                {shown(busy === 'resolve' ? 'Resolving…' : `Resolve with ${versionWords(done.render_id)}`)}
-              </Button>
-            )}
-          </p>
-        )}
-      </div>
-      {said &&
-        (said.state === 'ok' ? (
-          <Callout state="ok" role="status" title={said.title}>
-            <p className="cm-pre" data-testid="proposal-said">
-              <Txt text={said.words} />
-            </p>
-          </Callout>
-        ) : (
-          <Callout state={said.state} role="alert" title={said.title}>
-            <p className="cm-pre" data-testid="proposal-said">
-              <Txt text={said.words} />
-            </p>
-          </Callout>
-        ))}
+      <ProposalAfter th={th} p={p} rs={rs} record={record} busy={busy} onUndo={undo} onResolve={resolveWith} />
+      {said && <SaidCallout said={said} />}
     </section>
+  );
+}
+
+/** The offered buttons: Apply, Preview change (a link to the timeline on the proposed edit), Apply and re-render. */
+function ProposalButtons({
+  buttons,
+  slug,
+  name,
+  th,
+  p,
+  busy,
+  onApply,
+}: {
+  buttons: ProposalButton[];
+  slug: string;
+  name: string;
+  th: ThreadAnswer;
+  p: ProposalAnswer;
+  busy: Busy;
+  onApply: (render: boolean) => void;
+}) {
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a row of the proposal's buttons; <fieldset> would bring its own border, padding and min-width
+    <div className="cm-actions" role="group" aria-label="The proposal">
+      {buttons.map((b) =>
+        b === 'preview' ? (
+          <LinkButton key={b} size="sm" testId="proposal-preview" to={{ name: 'proposal', slug, scenario: name, thread: th.id, entry: p.entry }}>
+            {shown(BUTTON_WORDS[b])}
+          </LinkButton>
+        ) : (
+          <Button
+            key={b}
+            size="sm"
+            variant={b === 'apply_render' ? 'primary' : 'secondary'}
+            data-testid={b === 'apply' ? 'proposal-apply' : 'proposal-apply-render'}
+            disabled={busy !== null}
+            onClick={() => onApply(b === 'apply_render')}
+          >
+            {shown(busy === b ? (b === 'apply' ? 'Applying…' : 'Applying, then rendering…') : BUTTON_WORDS[b])}
+          </Button>
+        ),
+      )}
+    </div>
+  );
+}
+
+/**
+ * After an apply (said politely): Undo apply while today's file is the one it wrote, that it was undone, the render it
+ * queued (its job, then the render once written, or its failure) and Resolve with vN.
+ */
+function ProposalAfter({
+  th,
+  p,
+  rs,
+  record,
+  busy,
+  onUndo,
+  onResolve,
+}: {
+  th: ThreadAnswer;
+  p: ProposalAnswer;
+  rs: RendersState;
+  record: ApplyRecord | undefined;
+  busy: Busy;
+  onUndo: () => void;
+  onResolve: (renderId: string) => void;
+}) {
+  const asked = record && !record.undone && record.answer.scenario.hash === p.today_sha256 ? record.render : undefined;
+  const rid = asked?.state === 'queued' ? asked.render_id : null;
+  const rv = rs.loaded.state === 'ready' ? rs.loaded.data : null;
+  const job = rid && rv ? rv.jobs.find((j) => j.render_id === rid) : undefined;
+  const done = rid && rv ? rv.renders.find((r) => r.render_id === rid && r.status === 'succeeded') : undefined;
+  const failed = rid && rv && !job && !done && rv.last_failed?.render_id === rid ? rv.last_failed : undefined;
+  return (
+    <div aria-live="polite" className="cm-after">
+      {record && !record.undone && th.status === 'open' && canUndo(record.answer, p.today_sha256) && (
+        <p className="cm-line" data-testid="proposal-applied">
+          {'Applied from this page. '}
+          <Button size="sm" data-testid="proposal-undo" disabled={busy !== null} onClick={onUndo}>
+            {busy === 'undo' ? 'Undoing…' : 'Undo apply'}
+          </Button>
+        </p>
+      )}
+      {record?.undone && p.state === 'undone' && (
+        <p className="cm-small" data-testid="proposal-undone">
+          Undone: the scenario file is back to what it was before the apply.
+        </p>
+      )}
+      {asked?.state === 'sending' && <p className="cm-small">Starting the render…</p>}
+      {job && !done && (
+        <div className="cm-small" data-testid="proposal-render" data-state={job.state}>
+          {job.fraction !== undefined && job.state === 'running' && !job.reviewing ? (
+            <Progress label={<Txt text={jobWords(job)} />} value={Math.round(job.fraction * 100)} valueText={`${Math.round(job.fraction * 100)} %`} />
+          ) : (
+            <Txt text={jobWords(job)} />
+          )}
+        </div>
+      )}
+      {rid && !job && !done && !failed && (
+        <p className="cm-quiet">
+          <Txt text={`${versionWords(rid)} is queued…`} />
+        </p>
+      )}
+      {failed && (
+        <p className="cm-small" data-testid="proposal-render-failed">
+          <Txt text={`${versionWords(failed.render_id)} ended without a video (${failed.state}): its reason is in the Review report's Renders.`} />
+        </p>
+      )}
+      {done && (
+        <p className="cm-line" data-testid="proposal-rendered">
+          <Txt text={`${versionWords(done.render_id)} is rendered from the applied file${job ? ' (its review is still running)' : ''}. `} />
+          {th.status === 'open' && (
+            <Button size="sm" variant="primary" data-testid="resolve-with" data-render={done.render_id} disabled={busy !== null} onClick={() => onResolve(done.render_id)}>
+              {shown(busy === 'resolve' ? 'Resolving…' : `Resolve with ${versionWords(done.render_id)}`)}
+            </Button>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** What the last write said: a success as a status, anything else as an alert. */
+function SaidCallout({ said }: { said: Said }) {
+  return said.state === 'ok' ? (
+    <Callout state="ok" role="status" title={said.title}>
+      <p className="cm-pre" data-testid="proposal-said">
+        <Txt text={said.words} />
+      </p>
+    </Callout>
+  ) : (
+    <Callout state={said.state} role="alert" title={said.title}>
+      <p className="cm-pre" data-testid="proposal-said">
+        <Txt text={said.words} />
+      </p>
+    </Callout>
   );
 }

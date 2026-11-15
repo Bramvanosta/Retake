@@ -278,17 +278,16 @@ interface LibraryWant {
   tmp?: string;
 }
 
-/** Execute a library job (see the module comment). */
-async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarget): Promise<PreviewJobResult> {
-  const { input, ws } = ctx;
-  const freeBytes = ctx.freeBytes ?? freeBytesOf;
-  await checkLibraryDisk(ws.root, freeBytes);
-  const { template, registry } = await previewTheme(ws, input);
-  const keys: LibraryKeyContext = await libraryKeyContext(template, registry, { policy: ctx.ws.policy });
-  const theme = { name: template.name, hash: keys.themeHash };
-  const cacheDir = await ensureLibraryCacheDir(ws);
+/**
+ * The keys a library job is asked for, each with its state in the cache now: cached, too large, a failure kept until a
+ * Retry, or none yet (to render); a component gone from the registry is a failure.
+ */
+async function libraryWants(
+  target: LibraryTarget,
+  o: { registry: ComponentRegistry; keys: LibraryKeyContext; cacheDir: string; failures: Array<{ component: string; reason: string }> },
+): Promise<LibraryWant[]> {
+  const { registry, keys, cacheDir, failures } = o;
   const wants: LibraryWant[] = [];
-  const failures: Array<{ component: string; reason: string }> = [];
   for (const item of target.items) {
     for (const kind of ['poster', 'loop'] as const) {
       const expected = item[kind];
@@ -309,6 +308,69 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     else if (have.state === 'failed' && !target.retry && failureIsCurrent(have.failure, await keys.registryHash())) w.state = 'kept_failed';
     else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
   }
+  return wants;
+}
+
+/** One rendered component of a library job: its poster and its loop committed to the cache (a loop too large said so). */
+async function commitLoopItem(
+  r: RenderedLoopItem,
+  slot: { poster?: LibraryWant; loop?: LibraryWant },
+  o: { cacheDir: string; theme: { name: string; hash: string }; at: () => string },
+): Promise<void> {
+  const { cacheDir, theme, at } = o;
+  if (slot.poster && r.poster) {
+    await commitLibraryEntry(cacheDir, slot.poster.key!, slot.poster.tmp!, {
+      meta: {
+        format: LIBRARY_PREVIEW_FORMAT,
+        key: slot.poster.key!,
+        kind: 'poster',
+        component: r.id,
+        theme,
+        at: at(),
+        state: 'ok',
+        bytes: r.poster.bytes,
+        width: r.poster.width,
+        height: r.poster.height,
+      },
+    });
+    slot.poster.state = 'written';
+  }
+  if (slot.loop && r.loop) {
+    const l = r.loop;
+    const meta =
+      'too_large' in l
+        ? ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'too_large', bytes: l.bytes } as const)
+        : ({
+            format: LIBRARY_PREVIEW_FORMAT,
+            key: slot.loop.key!,
+            kind: 'loop',
+            component: r.id,
+            theme,
+            at: at(),
+            state: 'ok',
+            bytes: l.bytes,
+            width: l.width,
+            height: l.height,
+            fps: l.fps,
+            frames: l.frames,
+            duration_s: l.duration_s,
+          } as const);
+    await commitLibraryEntry(cacheDir, slot.loop.key!, slot.loop.tmp!, { meta });
+    slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
+  }
+}
+
+/** Execute a library job (see the module comment). */
+async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarget): Promise<PreviewJobResult> {
+  const { input, ws } = ctx;
+  const freeBytes = ctx.freeBytes ?? freeBytesOf;
+  await checkLibraryDisk(ws.root, freeBytes);
+  const { template, registry } = await previewTheme(ws, input);
+  const keys: LibraryKeyContext = await libraryKeyContext(template, registry, { policy: ctx.ws.policy });
+  const theme = { name: template.name, hash: keys.themeHash };
+  const cacheDir = await ensureLibraryCacheDir(ws);
+  const failures: Array<{ component: string; reason: string }> = [];
+  const wants = await libraryWants(target, { registry, keys, cacheDir, failures });
   const todo = wants.filter((w) => w.state === undefined);
   const at = () => stampOf(ctx.clock);
   let bundle: { hash: string; cached: boolean } | null = null;
@@ -336,49 +398,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     const total = items.length;
     ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: at() });
     if (items.length) {
-      const commit = async (r: RenderedLoopItem) => {
-        const slot = byComponent.get(r.id)!;
-        if (slot.poster && r.poster) {
-          await commitLibraryEntry(cacheDir, slot.poster.key!, slot.poster.tmp!, {
-            meta: {
-              format: LIBRARY_PREVIEW_FORMAT,
-              key: slot.poster.key!,
-              kind: 'poster',
-              component: r.id,
-              theme,
-              at: at(),
-              state: 'ok',
-              bytes: r.poster.bytes,
-              width: r.poster.width,
-              height: r.poster.height,
-            },
-          });
-          slot.poster.state = 'written';
-        }
-        if (slot.loop && r.loop) {
-          const l = r.loop;
-          const meta =
-            'too_large' in l
-              ? ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'too_large', bytes: l.bytes } as const)
-              : ({
-                  format: LIBRARY_PREVIEW_FORMAT,
-                  key: slot.loop.key!,
-                  kind: 'loop',
-                  component: r.id,
-                  theme,
-                  at: at(),
-                  state: 'ok',
-                  bytes: l.bytes,
-                  width: l.width,
-                  height: l.height,
-                  fps: l.fps,
-                  frames: l.frames,
-                  duration_s: l.duration_s,
-                } as const);
-          await commitLibraryEntry(cacheDir, slot.loop.key!, slot.loop.tmp!, { meta });
-          slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
-        }
-      };
+      const commit = (r: RenderedLoopItem) => commitLoopItem(r, byComponent.get(r.id)!, { cacheDir, theme, at });
       const done = await loopsWork({
         renderer: ctx.renderer,
         workPolicy: ws.policy,

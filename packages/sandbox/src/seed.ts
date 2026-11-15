@@ -145,6 +145,69 @@ function failure(r: HookResult, total: number, what = 'seed step'): string {
   return `${what} ${r.index + 1}/${total} (${r.description}) ${r.status === 'refused' ? 'was refused' : 'failed'}: ${r.error ?? r.status}`;
 }
 
+/** The hook context the seed steps run in: the sandbox's environment, read-write, its opener's secrets and signal. */
+function seedHookContext(pctx: ProviderContext, opts: { by: string; log: SandboxLog; signal?: AbortSignal; running?: Set<number> }): HookContext {
+  const { project, sandbox } = pctx;
+  const env = resolveEnvironment(project, sandbox.env);
+  return {
+    project,
+    policy: pctx.policy,
+    env,
+    vars: { ...(project.config.vars ?? {}) },
+    runId: opts.by,
+    baseDir: sandbox.dir,
+    saved: {},
+    // Read-write (a sandbox always is); the hosts of production / read-only environments stay protected.
+    access: runAccess(env, false, project),
+    log: (level, msg) => {
+      opts.log(level === 'error' ? 'debug' : level, msg);
+      pctx.progress?.note(msg);
+    },
+    // The seed hooks' secrets: its opener's resolver (ProviderContext.resolveSecret), as the services' are.
+    resolveSecret: pctx.resolveSecret,
+    // Ctrl-C stops a running shell step's process group; a second one kills it (Sandbox.killStartedSync).
+    ...(opts.signal ? { signal: opts.signal } : {}),
+    ...(opts.running ? { running: opts.running } : {}),
+  };
+}
+
+type SeedExecStep = Extract<SeedStep, { exec: unknown }>;
+
+/** An `exec` seed step, through the provider (docker-compose only), reported like a hook step. Throws SandboxError seed. */
+async function runExecStep({
+  pctx,
+  provider,
+  step,
+  word,
+  at,
+  total,
+  recordExec,
+}: {
+  pctx: ProviderContext;
+  provider: Provider;
+  step: SeedExecStep;
+  word: string;
+  at: number;
+  total: number;
+  recordExec: (step: SeedStep, index: number, status: string, ms: number) => Promise<void>;
+}): Promise<void> {
+  const { sandbox } = pctx;
+  if (!provider.capabilities.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
+  pctx.progress?.step(`${word} ${at + 1}/${total}`, `exec in ${step.exec.service}`);
+  const t1 = Date.now();
+  try {
+    await provider.exec(pctx, step.exec);
+  } catch (e) {
+    const refused = e instanceof SandboxError && e.code === 'seed';
+    const isInterrupt = e instanceof SandboxError && e.code === 'interrupted';
+    await recordExec(step, at, isInterrupt ? 'interrupted' : refused ? 'refused' : 'failed', Date.now() - t1);
+    // Ctrl-C stays an interrupt (exit 130), not a failed seed.
+    if (isInterrupt) throw e;
+    throw new SandboxError(`sandbox ${sandbox.env}: ${word} step ${at + 1}/${total} (exec in ${step.exec.service}) ${refused ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
+  }
+  await recordExec(step, at, 'ok', Date.now() - t1);
+}
+
 /**
  * Run the seed steps in order (consecutive hook steps in one runHooks call, `exec` steps through the provider). The
  * seed journal (`seed-journal.json`) is started afresh each time. Throws SandboxError seed at the first failure.
@@ -167,33 +230,13 @@ export async function runSeed(
     indexBase?: number;
   },
 ): Promise<SeedResult> {
-  const { project, sandbox, paths } = pctx;
+  const { sandbox, paths } = pctx;
   const steps: SeedStep[] = opts.steps ?? sandbox.manifest.seed ?? [];
   const word = opts.what ?? 'seed';
   const base = opts.indexBase ?? 0;
   const t0 = Date.now();
   if (!steps.length) return { steps: 0, ms: 0 };
-  const env = resolveEnvironment(project, sandbox.env);
-  const ctx: HookContext = {
-    project,
-    policy: pctx.policy,
-    env,
-    vars: { ...(project.config.vars ?? {}) },
-    runId: opts.by,
-    baseDir: sandbox.dir,
-    saved: {},
-    // Read-write (a sandbox always is); the hosts of production / read-only environments stay protected.
-    access: runAccess(env, false, project),
-    log: (level, msg) => {
-      opts.log(level === 'error' ? 'debug' : level, msg);
-      pctx.progress?.note(msg);
-    },
-    // The seed hooks' secrets: its opener's resolver (ProviderContext.resolveSecret), as the services' are.
-    resolveSecret: pctx.resolveSecret,
-    // Ctrl-C stops a running shell step's process group; a second one kills it (Sandbox.killStartedSync).
-    ...(opts.signal ? { signal: opts.signal } : {}),
-    ...(opts.running ? { running: opts.running } : {}),
-  };
+  const ctx = seedHookContext(pctx, opts);
   // Trust `mcp`: a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
   // sees a batch between exec steps: its index is moved to the seed's); a reset hook's to its position among the reset
   // hooks, under phase `reset`.
@@ -255,20 +298,7 @@ export async function runSeed(
     if (opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if ('exec' in step) {
       await flush();
-      if (!provider.capabilities.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
-      pctx.progress?.step(`${word} ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
-      const t1 = Date.now();
-      try {
-        await provider.exec(pctx, step.exec);
-      } catch (e) {
-        const refused = e instanceof SandboxError && e.code === 'seed';
-        const isInterrupt = e instanceof SandboxError && e.code === 'interrupted';
-        await recordExec(step, done, isInterrupt ? 'interrupted' : refused ? 'refused' : 'failed', Date.now() - t1);
-        // Ctrl-C stays an interrupt (exit 130), not a failed seed.
-        if (isInterrupt) throw e;
-        throw new SandboxError(`sandbox ${sandbox.env}: ${word} step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${refused ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
-      }
-      await recordExec(step, done, 'ok', Date.now() - t1);
+      await runExecStep({ pctx, provider, step, word, at: done, total: steps.length, recordExec });
       done++;
       continue;
     }

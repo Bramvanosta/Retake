@@ -46,36 +46,95 @@ export function fileLength(rc: ResolvedComponent | null | undefined, outFps: num
   return Math.max(1 / outFps, Math.min(to, m.duration_s) - from);
 }
 
-export function planStepOverlays(s: PlanScope, runOf: RunOf): StepOverlays {
-  const { notes, warnings, timeline, resolver, kindOverride, themeAndBuiltin, slotBase, findArtefact, trackSources, mainSource, outFps, srcFps, fr, planShape, variant } = s;
-  /**
-   * The box of a box-filling overlay in its page: `rect` as written; a target / cursor anchor: the file's own
-   * size (its pixels / the page's device scale, × `scale`) centred on the step's target / the cursor; a position of the
-   * screen: that size, placed by the composition; `screen`: the visible capture.
-   */
-  const overlayBox = (o: NonNullable<TimelineEvent['overlay']>, rc: ResolvedComponent, page: PlanSource, where: string): NonNullable<OverlayUse['box']> => {
-    const b = o.box ?? {};
-    if (b.rect) return { anchor: 'rect', rect: { ...b.rect } };
-    const file = rc.media?.file;
-    const natural = file && (file.kind === 'video' || file.kind === 'lottie' || file.kind === 'picture') && file.width && file.height ? { w: file.width, h: file.height } : undefined;
-    const k = (b.scale ?? 1) / (file?.kind === 'lottie' ? 1 : page.scale || 1);
-    const size = natural ? { w: round(natural.w * k, 2), h: round(natural.h * k, 2) } : { w: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2), h: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2) };
-    if (!natural) notes.add(`${where}: the file's size is unknown: a box of a quarter of the page width`);
-    let anchor = b.anchor ?? (o.bbox ? 'target' : 'center');
-    let c: { x: number; y: number } | undefined;
-    if (anchor === 'target') {
-      c = o.bbox ? centre(o.bbox) : o.point;
-      if (!o.bbox) notes.add(`${where}: no target recorded: ${o.point ? 'centred on the cursor' : 'centred on the screen'}`);
-    } else if (anchor === 'cursor') {
-      c = o.point ?? (o.bbox ? centre(o.bbox) : undefined);
-      if (!o.point) notes.add(`${where}: no cursor position recorded: ${o.bbox ? 'centred on the target' : 'centred on the screen'}`);
+/**
+ * The box of a box-filling overlay in its page: `rect` as written; a target / cursor anchor: the file's own
+ * size (its pixels / the page's device scale, × `scale`) centred on the step's target / the cursor; a position of the
+ * screen: that size, placed by the composition; `screen`: the visible capture.
+ */
+function boxOfOverlay(s: PlanScope, o: NonNullable<TimelineEvent['overlay']>, rc: ResolvedComponent, page: PlanSource, where: string): NonNullable<OverlayUse['box']> {
+  const { notes } = s;
+  const b = o.box ?? {};
+  if (b.rect) return { anchor: 'rect', rect: { ...b.rect } };
+  const file = rc.media?.file;
+  const natural = file && (file.kind === 'video' || file.kind === 'lottie' || file.kind === 'picture') && file.width && file.height ? { w: file.width, h: file.height } : undefined;
+  const k = (b.scale ?? 1) / (file?.kind === 'lottie' ? 1 : page.scale || 1);
+  const size = natural ? { w: round(natural.w * k, 2), h: round(natural.h * k, 2) } : { w: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2), h: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2) };
+  if (!natural) notes.add(`${where}: the file's size is unknown: a box of a quarter of the page width`);
+  let anchor = b.anchor ?? (o.bbox ? 'target' : 'center');
+  let c: { x: number; y: number } | undefined;
+  if (anchor === 'target') {
+    c = o.bbox ? centre(o.bbox) : o.point;
+    if (!o.bbox) notes.add(`${where}: no target recorded: ${o.point ? 'centred on the cursor' : 'centred on the screen'}`);
+  } else if (anchor === 'cursor') {
+    c = o.point ?? (o.bbox ? centre(o.bbox) : undefined);
+    if (!o.point) notes.add(`${where}: no cursor position recorded: ${o.bbox ? 'centred on the target' : 'centred on the screen'}`);
+  }
+  if (anchor === 'target' || anchor === 'cursor') {
+    if (!c) anchor = 'center';
+    else return { anchor, rect: { x: round(c.x - size.w / 2, 2), y: round(c.y - size.h / 2, 2), w: size.w, h: size.h } };
+  }
+  return anchor === 'screen' ? { anchor } : { anchor, size };
+}
+
+/** Moves a screen-positioned overlay to another position of its kind when it would cover a step's target (noted). */
+function placeOnScreen(s: PlanScope, entry: ClipEntry, seg: ClipSegment, use: OverlayUse, rel: (t: number) => number): void {
+  const { notes, outFps, planShape, variant } = s;
+  const b = use.box;
+  if (!b || b.rect || !b.size || b.anchor === 'screen' || b.anchor === 'rect') return;
+  const asked: OverlayAnchor = b.anchor;
+  const choices = SCREEN_POSITION_CHOICES[asked];
+  if (!choices) return;
+  const end = use.from + use.durationInFrames;
+  const page = use.pane !== undefined ? seg.panes?.[use.pane]?.page : undefined;
+  const clear: Array<{ from: number; to: number; bbox: { x: number; y: number; w: number; h: number }; what: string }> = [];
+  for (const ev of entry.events) {
+    if (ev.step < 0 || ev.status === 'skipped' || (page !== undefined && ev.page !== page)) continue;
+    const a = ev.step === use.step ? rel(ev.t_start) : rel(ev.t_start - CLEAR_LOOKAHEAD_S);
+    const z = rel(stepEnd(ev)) + 1;
+    if (z <= use.from || a >= end) continue;
+    const what = `the ${ev.action} target of step ${ev.step}${ev.target?.desc ? ` (${ev.target.desc})` : ''}`;
+    for (const box of stepBoxes(ev)) clear.push({ from: Math.max(0, a - use.from), to: Math.min(use.durationInFrames, z - use.from), bbox: { ...box }, what });
+  }
+  if (clear.length === 0) return;
+  // Every 0.1 s of the overlay and its last frame.
+  const every = Math.max(1, Math.round(0.1 * outFps));
+  const samples: number[] = [];
+  for (let local = 0; local < use.durationInFrames; local += every) samples.push(local);
+  if (samples[samples.length - 1] !== use.durationInFrames - 1) samples.push(use.durationInFrames - 1);
+  const boxAt = (anchor: OverlayAnchor, local: number) => overlayBoxAt(planShape, seg, { ...use, box: { ...b, anchor } }, use.from + local)!;
+  const covered = (anchor: OverlayAnchor): string | undefined => {
+    for (const local of samples) {
+      const box = boxAt(anchor, local);
+      for (const c of clear) {
+        if (local < c.from || local >= c.to) continue;
+        const t = mapUseRect(planShape, seg, use, use.from + local, c.bbox);
+        const ox = Math.min(box.x + box.w, t.x + t.w) - Math.max(box.x, t.x);
+        const oy = Math.min(box.y + box.h, t.y + t.h) - Math.max(box.y, t.y);
+        if (ox > 0 && oy > 0) return c.what;
+      }
     }
-    if (anchor === 'target' || anchor === 'cursor') {
-      if (!c) anchor = 'center';
-      else return { anchor, rect: { x: round(c.x - size.w / 2, 2), y: round(c.y - size.h / 2, 2), w: size.w, h: size.h } };
-    }
-    return anchor === 'screen' ? { anchor } : { anchor, size };
+    return undefined;
   };
+  const hit = covered(asked);
+  if (!hit) return;
+  // The other positions of the same kind, nearest first (at the overlay's first frame).
+  const c0 = boxAt(asked, 0);
+  const dist = (a: OverlayAnchor) => {
+    const x = boxAt(a, 0);
+    return Math.hypot(x.x - c0.x, x.y - c0.y);
+  };
+  const others = choices.filter((a) => a !== asked).sort((x, y) => dist(x) - dist(y));
+  const where = `scene "${entry.scene.id}" step ${use.step} overlay`;
+  const free = others.find((a) => !covered(a));
+  if (free) {
+    b.anchor = free;
+    notes.add(`${where}: at ${asked} it would cover ${hit} in this ${variant} framing: placed at ${free}`);
+  } else notes.add(`${where}: at ${asked} it covers ${hit} in this ${variant} framing (no free ${others.length === 3 ? 'corner' : 'position'}): kept there`);
+}
+
+export function planStepOverlays(s: PlanScope, runOf: RunOf): StepOverlays {
+  const { notes, warnings, timeline, resolver, kindOverride, themeAndBuiltin, slotBase, findArtefact, trackSources, mainSource, outFps, srcFps, fr } = s;
+  const overlayBox: StepOverlays['overlayBox'] = (o, rc, page, where) => boxOfOverlay(s, o, rc, page, where);
 
   const stepOverlays = new Map<TimelineEvent, StepOverlay | null>();
   const stepOverlayOf = (entry: ClipEntry, ev: TimelineEvent): StepOverlay | null => {
@@ -121,59 +180,7 @@ export function planStepOverlays(s: PlanScope, runOf: RunOf): StepOverlays {
     return out;
   };
 
-  const placeScreenOverlay = (entry: ClipEntry, seg: ClipSegment, use: OverlayUse, rel: (t: number) => number): void => {
-    const b = use.box;
-    if (!b || b.rect || !b.size || b.anchor === 'screen' || b.anchor === 'rect') return;
-    const asked: OverlayAnchor = b.anchor;
-    const choices = SCREEN_POSITION_CHOICES[asked];
-    if (!choices) return;
-    const end = use.from + use.durationInFrames;
-    const page = use.pane !== undefined ? seg.panes?.[use.pane]?.page : undefined;
-    const clear: Array<{ from: number; to: number; bbox: { x: number; y: number; w: number; h: number }; what: string }> = [];
-    for (const ev of entry.events) {
-      if (ev.step < 0 || ev.status === 'skipped' || (page !== undefined && ev.page !== page)) continue;
-      const a = ev.step === use.step ? rel(ev.t_start) : rel(ev.t_start - CLEAR_LOOKAHEAD_S);
-      const z = rel(stepEnd(ev)) + 1;
-      if (z <= use.from || a >= end) continue;
-      const what = `the ${ev.action} target of step ${ev.step}${ev.target?.desc ? ` (${ev.target.desc})` : ''}`;
-      for (const box of stepBoxes(ev)) clear.push({ from: Math.max(0, a - use.from), to: Math.min(use.durationInFrames, z - use.from), bbox: { ...box }, what });
-    }
-    if (clear.length === 0) return;
-    // Every 0.1 s of the overlay and its last frame.
-    const every = Math.max(1, Math.round(0.1 * outFps));
-    const samples: number[] = [];
-    for (let local = 0; local < use.durationInFrames; local += every) samples.push(local);
-    if (samples[samples.length - 1] !== use.durationInFrames - 1) samples.push(use.durationInFrames - 1);
-    const boxAt = (anchor: OverlayAnchor, local: number) => overlayBoxAt(planShape, seg, { ...use, box: { ...b, anchor } }, use.from + local)!;
-    const covered = (anchor: OverlayAnchor): string | undefined => {
-      for (const local of samples) {
-        const box = boxAt(anchor, local);
-        for (const c of clear) {
-          if (local < c.from || local >= c.to) continue;
-          const t = mapUseRect(planShape, seg, use, use.from + local, c.bbox);
-          const ox = Math.min(box.x + box.w, t.x + t.w) - Math.max(box.x, t.x);
-          const oy = Math.min(box.y + box.h, t.y + t.h) - Math.max(box.y, t.y);
-          if (ox > 0 && oy > 0) return c.what;
-        }
-      }
-      return undefined;
-    };
-    const hit = covered(asked);
-    if (!hit) return;
-    // The other positions of the same kind, nearest first (at the overlay's first frame).
-    const c0 = boxAt(asked, 0);
-    const dist = (a: OverlayAnchor) => {
-      const x = boxAt(a, 0);
-      return Math.hypot(x.x - c0.x, x.y - c0.y);
-    };
-    const others = choices.filter((a) => a !== asked).sort((x, y) => dist(x) - dist(y));
-    const where = `scene "${entry.scene.id}" step ${use.step} overlay`;
-    const free = others.find((a) => !covered(a));
-    if (free) {
-      b.anchor = free;
-      notes.add(`${where}: at ${asked} it would cover ${hit} in this ${variant} framing: placed at ${free}`);
-    } else notes.add(`${where}: at ${asked} it covers ${hit} in this ${variant} framing (no free ${others.length === 3 ? 'corner' : 'position'}): kept there`);
-  };
+  const placeScreenOverlay: StepOverlays['placeScreenOverlay'] = (entry, seg, use, rel) => placeOnScreen(s, entry, seg, use, rel);
 
   const overlayKeepOf =
     (entry: ClipEntry) =>

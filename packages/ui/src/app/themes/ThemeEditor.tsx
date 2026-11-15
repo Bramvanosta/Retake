@@ -20,61 +20,35 @@
  * - Every string from the server (a font's name table, a warning, an error) is a text node through `Txt` or
  *   `visibleControls`; the frame runs workspace component code only on the player origin, in the sandbox.
  */
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ThemeEditView } from '@retake/engine';
 import type { ThemeListAnswer, ThemePreviewAnswer } from '../../server/theme-ops.js';
 import { CallError, errorText } from '../api.js';
-import type { Loaded, OpResult } from '../api.js';
+import type { Loaded } from '../api.js';
 import { previewAllow, timelineLeave } from '../data/edit.js';
 import { scenarioBlocks, scenarioEdit } from '../data/scenarios.js';
 import { themeCopy, themeEdit, themePreview, themeView } from '../data/themes.js';
 import { Txt } from '../bits.js';
 import { useUnsavedMark } from '../drafts.js';
-import { useEvents } from '../events.js';
 import { NEW_THEME_NAME_MAX } from '../id-words.js';
-import { NEW_THEME_NAME_HINT, copyName, okId, themeNameProblem } from '../words/library-words.js';
+import { NEW_THEME_NAME_HINT, copyName, themeNameProblem } from '../words/library-words.js';
 import { PreviewFrame } from '../edit/PreviewFrame.js';
-import type { PreviewConnection } from '../../player/parent.js';
-import type { FrameMessage } from '../../player/protocol.js';
 import { hrefTo } from '../route.js';
 import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
-import { SECTIONS, ThemeFields, showSection } from './ThemeFields.js';
+import { ThemeFields } from './ThemeFields.js';
 import type { Draft, Send } from './ThemeFields.js';
-import {
-  DraftThrottle,
-  EDITOR_KINDS,
-  TARGET_WORDS,
-  ThemeHistory,
-  USE_IN_SCENARIO_WORDS,
-  componentRow,
-  kindLabel,
-  themeEventAction,
-  planUseInScenario,
-  usedByWords,
-  written,
-} from '../words/theme-words.js';
+import { ThemeActions, ThemeBrowser, ThemeHead, ThemeIssues, ThemeUnavailable, editStatus } from './editor-chrome.js';
+import type { Status } from './editor-chrome.js';
+import { newLease, useLiveFrameState, useThemeRereads } from './editor-hooks.js';
+import { FrameBar, FrameNotes, HeldComponents } from './frame-controls.js';
+import { UseInScenarioView } from './use-in-scenario-view.js';
+import type { UseState } from './use-in-scenario-view.js';
+import { DraftThrottle, TARGET_WORDS, ThemeHistory, planUseInScenario, written } from '../words/theme-words.js';
 import type { PreviewTarget, ThemeEdit } from '../words/theme-words.js';
 import { previewUrls } from '../words/timeline-words.js';
-import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, StatusMark, Tag, TextField } from '../ui-kit/index.js';
+import { Button, Callout, Segmented, Sheet, TextField } from '../ui-kit/index.js';
 import { bestEffort } from '../best-effort.js';
-
-/** A random lease id (22 base64url characters) for theme_preview / timeline_leave. */
-function newLease(): string {
-  const b = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...b))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-interface Status {
-  tone: 'info' | 'warning' | 'danger';
-  text: string;
-}
-
-/** The select of "Use in a scenario" (the status bar's "Use in a scenario…" brings the focus to it). */
-const USE_SELECT = 'tm-use-scenario';
 
 /** The theme as the editor reads it: theme_view, read again after each write (sequence-guarded). */
 function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
@@ -99,65 +73,6 @@ function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<Them
     };
   }, [load]);
   return [v, load];
-}
-
-/** The browser: the theme's sections (anchors into the inspector's fields) and its components (each to the library). */
-const ThemeBrowser = memo(function ThemeBrowser({ slug, v }: { slug: string; v: ThemeEditView }) {
-  return (
-    <ShellSlot name="browser">
-      <SourceList
-        label="Theme sections"
-        groups={[
-          { key: 'sections', heading: <Txt text={v.name} />, label: 'Sections', items: SECTIONS.map((s) => ({ key: s.key, label: s.title, current: false, onSelect: () => showSection(s.key) })) },
-          {
-            key: 'components',
-            heading: 'Components',
-            label: 'Components of this theme',
-            items: EDITOR_KINDS.map((k) => {
-              const picked = componentRow(v, k).picked;
-              return {
-                key: k,
-                label: kindLabel(k),
-                current: false,
-                detail: <Txt className="k-mono" text={picked ?? 'none'} />,
-                quiet: picked === null,
-                ...(picked && okId(picked) ? { to: { name: 'library' as const, slug, theme: v.name, component: picked } } : { onSelect: () => showSection('components') }),
-              };
-            }),
-          },
-          {
-            key: 'back',
-            items: [
-              { key: 'themes', to: { name: 'themes', slug }, label: 'All themes', icon: 'theme', current: false },
-              { key: 'library', to: { name: 'library', slug, theme: v.name }, label: 'Components in this theme', icon: 'components', current: false },
-            ],
-          },
-        ]}
-      />
-    </ShellSlot>
-  );
-});
-
-/** Live re-reads: this theme changed on disk (another window, Claude, a person), a component, a reconnection. */
-function useThemeRereads(
-  slug: string,
-  theme: string,
-  load: () => Promise<ThemeEditView | null>,
-  { busyRef, history, rerender }: { busyRef: { current: boolean }; history: { current: ThemeHistory }; rerender: (f: (n: number) => number) => void },
-) {
-  const timer = useRef<number | null>(null);
-  useEvents((e) => {
-    if (!themeEventAction(e, slug, theme) || timer.current !== null) return;
-    timer.current = window.setTimeout(() => {
-      timer.current = null;
-      if (busyRef.current) return;
-      void load().then((d) => {
-        if (d) history.current.sync(d.sha256);
-        rerender((n) => n + 1);
-      });
-    }, 250);
-  });
-  useEffect(() => () => void (timer.current !== null && window.clearTimeout(timer.current)), []);
 }
 
 /** The live frame: a lease left with the screen, theme_preview asked per version shown and per target, drafts throttled. */
@@ -195,16 +110,6 @@ function useLivePreview(slug: string, theme: string, target: PreviewTarget, show
     void askPreview(null);
   }, [shownSha, askPreview]);
   return { answer, previewError, askPreview, throttle };
-}
-
-/** The status line after a written edit: its label, what the server removed, kept or dropped, and its warnings. */
-function editStatus(r: OpResult<'theme_edit'>, label: string): Status {
-  const extra = [
-    r.removed.some((x) => !r.label.includes(x)) ? `removed ${r.removed.join(', ')} (it contradicted the change)` : '',
-    r.kept_params && Object.keys(r.kept_params).length ? `kept its params ${Object.keys(r.kept_params).join(', ')}` : '',
-    r.dropped_params?.length ? `dropped its params ${r.dropped_params.join(', ')}` : '',
-  ].filter(Boolean);
-  return { tone: r.warnings.length ? 'warning' : 'info', text: `${label}${extra.length ? ` — ${extra.join('; ')}` : ''}.${r.warnings.length ? ` ${r.warnings.slice(0, 3).join(' · ')}` : ''}` };
 }
 
 /** What the one write path reads and sets: the version shown, its history, the screen's state and the live frame. */
@@ -263,22 +168,6 @@ function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDr
       rerender((n) => n + 1);
     }
   };
-}
-
-/** The theme's first problems. */
-function ThemeIssues({ issues }: { issues: string[] }) {
-  return (
-    <Callout state="fail" role="note" title="This theme has problems">
-      <ul className="tm-issues">
-        {issues.slice(0, 6).map((x, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: the theme's first issues, replaced whole on each read, text only: the index is the identity
-          <li key={i}>
-            <Txt text={x} />
-          </li>
-        ))}
-      </ul>
-    </Callout>
-  );
 }
 
 export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
@@ -362,108 +251,6 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
         <ThemeFields v={v} slug={slug} off={off} draft={draft} paper={paper} rippleFollows={rippleFollows} setRippleFollows={setRippleFollows} listed={listed} send={stableSend} setDraft={setDraft} />
       </ShellSlot>
     </div>
-  );
-}
-
-/** The theme not shown: loading, or why it cannot be opened. */
-function ThemeUnavailable({ view, slug, theme }: { view: Loaded<ThemeEditView>; slug: string; theme: string }) {
-  if (view.state === 'loading') {
-    return (
-      <div className="tm-screen">
-        <p className="tm-quiet" role="status">
-          <Txt text={`Loading theme ${theme}…`} />
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="tm-screen">
-      <h1 className="tm-h1">
-        <Txt text={theme} />
-      </h1>
-      <Callout state={view.state === 'error' && view.code === 'not_found' ? 'warn' : 'fail'} role="alert" title="This theme cannot be opened">
-        <p className="tm-pre">
-          <Txt text={view.state === 'error' ? view.error : ''} />
-        </p>
-        <LinkButton size="sm" to={{ name: 'themes', slug }}>
-          Back to the themes
-        </LinkButton>
-      </Callout>
-    </div>
-  );
-}
-
-/** The status bar: the editor's state, Undo, Redo, Extract from a website…, Use in a scenario… */
-function ThemeActions({
-  slug,
-  busy,
-  editable,
-  canUndo,
-  canRedo,
-  noScenario,
-  onUndo,
-  onRedo,
-}: {
-  slug: string;
-  busy: string | null;
-  editable: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
-  noScenario: boolean;
-  onUndo(): void;
-  onRedo(): void;
-}) {
-  return (
-    <ShellSlot name="actions">
-      <span className="sh-scenario" data-testid="theme-state">
-        {busy ? (
-          <StatusMark state="running" word={`Busy: ${busy}`} />
-        ) : editable ? (
-          <StatusMark state="idle" word="Ready · each change is saved and checked" />
-        ) : (
-          <StatusMark state="idle" word="Read-only: copy it to edit it" />
-        )}
-      </span>
-      <Button size="sm" variant="ghost" icon="undo" data-testid="theme-undo" disabled={!editable || busy !== null || !canUndo} onClick={onUndo}>
-        Undo
-      </Button>
-      <Button size="sm" variant="ghost" icon="redo" data-testid="theme-redo" disabled={!editable || busy !== null || !canRedo} onClick={onRedo}>
-        Redo
-      </Button>
-      <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug }}>
-        Extract from a website…
-      </LinkButton>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={noScenario}
-        onClick={() => {
-          const el = document.getElementById(USE_SELECT);
-          el?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-          el?.focus();
-        }}
-      >
-        Use in a scenario…
-      </Button>
-    </ShellSlot>
-  );
-}
-
-/** The heading: the theme's name, whether it can be edited, its source and what uses it. */
-function ThemeHead({ v, slug, editable }: { v: ThemeEditView; slug: string; editable: boolean }) {
-  return (
-    <header className="tm-head">
-      <h1 className="tm-h1">
-        <Txt text={v.name} />
-      </h1>
-      <span className="tm-tags">
-        <Tag>{editable ? 'Editable · in this workspace' : 'Read-only'}</Tag>
-        <Tag>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Tag>
-        <span className="tm-quiet" data-testid="theme-used-by">
-          <Txt text={usedByWords(v.used_by, slug)} />
-        </span>
-      </span>
-    </header>
   );
 }
 
@@ -584,55 +371,8 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
  */
 function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
   const urls = 'frame_url' in v ? previewUrls(v.frame_url, v.plan_url) : null;
-  const frameRef = useRef(0);
-  if ('frame' in v) frameRef.current = v.frame;
-  const [state, setState] = useState<'loading' | 'settled' | 'stopped'>('loading');
-  const [settles, setSettles] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [notes, setNotes] = useState<string[]>([]);
-  const [restart, setRestart] = useState(0);
-  const [allowing, setAllowing] = useState<string | null>(null);
-  const [allowError, setAllowError] = useState<string | null>(null);
-  const conn = useRef<PreviewConnection | null>(null);
-  const heldId = useId();
-  const onMessage = useCallback((m: FrameMessage) => {
-    switch (m.type) {
-      case 'loaded':
-        setNotes(m.warnings.slice(0, 4));
-        return;
-      case 'settled':
-        setState('settled');
-        setSettles((n) => n + 1);
-        return;
-      case 'state':
-        setPlaying(m.playing);
-        return;
-      case 'warning':
-      case 'error':
-        setNotes((n) => [...n, m.message].slice(-4));
-        return;
-    }
-  }, []);
-  const onHello = useCallback(() => {
-    setState('loading');
-    setPlaying(false);
-  }, []);
-  const onStop = useCallback((reason: string) => {
-    setState('stopped');
-    setNotes((n) => [...n, reason].slice(-4));
-  }, []);
-  const onConnection = useCallback((c: PreviewConnection | null) => {
-    conn.current = c;
-  }, []);
-  // A new plan (a write, a draft) loads into the same frame: loading until it settles.
-  const planSeen = useRef(urls?.plan);
-  useLayoutEffect(() => {
-    if (urls?.plan === planSeen.current) return;
-    planSeen.current = urls?.plan;
-    if (!conn.current?.connected) return;
-    setPlaying(false);
-    setState('loading');
-  }, [urls?.plan]);
+  const f = useLiveFrameState('frame' in v ? v.frame : undefined, urls?.plan);
+  const { state, setState, setRestart, setAllowing, setAllowError } = f;
   const held = v.preview_held ?? [];
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
@@ -649,9 +389,18 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   };
   return (
     <div className="tm-frame-wrap">
-      <section className="tm-frame" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
+      <section className="tm-frame" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={f.settles}>
         {urls && state !== 'stopped' && (
-          <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />
+          <PreviewFrame
+            key={`${urls.frame}#${f.restart}`}
+            url={urls.frame}
+            planUrl={urls.plan}
+            frameRef={f.frameRef}
+            onMessage={f.onMessage}
+            onHello={f.onHello}
+            onStop={f.onStop}
+            onConnection={f.onConnection}
+          />
         )}
         {urls && state === 'loading' && (
           <p className="tm-note" role="status">
@@ -670,70 +419,20 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
           </p>
         )}
       </section>
-      <div className="tm-frame-bar">
-        <Button
-          size="sm"
-          icon="play"
-          aria-pressed={playing}
-          disabled={!urls || state === 'loading'}
-          data-testid="theme-play"
-          onClick={() => conn.current?.send(playing ? { type: 'pause' } : { type: 'play' })}
-        >
-          Play
-        </Button>
-        {state === 'stopped' && (
-          <Button size="sm" onClick={() => (setRestart((n) => n + 1), setState('loading'))}>
-            Restart the preview
-          </Button>
-        )}
-        <span className="tm-quiet">{drafting ? 'Showing the colour you are changing (not written yet).' : v.target.component ? <Txt className="k-mono" text={v.target.component} /> : null}</span>
-      </div>
-      {notes.length > 0 && (
-        <ul className="tm-notes">
-          {notes.map((n, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: the preview's notes, replaced whole on each read, text only: the index is the identity
-            <li key={i}>
-              <Txt text={n} />
-            </li>
-          ))}
-        </ul>
-      )}
-      {held.length > 0 && (
-        <Callout state="warn" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}>
-          <div data-testid="preview-held">
-            <p className="tm-line" id={heldId}>
-              Components of this workspace are code: the preview runs one only once you allow it, for this Studio session. Its stand-in draws until then; a render uses it either way.
-            </p>
-            <ul className="tm-held" aria-describedby={heldId}>
-              {held.map((c) => (
-                <li key={c.id} data-testid="held-component" data-id={c.id}>
-                  <Txt className="k-mono" text={c.id} />
-                  <Txt className="tm-quiet" text={` (${c.kind}, folder ${c.hash}) `} />
-                  <Button size="sm" data-testid="allow-component" disabled={allowing !== null} onClick={() => allow(c)}>
-                    {allowing === c.id ? 'Allowing…' : 'Allow in the preview'}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            {allowError && (
-              <p className="tm-pre" role="alert" data-testid="allow-error">
-                <Txt text={allowError} />
-              </p>
-            )}
-          </div>
-        </Callout>
-      )}
+      <FrameBar
+        framed={!!urls}
+        state={state}
+        playing={f.playing}
+        drafting={drafting}
+        component={v.target.component}
+        onPlay={() => f.conn.current?.send(f.playing ? { type: 'pause' } : { type: 'play' })}
+        onRestart={() => (setRestart((n) => n + 1), setState('loading'))}
+      />
+      <FrameNotes notes={f.notes} />
+      <HeldComponents held={held} heldId={f.heldId} allowing={f.allowing} allowError={f.allowError} onAllow={allow} />
     </div>
   );
 }
-
-type UseState =
-  | { s: 'idle' }
-  | { s: 'busy' }
-  | { s: 'done'; scenario: string; label: string; hash: string; previous: { text: string; hash: string } }
-  | { s: 'already'; scenario: string }
-  | { s: 'undone'; scenario: string }
-  | { s: 'error'; message: string };
 
 /**
  * "Use in this scenario": the scenario's `template` set to this theme through scenario_edit `set_field`
@@ -774,61 +473,5 @@ const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onCh
       fail(e);
     }
   };
-  return (
-    <section className="tm-use" aria-labelledby="tm-use-h" data-testid="use-in-scenario">
-      <h2 id="tm-use-h" className="tm-h2">
-        Use in a scenario
-      </h2>
-      {scenarios.length === 0 ? (
-        <p className="tm-quiet">This project has no scenario yet.</p>
-      ) : (
-        <>
-          <div className="tm-use-line">
-            <Select label="Scenario" layout="inline" id={USE_SELECT} value={scenario} onChange={setScenario} testId="use-scenario" options={scenarios.map((s) => ({ value: s, label: s }))} />
-            <Button disabled={st.s === 'busy' || !scenario} onClick={() => void use()} data-testid="use-in-scenario-go">
-              Use in this scenario
-            </Button>
-          </div>
-          <p className="tm-quiet">
-            <Txt text={`${USE_IN_SCENARIO_WORDS} The project's own theme stays as project.yaml names it.`} />
-          </p>
-        </>
-      )}
-      <div className="tm-line" role="status" aria-live="polite" data-testid="use-in-scenario-state">
-        {st.s === 'busy' && 'Writing the scenario…'}
-        {st.s === 'already' && (
-          <>
-            <Txt text={st.scenario} />
-            {' already uses '}
-            <Txt text={theme} />
-            {'.'}
-          </>
-        )}
-        {st.s === 'undone' && (
-          <>
-            {'Undone: '}
-            <Txt text={st.scenario} />
-            {' is back to the version before.'}
-          </>
-        )}
-        {st.s === 'error' && (
-          <span className="tm-failure">
-            <Txt text={st.message} />
-          </span>
-        )}
-        {st.s === 'done' && (
-          <>
-            <Txt text={st.label} />
-            {'. '}
-            <LinkButton size="sm" variant="ghost" to={{ name: 'timeline', slug, scenario: st.scenario }} testId="use-in-scenario-timeline">
-              Open its timeline
-            </LinkButton>{' '}
-            <Button size="sm" onClick={() => void undo(st)} data-testid="use-in-scenario-undo">
-              Undo
-            </Button>
-          </>
-        )}
-      </div>
-    </section>
-  );
+  return <UseInScenarioView slug={slug} theme={theme} scenarios={scenarios} scenario={scenario} setScenario={setScenario} st={st} onUse={() => void use()} onUndo={(d) => void undo(d)} />;
 });

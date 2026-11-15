@@ -14,7 +14,7 @@
  * Nothing selected: the theme's summary.
  */
 import { useId, useState } from 'react';
-import type { ThemeEditResult, ThemeEditView } from '@retake/engine';
+import type { ThemeEditView } from '@retake/engine';
 import type { LibraryComponentAnswer, LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import { CallError, errorText } from '../api.js';
 import type { Loaded } from '../api.js';
@@ -22,23 +22,15 @@ import { themeCopy, themeEdit, themeView } from '../data/themes.js';
 import { APP_NAME } from '../brand.js';
 import { Txt, plural } from '../bits.js';
 import { DefaultTag, PictureBox, SourceTag, useLibrary } from './LibraryCards.js';
-import { NEW_THEME_NAME_MAX } from '../id-words.js';
-import { NEW_THEME_NAME_HINT, canPlay, copyName, isKind, kindHeading, kindsOf, okTheme, setDefaultPlan, setDefaultWords, themeNameProblem } from '../words/library-words.js';
-import type { SetDefaultPlan } from '../words/library-words.js';
+import { canPlay, copyName, isKind, kindHeading, kindsOf, setDefaultPlan, themeNameProblem } from '../words/library-words.js';
+import { DefaultLine, SetDefaultDone, SetDefaultSheets, SetDefaultState } from './theme-default-views.js';
+import type { SetState } from './theme-default-views.js';
 import { hrefTo } from '../route.js';
 import { SessionEnded } from '../session.js';
-import { Button, Callout, Facts, InspectorSection, LinkButton, Select, Sheet, StatusMark, TextField } from '../ui-kit/index.js';
+import { Button, Callout, Facts, InspectorSection, LinkButton, Select, StatusMark } from '../ui-kit/index.js';
 
-type SetState =
-  | { s: 'idle' }
-  | { s: 'busy'; what: string }
-  | { s: 'plan'; view: ThemeEditView; plan: SetDefaultPlan; kind: string }
-  | { s: 'done'; theme: string; before: ThemeEditView; result: ThemeEditResult; copied?: string }
-  | { s: 'undone'; theme: string }
-  | { s: 'error'; message: string };
-
-/** "Set as theme default" with its two sheets (confirm; copy a read-only theme first). */
-function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer }) {
+/** The state and the writes of "Set as theme default": read the theme, write it (a copy first when read-only), undo. */
+function useSetDefault(item: LibraryItem, view: LibraryViewAnswer) {
   const lib = useLibrary();
   const kinds = kindsOf(item).filter(isKind);
   const [kind, setKind] = useState<string>(kinds[0] ?? item.kind);
@@ -102,21 +94,15 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
   const confirming = st.s === 'plan' && 'edit' in st.plan ? st : null;
   const copying = st.s === 'plan' && 'copy' in st.plan ? st.plan : null;
   const copyProblem = copying ? themeNameProblem(copyAs, taken) : null;
+  return { lib, kinds, kind, setKind, st, setSt, copyAs, setCopyAs, theme, fail, start, write, copyThenWrite, undo, confirming, copying, copyProblem };
+}
+
+/** "Set as theme default" with its two sheets (confirm; copy a read-only theme first). */
+function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer }) {
+  const { lib, kinds, kind, setKind, st, setSt, copyAs, setCopyAs, theme, fail, start, write, copyThenWrite, undo, confirming, copying, copyProblem } = useSetDefault(item, view);
   return (
     <InspectorSection title="Theme default" testId="lib-set-default">
-      <p className="lb-line">
-        {item.theme_default.length > 0 ? (
-          <>
-            <Txt text={theme} />
-            <Txt text={` uses it by default as its ${item.theme_default.join(', ')}.`} />
-          </>
-        ) : (
-          <>
-            <Txt text={theme} />
-            {' does not use it by default.'}
-          </>
-        )}
-      </p>
+      <DefaultLine item={item} theme={theme} />
       {kinds.length > 1 && (
         <Select label="As the theme's" layout="row" value={kind} onChange={setKind} testId="lib-set-kind" options={kinds.map((k) => ({ value: k, label: kindHeading(k, 1).toLowerCase() }))} />
       )}
@@ -127,60 +113,8 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
           </Button>
         </div>
       )}
-      <div role="status" className="lb-line" data-testid="lib-set-state">
-        {st.s === 'busy' && <Txt text={st.what} />}
-        {st.s === 'undone' && (
-          <>
-            {'Undone: '}
-            <Txt text={st.theme} />
-            {' is back to the version before.'}
-          </>
-        )}
-        {st.s === 'error' && (
-          <span className="lb-failure">
-            <Txt text={st.message} />
-          </span>
-        )}
-        {st.s === 'done' && (
-          <>
-            <Txt text={st.result.label} />
-            {st.result.removed.length > 0 && <Txt text={` — removed ${st.result.removed.join(', ')} (they contradicted it)`} />}
-            {'.'}
-            {st.copied && (
-              <>
-                {' The copy '}
-                <Txt text={st.copied} />
-                {' is a new theme: the project still uses its own until '}
-                <code className="k-mono">template:</code>
-                {' names the copy (in project.yaml, or per scenario).'}
-              </>
-            )}
-          </>
-        )}
-      </div>
-      {st.s === 'done' && (
-        <div className="lb-actions">
-          {st.before.yaml !== null ? (
-            <Button size="sm" onClick={() => void undo(st)} data-testid="lib-set-undo">
-              Undo
-            </Button>
-          ) : (
-            <span className="lb-quiet">No undo: the theme's file was not shown whole.</span>
-          )}
-          {st.copied && okTheme(st.copied) && (
-            // The next step: the copy is used once a scenario or the project names it.
-            <LinkButton size="sm" variant="primary" to={{ name: 'themes', slug: lib.slug, theme: st.copied }} testId="lib-set-next">
-              Open the copy: use it in a scenario
-            </LinkButton>
-          )}
-          {st.result.warnings.map((w, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's warnings, fixed once said, text only: the index is the identity
-            <span key={i} className="lb-quiet">
-              <Txt text={w} />
-            </span>
-          ))}
-        </div>
-      )}
+      <SetDefaultState st={st} />
+      {st.s === 'done' && <SetDefaultDone st={st} slug={lib.slug} onUndo={() => void undo(st)} />}
       {st.s === 'plan' && 'already' in st.plan && (
         <p className="lb-line" data-testid="lib-set-already">
           <Txt text={`It is already the ${st.kind} of `} />
@@ -193,60 +127,49 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
           <Txt text={st.plan.why} />
         </p>
       )}
-      <Sheet
-        open={confirming !== null}
-        testId="lib-set-confirm"
-        title={`Set the default of ${theme}?`}
-        actions={[
-          { id: 'set', label: 'Set as default', variant: 'primary', isDefault: true, testId: 'lib-set-confirm-yes' },
-          { id: 'cancel', label: 'Cancel', isCancel: true },
-        ]}
-        onAction={(id) => {
-          if (!confirming) return;
-          if (id === 'set') void write(theme, confirming.view).catch(fail);
-          else setSt({ s: 'idle' });
-        }}
-      >
-        {confirming && 'edit' in confirming.plan ? <Txt text={setDefaultWords(theme, confirming.kind, item.component, confirming.plan)} /> : null}
-      </Sheet>
-      <Sheet
-        open={copying !== null}
-        testId="lib-set-copy"
-        title={`Copy ${theme} first?`}
-        actions={[
-          { id: 'copy', label: `Copy as ${copyAs || '…'} and set`, variant: 'primary', isDefault: true, disabled: copyProblem !== null, testId: 'lib-set-copy-yes' },
-          { id: 'cancel', label: 'Cancel', isCancel: true },
-        ]}
-        onAction={(id) => {
-          if (id === 'copy') void copyThenWrite();
-          else setSt({ s: 'idle' });
-        }}
-        content={
-          <TextField
-            label="Name of the copy"
-            value={copyAs}
-            onChange={(v) => setCopyAs(v.trim())}
-            unsaved={null}
-            mono
-            maxLength={NEW_THEME_NAME_MAX}
-            hint={NEW_THEME_NAME_HINT}
-            autoComplete="off"
-            spellCheck={false}
-            testId="lib-set-copy-name"
-            error={copyProblem ?? undefined}
-          />
-        }
-      >
-        {copying ? (
-          <>
-            <Txt text={theme} />
-            {' cannot be changed here ('}
-            <Txt text={copying.copy} />
-            {'). Copy it to a theme of this workspace, then set the default there.'}
-          </>
-        ) : null}
-      </Sheet>
+      <SetDefaultSheets
+        theme={theme}
+        component={item.component}
+        confirming={confirming}
+        copying={copying}
+        copyAs={copyAs}
+        setCopyAs={setCopyAs}
+        copyProblem={copyProblem}
+        onSet={(tv) => void write(theme, tv).catch(fail)}
+        onCopy={() => void copyThenWrite()}
+        onCancel={() => setSt({ s: 'idle' })}
+      />
     </InspectorSection>
+  );
+}
+
+/** The component's facts: kind, slots, length, kit compatibility, the themes that pick it. */
+function ComponentFacts({ item, d }: { item: LibraryItem; d: Loaded<LibraryComponentAnswer> }) {
+  const data = d.state === 'ready' ? d.data : null;
+  const length = data?.duration ? `${data.duration.default} s` : null;
+  return (
+    <Facts
+      rows={[
+        { key: 'kind', label: 'Kind', value: <Txt text={`${kindHeading(item.kind, 1)}${item.kinds?.length ? ` · also ${item.kinds.join(', ')}` : ''}`} /> },
+        { key: 'slots', label: 'Slots', value: item.slots.length ? <Txt text={item.slots.join(' · ')} /> : 'none' },
+        { key: 'length', label: 'Length', value: length ? <Txt className="k-mono" text={length} /> : d.state === 'loading' ? 'reading…' : '—' },
+        {
+          key: 'kit',
+          label: 'Kit',
+          value: data ? (
+            <StatusMark
+              state={data.kit.compatible ? 'ok' : 'fail'}
+              word={data.kit.compatible ? `Ready · kit API ${data.kit.needs}` : `Broken: needs kit API ${data.kit.needs}, ${APP_NAME} provides ${data.kit.provided}`}
+            />
+          ) : d.state === 'error' ? (
+            'cannot be read'
+          ) : (
+            'reading…'
+          ),
+        },
+        { key: 'used', label: 'Picked by', value: item.picked_by.length ? <Txt text={item.picked_by.join(', ')} /> : 'no theme of this project' },
+      ]}
+    />
   );
 }
 
@@ -268,8 +191,6 @@ export function ComponentInspector({
 }) {
   const lib = useLibrary();
   const nameId = useId();
-  const data = d.state === 'ready' ? d.data : null;
-  const length = data?.duration ? `${data.duration.default} s` : null;
   return (
     // biome-ignore lint/a11y/useSemanticElements: the inspector is a focus target named by its heading; <fieldset> would bring its own border, padding and min-width
     <div className="lb-insp" tabIndex={-1} data-lib-focus="" role="group" aria-labelledby={nameId}>
@@ -291,28 +212,7 @@ export function ComponentInspector({
           <SourceTag source={item.source} />
           <DefaultTag item={item} />
         </p>
-        <Facts
-          rows={[
-            { key: 'kind', label: 'Kind', value: <Txt text={`${kindHeading(item.kind, 1)}${item.kinds?.length ? ` · also ${item.kinds.join(', ')}` : ''}`} /> },
-            { key: 'slots', label: 'Slots', value: item.slots.length ? <Txt text={item.slots.join(' · ')} /> : 'none' },
-            { key: 'length', label: 'Length', value: length ? <Txt className="k-mono" text={length} /> : d.state === 'loading' ? 'reading…' : '—' },
-            {
-              key: 'kit',
-              label: 'Kit',
-              value: data ? (
-                <StatusMark
-                  state={data.kit.compatible ? 'ok' : 'fail'}
-                  word={data.kit.compatible ? `Ready · kit API ${data.kit.needs}` : `Broken: needs kit API ${data.kit.needs}, ${APP_NAME} provides ${data.kit.provided}`}
-                />
-              ) : d.state === 'error' ? (
-                'cannot be read'
-              ) : (
-                'reading…'
-              ),
-            },
-            { key: 'used', label: 'Picked by', value: item.picked_by.length ? <Txt text={item.picked_by.join(', ')} /> : 'no theme of this project' },
-          ]}
-        />
+        <ComponentFacts item={item} d={d} />
         <div className="lb-actions">
           <Button
             size="sm"

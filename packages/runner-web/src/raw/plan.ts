@@ -207,6 +207,33 @@ export function firstAtOrAfter(times: readonly number[] | undefined, t: number):
 }
 
 /**
+ * Page loads the capture held, added to a scene's cuts (loadingCuts): each from the clip's start (`clipStart`) to the
+ * scene's end at most; one that overlaps a cut extends it.
+ */
+function addHeldLoads(out: RawLoading[], steps: readonly TimelineEvent[], held: ReadonlyArray<Pick<TimelineLoading, 't_start' | 't_end' | 'page'>>, clipStart: number, sceneEnd: number): void {
+  for (const h of held) {
+    const from = Math.max(h.t_start, clipStart);
+    const to = Math.min(h.t_end, sceneEnd);
+    if (to - from < LOADING_CUT_MIN_S - EPS) continue;
+    const over = out.find((l) => l.from < to - EPS && from < l.to - EPS);
+    if (over) {
+      over.from = round3(Math.min(over.from, from));
+      over.to = Math.max(over.to, Math.ceil(to * 1000 - EPS) / 1000);
+      if (over.reason === 'loading') over.reason = 'navigation';
+      continue;
+    }
+    const during = [...steps].reverse().find((e) => e.t_start <= from + EPS);
+    out.push({
+      from: round3(from),
+      to: Math.ceil(to * 1000 - EPS) / 1000,
+      reason: 'navigation',
+      ...(during ? { after_step: during.step } : {}),
+      ...(h.page !== undefined ? { page: h.page } : {}),
+    });
+  }
+}
+
+/**
  * The loading intervals of a scene: each run of consecutive wait steps (`wait_for`, `wait_for_email`) on one page that
  * waited ≥ `min_wait_s` in all — a run stops at a marked wait or one with a hold (the moment it waited for is kept). The
  * interval starts `action_keep_s` after the LAST press of the step right before the waits (`actionMoment`: its option
@@ -301,26 +328,7 @@ export function loadingCuts(
   // Page loads the capture held: the frozen previous frame is cut up to the first frame of the painted page — whole,
   // also inside the still, a mark or a hold, and up to the scene end when the scene ends before the paint (as the edit
   // does); one that overlaps a wait-based cut extends it.
-  for (const h of opts.held ?? []) {
-    const from = Math.max(h.t_start, opts.sceneStart ?? opts.stillEnd);
-    const to = Math.min(h.t_end, opts.sceneEnd);
-    if (to - from < LOADING_CUT_MIN_S - EPS) continue;
-    const over = out.find((l) => l.from < to - EPS && from < l.to - EPS);
-    if (over) {
-      over.from = round3(Math.min(over.from, from));
-      over.to = Math.max(over.to, Math.ceil(to * 1000 - EPS) / 1000);
-      if (over.reason === 'loading') over.reason = 'navigation';
-      continue;
-    }
-    const during = [...steps].reverse().find((e) => e.t_start <= from + EPS);
-    out.push({
-      from: round3(from),
-      to: Math.ceil(to * 1000 - EPS) / 1000,
-      reason: 'navigation',
-      ...(during ? { after_step: during.step } : {}),
-      ...(h.page !== undefined ? { page: h.page } : {}),
-    });
-  }
+  addHeldLoads(out, steps, opts.held ?? [], opts.sceneStart ?? opts.stillEnd, opts.sceneEnd);
   return out.sort((a, b) => a.from - b.from);
 }
 
@@ -484,6 +492,55 @@ function numberLabel(n: number, total: number): string {
   return String(n).padStart(total > 99 ? 3 : 2, '0');
 }
 
+/** A clip's cuts: each loading removed, clamped to the clip's frames, with where it sits in the kept frames (`at`). */
+function clipCuts(loading: readonly RawLoading[], removed: ReadonlyArray<{ n0: number; n1: number }>, spans: ReadonlyArray<{ n0: number; n1: number }>, n0: number, n1: number): RawCut[] {
+  const cuts: RawCut[] = [];
+  let kept = 0;
+  let si = 0;
+  for (let li = 0; li < loading.length; li++) {
+    const r = removed[li];
+    const a = Math.max(n0, r.n0);
+    const b = Math.min(n1, r.n1);
+    if (b <= a) continue;
+    while (si < spans.length && spans[si].n1 <= a) {
+      kept += spans[si].n1 - spans[si].n0;
+      si++;
+    }
+    cuts.push({ ...loading[li], n0: a, n1: b, at: kept });
+  }
+  return cuts;
+}
+
+/** A scene's frame sources: its pages' tracks (a page without one is warned), else the main capture. */
+function sceneSources(
+  timeline: Timeline,
+  sceneId: string,
+  pages: ReadonlyArray<{ id: string; label?: string; track: string }> | undefined,
+  warnings: string[],
+): Array<{ page?: string; label?: string; source: RawSource }> {
+  const sources: Array<{ page?: string; label?: string; source: RawSource }> = [];
+  if (pages) {
+    for (const pg of pages) {
+      const src = trackSource(timeline, pg.track);
+      if (src) sources.push({ page: pg.id, ...(pg.label !== undefined ? { label: pg.label } : {}), source: src });
+      else warnings.push(`scene "${sceneId}": no track for page "${pg.id}" in the run: no clip for it`);
+    }
+  } else sources.push({ source: mainSource(timeline) });
+  return sources;
+}
+
+/** The sequence: the scenes' primary clips end to end, and its length in frames. */
+function rawSequence(clips: readonly RawClipPlan[]): { sequence: RawPlan['sequence']; frames: number } {
+  const sequence: RawPlan['sequence'] = [];
+  let at = 0;
+  for (const c of clips) {
+    if (!c.primary) continue;
+    sequence.push({ clip: c.index, start: at });
+    at += c.frames;
+  }
+  return { sequence, frames: at };
+}
+
 /**
  * Plan the clips of a raw export from a capture timeline: one clip per captured scene (per page of a multi-page
  * scene), its export-grid frames without the page load before its still and, with `cuts`, without its loading. Pure.
@@ -550,14 +607,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
     number++;
     const base = `${numberLabel(number, total)}-${fileSlug(scene.id)}`;
     const pages = scene.pages && scene.pages.length > 0 ? scene.pages : undefined;
-    const sources: Array<{ page?: string; label?: string; source: RawSource }> = [];
-    if (pages) {
-      for (const pg of pages) {
-        const src = trackSource(timeline, pg.track);
-        if (src) sources.push({ page: pg.id, ...(pg.label !== undefined ? { label: pg.label } : {}), source: src });
-        else warnings.push(`scene "${scene.id}": no track for page "${pg.id}" in the run: no clip for it`);
-      }
-    } else sources.push({ source: mainSource(timeline) });
+    const sources = sceneSources(timeline, scene.id, pages, warnings);
     if (sources.length === 0) continue;
     // The sequence shows the page of the scene's opening still (the first acting page), the others ride along.
     const actingPage = still?.page ?? pages?.[0]?.id;
@@ -568,20 +618,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
         )
       : 0;
     sources.forEach((s, k) => {
-      const cuts: RawCut[] = [];
-      let kept = 0;
-      let si = 0;
-      for (let li = 0; li < loading.length; li++) {
-        const r = removed[li];
-        const a = Math.max(n0, r.n0);
-        const b = Math.min(n1, r.n1);
-        if (b <= a) continue;
-        while (si < spans.length && spans[si].n1 <= a) {
-          kept += spans[si].n1 - spans[si].n0;
-          si++;
-        }
-        cuts.push({ ...loading[li], n0: a, n1: b, at: kept });
-      }
+      const cuts = clipCuts(loading, removed, spans, n0, n1);
       clips.push({
         index: clips.length,
         number,
@@ -604,13 +641,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
     });
     for (const l of loading) notes.push(cutNote(scene.id, l, 'cut', s1));
   }
-  const sequence: RawPlan['sequence'] = [];
-  let at = 0;
-  for (const c of clips) {
-    if (!c.primary) continue;
-    sequence.push({ clip: c.index, start: at });
-    at += c.frames;
-  }
+  const { sequence, frames: at } = rawSequence(clips);
   if (clips.length === 0) warnings.push('no captured scene: nothing to export');
   return { fps, clips, sequence, frames: at, notes, warnings };
 }

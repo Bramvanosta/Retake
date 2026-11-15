@@ -17,8 +17,8 @@ import { startedJobs, focusOnArrival } from './started.js';
 /** What record_start refused, in words: the open recording (409), a command to type (403 with a fix), or the message. */
 type StartRefusal = { kind: 'open'; project: string; rec_id: string } | { kind: 'error'; message: string; fix?: string };
 
-/** The start form for one set of options (the screen reads them; a test renders it with any). */
-export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: RecordOptionsAnswer; onStarted: (s: RecordStartAnswer) => void; onChanged: () => void }) {
+/** The start form's state: the location, page, path, persona and name, the send and its refusal. */
+function useStartForm(slug: string, o: RecordOptionsAnswer, onStarted: (s: RecordStartAnswer) => void, onChanged: () => void) {
   const [envName, setEnvName] = useState(() => o.default_env ?? o.environments[0]?.name ?? '');
   const env: RecordEnvironmentOption | undefined = o.environments.find((e) => e.name === envName) ?? o.environments[0];
   const [page, setPage] = useState(env?.default?.page ?? env?.pages[0] ?? '');
@@ -69,11 +69,15 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
   const startWhy = blocked
     ? (signInFirst ?? (open ? 'One window at a time: a recording is already open.' : !o.display ? 'No window can open on this machine.' : 'This location cannot be recorded.'))
     : (pathProblem ?? problem);
+  return { envName, env, page, setPage, path, setPath, persona, setPersona, name, setName, sending, refusal, refusedBox, pickEnv, p, signInFirst, pathProblem, problem, start, open, startWhy };
+}
+
+type StartFormState = ReturnType<typeof useStartForm>;
+
+/** The notes above the fields: a real window, no screen here, a recording already open. */
+function StartNotices({ o, open }: { o: RecordOptionsAnswer; open: StartFormState['open'] }) {
   return (
-    <form className="rc-start" onSubmit={start} aria-labelledby="rec-start-h" data-testid="record-start-form">
-      <h2 id="rec-start-h" className="sc-h2">
-        Record a new scenario
-      </h2>
+    <>
       <Callout state="idle" role="note" title="Note: a real browser window">
         <p data-testid="record-window-note">{shown(WINDOW_NOTE)}</p>
         {o.notes.length > 0 && (
@@ -102,66 +106,85 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
           </p>
         </Callout>
       )}
-      <div className="rc-fields">
-        <Select
-          label="Location"
-          testId="record-env"
-          value={env?.name ?? ''}
-          onChange={pickEnv}
-          options={o.environments.map((e) => ({ value: e.name, label: `${e.name}${e.production ? ' (production)' : e.access === 'read-only' ? ' (read-only)' : ''}` }))}
-        />
-        <Select label="Page" testId="record-page" value={page} onChange={setPage} options={(env?.pages ?? []).map((k) => ({ value: k, label: k }))} />
-        <TextField
-          label="Path"
-          testId="record-path"
-          value={path}
-          onChange={setPath}
-          unsaved={null}
-          mono
-          maxLength={2048}
-          spellCheck={false}
-          autoComplete="off"
-          {...(pathProblem ? { error: pathProblem } : {})}
-        />
-        <Select
-          label="Persona"
-          testId="record-persona"
-          value={persona}
-          onChange={setPersona}
-          options={[{ value: 'none', label: 'Signed out' }, ...(env?.personas ?? []).map((x) => ({ value: x.name, label: x.name }))]}
-        />
-        <TextField
-          label="Name"
-          testId="record-name"
-          value={name}
-          onChange={setName}
-          unsaved={null}
-          mono
-          maxLength={NAME_MAX}
-          spellCheck={false}
-          autoComplete="off"
-          {...(problem ? { error: problem } : { hint: 'The draft is made for this name; Save may choose another.' })}
-        />
-      </div>
-      {p && (
-        <div className="rc-persona" data-testid="record-persona-state">
-          <p>
-            <Txt text={p.name} />
-            {': '}
-            <StoredState p={{ status: p.status ?? 'unchecked', sandbox: p.sandbox }} />{' '}
-            {shown(
-              p.status === 'valid'
-                ? 'the window opens signed in.'
-                : p.login_steps
-                  ? 'its login steps sign it in first (headless, off camera).'
-                  : p.sandbox
-                    ? 'a sandbox account.'
-                    : 'not signed in: the recording is refused until it is — sign it in first.',
-            )}
-          </p>
-          {p.status !== 'valid' && !p.login_steps && !p.sandbox && env && <SignIn slug={slug} persona={p.name} env={env.name} onDone={onChanged} />}
-        </div>
-      )}
+    </>
+  );
+}
+
+/** The fields: location, page, path, persona, name. */
+function StartFields({ o, f }: { o: RecordOptionsAnswer; f: StartFormState }) {
+  const { env, page, setPage, path, setPath, persona, setPersona, name, setName, pickEnv, pathProblem, problem } = f;
+  return (
+    <div className="rc-fields">
+      <Select
+        label="Location"
+        testId="record-env"
+        value={env?.name ?? ''}
+        onChange={pickEnv}
+        options={o.environments.map((e) => ({ value: e.name, label: `${e.name}${e.production ? ' (production)' : e.access === 'read-only' ? ' (read-only)' : ''}` }))}
+      />
+      <Select label="Page" testId="record-page" value={page} onChange={setPage} options={(env?.pages ?? []).map((k) => ({ value: k, label: k }))} />
+      <TextField
+        label="Path"
+        testId="record-path"
+        value={path}
+        onChange={setPath}
+        unsaved={null}
+        mono
+        maxLength={2048}
+        spellCheck={false}
+        autoComplete="off"
+        {...(pathProblem ? { error: pathProblem } : {})}
+      />
+      <Select
+        label="Persona"
+        testId="record-persona"
+        value={persona}
+        onChange={setPersona}
+        options={[{ value: 'none', label: 'Signed out' }, ...(env?.personas ?? []).map((x) => ({ value: x.name, label: x.name }))]}
+      />
+      <TextField
+        label="Name"
+        testId="record-name"
+        value={name}
+        onChange={setName}
+        unsaved={null}
+        mono
+        maxLength={NAME_MAX}
+        spellCheck={false}
+        autoComplete="off"
+        {...(problem ? { error: problem } : { hint: 'The draft is made for this name; Save may choose another.' })}
+      />
+    </div>
+  );
+}
+
+/** The persona chosen: whether the window opens signed in, and Sign in when it cannot. */
+function PersonaState({ p, slug, env, onChanged }: { p: NonNullable<StartFormState['p']>; slug: string; env: RecordEnvironmentOption | undefined; onChanged: () => void }) {
+  return (
+    <div className="rc-persona" data-testid="record-persona-state">
+      <p>
+        <Txt text={p.name} />
+        {': '}
+        <StoredState p={{ status: p.status ?? 'unchecked', sandbox: p.sandbox }} />{' '}
+        {shown(
+          p.status === 'valid'
+            ? 'the window opens signed in.'
+            : p.login_steps
+              ? 'its login steps sign it in first (headless, off camera).'
+              : p.sandbox
+                ? 'a sandbox account.'
+                : 'not signed in: the recording is refused until it is — sign it in first.',
+        )}
+      </p>
+      {p.status !== 'valid' && !p.login_steps && !p.sandbox && env && <SignIn slug={slug} persona={p.name} env={env.name} onDone={onChanged} />}
+    </div>
+  );
+}
+
+/** Why the location cannot be recorded, and its warnings. */
+function EnvNotes({ env }: { env: RecordEnvironmentOption | undefined }) {
+  return (
+    <>
       {env?.problem && (
         <Callout state="warn" role="note" title="Blocked: this location cannot be recorded">
           <p className="rc-pre">
@@ -179,6 +202,23 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+/** The start form for one set of options (the screen reads them; a test renders it with any). */
+export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: RecordOptionsAnswer; onStarted: (s: RecordStartAnswer) => void; onChanged: () => void }) {
+  const f = useStartForm(slug, o, onStarted, onChanged);
+  const { env, sending, refusal, refusedBox, p, signInFirst, start, open, startWhy } = f;
+  return (
+    <form className="rc-start" onSubmit={start} aria-labelledby="rec-start-h" data-testid="record-start-form">
+      <h2 id="rec-start-h" className="sc-h2">
+        Record a new scenario
+      </h2>
+      <StartNotices o={o} open={open} />
+      <StartFields o={o} f={f} />
+      {p && <PersonaState p={p} slug={slug} env={env} onChanged={onChanged} />}
+      <EnvNotes env={env} />
       <div className="rc-start-act">
         <Button variant="record" submit data-testid="record-start" disabled={startWhy !== null} aria-describedby="rec-start-why">
           {sending ? 'Opening the window…' : 'Start recording'}

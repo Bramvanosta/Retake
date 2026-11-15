@@ -113,7 +113,7 @@ export async function submitRecordJob(
     });
   }
   // Where it may run (the workspace's protected hosts), as for run_dry.
-  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, start.env.name, fix);
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, start.env.name, { fix });
   const warnings: string[] = [];
   if (req.scenario !== undefined && project.scenarios.includes(req.scenario))
     warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);

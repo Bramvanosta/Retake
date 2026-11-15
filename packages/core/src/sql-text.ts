@@ -19,40 +19,17 @@ export function maskSql(sql: string, opts: { identifiers?: boolean } = {}): stri
       blank(i, stop);
       i = stop;
     } else if (c === '/' && next === '*') {
-      // Postgres block comments nest.
-      let depth = 1;
-      let j = i + 2;
-      while (j < sql.length && depth > 0) {
-        if (sql[j] === '/' && sql[j + 1] === '*') {
-          depth++;
-          j += 2;
-        } else if (sql[j] === '*' && sql[j + 1] === '/') {
-          depth--;
-          j += 2;
-        } else j++;
-      }
+      const j = blockCommentEnd(sql, i);
       blank(i, j);
       i = j;
     } else if (c === "'" || c === '"') {
-      const escapes = c === "'" && i > 0 && /[eE]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] ?? '');
-      let j = i + 1;
-      while (j < sql.length) {
-        if (escapes && sql[j] === '\\') j += 2;
-        else if (sql[j] === c && sql[j + 1] === c) j += 2;
-        else if (sql[j] === c) break;
-        else j++;
-      }
-      if (c === '"' && opts.identifiers) {
-        out[i] = ' ';
-        for (let k = i + 1; k < Math.min(j, sql.length); k++) if (!/[A-Za-z0-9_$]/.test(out[k])) out[k] = out[k] === '\n' ? '\n' : '_';
-        if (j < sql.length) out[j] = ' ';
-      } else blank(i + 1, Math.min(j, sql.length));
+      const j = quotedEnd(sql, i);
+      if (c === '"' && opts.identifiers) keepIdentifier(out, i, j);
+      else blank(i + 1, Math.min(j, sql.length));
       i = j + 1;
     } else if (c === '$') {
-      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
-      const prev = sql[i - 1] ?? '';
-      if (m && !/[\w$]/.test(prev)) {
-        const tag = m[0];
+      const tag = dollarTag(sql, i);
+      if (tag) {
         const end = sql.indexOf(tag, i + tag.length);
         const stop = end < 0 ? sql.length : end + tag.length;
         blank(i + tag.length, end < 0 ? sql.length : end);
@@ -61,4 +38,48 @@ export function maskSql(sql: string, opts: { identifiers?: boolean } = {}): stri
     } else i++;
   }
   return out.join('');
+}
+
+/** Index after the block comment opening at sql[i] (Postgres block comments nest). */
+function blockCommentEnd(sql: string, i: number): number {
+  let depth = 1;
+  let j = i + 2;
+  while (j < sql.length && depth > 0) {
+    if (sql[j] === '/' && sql[j + 1] === '*') {
+      depth++;
+      j += 2;
+    } else if (sql[j] === '*' && sql[j + 1] === '/') {
+      depth--;
+      j += 2;
+    } else j++;
+  }
+  return j;
+}
+
+/** Index of the quote closing the string or quoted identifier opening at sql[i] (doubled quotes, E'' escapes), or past the end. */
+function quotedEnd(sql: string, i: number): number {
+  const c = sql[i];
+  const escapes = c === "'" && i > 0 && /[eE]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] ?? '');
+  let j = i + 1;
+  while (j < sql.length) {
+    if (escapes && sql[j] === '\\') j += 2;
+    else if (sql[j] === c && sql[j + 1] === c) j += 2;
+    else if (sql[j] === c) break;
+    else j++;
+  }
+  return j;
+}
+
+/** A quoted identifier from sql[i] to its closing quote at j kept as one word: quotes blanked, other characters `_`. */
+function keepIdentifier(out: string[], i: number, j: number): void {
+  out[i] = ' ';
+  for (let k = i + 1; k < Math.min(j, out.length); k++) if (!/[A-Za-z0-9_$]/.test(out[k])) out[k] = out[k] === '\n' ? '\n' : '_';
+  if (j < out.length) out[j] = ' ';
+}
+
+/** The dollar-quote tag (`$$`, `$body$`) opening at sql[i], or undefined (a `$` inside a word or a `$1` parameter). */
+function dollarTag(sql: string, i: number): string | undefined {
+  const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+  const prev = sql[i - 1] ?? '';
+  return m && !/[\w$]/.test(prev) ? m[0] : undefined;
 }

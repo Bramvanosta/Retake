@@ -323,24 +323,17 @@ function exportHint(text: string, absDir: string, exportsOf: Map<string, string[
   return `"${mod}" has no export named "${name}"${s ? ` (did you mean "${s}"?)` : ''}`;
 }
 
-/**
- * Bundle `entry` (absolute, inside `dir`) in memory with esbuild and report: syntax/type-stripping errors, imports
- * other than react / remotion / the kit (or files outside the folder), missing named exports, and forbidden APIs.
- */
-export async function checkComponentEntry(dir: string, entry: string): Promise<EntryCheck> {
-  // Real paths throughout: esbuild resolves symbolic links in importers and resolve dirs.
-  const real = (p: string) => realpathOr(p, p);
-  const absDir = real(resolve(dir));
-  const rawEntry = resolve(resolve(dir), entry);
-  const absEntry = real(join(real(dirname(rawEntry)), basename(rawEntry)));
-  const exportsOf = await moduleExports();
-  const kitFile = kitEntry();
-  const kit = kitFile && realpathOr(kitFile, kitFile);
-  const kitNames = await kitExports();
-  const kitDir = kit ? resolve(kit, '..') : undefined;
-  const imports = new Set<string>();
-  const seen: Array<{ importer: string; problem: string }> = [];
-  const plugin: Plugin = {
+/** The bundle's import rules: the kit and its externals, stubs of react / remotion, refused imports noted in `seen`. */
+function componentImportsPlugin(o: {
+  absDir: string;
+  kit: string | undefined;
+  kitDir: string | undefined;
+  exportsOf: Map<string, string[] | null>;
+  imports: Set<string>;
+  seen: Array<{ importer: string; problem: string }>;
+}): Plugin {
+  const { absDir, kit, kitDir, exportsOf, imports, seen } = o;
+  return {
     name: 'retake-component-imports',
     setup(b) {
       b.onResolve({ filter: /.*/ }, (args) => {
@@ -390,6 +383,26 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
       });
     },
   };
+}
+
+/**
+ * Bundle `entry` (absolute, inside `dir`) in memory with esbuild and report: syntax/type-stripping errors, imports
+ * other than react / remotion / the kit (or files outside the folder), missing named exports, and forbidden APIs.
+ */
+export async function checkComponentEntry(dir: string, entry: string): Promise<EntryCheck> {
+  // Real paths throughout: esbuild resolves symbolic links in importers and resolve dirs.
+  const real = (p: string) => realpathOr(p, p);
+  const absDir = real(resolve(dir));
+  const rawEntry = resolve(resolve(dir), entry);
+  const absEntry = real(join(real(dirname(rawEntry)), basename(rawEntry)));
+  const exportsOf = await moduleExports();
+  const kitFile = kitEntry();
+  const kit = kitFile && realpathOr(kitFile, kitFile);
+  const kitNames = await kitExports();
+  const kitDir = kit ? resolve(kit, '..') : undefined;
+  const imports = new Set<string>();
+  const seen: Array<{ importer: string; problem: string }> = [];
+  const plugin = componentImportsPlugin({ absDir, kit, kitDir, exportsOf, imports, seen });
 
   const issues: ComponentIssue[] = [];
   const toIssue = (m: Message, severity: 'error' | 'warning'): ComponentIssue => {

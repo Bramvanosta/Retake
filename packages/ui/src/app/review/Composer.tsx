@@ -29,18 +29,10 @@ const FIELDS: Array<[keyof RegionFields, string]> = [
   ['h', 'Height %'],
 ];
 
-export function Composer(p: {
-  slug: string;
-  name: string;
-  shown: Shown;
-  frame: number;
-  region: Region | null;
-  setRegion: (r: Region | null) => void;
-  focusText?: boolean;
-  onPosted: (id: string, warnings: string[]) => void;
-  onReplaced: () => void;
-}) {
-  const { slug, shown, frame, region, setRegion } = p;
+type AnchorState = { state: 'loading' } | { state: 'ok'; a: AnchorAnswer } | { state: 'error'; message: string };
+
+/** The region's four % fields, typed or following the region drawn; a typed field sets the region. */
+function useRegionFields(region: Region | null, setRegion: (r: Region | null) => void) {
   const [fields, setFields] = useState<RegionFields>(() => fieldsOf(region));
   // A drag (or Clear) sets the region: the fields follow — unless they already say it (the person is typing them).
   const fieldsRef = useRef(fields);
@@ -53,9 +45,12 @@ export function Composer(p: {
     setFields(next);
     setRegion(regionOfFields(next));
   };
+  return { fields, setFields, setField };
+}
 
-  // The chips: the anchor the server would store (frame_anchor), 150 ms after the frame or region settles.
-  const [anchor, setAnchor] = useState<{ state: 'loading' } | { state: 'ok'; a: AnchorAnswer } | { state: 'error'; message: string }>({ state: 'loading' });
+/** The chips: the anchor the server would store (frame_anchor), 150 ms after the frame or region settles; an older answer is dropped. */
+function useAnchor(slug: string, shown: Shown, frame: number, region: Region | null): AnchorState {
+  const [anchor, setAnchor] = useState<AnchorState>({ state: 'loading' });
   const seq = useRef(0);
   useEffect(() => {
     const n = ++seq.current;
@@ -71,6 +66,38 @@ export function Composer(p: {
     }, 150);
     return () => clearTimeout(t);
   }, [slug, shown.render_id, shown.created_at, frame, region]);
+  return anchor;
+}
+
+/** Brought into view once when asked (the text box and Post), its text focused. */
+function useFocusText(focusText: boolean | undefined) {
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const served = useRef(false);
+  useEffect(() => {
+    if (!focusText || served.current) return;
+    served.current = true;
+    actionsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    textRef.current?.focus({ preventScroll: true });
+  }, [focusText]);
+  return { textRef, actionsRef };
+}
+
+export function Composer(p: {
+  slug: string;
+  name: string;
+  shown: Shown;
+  frame: number;
+  region: Region | null;
+  setRegion: (r: Region | null) => void;
+  focusText?: boolean;
+  onPosted: (id: string, warnings: string[]) => void;
+  onReplaced: () => void;
+}) {
+  const { slug, shown, frame, region, setRegion } = p;
+  const { fields, setFields, setField } = useRegionFields(region, setRegion);
+
+  const anchor = useAnchor(slug, shown, frame, region);
   const chips = anchor.state === 'ok' ? anchorChips(anchor.a) : [];
   const fresh = anchor.state === 'ok' && anchor.a.frame === frame;
 
@@ -101,16 +128,7 @@ export function Composer(p: {
       post();
     }
   };
-  // Brought into view once when asked (the text box and Post), its text focused.
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const served = useRef(false);
-  useEffect(() => {
-    if (!p.focusText || served.current) return;
-    served.current = true;
-    actionsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-    textRef.current?.focus({ preventScroll: true });
-  }, [p.focusText]);
+  const { textRef, actionsRef } = useFocusText(p.focusText);
   const how = useId();
   const announced = charactersLeftAnnounced(text);
   const empty = region === null && fields.x === '' && fields.y === '' && fields.w === '' && fields.h === '';
@@ -127,60 +145,8 @@ export function Composer(p: {
       <h2 className="cm-h2">
         <Txt text={`Comment frame ${frame.toLocaleString('en')} of ${renderWords(shown.render_id)}`} />
       </h2>
-      {/* biome-ignore lint/a11y/useSemanticElements: the region fields are a named group with a visual label; <fieldset> would bring its own border, padding and min-width */}
-      <div className="cm-region" role="group" aria-label="Region (optional) — drag on the frame, or type it in % of the frame">
-        <p className="cm-label" aria-hidden="true">
-          Region (optional) — drag on the frame, or type it in % of the frame
-        </p>
-        <div className="cm-region-row">
-          {FIELDS.map(([k, label]) => (
-            <NumberField
-              key={k}
-              label={label}
-              layout="stack"
-              min={0}
-              max={100}
-              step={0.5}
-              value={fields[k]}
-              testId={`region-${k}`}
-              onChange={(v) => setField(k, v)}
-              onBlur={() => {
-                if (region) setFields(fieldsOf(region));
-              }}
-            />
-          ))}
-          <Button size="sm" data-testid="region-clear" disabled={empty} onClick={() => setRegion(null)}>
-            Clear region
-          </Button>
-        </div>
-        <p className="cm-quiet" aria-live="polite" data-testid="region-words">
-          <Txt text={region ? `Region ${regionWords(region)}` : 'No region: the comment is about the whole frame.'} />
-        </p>
-      </div>
-      <div className="cm-anchor" aria-busy={!fresh}>
-        <p className="cm-label">Where it points</p>
-        {anchor.state === 'error' ? (
-          <p className="cm-pre cm-error" role="alert" data-testid="anchor-error">
-            <Txt text={anchor.message} />
-          </p>
-        ) : chips.length ? (
-          <ChipList chips={chips} label="Where this comment points" />
-        ) : (
-          <p className="cm-quiet" role="status">
-            Reading where the frame points…
-          </p>
-        )}
-        {anchor.state === 'ok' && anchor.a.warnings.length > 0 && (
-          <ul className="cm-warnings">
-            {anchor.a.warnings.map((w, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: one anchor's warnings, replaced whole on each read, text only: the index is the identity
-              <li key={i}>
-                <Txt text={w} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <RegionInputs fields={fields} region={region} empty={empty} setField={setField} setFields={setFields} setRegion={setRegion} />
+      <AnchorChips anchor={anchor} chips={chips} fresh={fresh} />
       <TextArea
         label="Add a comment on this frame"
         rows={4}
@@ -214,5 +180,87 @@ export function Composer(p: {
         </Callout>
       )}
     </form>
+  );
+}
+
+/** The region in % of the frame (the drag's keyboard alternative): four fields, Clear region, and the region in words. */
+function RegionInputs({
+  fields,
+  region,
+  empty,
+  setField,
+  setFields,
+  setRegion,
+}: {
+  fields: RegionFields;
+  region: Region | null;
+  empty: boolean;
+  setField: (k: keyof RegionFields, v: string) => void;
+  setFields: (f: RegionFields) => void;
+  setRegion: (r: Region | null) => void;
+}) {
+  return (
+    <>
+      {/* biome-ignore lint/a11y/useSemanticElements: the region fields are a named group with a visual label; <fieldset> would bring its own border, padding and min-width */}
+      <div className="cm-region" role="group" aria-label="Region (optional) — drag on the frame, or type it in % of the frame">
+        <p className="cm-label" aria-hidden="true">
+          Region (optional) — drag on the frame, or type it in % of the frame
+        </p>
+        <div className="cm-region-row">
+          {FIELDS.map(([k, label]) => (
+            <NumberField
+              key={k}
+              label={label}
+              layout="stack"
+              min={0}
+              max={100}
+              step={0.5}
+              value={fields[k]}
+              testId={`region-${k}`}
+              onChange={(v) => setField(k, v)}
+              onBlur={() => {
+                if (region) setFields(fieldsOf(region));
+              }}
+            />
+          ))}
+          <Button size="sm" data-testid="region-clear" disabled={empty} onClick={() => setRegion(null)}>
+            Clear region
+          </Button>
+        </div>
+        <p className="cm-quiet" aria-live="polite" data-testid="region-words">
+          <Txt text={region ? `Region ${regionWords(region)}` : 'No region: the comment is about the whole frame.'} />
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** Where the comment points: the anchor's chips (or its error, or that it is being read) and its warnings. */
+function AnchorChips({ anchor, chips, fresh }: { anchor: AnchorState; chips: ReturnType<typeof anchorChips>; fresh: boolean }) {
+  return (
+    <div className="cm-anchor" aria-busy={!fresh}>
+      <p className="cm-label">Where it points</p>
+      {anchor.state === 'error' ? (
+        <p className="cm-pre cm-error" role="alert" data-testid="anchor-error">
+          <Txt text={anchor.message} />
+        </p>
+      ) : chips.length ? (
+        <ChipList chips={chips} label="Where this comment points" />
+      ) : (
+        <p className="cm-quiet" role="status">
+          Reading where the frame points…
+        </p>
+      )}
+      {anchor.state === 'ok' && anchor.a.warnings.length > 0 && (
+        <ul className="cm-warnings">
+          {anchor.a.warnings.map((w, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: one anchor's warnings, replaced whole on each read, text only: the index is the identity
+            <li key={i}>
+              <Txt text={w} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

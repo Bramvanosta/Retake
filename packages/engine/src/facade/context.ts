@@ -118,6 +118,41 @@ function shellQuote(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+/** What run.json cannot say: its worker died (interrupted), or the job ended before the run started. */
+const overlaid = (status: RunStatusWithJob['status'], job: JobRecord): 'interrupted' | 'cancelled' | 'failed' | undefined =>
+  job.state === 'interrupted' || ((job.state === 'cancelled' || job.state === 'failed') && status === 'queued') ? job.state : undefined;
+
+/** A run's status with its job's state overlaid (the scenario views' and the boards' rule). */
+function runOverlay(queue: EngineContext['queue']) {
+  return async (slug: string, run: { id: string; status: RunStatusWithJob['status'] }) => {
+    const job = await queue.ofRun(slug, run.id);
+    return (job ? overlaid(run.status, job) : undefined) ?? run.status;
+  };
+}
+
+/** A scenario's open render job (queued or running), as the scenario view shows it. */
+async function openRenderJob(queue: EngineContext['queue'], slug: string, name: string) {
+  const open = (await queue.list({ project: slug, kinds: ['render'], states: ['queued', 'running'] })).find((j) => j.input.kind === 'render' && j.input.scenario === name);
+  if (!open) return undefined;
+  return { job: open.id, state: open.state === 'running' ? ('running' as const) : ('queued' as const), ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
+}
+
+/** What starts this workspace's jobs worker when a job is submitted (nothing when the options say so). */
+function workerStarter(opts: EngineOptions, caller: EngineContext['caller'], ws: EngineContext['ws'], ports: EnginePorts): EngineContext['startWorker'] {
+  return async () => {
+    if (opts.autoStartWorker === false) return undefined;
+    // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's
+    // later jobs too); the Studio passes its own (the same cleaner).
+    const env = workerEnvOf(opts, caller, ws, ports.env);
+    return ensureWorker(ws.root, {
+      ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
+      env: env ?? ports.env,
+      ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
+      startedBy: opts.client,
+    });
+  };
+}
+
 /**
  * The context of an engine for a client: its caller, its workspace (opened with the caller's agent policy) and the
  * shared parts. The workspace's job queue and the paths of its files come from the ports' queue factory (the file
@@ -147,37 +182,17 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   const runThumbs = new RunThumbs({ policy: ws.policy, frames: ports.reviewer.frames }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails.
   const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, renders: ws.outputs.renders, slots: runThumbs.ffmpegSlots, comments: commentIndex });
-  const startWorker: EngineContext['startWorker'] = async () => {
-    if (opts.autoStartWorker === false) return undefined;
-    // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's
-    // later jobs too); the Studio passes its own (the same cleaner).
-    const env = workerEnvOf(opts, caller, ws, ports.env);
-    return ensureWorker(ws.root, {
-      ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
-      env: env ?? ports.env,
-      ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
-      startedBy: opts.client,
-    });
-  };
-  /** What run.json cannot say: its worker died (interrupted), or the job ended before the run started. */
-  const overlaid = (status: RunStatusWithJob['status'], job: JobRecord): 'interrupted' | 'cancelled' | 'failed' | undefined =>
-    job.state === 'interrupted' || ((job.state === 'cancelled' || job.state === 'failed') && status === 'queued') ? job.state : undefined;
+  const startWorker = workerStarter(opts, caller, ws, ports);
+  const overlay = runOverlay(queue);
   const views = new ScenarioViews({
     ws,
     project,
     agent,
     via,
     blockers: (req) => runBlockers(submitCtx, req),
-    overlay: async (slug, run) => {
-      const job = await queue.ofRun(slug, run.id);
-      return (job ? overlaid(run.status, job) : undefined) ?? run.status;
-    },
+    overlay,
     runJob: async (slug, run) => (await queue.ofRun(slug, run))?.id ?? null,
-    renderJob: async (slug, name) => {
-      const open = (await queue.list({ project: slug, kinds: ['render'], states: ['queued', 'running'] })).find((j) => j.input.kind === 'render' && j.input.scenario === name);
-      if (!open) return undefined;
-      return { job: open.id, state: open.state === 'running' ? 'running' : 'queued', ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
-    },
+    renderJob: (slug, name) => openRenderJob(queue, slug, name),
     runs: runData,
     stores: ports.stores,
     seen: caches.scenarioVersions,
@@ -188,10 +203,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
     queue,
     files: jobFiles,
     project,
-    overlay: async (slug, run) => {
-      const job = await queue.ofRun(slug, run.id);
-      return (job ? overlaid(run.status, job) : undefined) ?? run.status;
-    },
+    overlay,
     renderMemos: caches.renders,
     stores: ports.stores,
     seen: caches.scenarioVersions,

@@ -36,7 +36,9 @@
  * turns disabled under it hands the focus to its replacement, else to the title).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import type { RecordListItem } from '@retake/engine';
+import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { useRecordOptions } from '../data/record.js';
 import { Txt, plural } from '../bits.js';
 import { say } from '../shell/say.js';
@@ -59,6 +61,56 @@ function agoWords(since: number, now: number): string {
   if (s < 10) return 'just now';
   if (s < 60) return `${s} s ago`;
   return `${Math.floor(s / 60)} min ago`;
+}
+
+/** The status bar while the recording is live: its state and counts. */
+function RecordingStatus({ v, statusWords, counts }: { v: RecordViewAnswer | null; statusWords: string; counts: string }) {
+  return (
+    <ShellSlot name="actions">
+      <span className="sh-scenario" data-testid="status-recording" data-state={v?.state ?? 'loading'}>
+        <StatusMark state={v ? (RECORD_MARK[v.state] ?? 'recording') : 'running'} word={<Txt text={statusWords} />} />
+        {counts && (
+          <span className="sh-seg" data-drop="last" data-testid="status-recording-counts">
+            <Txt text={` · ${counts}`} />
+          </span>
+        )}
+      </span>
+    </ShellSlot>
+  );
+}
+
+/** No view yet: the title (it holds the focus) while it is read, or why it cannot be. */
+function RecordingUnread({ v, error, title }: { v: RecordViewAnswer | null; error: string | null; title: RefObject<HTMLHeadingElement | null> }) {
+  return (
+    <>
+      {!v && !error && (
+        <header className="rc-head">
+          <div className="rc-head-text">
+            <h1 className="sc-h1" tabIndex={-1} ref={title} data-testid="record-title">
+              Recording
+            </h1>
+            <p className="sc-quiet">Reading the recording…</p>
+          </div>
+        </header>
+      )}
+      {error && !v && (
+        <>
+          <header className="rc-head">
+            <div className="rc-head-text">
+              <h1 className="sc-h1" tabIndex={-1} ref={title}>
+                Recording
+              </h1>
+            </div>
+          </header>
+          <Callout state="fail" role="alert" title="Failed: this recording cannot be read">
+            <p className="rc-pre">
+              <Txt text={error} />
+            </p>
+          </Callout>
+        </>
+      )}
+    </>
+  );
 }
 
 function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
@@ -139,44 +191,8 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
           live: v ? ({ rec_id: rec, state: v.state, actions: v.counts.actions } as Pick<RecordListItem, 'rec_id' | 'state' | 'actions'>) : null,
         }}
       />
-      {live && (
-        <ShellSlot name="actions">
-          <span className="sh-scenario" data-testid="status-recording" data-state={v?.state ?? 'loading'}>
-            <StatusMark state={v ? (RECORD_MARK[v.state] ?? 'recording') : 'running'} word={<Txt text={statusWords} />} />
-            {counts && (
-              <span className="sh-seg" data-drop="last" data-testid="status-recording-counts">
-                <Txt text={` · ${counts}`} />
-              </span>
-            )}
-          </span>
-        </ShellSlot>
-      )}
-      {!v && !error && (
-        <header className="rc-head">
-          <div className="rc-head-text">
-            <h1 className="sc-h1" tabIndex={-1} ref={title} data-testid="record-title">
-              Recording
-            </h1>
-            <p className="sc-quiet">Reading the recording…</p>
-          </div>
-        </header>
-      )}
-      {error && !v && (
-        <>
-          <header className="rc-head">
-            <div className="rc-head-text">
-              <h1 className="sc-h1" tabIndex={-1} ref={title}>
-                Recording
-              </h1>
-            </div>
-          </header>
-          <Callout state="fail" role="alert" title="Failed: this recording cannot be read">
-            <p className="rc-pre">
-              <Txt text={error} />
-            </p>
-          </Callout>
-        </>
-      )}
+      {live && <RecordingStatus v={v} statusWords={statusWords} counts={counts} />}
+      <RecordingUnread v={v} error={error} title={title} />
       {v && (
         <RecordingBody
           slug={slug}

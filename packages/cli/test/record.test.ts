@@ -64,8 +64,7 @@ async function record(args: { name?: string; json?: boolean; path?: string }, dr
   const code = await recordCommand(
     new Ui(io),
     { root: ws, ports: enginePorts() },
-    'shop',
-    args.name,
+    { project: 'shop', name: args.name },
     { page: 'shop', ...(args.path ? { path: args.path } : {}), ...(args.json ? { json: true } : {}) },
     hooks,
   );

@@ -30,6 +30,119 @@ export interface InsertFormState {
 
 export const NO_INSERT_FORM: InsertFormState = { open: null, until: 'next_target', waitText: '', caption: '', kicker: '', factor: null, problem: null, focus: false };
 
+type Insert = Extract<RecordAnnotationChange, { op: 'insert' }>['insert'];
+
+/** Where the inserts go: after the cursor's row, or at the end (before or on the next action while recording). */
+function InsertWhere({ where, live }: { where: { label: string } | null; live: boolean }) {
+  return (
+    <p className="rc-insert-where" data-testid="record-cursor-where">
+      {where ? (
+        <>
+          {'Insert after '}
+          <Txt text={where.label} />
+        </>
+      ) : (
+        shown(
+          live
+            ? 'Insert at the end — a hold or a wait goes before your next action; a caption, a mark or a zoom goes on it.'
+            : 'Insert at the end — a hold or a wait goes after the last step; a caption, a mark or a zoom goes on it.',
+        )
+      )}
+    </p>
+  );
+}
+
+/** The Insert toolbar: Hold, Wait for…, Caption…, Mark, Zoom… and Back to the end. */
+function InsertToolbar({
+  label,
+  open,
+  zoom,
+  where,
+  add,
+  toggle,
+  setCursor,
+}: {
+  label: string;
+  open: InsertForm | null;
+  zoom: RecordViewAnswer['zoom'];
+  where: { label: string } | null;
+  add: (insert: Insert) => void;
+  toggle: (f: InsertForm) => void;
+  setCursor: (c: Cursor) => void;
+}) {
+  return (
+    <Toolbar label={visibleControls(label)}>
+      <Button size="sm" data-testid="record-insert-hold" onClick={() => add({ kind: 'hold', seconds: HOLD_DEFAULT_S })}>
+        {shown(`Hold ${HOLD_DEFAULT_S} s`)}
+      </Button>
+      <Button size="sm" data-testid="record-insert-wait" aria-expanded={open === 'wait'} onClick={() => toggle('wait')}>
+        Wait for…
+      </Button>
+      <Button size="sm" data-testid="record-insert-caption" aria-expanded={open === 'caption'} onClick={() => toggle('caption')}>
+        Caption…
+      </Button>
+      <Button size="sm" data-testid="record-insert-mark" onClick={() => add({ kind: 'mark' })}>
+        Mark
+      </Button>
+      {zoom && (
+        <Button size="sm" data-testid="record-insert-zoom" aria-expanded={open === 'zoom'} onClick={() => toggle('zoom')}>
+          Zoom…
+        </Button>
+      )}
+      {where && (
+        <Button size="sm" variant="ghost" data-testid="record-cursor-end" onClick={() => setCursor({ at: 'end' })}>
+          Back to the end
+        </Button>
+      )}
+    </Toolbar>
+  );
+}
+
+/** The open form's fields (the wait's, the caption's or the zoom's) and its problem. */
+function InsertFields({ open, form, set, zoom, factor }: { open: InsertForm; form: InsertFormState; set: (patch: Partial<InsertFormState>) => void; zoom: RecordViewAnswer['zoom']; factor: string }) {
+  return (
+    <>
+      {open === 'wait' && (
+        <>
+          <RadioGroup
+            legend="Wait until"
+            value={form.until}
+            onChange={(v) => set({ until: v as InsertFormState['until'] })}
+            options={[
+              { value: 'next_target', label: 'the next target shows', testId: 'record-wait-until' },
+              { value: 'idle', label: 'the page is idle', testId: 'record-wait-until' },
+              { value: 'text', label: 'a text shows', testId: 'record-wait-until' },
+            ]}
+          />
+          {form.until === 'text' && <TextField label="Text" testId="record-wait-text" value={form.waitText} onChange={(t) => set({ waitText: t })} unsaved={null} maxLength={WAIT_TEXT_MAX} />}
+        </>
+      )}
+      {open === 'caption' && (
+        <>
+          <TextField label="Caption" testId="record-caption-text" value={form.caption} onChange={(t) => set({ caption: t })} unsaved={null} maxLength={CAPTION_MAX} />
+          <TextField label="Kicker (optional)" testId="record-caption-kicker" value={form.kicker} onChange={(t) => set({ kicker: t })} unsaved={null} maxLength={KICKER_MAX} />
+        </>
+      )}
+      {open === 'zoom' && zoom && (
+        <>
+          <RadioGroup
+            legend="Zoom factor"
+            value={factor}
+            onChange={(f) => set({ factor: f })}
+            options={zoom.options.map((f) => ({ value: String(f), label: `${f}×`, ...(f === zoom.max ? { aside: 'the theme’s maximum' } : {}), testId: 'record-zoom-factor' }))}
+          />
+          <p className="sc-quiet">{shown(`Zoom goes up to the theme’s maximum, ${zoom.max}×; it holds until the scene ends.`)}</p>
+        </>
+      )}
+      {form.problem && (
+        <p className="rc-error" role="alert">
+          {shown(form.problem)}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** The Insert toolbar at the cursor (`where`: the cursor's row, null at the end) and the open insert form. */
 export function Inserts({
   where,
@@ -49,7 +162,7 @@ export function Inserts({
   setForm: (f: (was: InsertFormState) => InsertFormState) => void;
 }) {
   const at: RecordInsertAt = where ? where.at : 'end';
-  const add = (insert: Extract<RecordAnnotationChange, { op: 'insert' }>['insert']) => act.annotate({ op: 'insert', at, insert });
+  const add = (insert: Insert) => act.annotate({ op: 'insert', at, insert });
   const open = form.open;
   const set = (patch: Partial<InsertFormState>) => setForm((f) => ({ ...f, ...patch }));
   const formRef = useRef<HTMLFormElement>(null);
@@ -95,83 +208,11 @@ export function Inserts({
   const toggle = (f: InsertForm) => setForm((was) => ({ ...was, problem: null, open: was.open === f ? null : f, focus: was.open !== f }));
   return (
     <div className="rc-insert" data-testid="record-inserts">
-      <p className="rc-insert-where" data-testid="record-cursor-where">
-        {where ? (
-          <>
-            {'Insert after '}
-            <Txt text={where.label} />
-          </>
-        ) : (
-          shown(
-            live
-              ? 'Insert at the end — a hold or a wait goes before your next action; a caption, a mark or a zoom goes on it.'
-              : 'Insert at the end — a hold or a wait goes after the last step; a caption, a mark or a zoom goes on it.',
-          )
-        )}
-      </p>
-      <Toolbar label={visibleControls(label)}>
-        <Button size="sm" data-testid="record-insert-hold" onClick={() => add({ kind: 'hold', seconds: HOLD_DEFAULT_S })}>
-          {shown(`Hold ${HOLD_DEFAULT_S} s`)}
-        </Button>
-        <Button size="sm" data-testid="record-insert-wait" aria-expanded={open === 'wait'} onClick={() => toggle('wait')}>
-          Wait for…
-        </Button>
-        <Button size="sm" data-testid="record-insert-caption" aria-expanded={open === 'caption'} onClick={() => toggle('caption')}>
-          Caption…
-        </Button>
-        <Button size="sm" data-testid="record-insert-mark" onClick={() => add({ kind: 'mark' })}>
-          Mark
-        </Button>
-        {zoom && (
-          <Button size="sm" data-testid="record-insert-zoom" aria-expanded={open === 'zoom'} onClick={() => toggle('zoom')}>
-            Zoom…
-          </Button>
-        )}
-        {where && (
-          <Button size="sm" variant="ghost" data-testid="record-cursor-end" onClick={() => setCursor({ at: 'end' })}>
-            Back to the end
-          </Button>
-        )}
-      </Toolbar>
+      <InsertWhere where={where} live={live} />
+      <InsertToolbar label={label} open={open} zoom={zoom} where={where} add={add} toggle={toggle} setCursor={setCursor} />
       {open && (
         <form ref={formRef} className="rc-insert-form" onKeyDown={onKey} onSubmit={submit} aria-label={open === 'wait' ? 'Wait for' : open === 'caption' ? 'Caption' : 'Zoom'}>
-          {open === 'wait' && (
-            <>
-              <RadioGroup
-                legend="Wait until"
-                value={form.until}
-                onChange={(v) => set({ until: v as InsertFormState['until'] })}
-                options={[
-                  { value: 'next_target', label: 'the next target shows', testId: 'record-wait-until' },
-                  { value: 'idle', label: 'the page is idle', testId: 'record-wait-until' },
-                  { value: 'text', label: 'a text shows', testId: 'record-wait-until' },
-                ]}
-              />
-              {form.until === 'text' && <TextField label="Text" testId="record-wait-text" value={form.waitText} onChange={(t) => set({ waitText: t })} unsaved={null} maxLength={WAIT_TEXT_MAX} />}
-            </>
-          )}
-          {open === 'caption' && (
-            <>
-              <TextField label="Caption" testId="record-caption-text" value={form.caption} onChange={(t) => set({ caption: t })} unsaved={null} maxLength={CAPTION_MAX} />
-              <TextField label="Kicker (optional)" testId="record-caption-kicker" value={form.kicker} onChange={(t) => set({ kicker: t })} unsaved={null} maxLength={KICKER_MAX} />
-            </>
-          )}
-          {open === 'zoom' && zoom && (
-            <>
-              <RadioGroup
-                legend="Zoom factor"
-                value={factor}
-                onChange={(f) => set({ factor: f })}
-                options={zoom.options.map((f) => ({ value: String(f), label: `${f}×`, ...(f === zoom.max ? { aside: 'the theme’s maximum' } : {}), testId: 'record-zoom-factor' }))}
-              />
-              <p className="sc-quiet">{shown(`Zoom goes up to the theme’s maximum, ${zoom.max}×; it holds until the scene ends.`)}</p>
-            </>
-          )}
-          {form.problem && (
-            <p className="rc-error" role="alert">
-              {shown(form.problem)}
-            </p>
-          )}
+          <InsertFields open={open} form={form} set={set} zoom={zoom} factor={factor} />
           <div className="rc-form-act">
             <Button size="sm" variant="primary" submit data-testid={open === 'wait' ? 'record-wait-add' : open === 'caption' ? 'record-caption-add' : 'record-zoom-add'}>
               {open === 'wait' ? 'Add the wait' : open === 'caption' ? 'Add the caption' : 'Add the zoom'}

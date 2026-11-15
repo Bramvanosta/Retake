@@ -444,23 +444,31 @@ const runPerfSchema = <C extends z.ZodType>(object: ObjectOf, retake: C) =>
 const never = () => z.never().optional();
 
 /**
- * The run record's states, built with `object`: one schema per status — what each state has, and what it never has —
- * and `unknown`, the same members under a status that is any text (a record whose status Retake never writes).
- * `blocks`: the schemas of the two diagnostic blocks and of the sandbox.
+ * The members that decide nothing, read leniently by the stored build (`lax`): a closed word is any text, a flag any
+ * boolean, a count any number, a text may be empty — a value a later version writes there is kept as the file holds
+ * it. What decides a record's state (its status and what that state has or never has), its scenario, its kind and
+ * its id are the same in both builds. The lax schemas keep the strict ones' static types (the casts below): the
+ * type a stored record is read as is core run-record.ts's StoredRunRecord, which says text where these take text.
  */
-function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.ZodType>(object: ObjectOf, blocks: { engine: E; perf: P; sandbox: S }, lax = false) {
-  // The stored build reads the members that decide nothing leniently (`lax`): a closed word is any text, a flag any
-  // boolean, a count any number, a text may be empty — a value a later version writes there is kept as the file holds
-  // it. What decides a record's state (its status and what that state has or never has), its scenario, its kind and
-  // its id are the same in both builds. The lax schemas keep the strict ones' static types (the casts below): the
-  // type a stored record is read as is core run-record.ts's StoredRunRecord, which says text where these take text.
-  const word = <const T extends readonly [string, ...string[]]>(values: T) => (lax ? (z.string() as unknown as z.ZodEnum<{ [K in T[number]]: K }>) : z.enum(values));
-  const flag = () => (lax ? (z.boolean() as unknown as z.ZodLiteral<true>) : z.literal(true));
-  const hidden = () => (lax ? (z.string() as unknown as z.ZodLiteral<'hidden'>) : z.literal('hidden'));
-  const count = () => (lax ? z.number() : z.number().int().min(0));
-  const whole = () => (lax ? z.number() : z.number().int());
-  const text = () => (lax ? z.string() : nonEmpty());
-  const base = {
+function recordValues(lax: boolean) {
+  return {
+    word: <const T extends readonly [string, ...string[]]>(values: T) => (lax ? (z.string() as unknown as z.ZodEnum<{ [K in T[number]]: K }>) : z.enum(values)),
+    flag: () => (lax ? (z.boolean() as unknown as z.ZodLiteral<true>) : z.literal(true)),
+    hidden: () => (lax ? (z.string() as unknown as z.ZodLiteral<'hidden'>) : z.literal('hidden')),
+    count: () => (lax ? z.number() : z.number().int().min(0)),
+    whole: () => (lax ? z.number() : z.number().int()),
+    text: () => (lax ? z.string() : nonEmpty()),
+  };
+}
+type RecordValues = ReturnType<typeof recordValues>;
+
+/** The members every state of a run record has. */
+function recordBase<E extends z.ZodType, P extends z.ZodType, S extends z.ZodType>(
+  object: ObjectOf,
+  blocks: { engine: E; perf: P; sandbox: S },
+  { word, flag, hidden, count, whole, text }: RecordValues,
+) {
+  return {
     version: fileVersion(),
     id: nonEmpty(),
     project: text(),
@@ -507,7 +515,11 @@ function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.
       .describe('The pauses the run had: before which step, when, how long.')
       .optional(),
   };
-  const error = object({
+}
+
+/** A run record's `error`: the message, where it happened, and the targets missing from the page. */
+function recordError(object: ObjectOf, { whole }: RecordValues) {
+  return object({
     message: z.string(),
     scene: z.string().optional(),
     step: whole().optional(),
@@ -527,6 +539,18 @@ function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.
       .describe("A target was not found: the targets of the scene's later steps missing from the page too, with the closest visible elements.")
       .optional(),
   });
+}
+
+/**
+ * The run record's states, built with `object`: one schema per status — what each state has, and what it never has —
+ * and `unknown`, the same members under a status that is any text (a record whose status Retake never writes).
+ * `blocks`: the schemas of the two diagnostic blocks and of the sandbox.
+ */
+function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.ZodType>(object: ObjectOf, blocks: { engine: E; perf: P; sandbox: S }, lax = false) {
+  const v = recordValues(lax);
+  const { whole } = v;
+  const base = recordBase(object, blocks, v);
+  const error = recordError(object, v);
   const current = object({ scene: z.string(), step: whole(), action: z.string() });
   const paused = object({ scene: z.string(), step: whole(), since: z.string() }).describe('The run is paused now (a run of a job), before this step.');
   /** Where a run is, or was when it was closed from outside, and what it had filmed by then. */

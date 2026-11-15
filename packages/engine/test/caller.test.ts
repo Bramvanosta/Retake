@@ -189,7 +189,15 @@ describe('the caller policy', () => {
 
   it('no job module names a trust or a submitter by its literal: each goes through the caller module', () => {
     const src = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
-    const files = [...readdirSync(join(src, 'jobs')).map((f) => join('jobs', f)), 'approvals.ts', 'record-studio.ts'].filter((f) => f.endsWith('.ts'));
+    const files = [
+      ...readdirSync(join(src, 'jobs')).map((f) => join('jobs', f)),
+      'approvals.ts',
+      'record-studio.ts',
+      'record-situation.ts',
+      'record-view.ts',
+      'record-save.ts',
+      'record-folder.ts',
+    ].filter((f) => f.endsWith('.ts'));
     const hits: string[] = [];
     for (const f of files) {
       const code = readFileSync(join(src, f), 'utf8')

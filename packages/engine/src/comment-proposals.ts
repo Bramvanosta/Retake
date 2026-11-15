@@ -154,12 +154,10 @@ function templateOf(doc: unknown): unknown {
  */
 export async function checkProposedText(
   project: LoadedProject,
-  scenario: string,
-  today: ScenarioText,
-  text: string,
-  stage: Stage,
+  proposed: { scenario: string; today: ScenarioText; text: string; stage: Stage },
   o: { registry: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; stores: ProjectStores; seen: VersionLedger | undefined },
 ): Promise<ValidationIssue[]> {
+  const { scenario, today, text, stage } = proposed;
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
     prepared = await prepareScenarioEdit(
@@ -262,7 +260,7 @@ export async function buildProposal(
   if (problem) throw invalid(`not proposed: ${problem}`, 'proposal.scenario_yaml');
   // Self-check: the hunks rebuild exactly the bytes checked and stored (never a wrong diff stored).
   if (joinLines(applyHunks(baseLines, hunks), eol) !== text) throw new EngineError('internal', 'not proposed: the line diff does not rebuild the text (a bug): nothing stored');
-  const warnings = await checkProposedText(project, scenario, today, text, 'proposed', o);
+  const warnings = await checkProposedText(project, { scenario, today, text, stage: 'proposed' }, o);
   const parsed = CommentProposalSchema.safeParse({ base_sha256: today.hash, result_sha256: sha256Hex(text), eol: eol === '\r\n' ? 'crlf' : 'lf', delta: 'edit', hunks });
   if (!parsed.success) throw invalid(`not proposed: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`, 'proposal.scenario_yaml');
   return { proposal: parsed.data, warnings };

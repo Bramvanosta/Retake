@@ -130,7 +130,8 @@ function printThread(ui: Ui, t: CommentView): void {
 }
 
 /** `retake comment add <project> <render> (--at <s> | --frame <n> | --marker <name>) [--region x,y,w,h] "text"`. */
-export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectArg: string, render: string, text: string, opts: CommentAddOptions): Promise<ExitCode> {
+export async function commentAddCommand(ui: Ui, global: GlobalOptions, args: { project: string; render: string; text: string }, opts: CommentAddOptions): Promise<ExitCode> {
+  const { project: projectArg, render, text } = args;
   const given = [opts.at, opts.frame, opts.marker].filter((v) => v !== undefined).length;
   if (given !== 1) throw new UsageError('name the frame with exactly one of --at <seconds>, --frame <n> or --marker <name>');
   let frame: number | undefined;
@@ -216,7 +217,8 @@ function printWritten(ui: Ui, what: string, w: CommentWritten, json?: boolean): 
 }
 
 /** `retake comment reply <project> <id> "text"`. */
-export async function commentReplyCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, text: string, opts: CommentWriteOptions): Promise<ExitCode> {
+export async function commentReplyCommand(ui: Ui, global: GlobalOptions, args: { project: string; id: string; text: string }, opts: CommentWriteOptions): Promise<ExitCode> {
+  const { project: projectArg, id, text } = args;
   const by = author(opts.author, global.ports);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);

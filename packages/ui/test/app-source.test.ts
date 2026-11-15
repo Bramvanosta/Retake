@@ -2524,7 +2524,7 @@ describe('⚑ the kit shows text it did not write through Txt', () => {
 // ── The project side (Welcome, the Project screen, the Cast, Lately) ─────────────────────────────────────────────────
 
 /** The rebuilt project-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const PROJECT_SIDE = ['project/WelcomeScreen.tsx', 'project/ProductionsScreen.tsx', 'project/CastScreen.tsx', 'project/Activity.tsx'];
+const PROJECT_SIDE = ['project/WelcomeScreen.tsx', 'project/ProductionsScreen.tsx', 'project/CastScreen.tsx', 'project/Activity.tsx', 'project/production-inspectors.tsx'];
 /** The ops the project side may call: reads only (the write path is unchanged). */
 const PROJECT_SIDE_OPS = new Set(['project_get', 'project_board', 'auth_status', 'projects_overview', 'engine_info', 'run_list', 'run_status', 'run_thumbs', 'activity_list', 'search']);
 
@@ -2574,7 +2574,7 @@ describe('the project side', () => {
   it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; the replaced files are gone', async () => {
     const table = await readTable();
     const found = await ratchetFindings();
-    for (const f of [...PROJECT_SIDE, 'shell/AppShell.tsx']) {
+    for (const f of [...PROJECT_SIDE, 'shell/AppShell.tsx', 'shell/browser-pane.tsx']) {
       expect(table[f], f).toBeUndefined();
       expect(found.get(f) ?? [], f).toEqual([]);
     }
@@ -2613,6 +2613,11 @@ const SCENARIO_SIDE = [
   'script/YamlTab.tsx',
   'script/YamlView.tsx',
   'script/TextEditing.tsx',
+  'script/board-state.ts',
+  'script/scenario-state.ts',
+  'script/yaml-panes.tsx',
+  'script/entry-inspectors.tsx',
+  'script/form-fields.tsx',
   'Thumb.tsx',
 ];
 /** The ops the scenario side may call: its reads, and the allowed mutating ones. */
@@ -2689,7 +2694,19 @@ describe('the scenario side', () => {
 // ──────────────────────────────────────────────────────────
 
 /** The rebuilt Shoot files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const SHOOT_SIDE = ['shoot/ShootPrepare.tsx', 'shoot/ShootLive.tsx', 'shoot/ShootBrowser.tsx', 'shoot/LiveView.tsx', 'project/Sessions.tsx', 'project/CastScreen.tsx', 'shell/StatusActions.tsx'];
+const SHOOT_SIDE = [
+  'shoot/ShootPrepare.tsx',
+  'shoot/ShootLive.tsx',
+  'shoot/ShootBrowser.tsx',
+  'shoot/LiveView.tsx',
+  'project/Sessions.tsx',
+  'project/CastScreen.tsx',
+  'shell/StatusActions.tsx',
+  'shoot/prepare-checks.tsx',
+  'shoot/prepare-run.tsx',
+  'shoot/live-controls.tsx',
+  'shoot/live-panels.tsx',
+];
 /** The ops Shoot may call: its reads, the run's own controls, a render, a sign-in (no edit, no other write). */
 const SHOOT_OPS = new Set([
   'scenario_actions',
@@ -2761,7 +2778,7 @@ describe('Shoot', () => {
   });
 
   it("⚑ Shoot calls only its reads, the run's controls, a render and a sign-in; every scenario_run of the app goes through shoot-data.ts and names the file shown (hash)", async () => {
-    const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot/shoot-data.ts'].includes(f));
+    const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot/shoot-data.ts', 'shoot/run-progress.ts'].includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.length).toBeGreaterThan(5);
     expect(called.filter(([, op]) => !SHOOT_OPS.has(op))).toEqual([]);
@@ -2879,6 +2896,11 @@ const EDIT_REVIEW_SIDE = [
   'edit/EditNotes.tsx',
   'review/ReviewScreen.tsx',
   'review/Renders.tsx',
+  'edit/timeline-sections.tsx',
+  'review/review-chrome.tsx',
+  'review/report-head.tsx',
+  'review/report-checks.tsx',
+  'review/report-export.tsx',
 ];
 
 describe('Edit and the Review report', () => {
@@ -2911,6 +2933,7 @@ const COMMENTS_SIDE = [
   'review/ProposalCard.tsx',
   'review/ProposalBanner.tsx',
   'project/ReadmeEditor.tsx',
+  'review/viewer-controls.tsx',
 ];
 
 /** The ops each comments-side file may call (like SHOOT_OPS / SCENARIO_SIDE_OPS). */
@@ -3292,6 +3315,15 @@ const LIBRARY_SIDE = [
   'themes/ThemesScreen.tsx',
   'themes/ThemeEditor.tsx',
   'themes/ThemeFields.tsx',
+  'library/library-controls.tsx',
+  'library/theme-default-views.tsx',
+  'themes/editor-chrome.tsx',
+  'themes/frame-controls.tsx',
+  'themes/use-in-scenario-view.tsx',
+  'themes/theme-row.tsx',
+  'themes/site-command.tsx',
+  'themes/new-theme-made.tsx',
+  'themes/theme-controls.tsx',
 ];
 
 /** The ops each Library / themes file may call (an allow-list per file, like the comments side's). */

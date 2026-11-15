@@ -68,50 +68,19 @@ function issuesOf(e: unknown): ValidationIssue[] {
   return e instanceof CallError && Array.isArray(e.error.details?.issues) ? (e.error.details.issues as ValidationIssue[]) : [];
 }
 
-export function useStepEditor(slug: string, name: string, v: View | null, yamlDraft: boolean, reload: () => void, active: boolean): StepEditor {
-  const history = useRef<EditHistory>(new EditHistory());
-  const [, bump] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const waitHash = useRef<string | null>(null);
-  const [announce, setAnnounce] = useState('');
-  const [select, setSelect] = useState<StepEditor['select']>(null);
-  const [error, setError] = useState<StepEditor['error']>(null);
-  const [conflict, setConflict] = useState<StepEditor['conflict']>(null);
-  const vRef = useRef(v);
-  vRef.current = v;
-  const ownSaves = useRef(new Set<string>());
+/** What the edit loop works on: the scenario, its view, whether a YAML draft is open, the re-read, the board shown. */
+export interface StepEditorOptions {
+  slug: string;
+  name: string;
+  v: View | null;
+  yamlDraft: boolean;
+  reload: () => void;
+  active: boolean;
+}
 
-  const hash = v?.hash ?? null;
-  /**
-   * The version shown, weighed against the edit loop: the edit's own version lands (input back on), or a version this
-   * screen did not make (history cleared). Run on each view and again when an edit's answer lands: the file's event can
-   * bring the edit's version before its answer (the view's hash then no longer changes, so the effect alone would leave
-   * the input off for good), and while the answer is on its way a version is not judged yet.
-   */
-  const reconcile = useCallback((hash: string) => {
-    const h = history.current;
-    if (waitHash.current !== null) {
-      if (hash !== waitHash.current && h.knows(hash)) return; // an older read: the edit's view is still coming
-      waitHash.current = null;
-      busyRef.current = false;
-      setBusy(false);
-    } else if (busyRef.current) return; // the edit's answer is on its way: it says whether this version is its own
-    if (h.size === 0 && !h.knows(hash)) {
-      h.know(hash);
-      return;
-    }
-    if (!h.knows(hash)) {
-      h.clear();
-      h.know(hash);
-      setAnnounce(ownSaves.current.has(hash) ? 'Saved from the YAML view: the undo history of block edits was cleared.' : 'The file changed outside this screen: the undo history was cleared.');
-      ownSaves.current.clear();
-      bump((n) => n + 1);
-    }
-  }, []);
-  useEffect(() => {
-    if (hash !== null) reconcile(hash);
-  }, [hash, reconcile]);
+export function useStepEditor({ slug, name, v, yamlDraft, reload, active }: StepEditorOptions): StepEditor {
+  const st = useEditState(v);
+  const { history, setBusy, busyRef, waitHash, setAnnounce, setSelect, setError, setConflict, vRef, ownSaves, reconcile, bump } = st;
 
   const enabled = !!v && v.edit.blocks.ok && !yamlDraft;
   const why = !v ? null : !v.edit.blocks.ok ? v.edit.blocks.why : yamlDraft ? 'Save or discard your changes in the YAML view first.' : null;
@@ -157,7 +126,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
         },
       );
     },
-    [slug, name, reload, reconcile],
+    [slug, name, reload, reconcile, history, bump, busyRef, waitHash, setBusy, setError, setAnnounce, setSelect, setConflict, vRef],
   );
 
   const send = useCallback(
@@ -170,58 +139,12 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
         return `${r.label}. Saved.${op.kind === 'set_step' ? ` ${CHANGE_WORDS[r.change ?? 'filmed']}` : ''}`;
       });
     },
-    [enabled, run],
+    [enabled, run, history, setConflict],
   );
 
-  const undo = useCallback(() => {
-    const h = history.current;
-    const e = h.undo.at(-1);
-    if (!e || !enabled || busyRef.current) return;
-    if (vRef.current?.hash !== e.hashAfter) {
-      h.clear();
-      bump((n) => n + 1);
-      setError({ title: 'Undo is not possible', message: 'The file changed since this edit: the undo history was cleared.', issues: [] });
-      return;
-    }
-    run({ kind: 'restore', text: e.before, text_hash: e.hashBefore }, (_r, shown) => {
-      h.undone(shown.text);
-      return `Undone: ${e.label}.`;
-    });
-  }, [enabled, run]);
+  const { undo, redo } = useUndoRedo(st, enabled, run, active);
 
-  const redo = useCallback(() => {
-    const h = history.current;
-    const e = h.redo.at(-1);
-    if (!e || e.after === null || !enabled || busyRef.current) return;
-    if (vRef.current?.hash !== e.hashBefore) {
-      h.clear();
-      bump((n) => n + 1);
-      setError({ title: 'Redo is not possible', message: 'The file changed since this edit was undone: the history was cleared.', issues: [] });
-      return;
-    }
-    run({ kind: 'restore', text: e.after, text_hash: e.hashAfter }, () => {
-      h.redone();
-      return `Redone: ${e.label}.`;
-    });
-  }, [enabled, run]);
-
-  // Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z (and Ctrl+Y) on the Blocks tab, when focus is not in a field.
-  useEffect(() => {
-    if (!active) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || inField(e.target)) return;
-      const k = e.key.toLowerCase();
-      if (k === 'z' || k === 'y') {
-        e.preventDefault();
-        if (e.repeat) return;
-        if (k === 'y' || e.shiftKey) redo();
-        else undo();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, active]);
-
+  const { busy, announce, select, error, conflict } = st;
   const h = history.current;
   return {
     enabled,
@@ -254,6 +177,111 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
       ownSaves.current.add(h);
     },
   };
+}
+
+/** The edit loop's state, and the version shown weighed against it (`reconcile`, run on each view). */
+function useEditState(v: View | null) {
+  const history = useRef<EditHistory>(new EditHistory());
+  const [, bump] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const waitHash = useRef<string | null>(null);
+  const [announce, setAnnounce] = useState('');
+  const [select, setSelect] = useState<StepEditor['select']>(null);
+  const [error, setError] = useState<StepEditor['error']>(null);
+  const [conflict, setConflict] = useState<StepEditor['conflict']>(null);
+  const vRef = useRef(v);
+  vRef.current = v;
+  const ownSaves = useRef(new Set<string>());
+
+  const hash = v?.hash ?? null;
+  /**
+   * The version shown, weighed against the edit loop: the edit's own version lands (input back on), or a version this
+   * screen did not make (history cleared). Run on each view and again when an edit's answer lands: the file's event can
+   * bring the edit's version before its answer (the view's hash then no longer changes, so the effect alone would leave
+   * the input off for good), and while the answer is on its way a version is not judged yet.
+   */
+  const reconcile = useCallback((hash: string) => {
+    const h = history.current;
+    if (waitHash.current !== null) {
+      if (hash !== waitHash.current && h.knows(hash)) return; // an older read: the edit's view is still coming
+      waitHash.current = null;
+      busyRef.current = false;
+      setBusy(false);
+    } else if (busyRef.current) return; // the edit's answer is on its way: it says whether this version is its own
+    if (h.size === 0 && !h.knows(hash)) {
+      h.know(hash);
+      return;
+    }
+    if (!h.knows(hash)) {
+      h.clear();
+      h.know(hash);
+      setAnnounce(ownSaves.current.has(hash) ? 'Saved from the YAML view: the undo history of block edits was cleared.' : 'The file changed outside this screen: the undo history was cleared.');
+      ownSaves.current.clear();
+      bump((n) => n + 1);
+    }
+  }, []);
+  useEffect(() => {
+    if (hash !== null) reconcile(hash);
+  }, [hash, reconcile]);
+  return { history, bump, busy, setBusy, busyRef, waitHash, announce, setAnnounce, select, setSelect, error, setError, conflict, setConflict, vRef, ownSaves, reconcile };
+}
+type EditState = ReturnType<typeof useEditState>;
+/** One edit sent on the version shown, `after` saying it in words (the editor's `run`). */
+type EditRun = (edit: StepEditOp | Extract<ScenarioEdit, { kind: 'restore' }>, after: (r: ScenarioEditAnswer, shown: View) => string) => void;
+
+/** Undo / redo through `restore`, and their keys on the Blocks tab. */
+function useUndoRedo(st: EditState, enabled: boolean, run: EditRun, active: boolean) {
+  const { history, bump, busyRef, vRef, setError } = st;
+  const undo = useCallback(() => {
+    const h = history.current;
+    const e = h.undo.at(-1);
+    if (!e || !enabled || busyRef.current) return;
+    if (vRef.current?.hash !== e.hashAfter) {
+      h.clear();
+      bump((n) => n + 1);
+      setError({ title: 'Undo is not possible', message: 'The file changed since this edit: the undo history was cleared.', issues: [] });
+      return;
+    }
+    run({ kind: 'restore', text: e.before, text_hash: e.hashBefore }, (_r, shown) => {
+      h.undone(shown.text);
+      return `Undone: ${e.label}.`;
+    });
+  }, [enabled, run, history, bump, busyRef, vRef, setError]);
+
+  const redo = useCallback(() => {
+    const h = history.current;
+    const e = h.redo.at(-1);
+    if (!e || e.after === null || !enabled || busyRef.current) return;
+    if (vRef.current?.hash !== e.hashBefore) {
+      h.clear();
+      bump((n) => n + 1);
+      setError({ title: 'Redo is not possible', message: 'The file changed since this edit was undone: the history was cleared.', issues: [] });
+      return;
+    }
+    run({ kind: 'restore', text: e.after, text_hash: e.hashAfter }, () => {
+      h.redone();
+      return `Redone: ${e.label}.`;
+    });
+  }, [enabled, run, history, bump, busyRef, vRef, setError]);
+
+  // Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z (and Ctrl+Y) on the Blocks tab, when focus is not in a field.
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || inField(e.target)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' || k === 'y') {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (k === 'y' || e.shiftKey) redo();
+        else undo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo, active]);
+  return { undo, redo };
 }
 
 /**

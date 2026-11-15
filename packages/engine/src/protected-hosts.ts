@@ -182,7 +182,14 @@ export async function checkNewProjectHosts(ws: OpenedWorkspace, resolver: HostRe
  * points at a host of another project's production or read-only environment. A protected environment itself is not
  * concerned (its run is read-only, or refuses what writes).
  */
-export async function checkWorkspaceProtection(ws: OpenedWorkspace, resolver: HostResolver, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
+export async function checkWorkspaceProtection(
+  ws: OpenedWorkspace,
+  resolver: HostResolver,
+  project: LoadedProject,
+  envName: string | undefined,
+  o: { fix?: string | undefined; via?: AgentChannel | undefined } = {},
+): Promise<void> {
+  const { fix, via } = o;
   const env = resolveEnvironment(project, envName);
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);

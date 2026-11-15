@@ -8,6 +8,9 @@ import { CAMERA_EASINGS, cubicBezier } from '@retake/components/geometry';
 import type { Bezier, EasingFn } from '@retake/components/geometry';
 import type { CameraFrame } from './plan-types.js';
 import { clamp, cursorAt, round } from './util.js';
+import { corridorSmooth, dampedSmooth } from './camera-smooth.js';
+
+export { corridorSmooth, dampedSmooth } from './camera-smooth.js';
 
 /** Minimum ease length of a zoom (seconds of output). */
 export const MIN_ZOOM_EASE_S = 0.8;
@@ -168,122 +171,6 @@ function union(a: Box, b: Box): Box {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
-/**
- * Critically damped smoothing without lag: two first-order lags in cascade (= a critically damped second-order
- * system, no overshoot) run forward, then the same backward (zero phase: a change of the target signal becomes a
- * smooth S that starts before it and ends after it — the reframe anticipates).
- */
-export function dampedSmooth(values: readonly number[], fps: number, tauS: number, zeroPhase = true): number[] {
-  const n = values.length;
-  if (n === 0) return [];
-  const alpha = 1 - Math.exp(-1 / Math.max(1e-6, tauS * fps));
-  const pass = (src: number[], reverse: boolean): number[] => {
-    const out = new Array<number>(n);
-    let y = src[reverse ? n - 1 : 0];
-    for (let i = 0; i < n; i++) {
-      const k = reverse ? n - 1 - i : i;
-      y += alpha * (src[k] - y);
-      out[k] = y;
-    }
-    return out;
-  };
-  let v = values.slice();
-  v = pass(pass(v, false), false);
-  if (zeroPhase) v = pass(pass(v, true), true);
-  return v;
-}
-
-/**
- * The smoothest repair of a path: the path `x = free + d` closest to `free` that stays within [lo, hi] at every
- * frame, with the weights of a CRITICALLY DAMPED system on the repair's slope and the path's curvature:
- * minimise Σ d² + 2L² Σ (Δd)² + L⁴ Σ (Δ²x)²  subject to  lo ≤ x ≤ hi.
- * The response to a one-sided push is then a single smooth bump (Green's function (1 + |t|/L)·e^(−|t|/L), never
- * negative: no ringing, the view never moves the wrong way before or after a forced move), reaching ≈ 3 L frames on
- * each side. A banded quadratic programme solved with ADMM (pentadiagonal Cholesky factorised once). Where the free
- * path is already inside, it is returned as is.
- */
-export function corridorSmooth(
-  free: readonly number[],
-  lo: readonly number[],
-  hi: readonly number[],
-  reachFrames: number,
-  opts: { iterations?: number; rho?: number; damping?: number } = {},
-): number[] {
-  const n = free.length;
-  const inside = free.every((x, k) => x >= lo[k] - 1e-9 && x <= hi[k] + 1e-9);
-  if (inside || n < 3) return free.map((x, k) => clamp(x, lo[k], hi[k]));
-  const rho = opts.rho ?? 1;
-  const L = Math.max(1, reachFrames);
-  const w1 = 2 * (opts.damping ?? 1) * L * L;
-  const w2 = L ** 4;
-  // A = (1 + ρ) I + w1 D1ᵀD1 + w2 D2ᵀD2 (D1, D2: first and second differences), stored by diagonals.
-  const a0 = new Array<number>(n).fill(1 + rho);
-  const a1 = new Array<number>(n).fill(0);
-  const a2 = new Array<number>(n).fill(0);
-  for (let i = 0; i + 1 < n; i++) {
-    a0[i] += w1;
-    a0[i + 1] += w1;
-    a1[i] -= w1;
-  }
-  const c = [1, -2, 1];
-  for (let i = 0; i + 2 < n; i++) {
-    for (let p = 0; p < 3; p++) {
-      a0[i + p] += w2 * c[p] * c[p];
-      if (p < 2) a1[i + p] += w2 * c[p] * c[p + 1];
-      if (p < 1) a2[i + p] += w2 * c[p] * c[p + 2];
-    }
-  }
-  // Banded Cholesky A = L Lᵀ (L lower, bandwidth 2).
-  const l0 = new Array<number>(n).fill(0);
-  const l1 = new Array<number>(n).fill(0);
-  const l2 = new Array<number>(n).fill(0);
-  for (let j = 0; j < n; j++) {
-    const p1 = j >= 1 ? l1[j - 1] : 0;
-    const p2 = j >= 2 ? l2[j - 2] : 0;
-    l0[j] = Math.sqrt(Math.max(1e-12, a0[j] - p1 * p1 - p2 * p2));
-    l1[j] = (a1[j] - (j >= 1 ? l2[j - 1] * l1[j - 1] : 0)) / l0[j];
-    l2[j] = a2[j] / l0[j];
-  }
-  const solve = (b: number[]): number[] => {
-    const y = new Array<number>(n);
-    for (let j = 0; j < n; j++) y[j] = (b[j] - (j >= 1 ? l1[j - 1] * y[j - 1] : 0) - (j >= 2 ? l2[j - 2] * y[j - 2] : 0)) / l0[j];
-    const x = new Array<number>(n);
-    for (let j = n - 1; j >= 0; j--) x[j] = (y[j] - (j + 1 < n ? l1[j] * x[j + 1] : 0) - (j + 2 < n ? l2[j] * x[j + 2] : 0)) / l0[j];
-    return x;
-  };
-  // The curvature penalty applies to the path itself (x = free + d), so a path released from a constraint (pinned at
-  // the capture's edge) accelerates smoothly instead of taking the free path's speed at once: the right-hand side
-  // carries −w2 D2ᵀ D2 free.
-  const curve = new Array<number>(n).fill(0);
-  for (let i = 0; i + 2 < n; i++) {
-    const dd = free[i] - 2 * free[i + 1] + free[i + 2];
-    curve[i] -= w2 * dd;
-    curve[i + 1] += 2 * w2 * dd;
-    curve[i + 2] -= w2 * dd;
-  }
-  // ADMM on the repair d: d ∈ [lo − free, hi − free].
-  const dlo = lo.map((v, k) => v - free[k]);
-  const dhi = hi.map((v, k) => v - free[k]);
-  let z = dlo.map((v, k) => clamp(0, v, dhi[k]));
-  const u = new Array<number>(n).fill(0);
-  let d = z.slice();
-  const iterations = opts.iterations ?? 3000;
-  for (let it = 0; it < iterations; it++) {
-    d = solve(z.map((zk, k) => rho * (zk - u[k]) + curve[k]));
-    let primal = 0;
-    let dual = 0;
-    const zn = d.map((v, k) => clamp(v + u[k], dlo[k], dhi[k]));
-    for (let k = 0; k < n; k++) {
-      u[k] += d[k] - zn[k];
-      primal = Math.max(primal, Math.abs(d[k] - zn[k]));
-      dual = Math.max(dual, Math.abs(zn[k] - z[k]));
-    }
-    z = zn;
-    if (primal < 0.01 && dual < 0.001) break;
-  }
-  return free.map((f, k) => clamp(f + d[k], lo[k], hi[k]));
-}
-
 /** Minimal shift (1-D) that brings [a, a + len) inside [lo, hi) — 0 when inside, centred when it cannot fit. */
 function shiftInto(a: number, len: number, lo: number, hi: number): number {
   if (len >= hi - lo) return a + len / 2 - (lo + hi) / 2;
@@ -292,44 +179,9 @@ function shiftInto(a: number, len: number, lo: number, hi: number): number {
   return 0;
 }
 
-/**
- * Reframing of the vertical and square variants: the centre (source CSS px) of the crop shown in the layout's
- * screen rect, per output frame of a run (contiguous clips: the track never crosses a cut).
- *
- * 1. What must be seen at each frame: the cursor (its arrow + ripple box, while visible), the active step's target
- *    (from `look_ahead_s` before the step starts to its end) and the overlay anchors; their union when it fits in the
- *    view, else the hard boxes, else the cursor alone (the view then follows the cursor towards the target). A box
- *    larger than the view counts by its leading part (`leadingPart`: a table row by its id and label). While the
- *    camera zooms, its focus is kept in view too.
- * 2. Dead zone: the target centre only moves when that region leaves the view inset by `dead_zone`; it then moves by
- *    the smallest shift that brings it back, plus half the slack (no re-targeting for small motions: no jitter). It
- *    starts framed on the first step's region, as far toward the page's leading edge (left, top) as that allows.
- * 3. Critically damped smoothing without lag (`dampedSmooth`): moves are smooth S curves that start a little before
- *    the need (look-ahead) and never overshoot.
- * 4. Constraints: the cursor and the hard boxes (the clicked target around its click, overlay anchors while shown)
- *    must stay fully in view; violations push the target signal and the smoothing is run again (a few passes), then
- *    any remaining violation is removed by the smallest shift — so the clicked target and the cursor are never cut.
- * 5. The view stays inside the capture.
- */
-export function reframeTrack(opts: {
-  /** Capture time (s) of every output frame. */
-  times: readonly number[];
-  camera: readonly CameraFrame[];
-  cursor: Timeline['cursor'];
-  crop: { w: number; h: number };
-  css: { w: number; h: number };
-  outFps: number;
-  targets?: readonly ReframeTarget[];
-  /**
-   * Capture times where the view settles toward the page's leading edge (left, top) when nothing is acted on then — the
-   * start of a scene where the page only rests (the idle page of a multi-page scene): it shows the page's content
-   * around its resting cursor instead of holding on where its last action was.
-   */
-  settle?: readonly number[];
-}): Array<[number, number]> {
+/** The view of every output frame of a reframe and what it must show (steps 1–2 read it). */
+function reframeView(opts: ReframeOptions) {
   const { times, camera, cursor, crop, css } = opts;
-  const n = times.length;
-  if (n === 0) return [];
   const targets = [...(opts.targets ?? [])].sort((a, b) => a.t0 - b.t0);
   const R = REFRAME;
   const viewAt = (k: number) => {
@@ -385,6 +237,17 @@ export function reframeTrack(opts: {
     for (const g of [...active].filter((x) => !x.hard).sort((a, b) => a.t1 - b.t1)) add(g.box);
     return roi;
   };
+  return { targets, viewAt, cursorBox, cursorAhead, fits, activeAt, roiAt };
+}
+
+type ReframeView = ReturnType<typeof reframeView>;
+
+/** Steps 1–2: the target signal with a dead zone, from a calm start; the cursor box and hard boxes of each frame. */
+function reframeWants(opts: ReframeOptions, view: ReframeView): { cur: Array<Box | null>; hard: Box[][]; wantX: number[]; wantY: number[] } {
+  const { times, cursor, css } = opts;
+  const n = times.length;
+  const R = REFRAME;
+  const { viewAt, cursorBox, cursorAhead, fits, activeAt, roiAt } = view;
   const cur: Array<Box | null> = [];
   const hard: Box[][] = [];
   const wantX: number[] = [];
@@ -459,8 +322,30 @@ export function reframeTrack(opts: {
     wantX.push(ax);
     wantY.push(ay);
   }
+  return { cur, hard, wantX, wantY };
+}
 
-  // 3–4. Smoothing, then the smoothest repair that keeps what must be seen in view.
+/** Where the view centre may be at a frame on one axis so that [a, a + len) shows with the margin (centred when too big). */
+function mustRange(a: number, len: number, size: number, bounds: [number, number], m: number): [number, number] {
+  let lo = Math.max(bounds[0], a + len + m - size / 2);
+  let hi = Math.min(bounds[1], a - m + size / 2);
+  if (lo > hi) {
+    // Too big (or at the edge) with the margin: centre it, inside the capture.
+    const c = clamp(a + len / 2, bounds[0], bounds[1]);
+    lo = Math.min(Math.max(lo, bounds[0]), c);
+    hi = Math.max(Math.min(hi, bounds[1]), c);
+    if (lo > hi) lo = hi = c;
+    else lo = hi = clamp(c, lo, hi);
+  }
+  return [lo, hi];
+}
+
+/** Step 4: the corridor of each frame — the view centres that keep the cursor and the hard boxes in view. */
+function reframeCorridor(opts: ReframeOptions, view: ReframeView, cur: Array<Box | null>, hard: Box[][]): { loX: number[]; hiX: number[]; loY: number[]; hiY: number[] } {
+  const { css } = opts;
+  const n = opts.times.length;
+  const R = REFRAME;
+  const { viewAt, fits } = view;
   const loX: number[] = [];
   const hiX: number[] = [];
   const loY: number[] = [];
@@ -480,21 +365,8 @@ export function reframeTrack(opts: {
       const y0 = clamp(box.y, 0, css.h);
       box = { x: x0, y: y0, w: clamp(box.x + box.w, 0, css.w) - x0, h: clamp(box.y + box.h, 0, css.h) - y0 };
       const m = R.margin;
-      const range = (a: number, len: number, size: number, bounds: [number, number]): [number, number] => {
-        let lo = Math.max(bounds[0], a + len + m - size / 2);
-        let hi = Math.min(bounds[1], a - m + size / 2);
-        if (lo > hi) {
-          // Too big (or at the edge) with the margin: centre it, inside the capture.
-          const c = clamp(a + len / 2, bounds[0], bounds[1]);
-          lo = Math.min(Math.max(lo, bounds[0]), c);
-          hi = Math.max(Math.min(hi, bounds[1]), c);
-          if (lo > hi) lo = hi = c;
-          else lo = hi = clamp(c, lo, hi);
-        }
-        return [lo, hi];
-      };
-      const rx = range(box.x, box.w, v.w, bx);
-      const ry = range(box.y, box.h, v.h, by);
+      const rx = mustRange(box.x, box.w, v.w, bx, m);
+      const ry = mustRange(box.y, box.h, v.h, by, m);
       loX.push(rx[0]);
       hiX.push(rx[1]);
       loY.push(ry[0]);
@@ -506,6 +378,52 @@ export function reframeTrack(opts: {
       hiY.push(by[1]);
     }
   }
+  return { loX, hiX, loY, hiY };
+}
+
+type ReframeOptions = Parameters<typeof reframeTrack>[0];
+
+/**
+ * Reframing of the vertical and square variants: the centre (source CSS px) of the crop shown in the layout's
+ * screen rect, per output frame of a run (contiguous clips: the track never crosses a cut).
+ *
+ * 1. What must be seen at each frame: the cursor (its arrow + ripple box, while visible), the active step's target
+ *    (from `look_ahead_s` before the step starts to its end) and the overlay anchors; their union when it fits in the
+ *    view, else the hard boxes, else the cursor alone (the view then follows the cursor towards the target). A box
+ *    larger than the view counts by its leading part (`leadingPart`: a table row by its id and label). While the
+ *    camera zooms, its focus is kept in view too.
+ * 2. Dead zone: the target centre only moves when that region leaves the view inset by `dead_zone`; it then moves by
+ *    the smallest shift that brings it back, plus half the slack (no re-targeting for small motions: no jitter). It
+ *    starts framed on the first step's region, as far toward the page's leading edge (left, top) as that allows.
+ * 3. Critically damped smoothing without lag (`dampedSmooth`): moves are smooth S curves that start a little before
+ *    the need (look-ahead) and never overshoot.
+ * 4. Constraints: the cursor and the hard boxes (the clicked target around its click, overlay anchors while shown)
+ *    must stay fully in view; violations push the target signal and the smoothing is run again (a few passes), then
+ *    any remaining violation is removed by the smallest shift — so the clicked target and the cursor are never cut.
+ * 5. The view stays inside the capture.
+ */
+export function reframeTrack(opts: {
+  /** Capture time (s) of every output frame. */
+  times: readonly number[];
+  camera: readonly CameraFrame[];
+  cursor: Timeline['cursor'];
+  crop: { w: number; h: number };
+  css: { w: number; h: number };
+  outFps: number;
+  targets?: readonly ReframeTarget[];
+  /**
+   * Capture times where the view settles toward the page's leading edge (left, top) when nothing is acted on then — the
+   * start of a scene where the page only rests (the idle page of a multi-page scene): it shows the page's content
+   * around its resting cursor instead of holding on where its last action was.
+   */
+  settle?: readonly number[];
+}): Array<[number, number]> {
+  const n = opts.times.length;
+  if (n === 0) return [];
+  const R = REFRAME;
+  const view = reframeView(opts);
+  const { cur, hard, wantX, wantY } = reframeWants(opts, view);
+  const { loX, hiX, loY, hiY } = reframeCorridor(opts, view, cur, hard);
   const reach = R.repair_s * opts.outFps;
   const xs = corridorSmooth(dampedSmooth(wantX, opts.outFps, R.tau_s), loX, hiX, reach);
   const ys = corridorSmooth(dampedSmooth(wantY, opts.outFps, R.tau_s), loY, hiY, reach);

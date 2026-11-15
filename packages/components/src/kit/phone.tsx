@@ -106,6 +106,97 @@ export function StatusGlyphs({ ink, h }: { ink: string; h: number }): ReactNode 
   );
 }
 
+/** The status bar of the phone's display: the time on the left (none on a lock screen), the glyphs on the right. */
+function PhoneStatusBar({
+  ink,
+  time,
+  font,
+  d,
+  islandW,
+  islandTop,
+  islandH,
+  glyph,
+}: {
+  ink: string;
+  time?: string;
+  font: string;
+  d: { w: number };
+  islandW: number;
+  islandTop: number;
+  islandH: number;
+  glyph: number;
+}): ReactNode {
+  const earW = (d.w - islandW) / 2;
+  const midY = islandTop + islandH / 2;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: 0, width: d.w, height: islandTop * 2 + islandH, color: ink, fontFamily: font, pointerEvents: 'none' }}>
+      {time ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            width: earW,
+            top: midY - glyph * 0.75,
+            height: glyph * 1.5,
+            lineHeight: `${roundTo(glyph * 1.5, 2)}px`,
+            textAlign: 'center',
+            fontSize: glyph * 1.32,
+            fontWeight: 600,
+          }}
+        >
+          {time}
+        </div>
+      ) : null}
+      <div style={{ position: 'absolute', left: d.w - earW + (earW - glyph * 5.3) / 2, top: midY - glyph * 0.5 }}>
+        <StatusGlyphs ink={ink} h={glyph} />
+      </div>
+    </div>
+  );
+}
+
+/** The Dynamic Island at the top of the display, its lens on the right. */
+function DynamicIsland({
+  d,
+  islandW,
+  islandH,
+  islandTop,
+  lens,
+  t,
+}: {
+  d: { w: number };
+  islandW: number;
+  islandH: number;
+  islandTop: number;
+  lens: number;
+  t: { glass: string; lens: string };
+}): ReactNode {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: (d.w - islandW) / 2,
+        top: islandTop,
+        width: islandW,
+        height: islandH,
+        borderRadius: islandH / 2,
+        background: t.glass,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: islandW - islandH / 2 - lens / 2 - islandH * 0.08,
+          top: (islandH - lens) / 2,
+          width: lens,
+          height: lens,
+          borderRadius: lens / 2,
+          background: mixColors(t.glass, t.lens, 0.6),
+        }}
+      />
+    </div>
+  );
+}
+
 /**
  * The phone: band, bezel, display (its content = `children`, positioned in display coordinates), Dynamic Island and
  * an optional status bar (`time` on the left — lock screens leave it empty — and the glyphs on the right).
@@ -131,8 +222,6 @@ export function PhoneDevice(props: {
   const islandTop = d.w * 0.028;
   const lens = islandH * 0.42;
   const glyph = d.w * 0.031;
-  const earW = (d.w - islandW) / 2;
-  const midY = islandTop + islandH / 2;
   const button = (side: 'left' | 'right', at: number, len: number) => (
     <div
       key={`${side}-${at}`}
@@ -170,54 +259,9 @@ export function PhoneDevice(props: {
       <div style={{ position: 'absolute', left: d.x, top: d.y, width: d.w, height: d.h, borderRadius: g.radius, overflow: 'hidden', isolation: 'isolate', background: t.glass }}>
         {props.children}
         {props.status ? (
-          <div
-            style={{ position: 'absolute', left: 0, top: 0, width: d.w, height: islandTop * 2 + islandH, color: props.status.ink, fontFamily: cssFontFamily(theme.fonts.body), pointerEvents: 'none' }}
-          >
-            {props.status.time ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  width: earW,
-                  top: midY - glyph * 0.75,
-                  height: glyph * 1.5,
-                  lineHeight: `${roundTo(glyph * 1.5, 2)}px`,
-                  textAlign: 'center',
-                  fontSize: glyph * 1.32,
-                  fontWeight: 600,
-                }}
-              >
-                {props.status.time}
-              </div>
-            ) : null}
-            <div style={{ position: 'absolute', left: d.w - earW + (earW - glyph * 5.3) / 2, top: midY - glyph * 0.5 }}>
-              <StatusGlyphs ink={props.status.ink} h={glyph} />
-            </div>
-          </div>
+          <PhoneStatusBar ink={props.status.ink} time={props.status.time} font={cssFontFamily(theme.fonts.body)} d={d} islandW={islandW} islandTop={islandTop} islandH={islandH} glyph={glyph} />
         ) : null}
-        <div
-          style={{
-            position: 'absolute',
-            left: (d.w - islandW) / 2,
-            top: islandTop,
-            width: islandW,
-            height: islandH,
-            borderRadius: islandH / 2,
-            background: t.glass,
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: islandW - islandH / 2 - lens / 2 - islandH * 0.08,
-              top: (islandH - lens) / 2,
-              width: lens,
-              height: lens,
-              borderRadius: lens / 2,
-              background: mixColors(t.glass, t.lens, 0.6),
-            }}
-          />
-        </div>
+        <DynamicIsland d={d} islandW={islandW} islandH={islandH} islandTop={islandTop} lens={lens} t={t} />
       </div>
     </div>
   );

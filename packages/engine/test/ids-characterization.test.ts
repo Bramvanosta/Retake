@@ -529,9 +529,7 @@ describe('render records', () => {
   it('a render as listed names its take and its theme, or says unknown', async () => {
     const view = async (extra: Record<string, unknown>) => {
       const v = await renderView(
-        new RenderMemos(),
-        diskOutputs.reviews,
-        p.dir,
+        { memos: new RenderMemos(), reviews: diskOutputs.reviews, projectDir: p.dir },
         {
           version: 1,
           id: 'quote-v3',

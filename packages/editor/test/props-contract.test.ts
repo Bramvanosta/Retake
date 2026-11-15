@@ -5,7 +5,7 @@
  * refusal is shown where a render meets it: the `calculateMetadata` function of each composition the root registers,
  * called the way the library's composition selection calls it.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -102,9 +102,15 @@ describe('the versioned props of a render bundle', () => {
     const preview = comps.find((c) => c.id === COMPOSITIONS.preview)!;
     expect(preview.calculateMetadata({ props: { v: PROPS_VERSION, plan: sized('landscape') } })).toEqual({});
     // The Node side: the props handed to the bundle are built by the builders, never written out (kept as a lint of
-    // the two render modules: what they hand reaches the bundle's browser only — render-real.test renders through it).
+    // every render module that names inputProps: what they hand reaches the bundle's browser only — render-real.test
+    // renders through it).
     const src = (rel: string) => readFileSync(join(EDITOR_DIR, 'src', rel), 'utf8');
-    for (const rel of ['render/render.ts', 'render/preview.ts']) {
+    const handing = readdirSync(join(EDITOR_DIR, 'src', 'render'))
+      .filter((f) => f.endsWith('.ts') && src(`render/${f}`).includes('inputProps'))
+      .map((f) => `render/${f}`)
+      .sort();
+    expect(handing).toEqual(['render/preview-backend.ts', 'render/render-stills.ts', 'render/render.ts']);
+    for (const rel of handing) {
       const s = src(rel);
       expect(s, rel).not.toMatch(/inputProps(:| =) \{/);
       expect(s, rel).toMatch(/inputProps(: previewProps\(spec\)| = videoProps\(session\.served\))/);

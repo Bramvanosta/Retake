@@ -153,48 +153,34 @@ async function writeFrames(dir: string, folder: string, frames: Array<[number, R
   return index;
 }
 
-/** Write a run folder runs/<id> of a project. */
-export async function writeRun(projectDir: string, r: SynthRun): Promise<string> {
-  const dir = join(projectDir, 'runs', r.id);
-  await mkdir(join(dir, 'screenshots'), { recursive: true });
-  const fps = r.fps ?? 10;
-  const duration = r.duration ?? 5;
-  const status = r.status ?? 'succeeded';
+/** The run.json of a synthetic run. */
+function runRecord(r: SynthRun, dir: string, status: NonNullable<SynthRun['status']>): Record<string, unknown> {
   const finished = status === 'succeeded' || status === 'failed' || status === 'cancelled';
-  await writeFile(
-    join(dir, 'run.json'),
-    JSON.stringify({
-      version: 1,
-      id: r.id,
-      project: 'northfield-fixture',
-      scenario: r.scenario,
-      mode: r.mode,
-      status,
-      started_at: '2026-10-20T10:00:00.000Z',
-      ...(finished ? { finished_at: '2026-10-20T10:01:00.000Z' } : {}),
-      dir,
-      env: 'local',
-      options: { hooks: r.mode === 'dry' ? 'skip' : 'run', headed: false },
-      steps_total: r.steps_total ?? r.events?.length ?? 0,
-      steps_done: r.events?.length ?? 0,
-      screenshots: [],
-      hooks: r.hooks ?? { setup: 'none', teardown: 'none' },
-      warnings: [],
-      // A failed or cancelled record always holds its error (the runner writes one; a record without is no run record).
-      ...(r.error ? { error: r.error } : status === 'failed' || status === 'cancelled' ? { error: { message: status } } : {}),
-      ...(r.stopped_at ? { stopped_at: r.stopped_at } : {}),
-    }),
-  );
-  if (r.snapshot !== undefined) await writeFile(join(dir, 'scenario.yaml'), r.snapshot);
-  for (const [name, c] of Object.entries(r.screenshots ?? {})) await writeFile(join(dir, 'screenshots', name), png(W, H, c));
-  let mainFrames = 0;
-  if (r.frames) {
-    const index = await writeFrames(dir, 'frames', r.frames);
-    mainFrames = index.length;
-    await writeFile(join(dir, 'frames.jsonl'), index.map((e) => JSON.stringify(e)).join('\n') + '\n');
-    if (r.video)
-      await encodeFrames(join(dir, 'frames'), index, join(dir, 'capture.mp4'), { policy: PERSON_POLICY, fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
-  }
+  return {
+    version: 1,
+    id: r.id,
+    project: 'northfield-fixture',
+    scenario: r.scenario,
+    mode: r.mode,
+    status,
+    started_at: '2026-10-20T10:00:00.000Z',
+    ...(finished ? { finished_at: '2026-10-20T10:01:00.000Z' } : {}),
+    dir,
+    env: 'local',
+    options: { hooks: r.mode === 'dry' ? 'skip' : 'run', headed: false },
+    steps_total: r.steps_total ?? r.events?.length ?? 0,
+    steps_done: r.events?.length ?? 0,
+    screenshots: [],
+    hooks: r.hooks ?? { setup: 'none', teardown: 'none' },
+    warnings: [],
+    // A failed or cancelled record always holds its error (the runner writes one; a record without is no run record).
+    ...(r.error ? { error: r.error } : status === 'failed' || status === 'cancelled' ? { error: { message: status } } : {}),
+    ...(r.stopped_at ? { stopped_at: r.stopped_at } : {}),
+  };
+}
+
+/** The extra tracks' kept frames (and videos), and their entries in timeline.json. */
+async function writeTracks(dir: string, r: SynthRun, fps: number, duration: number): Promise<Array<Record<string, unknown>>> {
   const tracks = [];
   for (const t of r.tracks ?? []) {
     const index = await writeFrames(dir, `frames-${t.id}`, t.frames);
@@ -224,52 +210,75 @@ export async function writeRun(projectDir: string, r: SynthRun): Promise<string>
       cursor: [],
     });
   }
-  if (!r.noTimeline) {
-    await writeFile(
-      join(dir, 'timeline.json'),
-      JSON.stringify({
-        version: 1,
-        run_id: r.id,
-        project: 'northfield-fixture',
-        scenario: r.scenario,
-        created_at: '2026-10-20T10:00:00.000Z',
-        mode: r.mode,
-        capture: { file: r.video ? 'capture.mp4' : '', width: W, height: H, scale: 1, fps, duration: r.mode === 'dry' ? 0 : duration, t0_wall: 0, frames: mainFrames },
-        scenes: (r.scenes ?? []).map((s, index) => ({
-          id: s.id,
-          index,
-          kind: 'scene',
-          t_start: s.t_start ?? 0,
-          t_end: s.t_end ?? 0,
-          status: s.status ?? 'ok',
-          ...(s.pages ? { pages: s.pages.map((p) => ({ id: p.id, viewport: { width: W, height: H }, track: p.track })) } : {}),
-        })),
-        events: [
-          ...(r.scenes ?? []).map((s, i) => ({ scene: s.id, scene_index: i, step: -1, action: 'scene_still', t_start: 0, t_end: 0, status: 'ok' })),
-          ...(r.events ?? []).map((e) => ({
-            scene: e.scene,
-            scene_index: 0,
-            step: e.step,
-            action: e.action,
-            t_start: e.t_start,
-            t_end: e.t_end,
-            status: e.status ?? 'ok',
-            ...(e.hold ? { hold: { t_start: e.hold[0], t_end: e.hold[1] } } : {}),
-            ...(e.page ? { page: e.page } : {}),
-            ...(e.target ? { target: { desc: e.target } } : {}),
-            ...(e.error ? { error: e.error } : {}),
-            ...(e.url ? { url: e.url } : {}),
-          })),
-        ],
-        markers: [],
-        pages: [],
-        cursor: [],
-        idle: [],
-        warnings: [],
-        ...(tracks.length ? { tracks } : {}),
-      }),
-    );
+  return tracks;
+}
+
+/** The timeline.json of a synthetic run. */
+function timelineOf(r: SynthRun, c: { fps: number; duration: number; mainFrames: number; tracks: Array<Record<string, unknown>> }): Record<string, unknown> {
+  const { fps, duration, mainFrames, tracks } = c;
+  return {
+    version: 1,
+    run_id: r.id,
+    project: 'northfield-fixture',
+    scenario: r.scenario,
+    created_at: '2026-10-20T10:00:00.000Z',
+    mode: r.mode,
+    capture: { file: r.video ? 'capture.mp4' : '', width: W, height: H, scale: 1, fps, duration: r.mode === 'dry' ? 0 : duration, t0_wall: 0, frames: mainFrames },
+    scenes: (r.scenes ?? []).map((s, index) => ({
+      id: s.id,
+      index,
+      kind: 'scene',
+      t_start: s.t_start ?? 0,
+      t_end: s.t_end ?? 0,
+      status: s.status ?? 'ok',
+      ...(s.pages ? { pages: s.pages.map((p) => ({ id: p.id, viewport: { width: W, height: H }, track: p.track })) } : {}),
+    })),
+    events: [
+      ...(r.scenes ?? []).map((s, i) => ({ scene: s.id, scene_index: i, step: -1, action: 'scene_still', t_start: 0, t_end: 0, status: 'ok' })),
+      ...(r.events ?? []).map((e) => ({
+        scene: e.scene,
+        scene_index: 0,
+        step: e.step,
+        action: e.action,
+        t_start: e.t_start,
+        t_end: e.t_end,
+        status: e.status ?? 'ok',
+        ...(e.hold ? { hold: { t_start: e.hold[0], t_end: e.hold[1] } } : {}),
+        ...(e.page ? { page: e.page } : {}),
+        ...(e.target ? { target: { desc: e.target } } : {}),
+        ...(e.error ? { error: e.error } : {}),
+        ...(e.url ? { url: e.url } : {}),
+      })),
+    ],
+    markers: [],
+    pages: [],
+    cursor: [],
+    idle: [],
+    warnings: [],
+    ...(tracks.length ? { tracks } : {}),
+  };
+}
+
+/** Write a run folder runs/<id> of a project. */
+export async function writeRun(projectDir: string, r: SynthRun): Promise<string> {
+  const dir = join(projectDir, 'runs', r.id);
+  await mkdir(join(dir, 'screenshots'), { recursive: true });
+  const fps = r.fps ?? 10;
+  const duration = r.duration ?? 5;
+  const status = r.status ?? 'succeeded';
+  await writeFile(join(dir, 'run.json'), JSON.stringify(runRecord(r, dir, status)));
+  if (r.snapshot !== undefined) await writeFile(join(dir, 'scenario.yaml'), r.snapshot);
+  for (const [name, c] of Object.entries(r.screenshots ?? {})) await writeFile(join(dir, 'screenshots', name), png(W, H, c));
+  let mainFrames = 0;
+  if (r.frames) {
+    const index = await writeFrames(dir, 'frames', r.frames);
+    mainFrames = index.length;
+    await writeFile(join(dir, 'frames.jsonl'), index.map((e) => JSON.stringify(e)).join('\n') + '\n');
+    if (r.video)
+      await encodeFrames(join(dir, 'frames'), index, join(dir, 'capture.mp4'), { policy: PERSON_POLICY, fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
   }
+  const tracks = await writeTracks(dir, r, fps, duration);
+  if (!r.noTimeline) await writeFile(join(dir, 'timeline.json'), JSON.stringify(timelineOf(r, { fps, duration, mainFrames, tracks })));
   return dir;
 }
 

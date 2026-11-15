@@ -1,5 +1,5 @@
 /**
- * The one shell lexer (core shell-words.ts): every quoting form bash reads, in the three ways its users read `$` —
+ * The one shell lexer (core shell-lex.ts, read through shell-words.ts): every quoting form bash reads, in the three ways its users read `$` —
  * kept as written and marked computed (the destructive-hook guard, an approval's file words, the trust scan of a hook's
  * files), or expanded from known values (the host scan).
  */

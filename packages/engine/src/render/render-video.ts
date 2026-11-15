@@ -162,6 +162,113 @@ function baseFields(b: RecordBase): RenderFields<EditPlan, EditOverrides> {
   };
 }
 
+/** The lock of a version reserved before (a render job's: taken at submit), or undefined when none was. */
+async function reservedLockOf(dir: string, reserved: RenderVideoOptions['reserved']): Promise<string | undefined> {
+  if (!reserved) return undefined;
+  try {
+    return versionLockFile(dir, reserved.scenario, reserved.version);
+  } catch (e) {
+    throw await renderErrors.render(`the reserved render version of ${reserved.scenario} cannot be used: ${errorMessage(e)}`);
+  }
+}
+
+/** The run planned, refused when the editor's own driver options are handed or the plan is not the one submitted. */
+async function plannedRender(o: RenderVideoOptions, project: LoadedProject): Promise<PlannedRun> {
+  // Before any work: the options of the editor's own driver are refused beside the renderer (they would be ignored).
+  const own = OWN_DRIVER_OPTIONS.filter((k) => (o as unknown as Record<string, unknown>)[k] !== undefined);
+  if (own.length > 0) {
+    throw await renderErrors.render(`render: ${own.join(', ')} ${own.length > 1 ? 'are options' : 'is an option'} of the editor's own renderer and cannot go with a renderer that is handed`);
+  }
+  const planned = await planWork({
+    workPolicy: o.workPolicy,
+    project,
+    run: o.run,
+    ...(o.scenario !== undefined ? { scenario: o.scenario } : {}),
+    ...(o.template !== undefined ? { template: o.template } : {}),
+    ...(o.overrides ? { overrides: o.overrides } : {}),
+    ...(o.root !== undefined ? { root: o.root } : {}),
+    registry: o.registry ?? registryLoader(o.ws.registries),
+    ...(o.trust ? { trust: o.trust } : {}),
+    ...(o.edit ? { edit: o.edit } : {}),
+    ...(o.editText !== undefined ? { editText: o.editText } : {}),
+  });
+  if (o.editSha256 !== undefined && (planned.edit.sha256 ?? null) !== o.editSha256) {
+    throw await renderErrors.render(
+      `the scenario ${planned.timeline.scenario} changed since this render was planned (its edit ${planned.edit.from === 'scenario' ? 'is now re-planned from another version of the file' : 'now comes from the run as captured'}): plan or submit the render again`,
+    );
+  }
+  if (o.reserved && (planned.timeline.scenario !== o.reserved.scenario || planned.plan.variant !== o.reserved.variant)) {
+    throw await renderErrors.render(
+      `the plan changed since the render was submitted (now ${planned.timeline.scenario}, ${planned.plan.variant}; reserved ${o.reserved.scenario}, ${o.reserved.variant}): submit the render again`,
+    );
+  }
+  return planned;
+}
+
+/** Where the files go: the reserved version, the caller's --out, or the next free version of renders/ (reserved here). */
+async function renderDestination(d: {
+  o: RenderVideoOptions;
+  dir: string;
+  planned: PlannedRun;
+  reservedRelease: () => Promise<void>;
+}): Promise<{ file: string; version: number | undefined; release: () => Promise<void> }> {
+  const { o, dir } = d;
+  const scenario = d.planned.timeline.scenario;
+  const variant = d.planned.plan.variant;
+  if (o.reserved) {
+    const version = o.reserved.version;
+    return { file: join(dir, `${formatRenderId(scenario, version, variant)}.mp4`), version, release: d.reservedRelease };
+  }
+  if (o.out) {
+    const file = resolve(o.out);
+    if (extname(file).toLowerCase() !== '.mp4') throw await renderErrors.render(`--out must name an .mp4 file: ${file}`);
+    return { file, version: undefined, release: async () => undefined };
+  }
+  const r = await reserveVersion(o.ws.outputs.renders, dir, scenario);
+  return { file: join(dir, `${formatRenderId(scenario, r.version, variant)}.mp4`), version: r.version, release: r.release };
+}
+
+/** The record of a render the renderer finished: its answer over the base fields, the probe's mismatch a warning. */
+function finishedRecord(base: RecordBase, res: Awaited<ReturnType<Renderer['video']>>, t0: number): RenderRecord {
+  const plan = base.planned.plan;
+  const fields = baseFields(base);
+  fields.size_bytes = res.size_bytes;
+  fields.concurrency = res.concurrency;
+  fields.encoding = { ...fields.encoding, ...res.encoding };
+  fields.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
+  fields.browser = { path: res.browser.path, source: res.browser.source };
+  fields.warnings.push(...res.warnings);
+  // The renderer's probe of the file it wrote (ffprobe for the editor's; a renderer that has none says nothing).
+  const probe = res.probe;
+  if (probe) {
+    const expected = plan.durationInFrames / plan.fps;
+    if (Math.abs(probe.duration_s - expected) > 1.5 / plan.fps) fields.warnings.push(`the file lasts ${probe.duration_s.toFixed(3)} s, the plan ${expected.toFixed(3)} s`);
+  }
+  fields.finished_at = stampOf(base.clock);
+  fields.timings = { plan_ms: base.planMs, bundle_ms: res.bundle_ms, render_ms: res.render_ms, total_ms: Math.round(performance.now() - t0) };
+  return finishedRender(fields, { ...(res.renderPath ? { policy: res.renderPath } : {}), ...(probe ? { probe } : {}) });
+}
+
+/** The error a failed or cancelled render is thrown as, the attempt riding on it. */
+async function renderFailure(e: unknown, base: RecordBase, t0: number): Promise<unknown> {
+  // The renderer's failure, read by what it says (its kind, its fields), never by its class: another renderer's counts too.
+  const cancelled = errorKindOf(e) === 'cancelled';
+  const said = (e ?? {}) as { renderPath?: RenderRecord['policy']; renderWarnings?: unknown };
+  const fields = baseFields(base);
+  // The warnings so far.
+  if (Array.isArray(said.renderWarnings)) fields.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
+  fields.finished_at = stampOf(base.clock);
+  fields.timings.total_ms = Math.round(performance.now() - t0);
+  // What was tried (the GPU path, its fallback and why). Never written to a disk: it rides on the error.
+  const record: RenderAttempt = renderAttempt(fields, {
+    status: cancelled ? 'cancelled' : 'failed',
+    error: errorMessage(e),
+    ...(said.renderPath && typeof said.renderPath === 'object' ? { policy: said.renderPath } : {}),
+  });
+  if (cancelled) return await renderErrors.cancelled(record);
+  return await renderErrors.render(errorMessage(e), record);
+}
+
 /**
  * Plan and render a run on `o.renderer`: the record written (renders/<id>.json, two-space JSON and a final newline)
  * and returned. The renderer was checked by the caller (work.ts renderWork); a reserved version's lock is released at
@@ -177,77 +284,25 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
   const dir = renders.dirOf(project.dir);
   // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
   // A version no reservation hands out (core renderLockName) has no lock: nothing is planned or rendered under it.
-  let reservedLock: string | undefined;
-  if (o.reserved) {
-    try {
-      reservedLock = versionLockFile(dir, o.reserved.scenario, o.reserved.version);
-    } catch (e) {
-      throw await renderErrors.render(`the reserved render version of ${o.reserved.scenario} cannot be used: ${errorMessage(e)}`);
-    }
-  }
-  const lock = reservedLock;
+  const lock = await reservedLockOf(dir, o.reserved);
   const reservedRelease = () => (lock ? renders.remove(lock) : Promise.resolve());
   let planned: PlannedRun;
   try {
-    // Before any work: the options of the editor's own driver are refused beside the renderer (they would be ignored).
-    const own = OWN_DRIVER_OPTIONS.filter((k) => (o as unknown as Record<string, unknown>)[k] !== undefined);
-    if (own.length > 0) {
-      throw await renderErrors.render(`render: ${own.join(', ')} ${own.length > 1 ? 'are options' : 'is an option'} of the editor's own renderer and cannot go with a renderer that is handed`);
-    }
-    planned = await planWork({
-      workPolicy: o.workPolicy,
-      project,
-      run: o.run,
-      ...(o.scenario !== undefined ? { scenario: o.scenario } : {}),
-      ...(o.template !== undefined ? { template: o.template } : {}),
-      ...(o.overrides ? { overrides: o.overrides } : {}),
-      ...(o.root !== undefined ? { root: o.root } : {}),
-      registry: o.registry ?? registryLoader(o.ws.registries),
-      ...(o.trust ? { trust: o.trust } : {}),
-      ...(o.edit ? { edit: o.edit } : {}),
-      ...(o.editText !== undefined ? { editText: o.editText } : {}),
-    });
-    if (o.editSha256 !== undefined && (planned.edit.sha256 ?? null) !== o.editSha256) {
-      throw await renderErrors.render(
-        `the scenario ${planned.timeline.scenario} changed since this render was planned (its edit ${planned.edit.from === 'scenario' ? 'is now re-planned from another version of the file' : 'now comes from the run as captured'}): plan or submit the render again`,
-      );
-    }
-    if (o.reserved && (planned.timeline.scenario !== o.reserved.scenario || planned.plan.variant !== o.reserved.variant)) {
-      throw await renderErrors.render(
-        `the plan changed since the render was submitted (now ${planned.timeline.scenario}, ${planned.plan.variant}; reserved ${o.reserved.scenario}, ${o.reserved.variant}): submit the render again`,
-      );
-    }
+    planned = await plannedRender(o, project);
   } catch (e) {
     await reservedRelease();
     throw e;
   }
-  const { root, timeline, template, registry, plan } = planned;
+  const { root, template, registry, plan } = planned;
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 
-  // Where the files go: the reserved version, the caller's --out, or the next free version of renders/.
-  const scenario = timeline.scenario;
-  let file: string;
-  let version: number | undefined;
   // What the record says of the theme and the work, read before a version is reserved: nothing between the reserve and
   // the try below may throw and leave that version locked.
   const templateSha256 = themeContentHash(template.dir, NODE_THEME_FILES);
   const concurrency = await plannedConcurrency(o.workPolicy, o.settings, o.concurrency);
   const templateFolder = o.ws.reads.templateFolderId(template.dir, project.root);
-  let release: () => Promise<void> = async () => undefined;
-  if (o.reserved) {
-    version = o.reserved.version;
-    release = reservedRelease;
-    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
-  } else if (o.out) {
-    file = resolve(o.out);
-    if (extname(file).toLowerCase() !== '.mp4') throw await renderErrors.render(`--out must name an .mp4 file: ${file}`);
-  } else {
-    const r = await reserveVersion(renders, dir, scenario);
-    version = r.version;
-    release = r.release;
-    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
-  }
+  const { file, version, release } = await renderDestination({ o, dir, planned, reservedRelease });
   const recordFile = file.replace(/\.mp4$/i, '.json');
   const base: RecordBase = {
     id: basename(file, extname(file)),
@@ -277,42 +332,12 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
       ...(o.onBrowser ? { onProcess: o.onBrowser } : {}),
       ...(o.settings ? { settings: o.settings } : {}),
     });
-    const fields = baseFields(base);
-    fields.size_bytes = res.size_bytes;
-    fields.concurrency = res.concurrency;
-    fields.encoding = { ...fields.encoding, ...res.encoding };
-    fields.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
-    fields.browser = { path: res.browser.path, source: res.browser.source };
-    fields.warnings.push(...res.warnings);
-    // The renderer's probe of the file it wrote (ffprobe for the editor's; a renderer that has none says nothing).
-    const probe = res.probe;
-    if (probe) {
-      const expected = plan.durationInFrames / plan.fps;
-      if (Math.abs(probe.duration_s - expected) > 1.5 / plan.fps) fields.warnings.push(`the file lasts ${probe.duration_s.toFixed(3)} s, the plan ${expected.toFixed(3)} s`);
-    }
-    fields.finished_at = stampOf(o.clock);
-    fields.timings = { plan_ms: planMs, bundle_ms: res.bundle_ms, render_ms: res.render_ms, total_ms: Math.round(performance.now() - t0) };
-    const record: RenderRecord = finishedRender(fields, { ...(res.renderPath ? { policy: res.renderPath } : {}), ...(probe ? { probe } : {}) });
+    const record = finishedRecord(base, res, t0);
     await renders.writeJson(recordFile, record);
     emit({ stage: 'done', progress: 1, overall: 1, totalFrames: plan.durationInFrames });
     return record;
   } catch (e) {
-    // The renderer's failure, read by what it says (its kind, its fields), never by its class: another renderer's counts too.
-    const cancelled = errorKindOf(e) === 'cancelled';
-    const said = (e ?? {}) as { renderPath?: RenderRecord['policy']; renderWarnings?: unknown };
-    const fields = baseFields(base);
-    // The warnings so far.
-    if (Array.isArray(said.renderWarnings)) fields.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
-    fields.finished_at = stampOf(o.clock);
-    fields.timings.total_ms = Math.round(performance.now() - t0);
-    // What was tried (the GPU path, its fallback and why). Never written to a disk: it rides on the error.
-    const record: RenderAttempt = renderAttempt(fields, {
-      status: cancelled ? 'cancelled' : 'failed',
-      error: errorMessage(e),
-      ...(said.renderPath && typeof said.renderPath === 'object' ? { policy: said.renderPath } : {}),
-    });
-    if (cancelled) throw await renderErrors.cancelled(record);
-    throw await renderErrors.render(errorMessage(e), record);
+    throw await renderFailure(e, base, t0);
   } finally {
     await release();
   }

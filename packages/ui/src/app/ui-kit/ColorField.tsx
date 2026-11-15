@@ -20,24 +20,8 @@ import { shown } from '../bits.js';
 /** `#rgb` or `#rrggbb` (what the hex field writes). */
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-export function ColorField({
-  label,
-  hint,
-  value,
-  picker,
-  swatch,
-  unset,
-  draft,
-  disabled,
-  removable,
-  onDraft,
-  onCommit,
-  onRemove,
-  testId,
-  layout = 'row',
-  version,
-  onText,
-}: {
+/** A colour field's props (ColorField). */
+interface ColorFieldProps {
   label: ReactNode;
   hint?: ReactNode;
   /** The written value (the hex field's text; '' when nothing is written). */
@@ -63,7 +47,9 @@ export function ColorField({
   version?: string;
   /** The text belongs to the caller (a form): every keystroke goes there and the field keeps it as typed. */
   onText?: (text: string) => void;
-}) {
+}
+
+export function ColorField({ label, hint, value, picker, swatch, unset, draft, disabled, removable, onDraft, onCommit, onRemove, testId, layout = 'row', version, onText }: ColorFieldProps) {
   const ref = useRef<HTMLInputElement>(null);
   const [own, setText] = useState(value);
   const text = onText ? value : own;
@@ -107,35 +93,21 @@ export function ColorField({
             onChange={(e) => onDraft(e.currentTarget.value)}
             data-testid={testId ? `${testId}-picker` : undefined}
           />
-          <span className="k-color-hex">
-            {dot !== null && <span className="k-color-swatch" style={{ background: dot }} aria-hidden="true" />}
-            <input
-              className="k-input k-mono k-color-text"
-              value={text}
-              placeholder={removable ? 'not set' : ''}
-              disabled={disabled}
-              maxLength={7}
-              autoComplete="off"
-              spellCheck={false}
-              aria-labelledby={`${id}-label ${id}-hexword`}
-              aria-describedby={unset ? `${id}-unset` : undefined}
-              data-testid={testId ? `${testId}-hex` : undefined}
-              onChange={(e) => (onText ? onText(e.currentTarget.value.trim()) : setText(e.currentTarget.value.trim()))}
-              onBlur={commitText}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitText();
-                if (e.key === 'Escape' && !onText) setText(value);
-              }}
-            />
-            <span id={`${id}-hexword`} className="k-sr">
-              hex
-            </span>
-            {unset && (
-              <span id={`${id}-unset`} className="k-sr" data-testid={testId ? `${testId}-unset` : undefined}>
-                {shown(`not set (the picker starts at ${picker})`)}
-              </span>
-            )}
-          </span>
+          <ColorHex
+            id={id}
+            text={text}
+            dot={dot}
+            picker={picker}
+            unset={unset}
+            removable={removable}
+            disabled={disabled}
+            testId={testId}
+            onType={(t) => (onText ? onText(t) : setText(t))}
+            commitText={commitText}
+            onEscape={() => {
+              if (!onText) setText(value);
+            }}
+          />
         </span>
         {draft !== undefined && <span className="k-color-draft">{shown(`previewing ${draft}`)}</span>}
         {hint && (
@@ -145,5 +117,64 @@ export function ColorField({
         )}
       </div>
     </div>
+  );
+}
+
+/** The hex field beside the well: the written colour's dot while one is dragged, the text, and its words for a screen reader. */
+function ColorHex({
+  id,
+  text,
+  dot,
+  picker,
+  unset,
+  removable,
+  disabled,
+  testId,
+  onType,
+  commitText,
+  onEscape,
+}: {
+  id: string;
+  text: string;
+  dot: string | null;
+  picker: string;
+  unset: boolean | undefined;
+  removable: boolean | undefined;
+  disabled: boolean | undefined;
+  testId: string | undefined;
+  onType: (text: string) => void;
+  commitText: () => void;
+  onEscape: () => void;
+}) {
+  return (
+    <span className="k-color-hex">
+      {dot !== null && <span className="k-color-swatch" style={{ background: dot }} aria-hidden="true" />}
+      <input
+        className="k-input k-mono k-color-text"
+        value={text}
+        placeholder={removable ? 'not set' : ''}
+        disabled={disabled}
+        maxLength={7}
+        autoComplete="off"
+        spellCheck={false}
+        aria-labelledby={`${id}-label ${id}-hexword`}
+        aria-describedby={unset ? `${id}-unset` : undefined}
+        data-testid={testId ? `${testId}-hex` : undefined}
+        onChange={(e) => onType(e.currentTarget.value.trim())}
+        onBlur={commitText}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commitText();
+          if (e.key === 'Escape') onEscape();
+        }}
+      />
+      <span id={`${id}-hexword`} className="k-sr">
+        hex
+      </span>
+      {unset && (
+        <span id={`${id}-unset`} className="k-sr" data-testid={testId ? `${testId}-unset` : undefined}>
+          {shown(`not set (the picker starts at ${picker})`)}
+        </span>
+      )}
+    </span>
   );
 }

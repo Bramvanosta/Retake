@@ -58,6 +58,78 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
   }
 }
 
+type Log = (message: string) => void;
+type Capture = ReturnType<typeof enginePorts>['capture'];
+type Slot = { current?: AbortController; currentStop?: AbortController };
+
+/** Signals as a worker's: the first cancels the job (its teardown still runs), a second quits at once. */
+function signalCancel(c: { id: string; log: Log; slot: Slot; capture: Capture; quitSync: Set<() => void> }): (sig: NodeJS.Signals) => void {
+  const { log, slot, capture, quitSync } = c;
+  let signals = 0;
+  return (sig: NodeJS.Signals) => {
+    signals++;
+    if (signals === 1) {
+      log(`${sig}: cancelling job ${c.id} (its teardown still runs)`);
+      slot.current?.abort(capture.cancelled(`job cancelled (${sig})`));
+      return;
+    }
+    capture.cleanupSync();
+    for (const f of quitSync) {
+      try {
+        f();
+      } catch {
+        /* quitting anyway */
+      }
+    }
+    process.nextTick(() => process.exit(130));
+  };
+}
+
+/** As in the worker: Remotion's encoder pipe may reject with EPIPE after a failed render. */
+function pipeTolerant(log: Log): (reason: unknown) => void {
+  return (reason: unknown) => {
+    if ((reason as NodeJS.ErrnoException | undefined)?.code === 'EPIPE') {
+      log(`ignored a write to a closed pipe after a render (${errorMessage(reason)})`);
+      return;
+    }
+    throw reason;
+  };
+}
+
+/** The worker's presence: once it is gone the job is cancelled and ends interrupted (`orphan()` says why). */
+function watchWorker(c: { o: JobChildOptions; log: Log; slot: Slot; capture: Capture }): { orphan: () => string | undefined; stop: () => void } {
+  const { o, log, slot, capture } = c;
+  let orphan: string | undefined;
+  const watch = setInterval(() => {
+    if (process.ppid === o.supervisor) return;
+    if (!orphan) {
+      orphan = `its jobs worker (pid ${o.supervisor}) stopped while the job ran (its job process ended the job and cleaned up after it)`;
+      log(`job ${o.id}: the worker is gone: cancelling`);
+    }
+    if (slot.current && !slot.current.signal.aborted) slot.current.abort(capture.cancelled('job cancelled (its worker stopped)'));
+  }, o.watchMs ?? 1000);
+  return { orphan: () => orphan, stop: () => clearInterval(watch) };
+}
+
+/** The interrupts of a job on `signal`: a quit hook is kept for a second signal while its interrupt is open. */
+function quitInterrupts(quitSync: Set<() => void>): (signal: AbortSignal) => InterruptPort {
+  return (signal: AbortSignal): InterruptPort => ({
+    open: async (opts = {}) => {
+      const q = opts.onQuitSync;
+      if (q) quitSync.add(q);
+      return {
+        signal,
+        get interrupted() {
+          return signal.aborted;
+        },
+        dispose: () => {
+          if (q) quitSync.delete(q);
+        },
+      };
+    },
+  });
+}
+
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
   // A job process is a composition root: the product's ports (a test's cannot reach a process).
@@ -97,66 +169,17 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   const host = hostname();
   // Loaded now, before the signals are listened to: a signal's cancel and its removal of session copies are synchronous.
   await capture.load();
-  const slot: { current?: AbortController; currentStop?: AbortController } = {};
+  const slot: Slot = {};
   const quitSync = new Set<() => void>();
   const done = new Set<string>();
 
-  let signals = 0;
-  const onSignal = (sig: NodeJS.Signals) => {
-    signals++;
-    if (signals === 1) {
-      log(`${sig}: cancelling job ${o.id} (its teardown still runs)`);
-      slot.current?.abort(capture.cancelled(`job cancelled (${sig})`));
-      return;
-    }
-    capture.cleanupSync();
-    for (const f of quitSync) {
-      try {
-        f();
-      } catch {
-        /* quitting anyway */
-      }
-    }
-    process.nextTick(() => process.exit(130));
-  };
+  const onSignal = signalCancel({ id: o.id, log, slot, capture, quitSync });
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
-  // As in the worker: Remotion's encoder pipe may reject with EPIPE after a failed render.
-  const onRejection = (reason: unknown) => {
-    if ((reason as NodeJS.ErrnoException | undefined)?.code === 'EPIPE') {
-      log(`ignored a write to a closed pipe after a render (${errorMessage(reason)})`);
-      return;
-    }
-    throw reason;
-  };
+  const onRejection = pipeTolerant(log);
   process.on('unhandledRejection', onRejection);
-
-  // The worker's presence: once it is gone the job is cancelled and ends interrupted.
-  let orphan: string | undefined;
-  const watch = setInterval(() => {
-    if (process.ppid === o.supervisor) return;
-    if (!orphan) {
-      orphan = `its jobs worker (pid ${o.supervisor}) stopped while the job ran (its job process ended the job and cleaned up after it)`;
-      log(`job ${o.id}: the worker is gone: cancelling`);
-    }
-    if (slot.current && !slot.current.signal.aborted) slot.current.abort(capture.cancelled('job cancelled (its worker stopped)'));
-  }, o.watchMs ?? 1000);
-
-  const interrupts = (signal: AbortSignal): InterruptPort => ({
-    open: async (opts = {}) => {
-      const q = opts.onQuitSync;
-      if (q) quitSync.add(q);
-      return {
-        signal,
-        get interrupted() {
-          return signal.aborted;
-        },
-        dispose: () => {
-          if (q) quitSync.delete(q);
-        },
-      };
-    },
-  });
+  const worker = watchWorker({ o, log, slot, capture });
+  const interrupts = quitInterrupts(quitSync);
   const writeOrExit = async (rec: JobRecord): Promise<void> => {
     try {
       await queue.write(rec);
@@ -182,12 +205,12 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     slot,
     done,
     writeOrExit,
-    abortedBecause: () => orphan,
+    abortedBecause: () => worker.orphan(),
   });
   try {
     await runJob(stored);
   } finally {
-    clearInterval(watch);
+    worker.stop();
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
     process.off('unhandledRejection', onRejection);

@@ -119,7 +119,7 @@ function bit(mask: Uint8Array, i: number): boolean {
 }
 
 /** Cells (indexes) a CSS-px box touches. */
-function cellsOf(l: number, t: number, r: number, b: number, w: number, h: number): number[] {
+function cellsOf({ l, t, r, b }: { l: number; t: number; r: number; b: number }, w: number, h: number): number[] {
   const out: number[] = [];
   const x0 = Math.max(0, Math.floor((l / w) * CELLS_X));
   const x1 = Math.min(CELLS_X - 1, Math.floor((r / w) * CELLS_X));
@@ -137,30 +137,33 @@ export function clicksOf(events: readonly TimelineEvent[]): ActivityClick[] {
     .sort((a, b) => a.t - b.t);
 }
 
-/** See the module comment. Pure. */
-export function analyzeActivity(input: ActivityInput): ActivityResult {
+/** Cells the cursor or a ripple covers in each frame (and the frame before: the cursor left that place). */
+function coveredCells(input: ActivityInput, cursor: ActivityInput['cursor']): Array<Set<number> | undefined> {
   const { masks, fps, width, height } = input;
   const n = masks.length;
-  if (!n || !(fps > 0)) return { transitions: [], busy: [] };
-  // Cells the cursor or a ripple covers in each frame (and the frame before: the cursor left that place).
   const masked: Array<Set<number> | undefined> = new Array(n);
   const cover = (k: number, cells: number[]) => {
     if (k < 0 || k >= n) return;
     const s = (masked[k] ??= new Set<number>());
     for (const c of cells) s.add(c);
   };
-  const cursor = input.cursor.filter((s) => s.visible);
   for (let i = 0; i < cursor.length; i++) {
     const s = cursor[i];
     const until = i + 1 < cursor.length ? cursor[i + 1].t : s.t + 1 / fps;
-    const cells = cellsOf(s.x - CURSOR_BOX.l, s.y - CURSOR_BOX.t, s.x + CURSOR_BOX.r, s.y + CURSOR_BOX.b, width, height);
+    const cells = cellsOf({ l: s.x - CURSOR_BOX.l, t: s.y - CURSOR_BOX.t, r: s.x + CURSOR_BOX.r, b: s.y + CURSOR_BOX.b }, width, height);
     for (let k = Math.floor(s.t * fps); k <= Math.min(n - 1, Math.ceil(until * fps) + 1); k++) cover(k, cells);
   }
   for (const e of input.effects ?? []) {
     if (e.type !== 'ripple' || typeof e.x !== 'number' || typeof e.y !== 'number') continue;
-    const cells = cellsOf(e.x - RIPPLE_R, e.y - RIPPLE_R, e.x + RIPPLE_R, e.y + RIPPLE_R, width, height);
+    const cells = cellsOf({ l: e.x - RIPPLE_R, t: e.y - RIPPLE_R, r: e.x + RIPPLE_R, b: e.y + RIPPLE_R }, width, height);
     for (let k = Math.floor(e.t * fps); k <= Math.ceil((e.t + RIPPLE_S) * fps); k++) cover(k, cells);
   }
+  return masked;
+}
+
+/** Per frame, how many cells changed outside the cursor and animated content. */
+function changedCells(masks: ActivityInput['masks'], masked: ReadonlyArray<Set<number> | undefined>): number[] {
+  const n = masks.length;
   // Animated content: cells changing in a large share of the frames.
   const counts = new Array<number>(CELLS_X * CELLS_Y).fill(0);
   for (let k = 0; k < n; k++) for (let c = 0; c < CELLS_X * CELLS_Y; c++) if (bit(masks[k], c) && !masked[k]?.has(c)) counts[c]++;
@@ -172,6 +175,17 @@ export function analyzeActivity(input: ActivityInput): ActivityResult {
     return m;
   };
   const activity = Array.from({ length: n }, (_, k) => changed(k));
+  return activity;
+}
+
+/** See the module comment. Pure. */
+export function analyzeActivity(input: ActivityInput): ActivityResult {
+  const { masks, fps } = input;
+  const n = masks.length;
+  if (!n || !(fps > 0)) return { transitions: [], busy: [] };
+  const cursor = input.cursor.filter((s) => s.visible);
+  const masked = coveredCells(input, cursor);
+  const activity = changedCells(masks, masked);
 
   const clicks = clicksOf(input.events);
   // Explicit pauses: a step's hold, a `hold` or `wait` step (capture seconds of their start).

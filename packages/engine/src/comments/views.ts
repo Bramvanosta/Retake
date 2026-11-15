@@ -321,15 +321,14 @@ export async function listComments(reads: CommentReads, project: LoadedProject, 
   return (await listCommentsAndUnread(reads, project, req)).list;
 }
 
-/** `listComments`, with what the listing could not read as threads (CommentsUnread). */
-export async function listCommentsAndUnread(reads: CommentReads, project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
-  const renderFiles = reads.renders;
-  const status = req.status ?? 'open';
-  if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
-  if (req.scenario !== undefined) checkScenarioName(req.scenario);
-  if (req.limit !== undefined && (!Number.isInteger(req.limit) || req.limit < 1)) throw argError('limit', `limit ${String(req.limit)}: a whole number from 1`);
-  const entries = await renderEntries(renderFiles, project.dir);
-  const renders = quotableRenders(entries);
+/** The render a listing is on (`req.render`: an id or `latest`), checked against `req.scenario`, and the scenario it names. */
+async function listedRender(
+  renderFiles: CommentReads['renders'],
+  project: LoadedProject,
+  req: CommentListRequest,
+  r: { entries: RenderEntry[]; renders: ReturnType<typeof quotableRenders> },
+): Promise<{ onRender: StoredRenderRecord | undefined; latest: RenderLatestPick<ProjectRender> | undefined; scenario: string | undefined }> {
+  const { entries, renders } = r;
   let onRender: StoredRenderRecord | undefined;
   let latest: RenderLatestPick<ProjectRender> | undefined;
   let scenario = req.scenario;
@@ -358,11 +357,14 @@ export async function listCommentsAndUnread(reads: CommentReads, project: Loaded
     if (scenario !== undefined && onRender.scenario !== scenario) throw argError('render', `render ${onRender.id} is a render of ${onRender.scenario}, not of ${scenario}`);
     scenario = onRender.scenario;
   }
+  return { onRender, latest, scenario };
+}
 
+/** The thread files of comments/ (of `scenario` only when given), and what could not be read as threads. */
+async function threadFiles(root: string, scenario: string | undefined): Promise<{ files: ThreadFile[]; problems: string[]; unreadOf: Set<string>; unreadAll: boolean }> {
   const problems: string[] = [];
   let unreadAll = false;
   const unreadOf = new Set<string>();
-  const root = join(project.dir, COMMENTS_DIR);
   const rootState = await realFolderState(root);
   const files: ThreadFile[] = [];
   if (rootState === 'ok') {
@@ -406,6 +408,22 @@ export async function listCommentsAndUnread(reads: CommentReads, project: Loaded
     problems.push(`${COMMENTS_DIR}/ is ${rootState}: not read`);
     unreadAll = true;
   }
+
+  return { files, problems, unreadOf, unreadAll };
+}
+
+/** `listComments`, with what the listing could not read as threads (CommentsUnread). */
+export async function listCommentsAndUnread(reads: CommentReads, project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
+  const renderFiles = reads.renders;
+  const status = req.status ?? 'open';
+  if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
+  if (req.scenario !== undefined) checkScenarioName(req.scenario);
+  if (req.limit !== undefined && (!Number.isInteger(req.limit) || req.limit < 1)) throw argError('limit', `limit ${String(req.limit)}: a whole number from 1`);
+  const entries = await renderEntries(renderFiles, project.dir);
+  const renders = quotableRenders(entries);
+  const { onRender, latest, scenario } = await listedRender(renderFiles, project, req, { entries, renders });
+
+  const { files, problems, unreadOf, unreadAll } = await threadFiles(join(project.dir, COMMENTS_DIR), scenario);
 
   const views: CommentView[] = [];
   const texts: TextCache = new Map();

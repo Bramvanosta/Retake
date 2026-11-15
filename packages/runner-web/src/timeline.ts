@@ -131,14 +131,21 @@ export interface MotionCapture {
  * (`pageChanges`: the new page renders), over a page load the recorder held (`held`, R-ISS-08) and an isolated 1 px
  * nudge (the cursor waiting for a fresh frame).
  */
-export function motionCapture(
-  frameTimes: readonly number[],
-  samples: readonly CursorSample[],
-  minFps: number,
-  effects: readonly CursorEffect[] = [],
-  pageChanges: readonly number[] = [],
-  held: ReadonlyArray<{ t_start: number; t_end: number }> = [],
-): MotionCapture {
+export function motionCapture({
+  frameTimes,
+  samples,
+  minFps,
+  effects = [],
+  pageChanges = [],
+  held = [],
+}: {
+  frameTimes: readonly number[];
+  samples: readonly CursorSample[];
+  minFps: number;
+  effects?: readonly CursorEffect[];
+  pageChanges?: readonly number[];
+  held?: ReadonlyArray<{ t_start: number; t_end: number }>;
+}): MotionCapture {
   const ts = [...frameTimes].sort((a, b) => a - b);
   // 1 px nudges (Runtime.awaitFreshFrame probing the capture while the cursor rests) are no motion: a step under 2 px
   // that the next sample takes straight back, or that stays alone more than 30 ms (a glide moves every ≈ 16 ms).

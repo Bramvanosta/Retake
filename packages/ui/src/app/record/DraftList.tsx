@@ -181,46 +181,21 @@ interface FlatRow {
   ri: number;
 }
 
+/** A scene of the draft and its rows. */
+type Scene = ReturnType<typeof draftRows>[number];
+
+/** The listbox option id of the draft's i-th row (across scenes). */
+const optId = (i: number) => `rec-opt-${i}`;
+
 /**
- * The draft's step rows with the cursor block (the selected row's inserts, alternatives and Insert toolbar) among them.
- * Editable, each scene's rows are a listbox and the draft is ONE tab stop (the list holding the active row;
- * `aria-activedescendant`): ↑ / ↓ the row before / after (across scenes), Home / End the first / last, Page Up / Page
- * Down three rows (board-keys' `gridMove`, one column), Enter / Space selects the active row (= moves the cursor after
- * it; again: back to the end). The cursor block is not an option (a group inside the list, after its row); at the end
- * it is after every scene, in one place — new rows never move it.
+ * The draft's one tab stop: the active row (moved by the keys, across scenes), the list that follows it with the
+ * focus, and a press (= the cursor after the row; again: back to the end).
  */
-export function DraftList({
-  v,
-  cursor,
-  setCursor,
-  act,
-  busy,
-  form,
-  setForm,
-}: {
-  v: RecordViewAnswer;
-  cursor: Cursor;
-  setCursor: (c: Cursor) => void;
-  act: RecordingActions;
-  busy: boolean;
-  form: InsertFormState;
-  setForm: (f: (was: InsertFormState) => InsertFormState) => void;
-}) {
-  const u = v.untrusted!;
-  const scenes = draftRows(u);
-  const can = v.can.annotate;
-  const live = LIVE_STATES.has(v.state);
-  const inserts = new Map(u.inserts.map((i) => [i.id, i]));
-  const remove = (id: string) => act.annotate({ op: 'remove', id });
-  const choose = (seq: number, index: number) => act.annotate({ op: 'choose', seq, index });
-  const where = cursorRow(u, cursor);
-  const flat: FlatRow[] = scenes.flatMap((s, si) => s.rows.map((r, ri) => ({ r, si, ri })));
-  const selected = cursor.at === 'after' ? cursor.row : null;
+function useDraftKeys(scenes: Scene[], flat: FlatRow[], selected: string | null, setCursor: (c: Cursor) => void) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const found = (id: string | null) => (id === null ? -1 : flat.findIndex((f) => f.r.id === id));
   const activeAt = found(activeId) >= 0 ? found(activeId) : found(selected) >= 0 ? found(selected) : flat.length ? 0 : -1;
   const active = activeAt >= 0 ? flat[activeAt] : undefined;
-  const optId = (i: number) => `rec-opt-${i}`;
   // A key moved the active row: its list takes the focus (it may be another scene's) and the row shows.
   const follow = useRef(false);
   useLayoutEffect(() => {
@@ -259,6 +234,83 @@ export function DraftList({
     const first = scenes[si]?.rows[0];
     if (first) setActiveId(first.id);
   };
+  return { activeAt, active, press, onKey, onListFocus };
+}
+
+/** A scene's heading: its number, name, page and the path it opened. */
+function SceneTitle({ s, si }: { s: Scene; si: number }) {
+  return (
+    <h3 id={`rec-scene-${si}`} className="rc-scene-title">
+      {shown(`Scene ${si + 1}: `)}
+      <Txt className="k-mono" text={s.scene} />
+      {s.page && (
+        <span className="rc-quiet">
+          {' · '}
+          <Txt text={s.page} />
+          {s.open && (
+            <>
+              {' '}
+              <Txt className="k-mono" text={s.open} />
+            </>
+          )}
+        </span>
+      )}
+    </h3>
+  );
+}
+
+/** The inserts waiting for the next action, each with its Remove. */
+function PendingInserts({ u, can, onRemove }: { u: NonNullable<RecordViewAnswer['untrusted']>; can: boolean; onRemove: (id: string) => void }) {
+  const inserts = new Map(u.inserts.map((i) => [i.id, i]));
+  return (
+    <div className="rc-pending" data-testid="record-pending">
+      <p>Applies to your next action:</p>
+      <p className="rc-chips">
+        {u.pending
+          .flatMap((id) => (inserts.has(id) ? [inserts.get(id)!] : []))
+          .map((ins) => (
+            <InsertChip key={ins.id} i={ins} can={can} onRemove={onRemove} where="waiting for your next action" />
+          ))}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The draft's step rows with the cursor block (the selected row's inserts, alternatives and Insert toolbar) among them.
+ * Editable, each scene's rows are a listbox and the draft is ONE tab stop (the list holding the active row;
+ * `aria-activedescendant`): ↑ / ↓ the row before / after (across scenes), Home / End the first / last, Page Up / Page
+ * Down three rows (board-keys' `gridMove`, one column), Enter / Space selects the active row (= moves the cursor after
+ * it; again: back to the end). The cursor block is not an option (a group inside the list, after its row); at the end
+ * it is after every scene, in one place — new rows never move it.
+ */
+export function DraftList({
+  v,
+  cursor,
+  setCursor,
+  act,
+  busy,
+  form,
+  setForm,
+}: {
+  v: RecordViewAnswer;
+  cursor: Cursor;
+  setCursor: (c: Cursor) => void;
+  act: RecordingActions;
+  busy: boolean;
+  form: InsertFormState;
+  setForm: (f: (was: InsertFormState) => InsertFormState) => void;
+}) {
+  const u = v.untrusted!;
+  const scenes = draftRows(u);
+  const can = v.can.annotate;
+  const live = LIVE_STATES.has(v.state);
+  const remove = (id: string) => act.annotate({ op: 'remove', id });
+  const choose = (seq: number, index: number) => act.annotate({ op: 'choose', seq, index });
+  const where = cursorRow(u, cursor);
+  const flat: FlatRow[] = scenes.flatMap((s, si) => s.rows.map((r, ri) => ({ r, si, ri })));
+  const selected = cursor.at === 'after' ? cursor.row : null;
+  const { activeAt, active, press, onKey, onListFocus } = useDraftKeys(scenes, flat, selected, setCursor);
   const block = (row: DraftRow | null, n: number, scene: string) => (
     // biome-ignore lint/a11y/useSemanticElements: the insert cursor is a named group of buttons inside a list row; <fieldset> would bring its own border, padding and min-width
     <div className="rc-here" role="group" aria-label={row ? `Inserts go after step ${n}` : 'Inserts go here: at the end'} data-testid="record-cursor">
@@ -285,22 +337,7 @@ export function DraftList({
         s.rows.length === 0 ? null : (
           // biome-ignore lint/suspicious/noArrayIndexKey: the heading id uses the same scene index (rec-scene-N): the key follows it; the section holds no state
           <section key={`${s.scene}-${si}`} className="rc-scene" aria-labelledby={`rec-scene-${si}`}>
-            <h3 id={`rec-scene-${si}`} className="rc-scene-title">
-              {shown(`Scene ${si + 1}: `)}
-              <Txt className="k-mono" text={s.scene} />
-              {s.page && (
-                <span className="rc-quiet">
-                  {' · '}
-                  <Txt text={s.page} />
-                  {s.open && (
-                    <>
-                      {' '}
-                      <Txt className="k-mono" text={s.open} />
-                    </>
-                  )}
-                </span>
-              )}
-            </h3>
+            <SceneTitle s={s} si={si} />
             {can ? (
               <RowList
                 className="rc-rows"
@@ -330,18 +367,7 @@ export function DraftList({
         ),
       )}
       {can && cursor.at === 'end' && shown(block(null, 0, ''))}
-      {u.pending.length > 0 && (
-        <div className="rc-pending" data-testid="record-pending">
-          <p>Applies to your next action:</p>
-          <p className="rc-chips">
-            {u.pending
-              .flatMap((id) => (inserts.has(id) ? [inserts.get(id)!] : []))
-              .map((ins) => (
-                <InsertChip key={ins.id} i={ins} can={can} onRemove={remove} where="waiting for your next action" />
-              ))}
-          </p>
-        </div>
-      )}
+      {u.pending.length > 0 && <PendingInserts u={u} can={can} onRemove={remove} />}
       {shown(waiting)}
     </div>
   );

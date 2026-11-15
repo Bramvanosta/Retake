@@ -109,57 +109,74 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
           {sending ? 'Opening…' : job ? 'Sign in again' : 'Sign in…'}
         </Button>
       )}
-      {job && (
-        <div className="sp-sign-in-state" data-testid="sign-in-state" data-state={job.state}>
-          {job.state === 'queued' && <p>Waiting for the queue: the window opens when the job ahead of it ends (a run — a paused one too — or another sign-in).</p>}
-          {job.state === 'running' && (
-            <p>
-              {job.cancel_requested_at
-                ? 'Stopping: the window closes; the saved session is not updated.'
-                : 'A browser window is open on this computer: sign in there yourself, then close it. It may be behind this window. It closes by itself after its time limit (30 min unless RETAKE_SIGNIN_MAX_MIN says otherwise).'}
-              {job.started_at && (
-                <>
-                  {' '}
-                  <span className="sc-quiet">
-                    Opened <When iso={job.started_at} />.
-                  </span>
-                </>
-              )}
-            </p>
-          )}
-          {job.state === 'succeeded' && (
-            <p>{shown(signIn?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[signIn?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>
-          )}
-          {job.state === 'cancelled' && (
-            <p>
-              {signIn?.profile_kept
-                ? 'Stopped: the saved session was not updated, but what the window changed stays in this persona’s browser profile (the next run starts from it).'
-                : signIn?.interrupted
-                  ? 'Stopped: nothing was saved.'
-                  : 'Stopped: the saved session was not updated.'}
-            </p>
-          )}
-          {(job.state === 'failed' || job.state === 'interrupted') && (
-            <p>
-              The sign-in did not finish
-              {(job.untrusted?.error ?? job.error?.message) && (
-                <>
-                  : <Txt text={job.untrusted?.error ?? job.error?.message ?? ''} />
-                </>
-              )}
-            </p>
-          )}
-          {open && !job.cancel_requested_at && (
-            <Button size="sm" variant="ghost" onClick={cancel} data-testid="sign-in-cancel" aria-label={visibleControls(`Cancel the sign-in of ${persona}`)}>
-              Cancel
-            </Button>
-          )}
-        </div>
-      )}
+      {job && <SignInState job={job} open={open} signIn={signIn} persona={persona} onCancel={cancel} />}
       {error && (
         <p className="sp-error" role="alert">
           <Txt text={error} />
         </p>
+      )}
+    </div>
+  );
+}
+
+/** A sign-in job's state in words (waiting, the window open, the result), and Cancel while it is open. */
+function SignInState({
+  job,
+  open,
+  signIn,
+  persona,
+  onCancel,
+}: {
+  job: JobLite;
+  open: boolean;
+  signIn: Extract<NonNullable<JobLite['result']>, { kind: 'auth_login' }> | undefined;
+  persona: string;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="sp-sign-in-state" data-testid="sign-in-state" data-state={job.state}>
+      {job.state === 'queued' && <p>Waiting for the queue: the window opens when the job ahead of it ends (a run — a paused one too — or another sign-in).</p>}
+      {job.state === 'running' && (
+        <p>
+          {job.cancel_requested_at
+            ? 'Stopping: the window closes; the saved session is not updated.'
+            : 'A browser window is open on this computer: sign in there yourself, then close it. It may be behind this window. It closes by itself after its time limit (30 min unless RETAKE_SIGNIN_MAX_MIN says otherwise).'}
+          {job.started_at && (
+            <>
+              {' '}
+              <span className="sc-quiet">
+                Opened <When iso={job.started_at} />.
+              </span>
+            </>
+          )}
+        </p>
+      )}
+      {job.state === 'succeeded' && (
+        <p>{shown(signIn?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[signIn?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>
+      )}
+      {job.state === 'cancelled' && (
+        <p>
+          {signIn?.profile_kept
+            ? 'Stopped: the saved session was not updated, but what the window changed stays in this persona’s browser profile (the next run starts from it).'
+            : signIn?.interrupted
+              ? 'Stopped: nothing was saved.'
+              : 'Stopped: the saved session was not updated.'}
+        </p>
+      )}
+      {(job.state === 'failed' || job.state === 'interrupted') && (
+        <p>
+          The sign-in did not finish
+          {(job.untrusted?.error ?? job.error?.message) && (
+            <>
+              : <Txt text={job.untrusted?.error ?? job.error?.message ?? ''} />
+            </>
+          )}
+        </p>
+      )}
+      {open && !job.cancel_requested_at && (
+        <Button size="sm" variant="ghost" onClick={onCancel} data-testid="sign-in-cancel" aria-label={visibleControls(`Cancel the sign-in of ${persona}`)}>
+          Cancel
+        </Button>
       )}
     </div>
   );

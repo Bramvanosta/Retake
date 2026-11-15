@@ -27,30 +27,12 @@ import { hrefTo } from '../route.js';
 import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
 import { ThemeEditor } from './ThemeEditor.js';
-import {
-  EMPTY_FORM,
-  SOURCE_BADGE,
-  createInput,
-  formFromSite,
-  freeThemeName,
-  newThemeProblem,
-  offersCopy,
-  okHex,
-  opensInEditor,
-  pickerValue,
-  themeEventAction,
-  usedByWords,
-} from '../words/theme-words.js';
+import { NewThemeMade } from './new-theme-made.js';
+import { SiteCommandBox, SiteUrlLine } from './site-command.js';
+import { Swatch, ThemeRow } from './theme-row.js';
+import { EMPTY_FORM, createInput, formFromSite, freeThemeName, newThemeProblem, okHex, opensInEditor, pickerValue, themeEventAction } from '../words/theme-words.js';
 import type { NewThemeForm } from '../words/theme-words.js';
-import { Button, Callout, ColorField, EmptyState, LinkButton, Select, Sheet, StatusMark, Tag, TextField } from '../ui-kit/index.js';
-
-type ListTheme = ThemeListAnswer['themes'][number];
-
-/** A colour swatch: only a hex value reaches the style (anything else draws nothing). Theme data, not the Studio's chrome. */
-function Swatch({ hex, label }: { hex?: string | null; label: string }) {
-  if (!okHex(hex)) return null;
-  return <span className="tm-swatch" style={{ background: hex }} title={`${label} ${hex}`} aria-label={`${label} ${hex}`} role="img" />;
-}
+import { Button, Callout, ColorField, EmptyState, Select, Sheet, StatusMark, TextField } from '../ui-kit/index.js';
 
 export function ThemesScreen({ slug, theme }: { slug: string; theme?: string }) {
   const [list, reload] = useThemeList({ project: slug }, slug);
@@ -145,63 +127,6 @@ function ThemeList({ slug, list, reload }: { slug: string; list: Loaded<ThemeLis
   );
 }
 
-function ThemeRow({ slug, t, onCopy }: { slug: string; t: ListTheme; onCopy: () => void }) {
-  return (
-    <li className="tm-row" data-testid="theme-row" data-theme={t.name} data-editable={t.editable === true ? 'yes' : 'no'}>
-      <div className="tm-row-main">
-        <span className="tm-swatches" aria-hidden={!t.colors.accent}>
-          <Swatch hex={t.colors.paper} label="paper" />
-          <Swatch hex={t.colors.text} label="text" />
-          <Swatch hex={t.colors.accent} label="accent" />
-        </span>
-        <span className="tm-row-name">
-          {opensInEditor(t) ? (
-            <a href={hrefTo({ name: 'themes', slug, theme: t.name })} className="tm-link" data-testid="theme-open">
-              <Txt className="k-mono" text={t.name} />
-            </a>
-          ) : (
-            <Txt className="k-mono" text={t.name} />
-          )}
-        </span>
-        <span className="tm-tags">
-          <Tag testId="theme-tag">
-            <Txt text={SOURCE_BADGE[t.source]} />
-          </Tag>
-          {t.default && <Tag testId="theme-tag">The project's theme</Tag>}
-          <Tag testId="theme-tag">
-            <Txt text={t.editable === true ? 'Editable' : 'Read-only'} />
-          </Tag>
-          {t.issues.length > 0 && <StatusMark state="fail" word="Broken: it does not load" />}
-        </span>
-        <Txt className="tm-quiet" text={usedByWords(t.used_by, slug)} />
-        <span className="tm-row-actions">
-          {opensInEditor(t) && (
-            <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug, theme: t.name }} label={`${t.editable === true ? 'Edit' : 'Open'} ${t.name}`}>
-              {t.editable === true ? 'Edit' : 'Open'}
-            </LinkButton>
-          )}
-          {offersCopy(t) && (
-            <Button size="sm" onClick={onCopy} data-testid="theme-row-copy">
-              Copy to edit…
-            </Button>
-          )}
-        </span>
-      </div>
-      {t.editable !== true && (
-        <p className="tm-quiet" data-testid="theme-row-why">
-          <Txt text={t.editable.why} />
-        </p>
-      )}
-      {t.issues.slice(0, 2).map((x, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a theme's first issues, replaced whole on each read, text only: the index is the identity
-        <p key={i} className="tm-failure">
-          <Txt text={x} />
-        </p>
-      ))}
-    </li>
-  );
-}
-
 /** "Copy to edit…" of a listed read-only theme: a kit Sheet asks for the copy's name; theme_copy, then its editor. */
 export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string | null; taken: string[]; onCancel: () => void }) {
   // Keyed by the theme to copy (the list's): a new one starts with its free copy name.
@@ -281,6 +206,62 @@ function FormColor({ label, value, set, optional, testId }: { label: string; val
   );
 }
 
+/** The form's fields: name, base, colours, logo / wordmark, fonts, brand name and URL. */
+function NewThemeFields({
+  f,
+  set,
+  themes,
+  images,
+  logos,
+  fonts,
+}: {
+  f: NewThemeForm;
+  set: (k: keyof NewThemeForm) => (v: string) => void;
+  themes: string[];
+  images: Pick<BrandFiles, 'files' | 'truncated'> | null;
+  logos: string[];
+  fonts: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div className="tm-new-grid">
+      <TextField
+        label="Name"
+        value={f.name}
+        onChange={(v) => set('name')(v.trim())}
+        unsaved={null}
+        mono
+        maxLength={NEW_THEME_NAME_MAX}
+        hint={NEW_THEME_NAME_HINT}
+        autoComplete="off"
+        spellCheck={false}
+        testId="new-name"
+      />
+      <Select label="Base (components, layout, motion)" value={f.base} onChange={set('base')} testId="new-base" options={themes.map((t) => ({ value: t, label: t }))} />
+      <FormColor label="Accent" value={f.accent} set={set('accent')} testId="new-accent" />
+      <FormColor label="Text" value={f.text} set={set('text')} optional testId="new-text" />
+      <FormColor label="Paper" value={f.paper} set={set('paper')} optional testId="new-paper" />
+      <FormColor label="Muted" value={f.muted} set={set('muted')} optional testId="new-muted" />
+      <Select
+        label="Logo"
+        value={f.logo}
+        onChange={set('logo')}
+        testId="new-logo"
+        options={[{ value: '', label: images ? (logos.length ? 'Pick an image file' : 'No image file in the workspace') : 'Loading…' }, ...logos.map((r) => ({ value: r, label: r }))]}
+      />
+      <Select
+        label="Wordmark (optional)"
+        value={f.wordmark}
+        onChange={set('wordmark')}
+        options={[{ value: '', label: 'None (the brand name as text)' }, ...logos.map((r) => ({ value: r, label: r }))]}
+      />
+      <Select label="Display font (optional)" value={f.display} onChange={set('display')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
+      <Select label="Body font (optional)" value={f.body} onChange={set('body')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
+      <TextField label="Brand name (optional)" value={f.brandName} onChange={set('brandName')} unsaved={null} maxLength={80} testId="new-brand-name" />
+      <TextField label="Brand URL (optional)" value={f.brandUrl} onChange={set('brandUrl')} unsaved={null} maxLength={120} autoComplete="off" spellCheck={false} />
+    </div>
+  );
+}
+
 /**
  * New theme (theme_create = the create under trust `mcp`, exactly as Claude's template_create_from_brand; never
  * replacing a theme): name, base, colours, logo / wordmark among the workspace's image files or a site's candidates,
@@ -333,79 +314,11 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
         New theme
       </h2>
       {state.made ? (
-        <div className="tm-panel-body" role="status" data-testid="theme-new-made">
-          <p className="tm-line">
-            {'Theme '}
-            <Txt className="k-mono" text={state.made.name} />
-            {' made over '}
-            <Txt text={state.made.base} />
-            {'. '}
-            <LinkButton size="sm" variant="primary" to={{ name: 'themes', slug, theme: state.made.name }} testId="theme-new-edit">
-              Open it in the editor
-            </LinkButton>
-          </p>
-          {state.made.palette.adjusted.map((a, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's adjustments, fixed once said, text only: the index is the identity
-            <p key={i} className="tm-line">
-              <Txt text={`Adjusted ${a.key}: ${a.from} → ${a.to} (for ${a.check.replace(/_/g, ' ')}).`} />
-            </p>
-          ))}
-          {state.made.palette.suggestions.accent && (
-            <p className="tm-line">
-              <Txt text={`A stronger accent would pass on the paper: ${state.made.palette.suggestions.accent} (not applied).`} />
-            </p>
-          )}
-          {state.made.warnings.map((w, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: one answer's warnings, fixed once said, text only: the index is the identity
-            <p key={i} className="tm-quiet">
-              <Txt text={w} />
-            </p>
-          ))}
-          <span>
-            <Button size="sm" onClick={onClose}>
-              Close
-            </Button>
-          </span>
-        </div>
+        <NewThemeMade slug={slug} made={state.made} onClose={onClose} />
       ) : (
         <div className="tm-panel-body">
           <p className="tm-quiet">Made as Claude makes one (template_create_from_brand): files of this workspace, never an existing theme replaced.</p>
-          <div className="tm-new-grid">
-            <TextField
-              label="Name"
-              value={f.name}
-              onChange={(v) => set('name')(v.trim())}
-              unsaved={null}
-              mono
-              maxLength={NEW_THEME_NAME_MAX}
-              hint={NEW_THEME_NAME_HINT}
-              autoComplete="off"
-              spellCheck={false}
-              testId="new-name"
-            />
-            <Select label="Base (components, layout, motion)" value={f.base} onChange={set('base')} testId="new-base" options={themes.map((t) => ({ value: t, label: t }))} />
-            <FormColor label="Accent" value={f.accent} set={set('accent')} testId="new-accent" />
-            <FormColor label="Text" value={f.text} set={set('text')} optional testId="new-text" />
-            <FormColor label="Paper" value={f.paper} set={set('paper')} optional testId="new-paper" />
-            <FormColor label="Muted" value={f.muted} set={set('muted')} optional testId="new-muted" />
-            <Select
-              label="Logo"
-              value={f.logo}
-              onChange={set('logo')}
-              testId="new-logo"
-              options={[{ value: '', label: images ? (logos.length ? 'Pick an image file' : 'No image file in the workspace') : 'Loading…' }, ...logos.map((r) => ({ value: r, label: r }))]}
-            />
-            <Select
-              label="Wordmark (optional)"
-              value={f.wordmark}
-              onChange={set('wordmark')}
-              options={[{ value: '', label: 'None (the brand name as text)' }, ...logos.map((r) => ({ value: r, label: r }))]}
-            />
-            <Select label="Display font (optional)" value={f.display} onChange={set('display')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
-            <Select label="Body font (optional)" value={f.body} onChange={set('body')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
-            <TextField label="Brand name (optional)" value={f.brandName} onChange={set('brandName')} unsaved={null} maxLength={80} testId="new-brand-name" />
-            <TextField label="Brand URL (optional)" value={f.brandUrl} onChange={set('brandUrl')} unsaved={null} maxLength={120} autoComplete="off" spellCheck={false} />
-          </div>
+          <NewThemeFields f={f} set={set} themes={themes} images={images} logos={logos} fonts={fonts} />
           <div className="tm-actions">
             <Button variant="primary" busy={state.busy} disabled={!!problem} onClick={() => void create()} data-testid="new-create">
               {state.busy ? 'Making…' : 'Make the theme'}
@@ -469,26 +382,7 @@ function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: New
         <p className="tm-quiet">
           Colours and logo candidates are extracted from a public page by a command you run (or by Claude, which asks you to approve the URL): the Studio never fetches a site itself.
         </p>
-        <div className="tm-url-line">
-          <div className="tm-url">
-            <TextField
-              label="Page URL"
-              type="url"
-              value={url}
-              onChange={setUrl}
-              unsaved={null}
-              maxLength={2048}
-              placeholder="https://www.example.com"
-              autoComplete="off"
-              spellCheck={false}
-              onKeyDown={(e) => e.key === 'Enter' && url && void ask()}
-              testId="site-url"
-            />
-          </div>
-          <Button disabled={!url} onClick={() => void ask()} data-testid="site-command">
-            Show the command
-          </Button>
-        </div>
+        <SiteUrlLine url={url} setUrl={setUrl} onAsk={() => void ask()} />
         {error && (
           <p className="tm-failure" role="status">
             <Txt text={error} />
@@ -499,29 +393,7 @@ function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: New
             <Txt text={cmd.url_problem} />
           </p>
         )}
-        {cmd?.command && (
-          <div className="tm-command" data-testid="site-command-box">
-            <p className="tm-line">
-              {'In a terminal (it extracts '}
-              <Txt className="k-mono" text={cmd.command.untrusted.host} />
-              {' after you approve it there):'}
-            </p>
-            <code ref={line} className="k-mono tm-code" data-testid="site-command-line">
-              <Txt text={cmd.command.line} />
-            </code>
-            <div className="tm-actions">
-              <Button size="sm" icon="copy" onClick={copy} data-testid="site-command-copy">
-                Copy the command
-              </Button>
-              <span className="tm-line" role="status">
-                {copied === 'yes' ? 'Copied.' : copied === 'failed' ? 'Copying was refused: the command is selected — copy it with ⌘C.' : ''}
-              </span>
-            </div>
-            <p className="tm-quiet">
-              <Txt text={cmd.command.claude} />
-            </p>
-          </div>
-        )}
+        {cmd?.command && <SiteCommandBox command={cmd.command} lineRef={line} copied={copied} onCopy={copy} />}
         <h3 id={listId} className="tm-h3">
           Extractions
         </h3>
@@ -539,55 +411,62 @@ function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: New
         {sites.state === 'ready' && sites.data.sites.length > 0 && (
           <ul className="tm-list" aria-labelledby={listId}>
             {sites.data.sites.map((s) => (
-              <li key={s.site_id} className="tm-row" data-testid="site-row" data-site={s.site_id}>
-                <div className="tm-row-main">
-                  <span className="tm-swatches">
-                    <Swatch hex={s.palette?.roles.paper} label="paper" />
-                    <Swatch hex={s.palette?.roles.text} label="text" />
-                    <Swatch hex={s.palette?.roles.accent} label="accent" />
-                  </span>
-                  <span className="tm-row-name">
-                    {s.untrusted.host ? <Txt className="k-mono" text={s.untrusted.host} /> : '(no host)'} <When iso={s.at} />
-                  </span>
-                  <StatusMark state={s.status === 'ok' ? 'ok' : 'warn'} word={s.status === 'ok' ? 'Done' : `Warning: ${s.status}`} />
-                  {s.status === 'ok' && (
-                    <span className="tm-row-actions">
-                      <Button size="sm" onClick={() => onNewTheme(formFromSite(s, freeThemeName('site-theme', taken)))} data-testid="site-new-theme">
-                        New theme from this…
-                      </Button>
-                    </span>
-                  )}
-                </div>
-                {s.untrusted.title && (
-                  <p className="tm-quiet" data-testid="site-title">
-                    {'Page title (as the page wrote it): '}
-                    <Txt text={s.untrusted.title} />
-                  </p>
-                )}
-                {s.palette && (
-                  <p className="tm-line">
-                    <Txt
-                      text={`Paper ${s.palette.roles.paper} · text ${s.palette.roles.text}${s.palette.roles.accent ? ` · accent ${s.palette.roles.accent}` : ''}${s.palette.roles.dark ? ` · dark ${s.palette.roles.dark}` : ''}${s.palette.checks.length > 0 ? ` — ${s.palette.checks.filter((c) => c.ok).length}/${s.palette.checks.length} contrast checks pass` : ''}`}
-                    />
-                  </p>
-                )}
-                {s.candidates.length > 0 && (
-                  <p className="tm-quiet">
-                    {'Logo candidates: '}
-                    {s.candidates.map((c, i) => (
-                      <span key={c.ref}>
-                        {i > 0 ? ', ' : ''}
-                        <Txt className="k-mono" text={c.ref} />
-                        <Txt text={` (${c.width}×${c.height})`} />
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </li>
+              <SiteRow key={s.site_id} s={s} taken={taken} onNewTheme={onNewTheme} />
             ))}
           </ul>
         )}
       </div>
     </section>
+  );
+}
+
+/** One extraction: its swatches, host and time, its state, New theme from this…, its page title (untrusted text), its roles and checks, its logo candidates. */
+function SiteRow({ s, taken, onNewTheme }: { s: SiteListAnswer['sites'][number]; taken: string[]; onNewTheme: (f: NewThemeForm) => void }) {
+  return (
+    <li className="tm-row" data-testid="site-row" data-site={s.site_id}>
+      <div className="tm-row-main">
+        <span className="tm-swatches">
+          <Swatch hex={s.palette?.roles.paper} label="paper" />
+          <Swatch hex={s.palette?.roles.text} label="text" />
+          <Swatch hex={s.palette?.roles.accent} label="accent" />
+        </span>
+        <span className="tm-row-name">
+          {s.untrusted.host ? <Txt className="k-mono" text={s.untrusted.host} /> : '(no host)'} <When iso={s.at} />
+        </span>
+        <StatusMark state={s.status === 'ok' ? 'ok' : 'warn'} word={s.status === 'ok' ? 'Done' : `Warning: ${s.status}`} />
+        {s.status === 'ok' && (
+          <span className="tm-row-actions">
+            <Button size="sm" onClick={() => onNewTheme(formFromSite(s, freeThemeName('site-theme', taken)))} data-testid="site-new-theme">
+              New theme from this…
+            </Button>
+          </span>
+        )}
+      </div>
+      {s.untrusted.title && (
+        <p className="tm-quiet" data-testid="site-title">
+          {'Page title (as the page wrote it): '}
+          <Txt text={s.untrusted.title} />
+        </p>
+      )}
+      {s.palette && (
+        <p className="tm-line">
+          <Txt
+            text={`Paper ${s.palette.roles.paper} · text ${s.palette.roles.text}${s.palette.roles.accent ? ` · accent ${s.palette.roles.accent}` : ''}${s.palette.roles.dark ? ` · dark ${s.palette.roles.dark}` : ''}${s.palette.checks.length > 0 ? ` — ${s.palette.checks.filter((c) => c.ok).length}/${s.palette.checks.length} contrast checks pass` : ''}`}
+          />
+        </p>
+      )}
+      {s.candidates.length > 0 && (
+        <p className="tm-quiet">
+          {'Logo candidates: '}
+          {s.candidates.map((c, i) => (
+            <span key={c.ref}>
+              {i > 0 ? ', ' : ''}
+              <Txt className="k-mono" text={c.ref} />
+              <Txt text={` (${c.width}×${c.height})`} />
+            </span>
+          ))}
+        </p>
+      )}
+    </li>
   );
 }

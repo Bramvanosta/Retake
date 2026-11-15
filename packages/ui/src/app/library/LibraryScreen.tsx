@@ -26,7 +26,7 @@
  * browser). What the screen asks for and when: library-load.ts (cards on screen only, chunks of 12, a 2 s debounce,
  * Retry; nothing while the tab is hidden).
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import { errorText } from '../api.js';
@@ -44,25 +44,15 @@ import { LibraryDetail } from './LibraryDetail.js';
 import { ComponentInspector, LibraryInspector } from './LibraryInspector.js';
 import { LibraryImages, RenderPump } from './library-load.js';
 import type { RenderRequest } from './library-load.js';
-import {
-  KIND_ORDER,
-  NO_FILTER,
-  SOURCE_WORDS,
-  alsoServing,
-  alsoServingWords,
-  filterCounts,
-  filterItems,
-  groupByKind,
-  isKind,
-  kindHeading,
-  libraryEventAction,
-  okTheme,
-} from '../words/library-words.js';
-import type { LibraryFilter, SourceFilter } from '../words/library-words.js';
-import { hrefTo } from '../route.js';
+import { Filters, Notices, ThemeSelect } from './library-controls.js';
+import { gridKeyHandler, gridTabStop, useSelection } from './library-grid-keys.js';
+import { NO_FILTER, alsoServing, alsoServingWords, filterItems, groupByKind, isKind, kindHeading, libraryEventAction, okTheme } from '../words/library-words.js';
+import type { LibraryFilter } from '../words/library-words.js';
 import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
-import { Button, Callout, ChoiceChips, Disclosure, LinkButton, Segmented, Select, StatusMark, TextField, gridColumns } from '../ui-kit/index.js';
+import { Button, Callout, LinkButton, StatusMark } from '../ui-kit/index.js';
+
+export { nextCard } from './library-grid-keys.js';
 
 /** Events re-read the view at most this often. */
 const REREAD_MS = 250;
@@ -110,94 +100,6 @@ function useObserver() {
   return o;
 }
 
-function ThemeSelect({ view, slug }: { view: LibraryViewAnswer; slug: string }) {
-  return (
-    <Select
-      label="Theme"
-      layout="inline"
-      value={view.theme.name}
-      testId="lib-theme"
-      onChange={(t) => (location.hash = hrefTo({ name: 'library', slug, theme: t }))}
-      options={view.themes.map((t) => ({
-        value: t.name,
-        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.source === 'project' ? ' (project folder)' : ''}`,
-      }))}
-    />
-  );
-}
-
-function Notices({ notices }: { notices: LibraryViewAnswer['notices'] }) {
-  if (!notices.length) return null;
-  const errors = notices.filter((n) => n.severity === 'error').length;
-  return (
-    <Disclosure testId="lib-notices" summary={`${plural(notices.length, 'registry notice')}${errors ? ` — ${plural(errors, 'component')} cannot be loaded` : ''}`}>
-      <ul className="lb-notices">
-        {notices.map((n, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: the registry's notices, replaced whole on each read, text only: the index is the identity
-          <li key={i}>
-            <StatusMark state={n.severity === 'error' ? 'fail' : 'warn'} word={n.severity === 'error' ? 'Not loadable' : 'Warning'} /> {n.id && <Txt className="k-mono" text={n.id} />}{' '}
-            <Txt text={n.untrusted.message} />
-            {n.issues > 0 && <Txt className="lb-quiet" text={` (${plural(n.issues, 'issue')})`} />}
-            {n.command && (
-              <>
-                {' '}
-                <code className="k-mono lb-code">
-                  <Txt text={n.command} />
-                </code>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-    </Disclosure>
-  );
-}
-
-function Filters({ items, filter, set }: { items: LibraryItem[]; filter: LibraryFilter; set: (f: LibraryFilter) => void }) {
-  // A chip counts what choosing it would show under the other filters (a component under every kind it serves).
-  const { all, kinds: counts } = filterCounts(items, filter);
-  const kinds = [...new Set([...KIND_ORDER.filter((k) => counts[k]), ...Object.keys(counts).filter((k) => !isKind(k)), ...(filter.kind !== 'all' ? [filter.kind] : [])])];
-  const kindId = useId();
-  return (
-    <div className="lb-filters" data-testid="lib-filters">
-      <div className="lb-filter-line">
-        <Segmented<SourceFilter>
-          label="Source"
-          size="sm"
-          value={filter.source}
-          onChange={(s) => set({ ...filter, source: s })}
-          options={(['all', 'builtin', 'workspace'] as const).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
-        />
-        <div className="lb-search">
-          <TextField
-            label="Search components"
-            labelHidden
-            type="search"
-            value={filter.text}
-            onChange={(t) => set({ ...filter, text: t })}
-            unsaved={null}
-            placeholder="Name, id or description"
-            maxLength={200}
-            autoComplete="off"
-            spellCheck={false}
-            testId="lib-find"
-          />
-        </div>
-      </div>
-      <div className="lb-kinds">
-        <span id={kindId} className="lb-label">
-          Kind
-        </span>
-        <ChoiceChips
-          labelledBy={kindId}
-          chips={['all', ...kinds].map((k) => ({ key: k, value: k, checked: filter.kind === k, label: k === 'all' ? `All (${all})` : `${kindHeading(k)} (${counts[k] ?? 0})` }))}
-          onPick={(k) => set({ ...filter, kind: k })}
-        />
-      </div>
-    </div>
-  );
-}
-
 /** The selected or open component: its manifest read once (library_component) for the inspector and the page. */
 function Focused({ item, view, playing, detail, onCreate }: { item: LibraryItem; view: LibraryViewAnswer; playing: boolean; detail: boolean; onCreate: (kind: string, like: string) => void }) {
   const [d] = useLibraryComponent({ project: view.project, component: item.component }, `${view.project}/${item.component}/${item.version}/${item.poster.key}`);
@@ -209,39 +111,6 @@ function Focused({ item, view, playing, detail, onCreate }: { item: LibraryItem;
       </ShellSlot>
     </>
   );
-}
-
-/**
- * The grid's keys (one tab stop): the next card in a direction among the sections' cards, by component.
- * ← → one card (across sections), ↑ ↓ a row of the section (the columns the browser laid out; past its first or last
- * row, the same column of the section before or after), Home / End the first and the last.
- */
-export function nextCard(sections: string[][], at: string, key: string, columns: number): string | null {
-  const s = sections.findIndex((x) => x.includes(at));
-  if (s < 0) return null;
-  const flat = sections.flat();
-  const i = flat.indexOf(at);
-  const k = sections[s].indexOf(at);
-  const len = sections[s].length;
-  const cols = Math.max(1, columns);
-  if (key === 'ArrowRight') return flat[Math.min(flat.length - 1, i + 1)];
-  if (key === 'ArrowLeft') return flat[Math.max(0, i - 1)];
-  if (key === 'Home') return flat[0];
-  if (key === 'End') return flat[flat.length - 1];
-  if (key === 'ArrowDown') {
-    if (k + cols < len) return sections[s][k + cols];
-    if (Math.floor(k / cols) < Math.floor((len - 1) / cols)) return sections[s][len - 1];
-    const next = sections[s + 1];
-    return next ? next[Math.min(k % cols, next.length - 1)] : at;
-  }
-  if (key === 'ArrowUp') {
-    if (k - cols >= 0) return sections[s][k - cols];
-    const prev = sections[s - 1];
-    if (!prev) return at;
-    const lastRow = Math.floor((prev.length - 1) / cols) * cols;
-    return prev[Math.min(lastRow + (k % cols), prev.length - 1)];
-  }
-  return null;
 }
 
 /** Opening a component's page asks for its loop (rendered, not played: loops never start by themselves). */
@@ -311,37 +180,6 @@ function useLiveRereads(slug: string, view: ViewRead, pump: RenderPump, reload: 
     }, REREAD_MS);
   });
   useEffect(() => () => void (timer.current !== null && window.clearTimeout(timer.current)), []);
-}
-
-/** The grid's key handler (one tab stop): the arrows move the selection, Enter reaches the inspector, Escape clears. */
-function gridKeyHandler(sections: string[][], selected: string | null, select: (c: string | null) => void) {
-  return (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    const btn = (e.target as HTMLElement).closest<HTMLElement>('.lb-card > .k-card');
-    const card = btn?.closest<HTMLElement>('[data-testid="lib-card"]');
-    const at = card?.dataset.component;
-    if (!btn || !card || !at) return;
-    if (e.key === 'Enter') {
-      if (at !== selected) return;
-      // Enter on the selected card: its inspector (the pane, or in place when the person hid it).
-      e.preventDefault();
-      const target = document.querySelector<HTMLElement>('[data-lib-focus]');
-      target?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
-      target?.focus();
-      return;
-    }
-    if (e.key === 'Escape') {
-      if (selected === null) return;
-      e.preventDefault();
-      select(null);
-      return;
-    }
-    const next = nextCard(sections, at, e.key, e.key === 'ArrowDown' || e.key === 'ArrowUp' ? gridColumns(card.parentElement) : 1);
-    if (next === null) return;
-    e.preventDefault();
-    if (next !== at || selected !== at) select(next);
-    e.currentTarget.querySelector<HTMLElement>(`[data-testid="lib-card"][data-component="${CSS.escape(next)}"] > .k-card`)?.focus();
-  };
 }
 
 /** No view yet: the load's error, or its progress. */
@@ -491,23 +329,6 @@ function LibraryGrid({
       </div>
     </>
   );
-}
-
-/** The selected card, and the card picked last (the grid's tab stop when nothing is selected; Escape keeps it). */
-function useSelection() {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const select = useCallback((c: string | null) => {
-    setSelected(c);
-    if (c !== null) setCursor(c);
-  }, []);
-  return { selected, cursor, select };
-}
-
-/** The grid's one tab stop: the selected card when shown, else the card picked last, else the first. */
-function gridTabStop(sections: string[][], selected: string | null, cursor: string | null) {
-  const isShown = (c: string | null) => c !== null && sections.some((x) => x.includes(c));
-  return isShown(selected) ? selected : isShown(cursor) ? cursor : (sections[0]?.[0] ?? null);
 }
 
 export function LibraryScreen({ slug, theme, component }: { slug: string; theme?: string; component?: string }) {

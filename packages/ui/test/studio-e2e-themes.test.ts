@@ -397,8 +397,16 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
       w.__fields = [];
       type Fiber = { child: Fiber | null; sibling: Fiber | null; alternate: Fiber | null; memoizedProps: unknown; type: unknown };
       const seen = new WeakMap<Fiber, unknown>();
-      const what = (p: Record<string, unknown>): string | null => {
-        if (typeof p.testId === 'string' && p.testId.startsWith('color-') && 'picker' in p) return p.testId;
+      // A colour field is the ColorField component itself (the bundle is minified: no name to read): the function
+      // component whose own root is the kit's `k-color` wrapper with its test id — not an inner part handed the same props.
+      const colorField = (n: Fiber, p: Record<string, unknown>): string | null => {
+        const root = n.child?.type === 'div' ? (n.child.memoizedProps as Record<string, unknown> | null) : null;
+        const own = typeof root?.className === 'string' && root.className.split(' ').includes('k-color') && root['data-testid'] === p.testId;
+        return own && typeof p.testId === 'string' && p.testId.startsWith('color-') ? p.testId : null;
+      };
+      const what = (n: Fiber, p: Record<string, unknown>): string | null => {
+        const field = colorField(n, p);
+        if (field) return field;
         if ('choices' in p && typeof p.kind === 'string') return `pick:${p.kind}`;
         if (typeof p.k === 'string' && 'title' in p && p.k !== 'colours') return `section:${p.k}`;
         return null;
@@ -406,7 +414,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
       const visit = (f: Fiber | null) => {
         for (let n = f; n; n = n.sibling) {
           const p = n.memoizedProps as Record<string, unknown> | null;
-          const name = typeof n.type === 'function' && p && typeof p === 'object' ? what(p) : null;
+          const name = typeof n.type === 'function' && p && typeof p === 'object' ? what(n, p) : null;
           if (name) {
             const last = seen.has(n) ? seen.get(n) : n.alternate ? seen.get(n.alternate) : undefined;
             if (last !== undefined && last !== n.memoizedProps) w.__fields.push(name);

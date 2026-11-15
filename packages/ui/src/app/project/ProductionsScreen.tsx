@@ -14,26 +14,24 @@
  * inspector hidden, what it holds is shown under the grid (ShellSlot inline).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BoardScenario, ProjectBoardView, ProjectView, RunListItem, RunStatusWithJob } from '@retake/engine';
-import { useRunList } from '../data/projects.js';
+import type { BoardScenario, ProjectBoardView, ProjectView, RunStatusWithJob } from '@retake/engine';
 import { runThumbs } from '../data/scenarios.js';
 import { runStatus } from '../data/shoot.js';
-import { Lately } from './Activity.js';
-import { Txt, When, plural, shown } from '../bits.js';
-import { APP_NAME } from '../brand.js';
-import { GROUP_LABEL, SORT_LABEL, contentWords, envFlagWords, filterSort, lastTakeWords, lengthWords, posterTitle, productionState, reviewState } from '../words/board-words.js';
+import { Txt, plural, shown } from '../bits.js';
+import { GROUP_LABEL, SORT_LABEL, filterSort, lengthWords, posterTitle, productionState } from '../words/board-words.js';
 import type { BoardSort } from '../words/board-words.js';
-import { useEvents, useProjectEvents } from '../events.js';
+import { useEvents } from '../events.js';
 import { useBoard, useProjectView } from '../project-data.js';
 import { hrefTo } from '../route.js';
 import type { ProductionGroup, Route } from '../route.js';
-import { runShellCommand } from '../shell/command-bus.js';
 import { rememberScenario } from '../shell/modes.js';
 import { ShellSlot } from '../shell/slots.js';
-import { NoThumb, Thumb, ThumbsProvider } from '../Thumb.js';
-import { Button, Disclosure, EmptyState, Facts, InspectorSection, LinkButton, PosterGrid, Progress, Select, StatusMark, TextField, Toolbar } from '../ui-kit/index.js';
+import { ThumbsProvider } from '../Thumb.js';
+import { Disclosure, EmptyState, LinkButton, PosterGrid, Select, StatusMark, TextField, Toolbar } from '../ui-kit/index.js';
+import { LocationInspector, Poster, ProductionInspector, ProjectInspector } from './production-inspectors.js';
 
-const README_PREVIEW_LINES = 40;
+export { RunRows } from './production-inspectors.js';
+
 const SORTS: BoardSort[] = ['activity', 'name', 'length'];
 
 /** Progress of the takes the board shows running: `run_status` on their progress events and job changes. */
@@ -58,297 +56,6 @@ function useRunning(slug: string, board: ProjectBoardView | null): Map<string, P
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new board read is the trigger to drop what run_status said
   useEffect(() => setLive(new Map()), [board]);
   return live;
-}
-
-function Poster({ s, size }: { s: BoardScenario; size: 'poster' | 'inspector' }) {
-  if (!s.poster) return <NoThumb size={size}>{s.last_run || s.running ? 'No picture yet' : 'Not shot yet'}</NoThumb>;
-  return <Thumb run={s.poster.run} runKey={s.poster.key} size={size} alt={`The last pictured step of ${s.name}`} />;
-}
-
-function RunMark({ r }: { r: RunListItem }) {
-  const w = lastTakeWords({ id: r.id, mode: r.mode === 'dry' ? 'dry' : 'capture', status: r.status, started_at: r.started_at, steps_done: r.steps_done, steps_total: r.steps_total });
-  return <StatusMark state={w.state} word={w.words} />;
-}
-
-function RecentRuns({ slug }: { slug: string }) {
-  const [runs, reload] = useRunList({ project: slug, limit: 5 }, slug);
-  useProjectEvents(slug, reload);
-  if (runs.state === 'loading') return <p className="sc-quiet">Loading the runs…</p>;
-  if (runs.state === 'error') return <Txt className="sc-quiet" text={runs.error} />;
-  if (runs.data.runs.length === 0) return <p className="sc-quiet">No run yet.</p>;
-  return <RunRows runs={runs.data.runs} />;
-}
-
-/**
- * The rows of a list of runs. A row that is no run of the list — its run.json was written by a newer version, or does
- * not read as a record — shows its id and fixed words, never a field of a file that says nothing.
- */
-export function RunRows({ runs }: { runs: readonly RunListItem[] }) {
-  return (
-    <ul className="pr-runs">
-      {runs.map((r) =>
-        r.newer ? (
-          <li key={r.id} className="sc-quiet">
-            <Txt className="k-mono" text={r.id} />
-            {shown(`: written by a newer ${APP_NAME}`)}
-          </li>
-        ) : r.unread ? (
-          <li key={r.id} className="sc-quiet">
-            <Txt className="k-mono" text={r.id} />
-            {shown(': its run.json does not read as a record')}
-          </li>
-        ) : (
-          <li key={r.id} className="pr-run">
-            <RunMark r={r} />
-            <span className="sc-quiet">
-              <Txt text={r.scenario} /> · <Txt text={r.env} /> · {shown(`${r.steps_done}/${r.steps_total} steps`)} · <When iso={r.started_at} /> · <Txt className="k-mono" text={r.id} />
-            </span>
-          </li>
-        ),
-      )}
-    </ul>
-  );
-}
-
-/** The inspector with nothing selected: the project. */
-function ProjectInspector({ p }: { p: ProjectView }) {
-  const lines = p.readme?.split('\n') ?? [];
-  return (
-    <>
-      <InspectorSection title="Project">
-        <Facts
-          rows={[
-            { key: 'name', label: 'Name', value: <Txt text={p.name} /> },
-            { key: 'slug', label: 'Slug', value: <Txt className="k-mono" text={p.slug} /> },
-            { key: 'folder', label: 'Folder', value: <Txt className="k-mono pr-path" text={p.dir} title={p.dir} /> },
-            { key: 'scenarios', label: 'Productions', value: plural(p.scenarios.length, 'scenario') },
-            { key: 'env', label: 'Location', value: p.default_env ? <Txt text={p.default_env} /> : 'none' },
-          ]}
-        />
-      </InspectorSection>
-      <InspectorSection title="README">
-        {p.readme_error && (
-          <div className="pr-alert" role="note">
-            <StatusMark state="warn" word="Locked: README.md cannot be edited here" />
-            <p className="pr-alert-text">
-              <Txt text={p.readme_error} />
-            </p>
-          </div>
-        )}
-        {p.readme === null ? (
-          !p.readme_error && <p className="sc-quiet">No README.md yet. It tells Claude the product, the audience, the goals and the tone.</p>
-        ) : (
-          <>
-            {/* A scroller with a tab stop of its own (older engines do not focus scrollers). */}
-            {/* biome-ignore lint/a11y/useSemanticElements: a scrolling <pre> (whitespace kept) needs its own tab stop to scroll by keyboard, and role=region names it */}
-            {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling <pre> (whitespace kept) needs its own tab stop to scroll by keyboard, and role=region names it */}
-            <pre className="pr-readme k-mono" data-testid="readme-preview" tabIndex={0} role="region" aria-label="README.md, the first lines">
-              {shown(lines.slice(0, README_PREVIEW_LINES).join('\n'))}
-            </pre>
-            {lines.length > README_PREVIEW_LINES && <p className="sc-quiet">{shown(`${plural(lines.length - README_PREVIEW_LINES, 'more line')} in the editor.`)}</p>}
-          </>
-        )}
-        <div>
-          <LinkButton to={{ name: 'readme', slug: p.slug }} size="sm">
-            {p.readme_error ? 'Open the README' : p.readme === null ? 'Write the README' : 'Edit the README'}
-          </LinkButton>
-        </div>
-      </InspectorSection>
-      <InspectorSection title="Recent runs">
-        <RecentRuns slug={p.slug} />
-      </InspectorSection>
-      <InspectorSection title="Lately">
-        <Lately project={p.slug} limit={6} label="Recent activity of the project" />
-      </InspectorSection>
-    </>
-  );
-}
-
-/** The inspector of a selected production. */
-function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView; live: ReturnType<typeof useRunning> }) {
-  const st = productionState(s);
-  const env = p.environments.find((e) => e.name === s.env);
-  const last = s.last_run ? lastTakeWords(s.last_run) : null;
-  const running = s.running ? { ...s.running, ...(live.get(s.running.id) ?? {}) } : null;
-  const review = s.render ? reviewState(s.render.review) : null;
-  return (
-    <>
-      <InspectorSection title="Production">
-        <div className="pr-poster-large">
-          <Poster s={s} size="inspector" />
-        </div>
-        <div className="pr-title">
-          <h3 className="sc-h3">
-            <Txt text={posterTitle(s)} />
-          </h3>
-          <Txt className="k-mono sc-quiet" text={`${s.name}.yaml`} />
-        </div>
-        <StatusMark state={st.state} word={st.word} />
-        {running && (
-          <>
-            <Progress
-              label={running.mode === 'dry' ? 'Rehearsal' : 'Capture'}
-              value={running.steps_done}
-              max={Math.max(1, running.steps_total)}
-              valueText={`${running.steps_done} of ${running.steps_total} steps`}
-            />
-            <div>
-              <LinkButton to={{ name: 'run', slug: p.slug, scenario: s.name, run: running.id }} size="sm">
-                Watch live
-              </LinkButton>
-            </div>
-          </>
-        )}
-        <Facts
-          rows={[
-            { key: 'length', label: 'Length', value: s.length ? <span className="k-mono">{shown(lengthWords(s.length.seconds))}</span> : 'not shot yet' },
-            { key: 'content', label: 'Content', value: contentWords(s.content) },
-            ...(s.file.errors + s.file.warnings > 0 || !s.file.parsed
-              ? [{ key: 'file', label: 'File', value: s.file.parsed ? `${plural(s.file.errors, 'error')}, ${plural(s.file.warnings, 'warning')}` : 'not valid YAML' }]
-              : []),
-            {
-              key: 'take',
-              label: 'Last take',
-              value:
-                last && s.last_run ? (
-                  <span>
-                    <StatusMark state={last.state} word={last.words} />
-                    {' · '}
-                    <When iso={s.last_run.finished_at ?? s.last_run.started_at} />
-                  </span>
-                ) : (
-                  'none yet'
-                ),
-            },
-            {
-              key: 'capture',
-              label: 'Capture',
-              value: s.capture ? (
-                <span>
-                  {shown(s.capture.current === true ? 'current' : s.capture.current === false ? 'the file changed since' : 'cannot tell')}
-                  {' · '}
-                  <When iso={s.capture.finished_at} />
-                </span>
-              ) : (
-                'none yet'
-              ),
-            },
-            {
-              key: 'render',
-              label: 'Render',
-              value: s.render ? (
-                <span>
-                  <When iso={s.render.created_at} />
-                  {' · '}
-                  <Txt text={s.render.theme} />
-                </span>
-              ) : s.render_failed ? (
-                'the last one failed'
-              ) : (
-                'none yet'
-              ),
-            },
-            { key: 'review', label: 'Review', value: review ? <StatusMark state={review.state} word={review.words} /> : 'none yet' },
-            {
-              key: 'location',
-              label: 'Location',
-              value: s.env ? (
-                <span>
-                  <Txt text={s.env} />
-                  {env && envFlagWords(env, false) ? <span className="sc-quiet">{shown(` · ${envFlagWords(env, false)}`)}</span> : null}
-                </span>
-              ) : s.untrusted.env !== undefined ? (
-                // The file names an environment the project does not have (as written, capped, said so).
-                <span>
-                  <Txt text={s.untrusted.env} />
-                  <span className="sc-quiet">{' · not a location of this project'}</span>
-                </span>
-              ) : (
-                'none'
-              ),
-            },
-          ]}
-        />
-        <div className="pr-actions">
-          <LinkButton to={{ name: 'scenario', slug: p.slug, scenario: s.name, tab: 'blocks' }} variant="primary" testId="scenario-link">
-            Open
-          </LinkButton>
-          {s.capture ? (
-            // (BL-128) Render acts — the status bar's own action on this production (the scenario in context).
-            <Button data-testid="production-render" onClick={() => runShellCommand('render')}>
-              Render
-            </Button>
-          ) : (
-            <Button disabled why="No capture yet: a capture films the take a render edits.">
-              Render
-            </Button>
-          )}
-        </div>
-      </InspectorSection>
-      <InspectorSection title="Lately">
-        <Lately project={p.slug} scenario={s.name} limit={5} label={`Recent activity of ${s.name}`} />
-      </InspectorSection>
-    </>
-  );
-}
-
-/** The inspector of a location (an environment): its pages, display URLs, flags and personas. URLs are text. */
-function LocationInspector({ p, env }: { p: ProjectView; env: string }) {
-  const e = p.environments.find((x) => x.name === env);
-  if (!e) {
-    return (
-      <InspectorSection title="Location">
-        <p className="sc-quiet">
-          {'No location named '}
-          <Txt text={env} />
-          {' in this project.'}
-        </p>
-      </InspectorSection>
-    );
-  }
-  const flags = envFlagWords(e, e.name === p.default_env);
-  return (
-    <>
-      <InspectorSection title="Location">
-        <div className="pr-title">
-          <h3 className="sc-h3">
-            <Txt text={e.name} />
-          </h3>
-          <span className="sc-quiet">{shown(flags || 'read-write')}</span>
-        </div>
-      </InspectorSection>
-      <InspectorSection title="Pages">
-        <div className="pr-pages" data-testid="location-pages">
-          {Object.entries(e.pages).map(([key, url]) => (
-            <Facts
-              key={key}
-              label={`Page ${key}`}
-              rows={[
-                { key: 'page', label: 'Page', value: <Txt text={key} /> },
-                { key: 'url', label: 'URL', value: <Txt className="k-mono" text={url} /> },
-                { key: 'shown', label: 'Shown as', value: e.display?.[key] ? <Txt className="k-mono" text={e.display[key]} /> : '—' },
-              ]}
-            />
-          ))}
-        </div>
-      </InspectorSection>
-      <InspectorSection title="Personas">
-        {e.personas.length === 0 ? (
-          <p className="sc-quiet">No persona.</p>
-        ) : (
-          <ul className="pr-personas">
-            {e.personas.map((x) => (
-              <li key={x.name}>
-                <LinkButton to={{ name: 'cast', slug: p.slug }} variant="ghost" size="sm">
-                  <Txt text={x.name} />
-                </LinkButton>
-              </li>
-            ))}
-          </ul>
-        )}
-      </InspectorSection>
-    </>
-  );
 }
 
 export function ProductionsScreen({ slug, group, env }: { slug: string; group?: ProductionGroup; env?: string }) {
@@ -407,78 +114,8 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
   return (
     <ThumbsProvider fetch={fetchThumbs}>
       <div className="sc-screen pr">
-        <header className="pr-head">
-          <h1 className="sc-h1">{shown(title)}</h1>
-          <span className="pr-count k-mono">
-            {shown(shownList.length)}
-            <span className="k-sr"> {shownList.length === 1 ? 'production' : 'productions'}</span>
-          </span>
-          <div className="pr-tools">
-            <Toolbar label="Productions">
-              <TextField
-                label="Search productions"
-                type="search"
-                value={query}
-                onChange={setQuery}
-                unsaved={null}
-                placeholder="Search"
-                layout="inline"
-                labelHidden
-                maxLength={200}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <Select label="Sort" value={sort} options={SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))} onChange={(v) => setSort(v as BoardSort)} layout="inline" />
-              <LinkButton to={{ name: 'record', slug }} variant="primary" icon="plus" testId="record-link">
-                New scenario
-              </LinkButton>
-            </Toolbar>
-          </div>
-        </header>
-        {p.warnings.length > 0 && (
-          <div className="pr-warnings">
-            <StatusMark state="warn" word={`project.yaml: ${plural(p.warnings.length, 'warning')}`} />
-            <Disclosure summary={p.warnings.length === 1 ? 'Show the warning' : `Show the ${plural(p.warnings.length, 'warning')}`}>
-              <ul className="pr-warning-list">
-                {p.warnings.map((w, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: project.yaml's warnings, replaced whole on each read, text only: the index is the identity
-                  <li key={i}>
-                    <Txt text={w.message} />
-                  </li>
-                ))}
-              </ul>
-            </Disclosure>
-          </div>
-        )}
-        {board?.truncated && <p className="sc-quiet">{shown(`The first ${board.truncated.shown} of ${board.truncated.total} scenarios are shown.`)}</p>}
-        {boardState.state === 'loading' && (
-          <p className="sc-quiet" role="status">
-            Loading the productions…
-          </p>
-        )}
-        {boardState.state === 'error' && (
-          <p role="alert">
-            {'The productions could not be read: '}
-            <Txt text={boardState.error} />
-          </p>
-        )}
-        {board && all.length === 0 && (
-          <EmptyState
-            title="No scenario yet"
-            actions={
-              <LinkButton to={{ name: 'record', slug }} variant="primary">
-                Record a scenario
-              </LinkButton>
-            }
-          >
-            Record one in the browser, or ask Claude to write it.
-          </EmptyState>
-        )}
-        {board && all.length > 0 && shownList.length === 0 && (
-          <p className="sc-quiet" data-testid="productions-empty">
-            {query ? 'No production matches the search.' : 'No production in this group.'}
-          </p>
-        )}
+        <ProductionsHead title={title} count={shownList.length} query={query} onQuery={setQuery} sort={sort} onSort={setSort} slug={slug} />
+        <BoardNotices p={p} board={board} boardState={boardState} all={all} shownList={shownList} query={query} slug={slug} />
         {shownList.length > 0 && (
           <PosterGrid
             label={title}
@@ -512,6 +149,124 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
         </ShellSlot>
       </div>
     </ThumbsProvider>
+  );
+}
+
+/** The screen's head: its title and count, the search, the sort and New scenario. */
+function ProductionsHead({
+  title,
+  count,
+  query,
+  onQuery,
+  sort,
+  onSort,
+  slug,
+}: {
+  title: string;
+  count: number;
+  query: string;
+  onQuery: (q: string) => void;
+  sort: BoardSort;
+  onSort: (s: BoardSort) => void;
+  slug: string;
+}) {
+  return (
+    <header className="pr-head">
+      <h1 className="sc-h1">{shown(title)}</h1>
+      <span className="pr-count k-mono">
+        {shown(count)}
+        <span className="k-sr"> {count === 1 ? 'production' : 'productions'}</span>
+      </span>
+      <div className="pr-tools">
+        <Toolbar label="Productions">
+          <TextField
+            label="Search productions"
+            type="search"
+            value={query}
+            onChange={onQuery}
+            unsaved={null}
+            placeholder="Search"
+            layout="inline"
+            labelHidden
+            maxLength={200}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <Select label="Sort" value={sort} options={SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))} onChange={(v) => onSort(v as BoardSort)} layout="inline" />
+          <LinkButton to={{ name: 'record', slug }} variant="primary" icon="plus" testId="record-link">
+            New scenario
+          </LinkButton>
+        </Toolbar>
+      </div>
+    </header>
+  );
+}
+
+/** What the grid says above it: project.yaml's warnings, a board shown in part, loading, an error, nothing to show. */
+function BoardNotices({
+  p,
+  board,
+  boardState,
+  all,
+  shownList,
+  query,
+  slug,
+}: {
+  p: ProjectView;
+  board: ProjectBoardView | null;
+  boardState: ReturnType<typeof useBoard>;
+  all: BoardScenario[];
+  shownList: BoardScenario[];
+  query: string;
+  slug: string;
+}) {
+  return (
+    <>
+      {p.warnings.length > 0 && (
+        <div className="pr-warnings">
+          <StatusMark state="warn" word={`project.yaml: ${plural(p.warnings.length, 'warning')}`} />
+          <Disclosure summary={p.warnings.length === 1 ? 'Show the warning' : `Show the ${plural(p.warnings.length, 'warning')}`}>
+            <ul className="pr-warning-list">
+              {p.warnings.map((w, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: project.yaml's warnings, replaced whole on each read, text only: the index is the identity
+                <li key={i}>
+                  <Txt text={w.message} />
+                </li>
+              ))}
+            </ul>
+          </Disclosure>
+        </div>
+      )}
+      {board?.truncated && <p className="sc-quiet">{shown(`The first ${board.truncated.shown} of ${board.truncated.total} scenarios are shown.`)}</p>}
+      {boardState.state === 'loading' && (
+        <p className="sc-quiet" role="status">
+          Loading the productions…
+        </p>
+      )}
+      {boardState.state === 'error' && (
+        <p role="alert">
+          {'The productions could not be read: '}
+          <Txt text={boardState.error} />
+        </p>
+      )}
+      {board && all.length === 0 && (
+        <EmptyState
+          title="No scenario yet"
+          actions={
+            <LinkButton to={{ name: 'record', slug }} variant="primary">
+              Record a scenario
+            </LinkButton>
+          }
+        >
+          Record one in the browser, or ask Claude to write it.
+        </EmptyState>
+      )}
+      {board && all.length > 0 && shownList.length === 0 && (
+        <p className="sc-quiet" data-testid="productions-empty">
+          {query ? 'No production matches the search.' : 'No production in this group.'}
+        </p>
+      )}
+    </>
   );
 }
 

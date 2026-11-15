@@ -71,53 +71,25 @@ function rawFlagsWithoutRaw(o: RunCommandOptions): string[] {
   return given;
 }
 
-/** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
-export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions): Promise<ExitCode> {
-  const json = opts.json === true;
-  const emitJson = (e: RunProgress) => ui.result(JSON.stringify(e));
-  const stray = rawFlagsWithoutRaw(opts);
-  if (!opts.raw && stray.length) throw new UsageError(`${stray.join(', ')} ${stray.length > 1 ? 'shape' : 'shapes'} the raw export: add --raw`);
-  if (opts.raw && opts.dry) throw new UsageError('--raw exports a capture: it cannot be combined with --dry');
-  const rawFlags = opts.raw ? parseRawFlags(opts) : undefined;
-  const fail = (message: string): ExitCode => {
-    if (json) emitJson({ type: 'log', level: 'error', message });
-    else ui.error(message);
-    return EXIT.failure;
-  };
+type ListedRun = Awaited<ReturnType<typeof reserveListedRun>>;
 
-  let prepared: PreparedRun;
-  try {
-    const ws = await openWorkspace(global);
-    prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
-    checkHeadedDisplay(opts, global.ports.env);
-  } catch (e) {
-    if (e instanceof RunOptionError) throw new UsageError(e.message);
-    return fail(errorMessage(e));
-  }
+/** How a run says a line: a JSON event with --json, else a line of the terminal. */
+type RunSay = { json: boolean; emitJson: (e: RunProgress) => void; emitNote: (level: 'info' | 'warn', message: string) => void };
+
+/** The check of the scenario's shell hooks before the take: a listing and a yes when an agent wrote them. */
+async function checkRunHooks(
+  ui: Ui,
+  global: GlobalOptions,
+  prepared: PreparedRun,
+  opts: RunCommandOptions,
+  say: RunSay,
+): Promise<{ ok: true; listedRun: ListedRun | undefined; trustedHookFiles: TrustedHookFiles | undefined } | { ok: false; message: string }> {
   const { ws, project, scenario, sandboxEnv } = prepared;
-  // --allow-writes on a read-only environment is a usage error (it confirms writes, it never grants them).
-  if (opts.allowWrites) {
-    try {
-      checkAllowWrites(project, sandboxEnv ?? opts.env ?? scenario.scenario.env);
-    } catch (e) {
-      if (isAccessError(e)) throw new UsageError(e.message);
-      throw e;
-    }
-  }
-  // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
-  const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
-
-  // --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
-  // it is, and must be up. A failure there creates no run folder.
-  const emitNote = (level: 'info' | 'warn', message: string) => {
-    if (json) emitJson({ type: 'log', level, message });
-    else if (level === 'warn') ui.warn(message);
-    else ui.line(ui.c.dim(message));
-  };
+  const { json, emitJson, emitNote } = say;
   // The shell hooks of a scenario whose hooks an agent wrote (or whose writer cannot be known) are listed as
   // they will run — rendered with this run's context, its id reserved for it — and run only on a person's yes (a
   // terminal's, or --yes); listed only when they do not run (the runner's default: run for a capture, skip for --dry).
-  let listedRun: Awaited<ReturnType<typeof reserveListedRun>> | undefined;
+  let listedRun: ListedRun | undefined;
   // The files the person's check read (a trust, or a yes to the listing): the run's hooks are held to them.
   let trustedHookFiles: TrustedHookFiles | undefined;
   try {
@@ -150,24 +122,31 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       });
       if (!verdict.ok) {
         await listedRun?.release();
-        return fail(verdict.message);
+        return { ok: false, message: verdict.message };
       }
     }
   } catch (e) {
     await (listedRun as { release(): Promise<void> } | undefined)?.release();
-    return fail(errorMessage(e));
+    return { ok: false, message: errorMessage(e) };
   }
-  // Captures first: while this capture films, heavy work of every workspace of this user waits or yields
-  // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
-  const owner = await selfIdentity();
+  return { ok: true, listedRun, trustedHookFiles };
+}
+
+/** The filming marker and the takes filming beside this one, from the capture's start to its stop (captures first). */
+function filmingWatch(
+  root: string,
+  global: GlobalOptions,
+  owner: Awaited<ReturnType<typeof selfIdentity>>,
+  emitNote: RunSay['emitNote'],
+): { onFilming: (state: FilmingEvent) => FilmingReport | undefined; dispose: () => void } {
   let marker: FilmingMarker | null = null;
   // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
   let beside: TakeBeside | undefined;
   const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
     if (state === 'start' && !marker) {
-      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner, env: global.ports.env });
+      marker = FilmingMarker.open({ root, source: 'cli', owner, env: global.ports.env });
       beside = new TakeBeside({
-        root: ws.root,
+        root,
         env: global.ports.env,
         own: () => marker?.name,
         onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`),
@@ -183,6 +162,95 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
     }
     return undefined;
   };
+  const dispose = () => {
+    (marker as FilmingMarker | null)?.closeSync();
+    (beside as TakeBeside | undefined)?.stop();
+  };
+  return { onFilming, dispose };
+}
+
+/** The raw export's flags of `run --raw` (refused without --raw, and with --dry). */
+function rawFlagsOf(opts: RunCommandOptions): ReturnType<typeof parseRawFlags> | undefined {
+  const stray = rawFlagsWithoutRaw(opts);
+  if (!opts.raw && stray.length) throw new UsageError(`${stray.join(', ')} ${stray.length > 1 ? 'shape' : 'shapes'} the raw export: add --raw`);
+  if (opts.raw && opts.dry) throw new UsageError('--raw exports a capture: it cannot be combined with --dry');
+  return opts.raw ? parseRawFlags(opts) : undefined;
+}
+
+/** --allow-writes on a read-only environment is a usage error (it confirms writes, it never grants them). */
+function checkWritesAllowed(prepared: PreparedRun, opts: RunCommandOptions): void {
+  const { project, scenario, sandboxEnv } = prepared;
+  try {
+    checkAllowWrites(project, sandboxEnv ?? opts.env ?? scenario.scenario.env);
+  } catch (e) {
+    if (isAccessError(e)) throw new UsageError(e.message);
+    throw e;
+  }
+}
+
+/** The raw export of a run that succeeded (`run --raw`); the failure's words, or undefined. */
+async function rawExportAfterRun(
+  ui: Ui,
+  global: GlobalOptions,
+  prepared: PreparedRun,
+  o: { runDir: string; flags: Parameters<typeof rawExportOfRun>[1]['flags']; json: boolean; wait: RunCommandOptions['wait'] },
+): Promise<string | undefined> {
+  const { ws, project } = prepared;
+  const { json } = o;
+  if (!json) ui.line();
+  // Its encodes are heavy work: they wait for another take filming now, and yield during a later one.
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: o.wait === false });
+  try {
+    // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
+    await rawExportOfRun(ui, { ports: global.ports, ws, project, runDir: o.runDir, flags: o.flags, json, jsonLines: json });
+  } catch (e) {
+    return `raw export: ${errorMessage(e)}`;
+  } finally {
+    await gate.dispose();
+  }
+  return undefined;
+}
+
+/** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
+export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions): Promise<ExitCode> {
+  const json = opts.json === true;
+  const emitJson = (e: RunProgress) => ui.result(JSON.stringify(e));
+  const rawFlags = rawFlagsOf(opts);
+  const fail = (message: string): ExitCode => {
+    if (json) emitJson({ type: 'log', level: 'error', message });
+    else ui.error(message);
+    return EXIT.failure;
+  };
+
+  let prepared: PreparedRun;
+  try {
+    const ws = await openWorkspace(global);
+    prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
+    checkHeadedDisplay(opts, global.ports.env);
+  } catch (e) {
+    if (e instanceof RunOptionError) throw new UsageError(e.message);
+    return fail(errorMessage(e));
+  }
+  const { ws, project } = prepared;
+  if (opts.allowWrites) checkWritesAllowed(prepared, opts);
+  // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
+  const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
+
+  // --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
+  // it is, and must be up. A failure there creates no run folder.
+  const emitNote = (level: 'info' | 'warn', message: string) => {
+    if (json) emitJson({ type: 'log', level, message });
+    else if (level === 'warn') ui.warn(message);
+    else ui.line(ui.c.dim(message));
+  };
+  // An agent's shell hooks: listed, and run only on a person's yes (checkRunHooks).
+  const hooks = await checkRunHooks(ui, global, prepared, opts, { json, emitJson, emitNote });
+  if (!hooks.ok) return fail(hooks.message);
+  const { listedRun, trustedHookFiles } = hooks;
+  // Captures first: while this capture films, heavy work of every workspace of this user waits or yields
+  // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
+  const owner = await selfIdentity();
+  const { onFilming, dispose: stopWatching } = filmingWatch(ws.root, global, owner, emitNote);
   // The printer measures the run from its first event (the sandbox take is not part of it).
   let printer: ProgressPrinter | undefined;
   let record: RunRecord;
@@ -234,23 +302,13 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
     fail(errorText(e));
     return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
   } finally {
-    (marker as FilmingMarker | null)?.closeSync();
-    (beside as TakeBeside | undefined)?.stop();
+    stopWatching();
   }
   if (!json) await printSummary(ui, record, printer?.elapsedMs ?? 0);
   if (record.status !== 'succeeded') return EXIT.failure;
   if (rawFlags) {
-    if (!json) ui.line();
-    // Its encodes are heavy work: they wait for another take filming now, and yield during a later one.
-    const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
-    try {
-      // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
-      await rawExportOfRun(ui, { ports: global.ports, ws, project, runDir: record.dir, flags: { ...rawFlags, cursor: rawCursor }, json, jsonLines: json });
-    } catch (e) {
-      return fail(`raw export: ${errorMessage(e)}`);
-    } finally {
-      await gate.dispose();
-    }
+    const failed = await rawExportAfterRun(ui, global, prepared, { runDir: record.dir, flags: { ...rawFlags, cursor: rawCursor }, json, wait: opts.wait });
+    if (failed !== undefined) return fail(failed);
   }
   return EXIT.ok;
 }

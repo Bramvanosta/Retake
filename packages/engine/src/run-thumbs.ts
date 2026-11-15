@@ -223,6 +223,16 @@ export class RunThumbs {
     const r = this.o.frames;
     // Loaded before the slots catch their failures: frames that cannot be loaded fail the call, never read as missing.
     await r.load();
+    const m = this.makers(run, results, signal);
+    // Files first; the video is the last resort.
+    await this.fromFiles(run, plans, m, signal);
+    await this.fromVideos(run, plans, m, signal);
+    if (signal?.aborted) for (const p of plans) if (!results.has(p.key)) results.set(p.key, 'cancelled');
+  }
+
+  /** What every source's thumbnail goes through: whether a key is made, keeping a made one, and the sharp slot. */
+  private makers(run: RunData, results: Map<string, RunThumb | ThumbMissingReason>, signal: AbortSignal | undefined) {
+    const r = this.o.frames;
     const done = (key: string) => {
       const v = results.get(key);
       return v !== undefined && typeof v !== 'string';
@@ -254,8 +264,12 @@ export class RunThumbs {
         release();
       }
     };
-    // Files (screenshots, kept frames), keys in parallel, each key's sources in order (an error screenshot before
-    // the frame); the video is the last resort.
+    return { done, keep, jpeg, results };
+  }
+
+  /** Files (screenshots, kept frames): keys in parallel, each key's sources in order (an error screenshot before the frame). */
+  private async fromFiles(run: RunData, plans: Plan[], m: ReturnType<RunThumbs['makers']>, signal: AbortSignal | undefined): Promise<void> {
+    const { done, keep, jpeg, results } = m;
     const fileGroups = new Map<string, Array<Extract<Plan, { kind: 'file' }>>>();
     for (const p of plans) if (p.kind === 'file') fileGroups.set(p.key, [...(fileGroups.get(p.key) ?? []), p]);
     await Promise.all(
@@ -276,6 +290,12 @@ export class RunThumbs {
         }
       }),
     );
+  }
+
+  /** The video, the last resort: one ffmpeg per video for the keys still missing. */
+  private async fromVideos(run: RunData, plans: Plan[], m: ReturnType<RunThumbs['makers']>, signal: AbortSignal | undefined): Promise<void> {
+    const { done, keep, jpeg, results } = m;
+    const r = this.o.frames;
     const videoPlans = plans.filter((p): p is Extract<Plan, { kind: 'video' }> => p.kind === 'video' && !done(p.key));
     const byVideo = new Map<string, Array<Extract<Plan, { kind: 'video' }>>>();
     for (const p of videoPlans) byVideo.set(p.video, [...(byVideo.get(p.video) ?? []), p]);
@@ -321,7 +341,6 @@ export class RunThumbs {
         }),
       );
     }
-    if (signal?.aborted) for (const p of plans) if (!results.has(p.key)) results.set(p.key, 'cancelled');
   }
 
   /** Runs `fn` after the run's previous video batch (one ffmpeg per run at a time). */

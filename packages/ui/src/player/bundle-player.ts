@@ -207,25 +207,41 @@ type BuildOnce = { ok: true; js: Buffer; boot: Buffer } | { ok: false; byOwner: 
 /** The components' import rules the loader applies (the engine's player making: the components' own). */
 type ImportRules = Pick<PlayerBuildEntries, 'importProblem' | 'unhashedFileProblem' | 'unhashedImportMessage'>;
 
-async function buildOnce(
-  components: readonly BundleComponent[],
-  hash: string,
-  composition: string,
-  entries: { kit: string; geometry: string; rules: ImportRules },
-  held: readonly string[],
-): Promise<BuildOnce> {
-  const { kit, geometry } = entries;
-  const { build } = await import('esbuild');
-  const { importProblem, unhashedFileProblem, unhashedImportMessage } = entries.rules;
+/** The components' real folders (the deepest first), by id, and the owner of each generated entry. */
+interface Owners {
+  byId: Map<string, Owner>;
+  entryOwner: Map<string, string>;
+  ownerOf(file: string): Owner | undefined;
+}
+
+function ownersOf(components: readonly BundleComponent[]): Owners {
   const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realpathOr(c.dir, resolve(c.dir)) })).sort((a, b) => b.realDir.length - a.realDir.length);
   const byId = new Map(owners.map((x) => [x.id, x]));
   const entryOwner = new Map(components.map((c) => [c.entry.split(sep).join('/'), c.id]));
   const ownerOf = (file: string): Owner | undefined => owners.find((x) => pathInside(file, x.realDir, { dotDotPrefix: true }));
+  return { byId, entryOwner, ownerOf };
+}
+
+/** What one build's plugin generates and resolves with: the modules' inputs, the kit and geometry entries, the import rules. */
+interface PluginInputs {
+  hash: string;
+  composition: string;
+  held: readonly string[];
+  kit: string;
+  geometry: string;
+  rules: ImportRules;
+}
+
+/** The plugin of one build: the generated modules, then every import and file of a component held to its rules. */
+function previewPlugin(components: readonly BundleComponent[], o: PluginInputs, owners: Owners): Plugin {
+  const { hash, composition, held, kit, geometry } = o;
+  const { importProblem, unhashedFileProblem, unhashedImportMessage } = o.rules;
+  const { byId, entryOwner, ownerOf } = owners;
   /** A component's words for one of its files: its id and the path inside its folder, never the folder. */
   const named = (owner: Owner, file: string) => `${owner.id}/${relative(owner.realDir, file).split(sep).join('/')}`;
   const fail = (owner: Owner, text: string) => ({ errors: [{ text, detail: owner.id }] });
 
-  const plugin: Plugin = {
+  return {
     name: 'retake-preview',
     setup(b) {
       b.onResolve({ filter: /^retake:(modules|composition)$/ }, (args) => ({ path: args.path, namespace: 'retake' }));
@@ -297,6 +313,37 @@ async function buildOnce(
       });
     },
   };
+}
+
+/** A build that failed: the first line of each component's first error (its folder worded as its id), else the first other one. */
+function failedBuild(errors: Message[], owners: Owners): BuildOnce {
+  const { byId, ownerOf } = owners;
+  const byOwner = new Map<string, string>();
+  let unowned: string | undefined;
+  for (const m of errors) {
+    let owner = typeof m.detail === 'string' ? byId.get(m.detail) : undefined;
+    if (!owner && m.location?.file) {
+      const file = m.location.file.replace(/^file:/, '');
+      const abs = isAbsolute(file) ? file : resolve(PACKAGE_DIR, file);
+      owner = ownerOf(realpathOr(abs, resolve(abs)));
+    }
+    if (owner) {
+      if (!byOwner.has(owner.id)) byOwner.set(owner.id, m.text.split('\n')[0].split(owner.realDir).join(owner.id).slice(0, 300));
+    } else unowned ??= m.text.split('\n')[0].slice(0, 300);
+  }
+  return { ok: false, byOwner, ...(unowned !== undefined ? { unowned } : {}) };
+}
+
+async function buildOnce(
+  components: readonly BundleComponent[],
+  hash: string,
+  composition: string,
+  entries: { kit: string; geometry: string; rules: ImportRules },
+  held: readonly string[],
+): Promise<BuildOnce> {
+  const { build } = await import('esbuild');
+  const owners = ownersOf(components);
+  const plugin = previewPlugin(components, { hash, composition, held, ...entries }, owners);
 
   try {
     const out = await build({
@@ -324,20 +371,7 @@ async function buildOnce(
   } catch (e) {
     const errors = (e as { errors?: Message[] }).errors;
     if (!Array.isArray(errors)) throw e;
-    const byOwner = new Map<string, string>();
-    let unowned: string | undefined;
-    for (const m of errors) {
-      let owner = typeof m.detail === 'string' ? byId.get(m.detail) : undefined;
-      if (!owner && m.location?.file) {
-        const file = m.location.file.replace(/^file:/, '');
-        const abs = isAbsolute(file) ? file : resolve(PACKAGE_DIR, file);
-        owner = ownerOf(realpathOr(abs, resolve(abs)));
-      }
-      if (owner) {
-        if (!byOwner.has(owner.id)) byOwner.set(owner.id, m.text.split('\n')[0].split(owner.realDir).join(owner.id).slice(0, 300));
-      } else unowned ??= m.text.split('\n')[0].slice(0, 300);
-    }
-    return { ok: false, byOwner, ...(unowned !== undefined ? { unowned } : {}) };
+    return failedBuild(errors, owners);
   }
 }
 

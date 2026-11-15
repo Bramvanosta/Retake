@@ -20,6 +20,7 @@
  * the letterbox colour is the kit's `--ui-video`.
  */
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import type { ForwardedRef, RefObject } from 'react';
 import { LIVE_BOX, nextLayout, placeFrame } from './run-live.js';
 import type { LiveFrame, PictureState, Size } from './run-live.js';
 import { Txt, shown } from '../bits.js';
@@ -97,7 +98,11 @@ interface Props {
   note?: string;
 }
 
-export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ picture, shown: on, capture, onToggle, note }, ref) {
+/**
+ * The canvas a run's frames are drawn on, its count of frames drawn, and the handle that draws (latest-only while one
+ * decodes) and clears it.
+ */
+function useLiveCanvas(ref: ForwardedRef<LiveViewHandle>): { canvas: RefObject<HTMLCanvasElement | null>; drawn: RefObject<number> } {
   const canvas = useRef<HTMLCanvasElement>(null);
   const decoding = useRef(false);
   const waiting = useRef<LiveFrame | null>(null);
@@ -165,7 +170,11 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
     }),
     [decode],
   );
+  return { canvas, drawn };
+}
 
+export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ picture, shown: on, capture, onToggle, note }, ref) {
+  const { canvas, drawn } = useLiveCanvas(ref);
   // A picture that cannot come (a terminal's run, an ended run, refused) says so whatever the toggle.
   const fixed = picture?.state === 'none' || picture?.state === 'ended' || picture?.state === 'busy';
   const state: PictureState = !on && !fixed ? 'off' : (picture?.state ?? 'waiting');

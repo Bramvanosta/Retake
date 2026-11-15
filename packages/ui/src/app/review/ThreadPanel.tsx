@@ -93,23 +93,8 @@ export const ThreadPanel = memo(function ThreadPanel({
       </p>
     );
   }
-  if (loaded.state === 'error') {
-    const gone = loaded.code === 'not_found';
-    return (
-      <Callout state={gone ? 'idle' : 'fail'} role="alert" title={gone ? 'Note: no such thread' : 'This thread cannot be read'}>
-        <p className="cm-pre" data-testid="thread-error">
-          <Txt text={loaded.error} />
-        </p>
-        <p>
-          <LinkButton size="sm" variant="ghost" to={{ name: 'comments', slug, scenario: name }}>
-            Back to the threads
-          </LinkButton>
-        </p>
-      </Callout>
-    );
-  }
+  if (loaded.state === 'error') return <ThreadUnreadable slug={slug} name={name} code={loaded.code} error={loaded.error} />;
   const th = loaded.data.thread;
-  const texts = new Map(th.untrusted.entries.map((e) => [e.id, e]));
   const chips = anchorChips({ frame: th.frame, timecode: th.timecode, anchor: th.anchor, ...(th.step_now !== undefined ? { step_now: th.step_now } : {}) });
   return (
     <article className="cm-thread" aria-labelledby={head} data-testid="thread" data-id={th.id} data-status={th.status} data-hash={th.hash}>
@@ -137,55 +122,7 @@ export const ThreadPanel = memo(function ThreadPanel({
         </p>
       )}
       {!th.render_present && th.still && <ThreadStill slug={slug} id={th.id} renderId={th.render_id} />}
-      {th.entries.length > 0 && (
-        <>
-          <h3 className="cm-h3">
-            <Txt text={plural(th.entries_total, 'entry', 'entries')} />
-          </h3>
-          {th.entries_total > th.entries.length && (
-            <p className="cm-quiet">
-              <Txt text={`The newest ${th.entries.length} are shown.`} />
-            </p>
-          )}
-          <ol className="cm-entries" data-testid="thread-entries">
-            {th.entries.map((e) => {
-              const u = texts.get(e.id);
-              return (
-                <li key={e.id} className="cm-entry" data-testid="thread-entry" data-kind={e.kind} data-via={e.via}>
-                  <p className="cm-entry-head" data-testid="entry-head">
-                    <Tag>
-                      <Txt text={channelWords(e.via)} />
-                    </Tag>{' '}
-                    {u && e.via !== 'mcp' && (
-                      <>
-                        <Txt text={u.author} />{' '}
-                      </>
-                    )}
-                    <Txt text={`${entryWords(e.kind)}${e.render_id ? ` with ${renderWords(e.render_id)}` : ''} · `} />
-                    <When iso={e.created_at} />
-                  </p>
-                  {u && u.text !== '' && (
-                    <p className="cm-pre cm-entry-text">
-                      <Txt text={u.text} />
-                    </p>
-                  )}
-                  {e.proposal && (
-                    <p className="cm-small cm-line" data-testid="entry-proposal" data-state={e.proposal.state}>
-                      <StatusMark state={e.proposal.actionable ? 'warn' : 'idle'} word={proposalWords(e.proposal.state)} />{' '}
-                      <Txt text={`A change to scenarios/${name}.yaml: ${plural(e.proposal.added, 'line')} added, ${e.proposal.removed} removed, in ${plural(e.proposal.hunks, 'place')}.`} />
-                    </p>
-                  )}
-                  {e.applies && (
-                    <p className="cm-quiet">
-                      <Txt text={`Applied the proposal of ${e.applies}.`} />
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </>
-      )}
+      {th.entries.length > 0 && <ThreadEntries th={th} name={name} />}
       {loaded.data.proposal && <ProposalCard slug={slug} name={name} th={th} p={loaded.data.proposal} rs={rs} reload={reload} />}
       <ThreadActions slug={slug} name={name} th={th} renders={renders} reload={reload} />
       <p className="cm-quiet">
@@ -194,6 +131,77 @@ export const ThreadPanel = memo(function ThreadPanel({
     </article>
   );
 });
+
+/** A thread that cannot be read: gone (said as a note) or why, and the way back to the threads. */
+function ThreadUnreadable({ slug, name, code, error }: { slug: string; name: string; code: string | undefined; error: string }) {
+  const gone = code === 'not_found';
+  return (
+    <Callout state={gone ? 'idle' : 'fail'} role="alert" title={gone ? 'Note: no such thread' : 'This thread cannot be read'}>
+      <p className="cm-pre" data-testid="thread-error">
+        <Txt text={error} />
+      </p>
+      <p>
+        <LinkButton size="sm" variant="ghost" to={{ name: 'comments', slug, scenario: name }}>
+          Back to the threads
+        </LinkButton>
+      </p>
+    </Callout>
+  );
+}
+
+/** The thread's entries (the newest shown): the channel in words, an author and a text as untrusted text, a proposal's size, an apply. */
+function ThreadEntries({ th, name }: { th: ThreadAnswer; name: string }) {
+  const texts = new Map(th.untrusted.entries.map((e) => [e.id, e]));
+  return (
+    <>
+      <h3 className="cm-h3">
+        <Txt text={plural(th.entries_total, 'entry', 'entries')} />
+      </h3>
+      {th.entries_total > th.entries.length && (
+        <p className="cm-quiet">
+          <Txt text={`The newest ${th.entries.length} are shown.`} />
+        </p>
+      )}
+      <ol className="cm-entries" data-testid="thread-entries">
+        {th.entries.map((e) => {
+          const u = texts.get(e.id);
+          return (
+            <li key={e.id} className="cm-entry" data-testid="thread-entry" data-kind={e.kind} data-via={e.via}>
+              <p className="cm-entry-head" data-testid="entry-head">
+                <Tag>
+                  <Txt text={channelWords(e.via)} />
+                </Tag>{' '}
+                {u && e.via !== 'mcp' && (
+                  <>
+                    <Txt text={u.author} />{' '}
+                  </>
+                )}
+                <Txt text={`${entryWords(e.kind)}${e.render_id ? ` with ${renderWords(e.render_id)}` : ''} · `} />
+                <When iso={e.created_at} />
+              </p>
+              {u && u.text !== '' && (
+                <p className="cm-pre cm-entry-text">
+                  <Txt text={u.text} />
+                </p>
+              )}
+              {e.proposal && (
+                <p className="cm-small cm-line" data-testid="entry-proposal" data-state={e.proposal.state}>
+                  <StatusMark state={e.proposal.actionable ? 'warn' : 'idle'} word={proposalWords(e.proposal.state)} />{' '}
+                  <Txt text={`A change to scenarios/${name}.yaml: ${plural(e.proposal.added, 'line')} added, ${e.proposal.removed} removed, in ${plural(e.proposal.hunks, 'place')}.`} />
+                </p>
+              )}
+              {e.applies && (
+                <p className="cm-quiet">
+                  <Txt text={`Applied the proposal of ${e.applies}.`} />
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
+}
 
 /** A thread's still (its render is gone): asked once, a checked data: JPEG. */
 function ThreadStill({ slug, id, renderId }: { slug: string; id: string; renderId: string }) {
@@ -219,6 +227,9 @@ function ThreadStill({ slug, id, renderId }: { slug: string; id: string; renderI
 }
 
 type Write = { kind: 'idle' } | { kind: 'sending'; what: string } | { kind: 'done'; words: string } | { kind: 'conflict'; words: string } | { kind: 'error'; words: string };
+
+/** The thread's one write helper, as the forms call it (the op name and its arguments). */
+type SendWrite = <K extends ThreadPanelWrite>(what: string, op: K, args: ThreadPanelArgs<K>, done: string, clear: () => void) => void;
 
 function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name: string; th: ThreadAnswer; renders: ScenarioRenderView[]; reload: () => void }) {
   const [reply, setReply] = useState('');
@@ -271,44 +282,78 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
           Reply
         </Button>
       </form>
-      {th.status === 'open' ? (
-        <form
-          className="cm-form"
-          aria-label="Resolve"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (note.trim()) send('Resolve', 'thread_resolve', { note, if_match: th.hash, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));
-          }}
-        >
-          <TextArea label="Resolve — what was changed" rows={2} value={note} onChange={setNote} unsaved={note.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} testId="resolve-note" />
-          {newer.length > 0 && (
-            <Select
-              label="Answered by"
-              value={answer}
-              onChange={setAnswer}
-              testId="resolve-render"
-              options={[...newer.map((r) => ({ value: r, label: renderWords(r) })), { value: '', label: 'no render' }]}
-            />
-          )}
-          <Button size="sm" submit data-testid="resolve" disabled={sending || note.trim() === ''}>
-            Resolve
-          </Button>
-        </form>
-      ) : (
-        <form
-          className="cm-form"
-          aria-label="Reopen"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send('Reopen', 'thread_reopen', { if_match: th.hash, ...(note.trim() ? { note } : {}) }, 'Reopened', () => setNote(''));
-          }}
-        >
-          <TextArea label="Reopen — why (optional)" rows={2} value={note} onChange={setNote} unsaved={note.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} testId="reopen-note" />
-          <Button size="sm" submit data-testid="reopen" disabled={sending}>
-            Reopen
-          </Button>
-        </form>
+      <ResolveOrReopen th={th} note={note} setNote={setNote} newer={newer} answer={answer} setAnswer={setAnswer} item={item} sending={sending} send={send} />
+      <WriteSaid write={write} />
+    </div>
+  );
+}
+
+/** Resolve (a note, optionally the newer render that answers it) on an open thread, Reopen (why, optional) on a resolved one. */
+function ResolveOrReopen({
+  th,
+  note,
+  setNote,
+  newer,
+  answer,
+  setAnswer,
+  item,
+  sending,
+  send,
+}: {
+  th: ThreadAnswer;
+  note: string;
+  setNote: (n: string) => void;
+  newer: string[];
+  answer: string;
+  setAnswer: (a: string) => void;
+  item: { kind: 'comment'; project: string; scenario: string };
+  sending: boolean;
+  send: SendWrite;
+}) {
+  return th.status === 'open' ? (
+    <form
+      className="cm-form"
+      aria-label="Resolve"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (note.trim()) send('Resolve', 'thread_resolve', { note, if_match: th.hash, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));
+      }}
+    >
+      <TextArea label="Resolve — what was changed" rows={2} value={note} onChange={setNote} unsaved={note.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} testId="resolve-note" />
+      {newer.length > 0 && (
+        <Select
+          label="Answered by"
+          value={answer}
+          onChange={setAnswer}
+          testId="resolve-render"
+          options={[...newer.map((r) => ({ value: r, label: renderWords(r) })), { value: '', label: 'no render' }]}
+        />
       )}
+      <Button size="sm" submit data-testid="resolve" disabled={sending || note.trim() === ''}>
+        Resolve
+      </Button>
+    </form>
+  ) : (
+    <form
+      className="cm-form"
+      aria-label="Reopen"
+      onSubmit={(e) => {
+        e.preventDefault();
+        send('Reopen', 'thread_reopen', { if_match: th.hash, ...(note.trim() ? { note } : {}) }, 'Reopened', () => setNote(''));
+      }}
+    >
+      <TextArea label="Reopen — why (optional)" rows={2} value={note} onChange={setNote} unsaved={note.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} testId="reopen-note" />
+      <Button size="sm" submit data-testid="reopen" disabled={sending}>
+        Reopen
+      </Button>
+    </form>
+  );
+}
+
+/** What the last write said: sending, done, or why it was not written (a conflict as a warning). */
+function WriteSaid({ write }: { write: Write }) {
+  return (
+    <>
       <p className="cm-small" aria-live="polite" data-testid="thread-write">
         {write.kind === 'sending' ? <Txt text={`${write.what}…`} /> : write.kind === 'done' ? <Txt text={write.words} /> : ''}
       </p>
@@ -319,6 +364,6 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
           </p>
         </Callout>
       )}
-    </div>
+    </>
   );
 }
