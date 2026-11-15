@@ -45,7 +45,7 @@ import { emptySiteReport, memorySite } from '../src/capture/memory-sessions.js';
 import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '@retake/test-support/site';
 import type { BrandSite } from '@retake/test-support/site';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 const can = hasOpenssl();
 let site: BrandSite;

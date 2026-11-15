@@ -25,7 +25,7 @@ import type { RenderRecord } from '@retake/editor';
 import { COMMENT_FILE_MAX_BYTES, addComment, commentLockFile, commentStillFile, getComment, listComments, reopenComment, replyComment, resolveComment } from '../src/comments.js';
 import { EngineError, createEngine } from '../src/index.js';
 import { readJournal } from '../src/store/journal.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import type { Engine } from '../src/index.js';
 import { hasTool } from '@retake/test-support/repo';

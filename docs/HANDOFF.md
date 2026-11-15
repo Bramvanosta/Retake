@@ -75,6 +75,55 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.58)
+- **L7.58 done (2026-11-15; branch `claude/arch-l7`)** — the product's package adapters and their default ports live
+  in a new composition package, `@retake/compose` (packages/compose); the shells build their engine from it; the
+  engine loads no adapter package any more and never names the composition package.
+  - Code: packages/compose (new, private, `exports` "." only): `lazy.ts` (the seven loaders, moved), `ports.ts`
+    (`productPorts(given)`, `productAdapters`, `bindProduct`), the six package adapters moved out of the engine
+    (editor-renderer, runner-web-capture, review-package, package-hooks, package-sandboxes, package-registries),
+    `worker-main.ts` and `bundle-env.ts` (moved). Engine: `ports.ts` gains `Product` / `bindProduct` /
+    `boundProduct` / `boundWorkerEntry` — `enginePorts` keeps the engine's own defaults (clock, stores, reads, queue,
+    secrets, outputs, hosts) and takes the six package ports from the bound product (or refuses by name; every port
+    handed needs none); `lazy.ts` holds the editor's and the components' modules the product binds (roots as types
+    only); `jobs/spawn.ts` starts the bound worker entry; `jobs/build.ts` stamps the composition package's folders
+    too; new entry `@retake/engine/composition` (what the composition package wires). `./shell` no longer exports
+    `enginePorts`, `./testing` no longer the package adapters (now `@retake/compose`), the main entry no longer the
+    type `Clock` (as on the branch). Shells: CLI `main()` binds the product, `cliEnginePorts` = `productPorts()`;
+    MCP `createEngine({ …, ports: productPorts() })` (stdio and HTTP); Studio `studioPorts = productPorts()`, also
+    handed to its engine. The app bundle needs no script change (`pnpm deploy` of the CLI brings the new package;
+    set-version reads packages/ itself). Docs: target-architecture.md (composition layer, rules), DESIGN.md (worker
+    entry), guide/development.md (the package).
+  - Rules: scripts/audit/lib.mjs — layer `composition` (LAYERS), R2 forbids it to adapters, new checks `engine-load`
+    (no value import / re-export / `import()` / require of an adapter package outside the domain entries anywhere in
+    packages/engine/src, the loader included), `engine-deps` (the engine's @retake deps are core and the domain
+    entries' packages; no package below the composition depends on it) and `compose-use` (only the shells' sources
+    import it); LOADER_HOMES / ADAPTER_HOMES down to render/ and registries/; PORT_ROOTS of the package adapters in
+    packages/compose/src; ENV_HOMES without the worker entry. Baseline 63 → 63 (no entry went stale: the moved
+    adapters had none).
+  - Tests: packages/compose/test/product.test.ts (new, ci tier: an unbound engine refuses by name, the bound product,
+    the deps); vitest.setup.ts binds the product in a `beforeAll` (after each file's mocks apply); ~55 test files
+    moved to `@retake/compose` imports, `enginePorts` from the shell entry → `productPorts`; child scripts (engine
+    fixtures, app-bundle) bind the product; worker-process tests spawn compose's worker-main.
+  - Mutations: engine-load (a value import and an `import()` of an adapter in lazy.ts), compose-use (engine and
+    hooks importing the package), engine-deps (engine depending on compose and on mcp), R2 (hooks importing it): each
+    red, restored green.
+  - Gates: clean build (every packages/*/dist and *.tsbuildinfo removed, `npx tsc -b` 0), `pnpm typecheck`,
+    `pnpm lint` (0), `pnpm format:check`, rules `--check`, size-limits `--strict`, test-guard (no decrease),
+    check-cites on a scratch copy with the requirement edits: all 0. Tests, 39 files each alone (fresh RETAKE_HOME,
+    RETAKE_DISK_WARN=off), all green: compose product, core import-rules and test-typecheck, engine engine-entries,
+    ports, editor-renderer, pipeline, run-thumbs, worker-ports, capture-runner, hook-runner, reviewer, registries,
+    sandboxes, comments and library-cache (child fixtures), worker-heavy, jobs, engine, render-use-case (real render),
+    worker-process (real capture through compose's worker entry), render-worker-process (real render jobs),
+    worker-captures, sign-in-sandbox-jobs; cli test-ci-tier, operations-cli, app-bundle, app-bundle-build,
+    desktop-config, main-ports, doctor-captures, doctor, sandbox, pipeline-cli, record; mcp approval, site-output;
+    ui library-ops, supervise, board-ops.
+  - Not done: the engine still names the editor's and the components' roots as types (lazy.ts, render/,
+    registries/) — their hand-on calls (render/editor-calls.ts, render/work.ts, registries/component-calls.ts) run
+    on the modules the product binds; moving those calls behind ports needs the root-only types (FoundRender,
+    RenderStillOptions, …) in the domain entries. The engine's package.json keeps all six adapter packages as
+    dependencies, because the domain entries are their sub-paths.
+
 ## State (after L7.57b)
 - **L7.57b done (2026-11-15; branch `claude/arch-l7`)** — the size baseline 176 → 18 entries: no file over 1,000
   lines left, files over 500 lines 96 → 49, functions over 100 lines 124 → 5, parameter lists over 5 38 → 12,

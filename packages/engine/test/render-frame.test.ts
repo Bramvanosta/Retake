@@ -21,7 +21,7 @@ import { RenderFrames } from '../src/render-frames.js';
 import { Semaphore } from '../src/run-thumbs.js';
 import { addComment } from '../src/comments.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import { hasTool } from '@retake/test-support/repo';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Case, Workspace } from '@retake/test-support/review';

@@ -26,7 +26,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine } from '../src/index.js';
 import type { HostResolver } from '../src/protected-hosts.js';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 /** The MCP engine's host resolver (its ports' `hosts`): the system's, or the one a test puts in with useHosts. */
 let resolver: HostResolver = systemHosts();

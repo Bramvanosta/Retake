@@ -3,7 +3,7 @@
  * `hooks` or `env_reset` job, a sandbox's approvals, the dry-run preflight of work submitted through MCP or the Studio —
  * and replays the rollbacks their journals hold. Its vocabulary is core's (hook-run.ts); it names no adapter, types
  * included (the import-rules ratchet's `port-types`). Adapters: the hooks package (`packageHookRunner`,
- * package-hooks.ts) and an in-memory one for tests (`MemoryHookRunner`, memory-hooks.ts).
+ * the composition package's package-hooks.ts) and an in-memory one for tests (`MemoryHookRunner`, memory-hooks.ts).
  *
  * What a run does — templates, secrets, trust `mcp`, approvals, the allow-list, read-only access, journaling, signing —
  * is the adapter's. An approval's fingerprint is too: it hashes the project files a hook references, so it is never

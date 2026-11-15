@@ -59,9 +59,9 @@ vi.mock('@retake/core/ids', async (importOriginal) => {
   };
 });
 
-// The port's adapter as the CLI's composition root builds it (engine ports.ts imports it by this path).
-vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../../engine/src/sandboxes/package-sandboxes.ts')>();
+// The port's adapter as the CLI's composition root builds it (the composition package's ports.ts imports it by this path).
+vi.mock('../../compose/src/package-sandboxes.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../compose/src/package-sandboxes.ts')>();
   const { SandboxError } = await import('@retake/core');
   type Handle = import('../../engine/src/sandboxes/sandboxes.ts').SandboxHandle;
   type Project = Parameters<import('../../engine/src/sandboxes/sandboxes.ts').Sandboxes['open']>[0];
@@ -262,10 +262,10 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
   };
 });
 
-// The renderer as the CLI's composition root builds it (engine ports.ts imports it by this path: the CLI ports'
+// The renderer as the CLI's composition root builds it (the composition package's ports.ts imports it by this path: the CLI ports'
 // renderer).
-vi.mock('../../engine/src/render/editor-renderer.ts', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../../engine/src/render/editor-renderer.ts')>();
+vi.mock('../../compose/src/editor-renderer.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../compose/src/editor-renderer.ts')>();
   // The CLI's ports are made when a command first runs, after the memory renderer below: each call goes to it when it
   // is made.
   type R = ReturnType<typeof real.editorRenderer>;

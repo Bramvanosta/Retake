@@ -14,7 +14,7 @@ import { recordCommand } from '../src/commands/record.js';
 import type { RecordTestHooks } from '../src/commands/record.js';
 import { Ui } from '../src/ui.js';
 import { scratchHome } from '@retake/test-support/home';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -63,7 +63,7 @@ async function record(args: { name?: string; json?: boolean; path?: string }, dr
   };
   const code = await recordCommand(
     new Ui(io),
-    { root: ws, ports: enginePorts() },
+    { root: ws, ports: productPorts() },
     { project: 'shop', name: args.name },
     { page: 'shop', ...(args.path ? { path: args.path } : {}), ...(args.json ? { json: true } : {}) },
     hooks,

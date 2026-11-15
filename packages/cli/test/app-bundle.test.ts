@@ -24,7 +24,7 @@ import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';
 import { Ui } from '../src/ui.js';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 
 // biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
 type Untyped = any;
@@ -98,9 +98,9 @@ describe('the bundle setup runs first in both entry points (before anything load
       .join('\n');
     expect(code.indexOf("'bundle-env.js'")).toBeGreaterThan(0);
     expect(code.indexOf("'bundle-env.js'")).toBeLessThan(code.indexOf("'main.js'"));
-    const worker = readFileSync(join(REPO, 'packages', 'engine', 'src', 'worker-main.ts'), 'utf8');
+    const worker = readFileSync(join(REPO, 'packages', 'compose', 'src', 'worker-main.ts'), 'utf8');
     expect(worker.split('\n').find((l) => l.startsWith('import '))).toBe("import './bundle-env.js';");
-    for (const pkg of ['cli', 'engine']) expect(readFileSync(join(REPO, 'packages', pkg, 'src', 'bundle-env.ts'), 'utf8')).toMatch(/^prepareBundle\(\);$/m);
+    for (const pkg of ['cli', 'compose']) expect(readFileSync(join(REPO, 'packages', pkg, 'src', 'bundle-env.ts'), 'utf8')).toMatch(/^prepareBundle\(\);$/m);
   });
 });
 
@@ -528,7 +528,7 @@ describe('the stage never writes the checkout (pnpm deploy hard-links injected w
 describe('retake init (a workspace folder of your own)', () => {
   it('new folder → workspace; existing workspace left; non-empty folder refused; never inside the app', async () => {
     const dir = join(tmp, 'ws-new');
-    expect(await initWorkspace(dir, enginePorts())).toEqual({ root: dir, created: true });
+    expect(await initWorkspace(dir, productPorts())).toEqual({ root: dir, created: true });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toMatch(/^version: 1$/m);
     // The bytes written, pinned (the workspace's files go through the project store since).
     expect(
@@ -539,19 +539,19 @@ describe('retake init (a workspace folder of your own)', () => {
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.retake/\n');
     expect(readdirSync(join(dir, 'projects'))).toEqual([]);
     writeFileSync(join(dir, 'retake.yaml'), 'version: 1\nprojects_dir: mine\n');
-    expect(await initWorkspace(dir, enginePorts())).toEqual({ root: dir, created: false });
+    expect(await initWorkspace(dir, productPorts())).toEqual({ root: dir, created: false });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toContain('projects_dir: mine');
     const full = join(tmp, 'ws-full');
     mkdirSync(full);
     writeFileSync(join(full, 'notes.txt'), 'x');
-    await expect(initWorkspace(full, enginePorts())).rejects.toThrow(/is not empty and is not a workspace/);
+    await expect(initWorkspace(full, productPorts())).rejects.toThrow(/is not empty and is not a workspace/);
     const hidden = join(tmp, 'ws-hidden');
     mkdirSync(hidden);
     writeFileSync(join(hidden, '.DS_Store'), '');
-    expect((await initWorkspace(hidden, enginePorts())).created).toBe(true);
+    expect((await initWorkspace(hidden, productPorts())).created).toBe(true);
     const app = appBundle();
     overrideBundleInfo(app);
-    await expect(initWorkspace(join(app.root, 'ws'), enginePorts())).rejects.toThrow(BundleError);
+    await expect(initWorkspace(join(app.root, 'ws'), productPorts())).rejects.toThrow(BundleError);
   });
 });
 
@@ -619,7 +619,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     mkdirSync(ws);
     writeFileSync(join(ws, 'retake.yaml'), 'version: 1\n');
     const io = memoryIo();
-    expect(await componentsPreviewCommand(new Ui(io), { root: ws, ports: enginePorts() }, undefined, { all: true })).toBe(0);
+    expect(await componentsPreviewCommand(new Ui(io), { root: ws, ports: productPorts() }, undefined, { all: true })).toBe(0);
     expect(io.stderr() + io.stdout()).toMatch(/built-in components ship inside the Retake app/);
     expect(io.stderr() + io.stdout()).toMatch(/every preview is up to date/);
   });
@@ -652,7 +652,9 @@ describe("every Node.js started on the bundle's code loads its module lookup gua
     writeFileSync(join(app.root, BUNDLE_GUARD), '');
     const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'io', 'index.js')).href;
     const spawn = pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'jobs', 'spawn.js')).href;
+    const compose = pathToFileURL(join(REPO, 'packages', 'compose', 'dist', 'index.js')).href;
     const script = `const core = await import(${JSON.stringify(core)});
+(await import(${JSON.stringify(compose)})).bindProduct();
 const { workerCommand } = await import(${JSON.stringify(spawn)});
 core.overrideBundleInfo(core.readBundleManifest(${JSON.stringify(app.root)}));
 const a = workerCommand('/w').args;
@@ -661,7 +663,7 @@ console.log(JSON.stringify([a, workerCommand('/w').args]));`;
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', cwd: REPO });
     expect(r.status, r.stderr).toBe(0);
     const [bundled, plain] = JSON.parse(r.stdout) as [string[], string[]];
-    const entry = join(REPO, 'packages', 'engine', 'dist', 'worker-main.js');
+    const entry = join(REPO, 'packages', 'compose', 'dist', 'worker-main.js');
     expect(bundled).toEqual(['--require', join(app.root, 'node', 'guard.cjs'), entry, '--root', '/w']);
     expect(plain).toEqual([entry, '--root', '/w']);
   });

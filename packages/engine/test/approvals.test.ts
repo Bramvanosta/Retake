@@ -35,7 +35,7 @@ import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 interface Fixture {
   urls: { console: string; shop: string };

@@ -27,7 +27,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { OpenedWorkspace } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 let root: string;
 let home: string;

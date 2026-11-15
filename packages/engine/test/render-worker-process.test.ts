@@ -39,7 +39,7 @@ const children: ChildProcess[] = [];
 const retakeHome = scratchHome();
 
 function startWorker(...args: string[]): { child: ChildProcess; exited: Promise<number | null>; err(): string } {
-  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
+  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/compose/src/worker-main.ts'), '--root', root, ...args], {
     cwd: REPO,
     env: { ...process.env, RETAKE_HOME: join(root, '.home') },
     stdio: ['ignore', 'ignore', 'pipe'],

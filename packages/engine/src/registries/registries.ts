@@ -5,7 +5,7 @@
  * review load none by themselves — and the catalogue's disk work (a component validated, scaffolded, its preview's status
  * and its source files). It names no adapter, types included (the import-rules ratchet's `port-types`): the
  * registry's type is the components' domain entry's. Adapters: the components package (`packageRegistries`,
- * package-registries.ts) and an in-memory one for tests (`MemoryRegistries`, memory-registries.ts); one contract
+ * the composition package's package-registries.ts) and an in-memory one for tests (`MemoryRegistries`, memory-registries.ts); one contract
  * (engine/test/registries-contract.ts).
  */
 import type { ComponentRegistry, ComponentValidation, CreateComponentOptions, CreatedComponent, PreviewStatus } from '@retake/components/geometry';

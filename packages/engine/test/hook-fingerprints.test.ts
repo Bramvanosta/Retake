@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HookStep } from '@retake/core';
 import { hookFiles, hookFingerprint } from '@retake/hooks';
-import { packageHookRunner } from '../src/hook-run/package-hooks.js';
+import { packageHookRunner } from '@retake/compose';
 import type { HookPlace } from '../src/hook-run/runner.js';
 
 // The hooks as their files declare them (a fingerprint hashes the raw hook, whatever it holds: `confirm` on an http

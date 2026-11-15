@@ -18,7 +18,7 @@ import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
 import { siteOutput } from '../src/tools/theme.js';
 import { drawPng } from '@retake/test-support/site';
 import { scratchHome } from '@retake/test-support/home';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 
 let root: string;
 let engine: Engine;
@@ -37,7 +37,7 @@ afterAll(async () => {
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {
-  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: enginePorts().registries };
+  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs, registries: productPorts().registries };
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   await writeFile(

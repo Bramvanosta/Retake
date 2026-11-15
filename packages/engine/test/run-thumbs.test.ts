@@ -25,7 +25,7 @@ import { EngineError, createEngine } from '../src/index.js';
 import { RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, THUMB_BASE64_MAX } from '../src/run-thumbs.js';
 import { RunFolder } from '../src/outputs/run-files.js';
 import { frameAt, gridFrame, parseFrameIndex, seekTime } from '../src/run-data.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import type { Engine, RunThumbsView } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from '@retake/test-support/runs';
 import type { Rgb, SynthRun } from '@retake/test-support/runs';
@@ -588,13 +588,13 @@ describe('cost: ffmpeg processes, abort, no Remotion', () => {
       expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);
     }
     // The thumbnails are drawn by the reviewer's frames (run-thumbs.ts names no review entry at all), and the
-    // product's frames load the light entry (lazy.ts `thumbs`; ports.test asserts which loader each member calls).
+    // product's frames load the light entry (the composition package's lazy.ts `thumbs`; ports.test asserts which loader each member calls).
     expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).not.toMatch(/@retake\/review/);
     // The loader held by what it loads, not by its statement — the light entry's own module, which
     // holds the frames and the thumbnails and nothing of the package root; that the reviewer's `at` and `thumb` go
     // through this loader (and the rest through the root's) is ports.test's "the reviewer's frames come from the
     // thumbnail entry" (each member's loader recorded).
-    const light = await (await import('../src/lazy.js')).thumbs();
+    const light = await (await import('../../compose/src/lazy.js')).thumbs();
     expect(light).toBe(await import('@retake/review/thumbs'));
     expect([typeof light.videoFramesAt, typeof light.thumbJpeg, 'reviewRender' in light]).toEqual(['function', 'function', false]);
   });

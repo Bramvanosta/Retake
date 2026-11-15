@@ -3,7 +3,7 @@
  * job opens for a person, the free space a library preview job reads, and the job processes of its heavy slot (their
  * command line, the signals sent to them, their background priority, the build stamp the worker compares while idle).
  * `workerPorts` is where those three's defaults are written
- * (the product's adapters; the engine's are ports.ts enginePorts', which runWorker hands it). A composition root (worker-main through runWorker, an in-process test) hands any of them in
+ * (the product's adapters; the engine's are ports.ts enginePorts', which runWorker hands it). A composition root (the composition package's worker-main through runWorker, an in-process test) hands any of them in
  * `WorkerOptions.ports`; the worker record and the job runner hold no test hook.
  */
 import type { RecordPorts } from '../record.js';

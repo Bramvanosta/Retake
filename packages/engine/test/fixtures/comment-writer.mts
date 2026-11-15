@@ -10,8 +10,11 @@ import { diskWorkspaceReads } from '../../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../../src/outputs/disk-outputs.js';
 import { PERSON_POLICY } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
-import { packageRegistries } from '../../src/registries/package-registries.js';
+import { bindProduct, packageRegistries } from '../../../compose/src/index.js';
 import { loadComponentRegistry } from '@retake/components';
+
+// A process of its own: the product bound, as a composition root does.
+bindProduct();
 
 const [root, slug, id, name, count] = process.argv.slice(2);
 const project = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() }), slug);

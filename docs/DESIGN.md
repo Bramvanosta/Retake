@@ -2383,7 +2383,7 @@ workers/worker.log      what workers print (stderr), appended
     workspace. `project_create` refuses a page on one of another project's; a run, hooks or an environment reset on a
     read-write environment with a page on one is refused at submit and by the worker (`checkWorkspaceProtection`). A
     protected environment itself is not concerned (its own access applies); sandboxes neither.
-- Worker (`runWorker`, entry `worker-main.ts`; `retake worker` (hidden) runs the same): takes `worker.lock` (a live
+- Worker (`runWorker`, entry the composition package's `worker-main.ts`; `retake worker` (hidden) runs the same): takes `worker.lock` (a live
   holder: exit at once; a stale one is taken over under a breaker), and runs two slots (L5.14, §4q): the capture slot
   claims the oldest queued capture-class job and runs it in the worker, the heavy slot the oldest queued heavy job and
   runs it in a job process of its own (`worker-main --job`); captures go first. Each job's cancel marker is checked
@@ -2427,7 +2427,7 @@ workers/worker.log      what workers print (stderr), appended
   (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's
   environment and run the jobs an MCP client queued): newest first with progress and outcome, one job's details, a
   cancel (a finished job: nothing to do; a queued one is cancelled at once, closed by the next worker). Malformed ids and states are usage errors (exit 2); an unknown job exits 1.
-- `ensureWorker(root)` spawns `node <engine>/worker-main.js --root <ws>` detached (`--conditions=source --import
+- `ensureWorker(root)` spawns `node <compose>/worker-main.js --root <ws>` (the entry the composition package binds into the engine) detached (`--conditions=source --import
   <tsx loader>` + the `.ts` entry when the engine runs from its sources) unless the lock's holder is alive. The worker
   inherits the spawning server's environment and outlives it.
 
@@ -5935,7 +5935,7 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
 **The browsers path never leaks** (critique M2): playwright-core reads `PLAYWRIGHT_BROWSERS_PATH` once, when its
 registry loads. `prepareBundle()` sets it to `paths.browsers`, requires playwright-core from the engine folder and
 restores the inherited value (deleted when there was none) — first thing in both entry points: `bin.js` loads
-`bundle-env.js` before `main.js`; `worker-main.ts`'s first import is `./bundle-env.js` (the worker never runs bin.js).
+`bundle-env.js` before `main.js`; the composition package's `worker-main.ts` first imports its `./bundle-env.js` (the worker never runs bin.js).
 Hooks, sandbox services, shells, `claude` and the worker's children see the person's own value. One playwright-core in
 the engine (checkStage) keeps the registry the engine launches from the one that was pointed.
 
@@ -6600,7 +6600,7 @@ previews and site extractions are background work, a take is not (BL-116). Built
   not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
   loop (review A M2). With `ports` (jobs/worker-ports.ts `WorkerPorts`, in-process tests only: L7.10 replaced
   `rendererTest` with `ports.renderer`; L7.29 `previewTest` with `ports.renderer` — a preview backend is a renderer of
-  its own, editor-renderer.ts `withPreviewBackend` — and `ports.freeBytes`, `recordTest` with `ports.recordWindow`,
+  its own, the composition package's `withPreviewBackend` — and `ports.freeBytes`, `recordTest` with `ports.recordWindow`,
   `jobProcessTest` with `ports.processes`: a job process's command line, the signal sender, the QoS table, the build
   stamp) the worker record holds no test hook. Heavy jobs run in the worker, one job at a time, as before the job
   processes, when its root says so (`heavyInProcess`); a worker handed a port a heavy job reads (worker-ports.ts

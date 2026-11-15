@@ -216,6 +216,7 @@ async function studioEngine(o: StudioServerOptions): Promise<Engine> {
   return createEngine({
     root: o.root,
     client: 'ui',
+    ports: studioPorts,
     autoStartWorker: o.startWorker !== false,
     workerEnv: studioWorkerEnv(process.env, root, process.execPath, undefined, folders),
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),

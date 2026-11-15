@@ -116,8 +116,11 @@ function work(root: string, modes: Record<string, string>, extra: Partial<Parame
   return p;
 }
 
-/** This build's stamp (what the product's build stamp port answers while the code does not change). */
-const stamp = buildStamp(buildDirs());
+/** This build's stamp (what the product's build stamp port answers while the code does not change), once the product is bound. */
+let stamp = '';
+beforeAll(() => {
+  stamp = buildStamp(buildDirs());
+});
 
 /** A take of this workspace films now: one of its filming markers is live and not paused (read as the worker's slot sees it). */
 function filmingHere(root: string): boolean {

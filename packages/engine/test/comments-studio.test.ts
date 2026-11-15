@@ -20,7 +20,7 @@ import type { CommentThread, LoadedProject } from '@retake/core';
 import { CommentIndex, addComment, anchorAt } from '../src/comments.js';
 import { EngineError, createEngine } from '../src/index.js';
 import { diffSources, scanSources, workspaceChanges } from '../src/index-db/sources.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import type { Engine } from '../src/index.js';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Case, Workspace } from '@retake/test-support/review';

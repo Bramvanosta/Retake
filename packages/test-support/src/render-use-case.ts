@@ -6,11 +6,12 @@
 import { createRenderer } from '@retake/editor';
 import type { RenderDriverOptions } from '@retake/editor';
 import type { Renderer } from '@retake/engine';
-import { exportInProcess, renderInProcess, enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
+import { exportInProcess, renderInProcess } from '@retake/engine/shell';
 import { diskOutputs, diskWorkspaceReads, systemClock } from '@retake/engine/testing';
 
 /** The disk's outputs and workspace reads, and the product's component registries: where a test's render goes. */
-const DISK = { outputs: diskOutputs, reads: diskWorkspaceReads, registries: enginePorts().registries };
+const DISK = { outputs: diskOutputs, reads: diskWorkspaceReads, registries: productPorts().registries };
 
 type Rendered = Parameters<typeof renderInProcess>[0];
 type Exported = Parameters<typeof exportInProcess>[0];

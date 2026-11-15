@@ -1,18 +1,17 @@
 /**
  * The product's capture runner: the runner package behind the CaptureRunner port. The package is loaded through the
- * engine's loader (lazy.ts `runnerWeb`) on a member's first call, or by `load()` — which the composition roots await
+ * composition package's loader (lazy.ts `runnerWeb`) on a member's first call, or by `load()` — which the composition roots await
  * where they imported the package before the port (the jobs worker and the job process at their start, the CLI before
  * it listens to Ctrl-C), so that the two synchronous members work in a signal handler. Each member calls the package's
  * function with the same arguments: what is filmed, recorded, signed in and removed is the package's, unchanged. Made by
- * the composition roots only (ports.ts enginePorts).
+ * the composition package only (ports.ts productPorts).
  */
 import type { RunOptions } from '@retake/runner-web/types';
 import { missingOrInvalid } from '@retake/core/base';
 import type { CaptureHookRunner } from '@retake/core/hooks';
-import { EngineError } from '../errors.js';
-import type { HookRunner } from '../hook-run/runner.js';
-import { runnerWeb } from '../lazy.js';
-import type { CaptureRunner, HookBrowser } from './runner.js';
+import { EngineError } from '@retake/engine/composition';
+import type { CaptureRunner, HookBrowser, HookRunner } from '@retake/engine/composition';
+import { runnerWeb } from './lazy.js';
 
 type RunnerWeb = Awaited<ReturnType<typeof runnerWeb>>;
 type Session = RunnerWeb['BrowserSession']['prototype'];

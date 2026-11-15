@@ -17,6 +17,7 @@
     "src"
   ],
   "dependencies": {
+    "@retake/compose": "workspace:*",
     "@retake/core": "workspace:*",
     "@retake/engine": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",

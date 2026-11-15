@@ -4,7 +4,7 @@
  * the version reserved, the record, where the files go, on the Outputs port's renders); a still, an export's
  * transcodes and the previews are the editor's, given the renderer to draw with (an export's re-rendered formats come
  * back to the engine's render use case). Results and errors come back unchanged. No function here picks a renderer:
- * the composition roots do (editor-renderer.ts, or a test's own).
+ * the composition roots do (the composition package's editor-renderer.ts, or a test's own).
  */
 import type { ExportRenderOptions, ExportResult, RenderLoopsOptions, RenderLoopsResult, RenderPreviewsOptions, RenderStillOptions, RenderedPreview } from '@retake/editor';
 import type { RenderRecord } from '@retake/editor/plan';

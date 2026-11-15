@@ -1,12 +1,12 @@
 /**
  * The product's renderer: the editor's driver (its bundle, the render browser, the encoder and the probe) as the
- * engine's port, and the editor's probes of this machine (`machine`). The editor is loaded through the engine's loader (lazy.ts), and this is the only place the editor's
+ * engine's port, and the editor's probes of this machine (`machine`). The editor is loaded through the composition package's loader (lazy.ts), and this is the only place the editor's
  * driver is made: a composition root (the job process, the jobs worker, a shell's command run in process) calls
  * `editorRenderer()` and hands the port to the work.
  */
 import type { PreviewBackend } from '@retake/editor';
-import { editor } from '../lazy.js';
-import type { RenderMachine, Renderer } from './renderer.js';
+import type { RenderMachine, Renderer } from '@retake/engine/composition';
+import { editor } from './lazy.js';
 
 /**
  * Made on first use, once — and again after a failure: a load or a build that failed is not kept, so the next request

@@ -6,6 +6,15 @@
  */
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { beforeAll } from 'vitest';
+
+// Every test file's engine has the product's adapters within reach, as each shell's does (its composition root binds
+// them): a test that hands every port of its own needs none, one that hands some gets the product's for the others.
+// Bound before the file's tests, once its modules are loaded — through the same modules, its mocks included (a static
+// import here would load the engine before the file's vi.mock calls apply).
+beforeAll(async () => {
+  (await import('@retake/compose')).bindProduct();
+});
 
 const parent = process.env.RETAKE_TEST_CAPTURES?.trim();
 if (parent && !process.env.RETAKE_CAPTURES_DIR?.trim()) process.env.RETAKE_CAPTURES_DIR = mkdtempSync(join(parent, 'file-'));

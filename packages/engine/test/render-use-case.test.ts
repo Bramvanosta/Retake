@@ -26,7 +26,7 @@ import type { RenderVideoRequest, RenderVideoResult, Renderer } from '../src/ren
 import { versionLockFile } from '../src/render/versions.js';
 import { exportWork, renderWork } from '../src/render/work.js';
 import { loadComponentRegistry } from '@retake/components';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 let root: string;
 let project: LoadedProject;

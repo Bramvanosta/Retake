@@ -12,7 +12,7 @@ import { DEFAULT_CAPTURE, PERSON_POLICY, resolveEnvironment, resolvePersonas } f
 import type { LoadedProject, RecordedEvent } from '@retake/core';
 import { chromiumExecutable } from '@retake/runner-web';
 import { ManualClock } from '../src/clock.js';
-import { runnerWebCapture } from '../src/capture/runner-web-capture.js';
+import { runnerWebCapture } from '@retake/compose';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookPages, MemorySessions, memoryRecord, memorySite } from '../src/capture/memory-sessions.js';
 import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';

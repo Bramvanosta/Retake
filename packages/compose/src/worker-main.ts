@@ -1,17 +1,19 @@
 /**
- * Entry point of a jobs worker process: `node …/engine/dist/worker-main.js --root <workspace> [--idle-exit <ms>]
+ * Entry point of a jobs worker process: `node …/compose/dist/worker-main.js --root <workspace> [--idle-exit <ms>]
  * [--once] [--started-by <client>]` (what ensureWorker starts — `--started-by` names the client that started it, recorded in
  * the worker lock; `retake worker` runs the same). stdout stays empty: whatever a library prints goes
  * to stderr, which the spawner sends to .retake/workers/worker.log.
  *
  * `--job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>` runs one heavy job a
- * worker claimed (jobs/job-child.ts), as a process of its own; only a worker starts it so.
+ * worker claimed (the engine's jobs/job-child.ts), as a process of its own; only a worker starts it so.
  */
 // First: the app bundle's browsers before any module loads playwright-core (bundle-env.ts; the cli app-bundle test).
 import './bundle-env.js';
-import { WORKER_CLIENT_RE } from './jobs/lock.js';
-import { JOB_EXIT, passedBuildDirs, runJobChild } from './jobs/job-child.js';
-import { runWorker } from './jobs/worker.js';
+import { JOB_EXIT, WORKER_CLIENT_RE, passedBuildDirs, runJobChild, runWorker } from '@retake/engine/composition';
+import { bindProduct } from './ports.js';
+
+// The product's adapters, bound before the worker or the job process makes its ports (the engine's enginePorts).
+bindProduct();
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);

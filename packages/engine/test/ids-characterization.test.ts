@@ -33,7 +33,7 @@ import { listRuns } from '../src/runs.js';
 import { pruneProject } from '../src/prune.js';
 import { renderForWork } from '../src/renders.js';
 import { selfIdentity } from '../src/jobs/proc.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';

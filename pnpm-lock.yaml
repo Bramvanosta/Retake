@@ -70,6 +70,9 @@ importers:
       '@retake/components':
         specifier: workspace:*
         version: link:../components
+      '@retake/compose':
+        specifier: workspace:*
+        version: link:../compose
       '@retake/core':
         specifier: workspace:*
         version: link:../core
@@ -143,6 +146,33 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
+
+  packages/compose:
+    dependencies:
+      '@retake/components':
+        specifier: workspace:*
+        version: link:../components
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
+      '@retake/editor':
+        specifier: workspace:*
+        version: link:../editor
+      '@retake/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@retake/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@retake/review':
+        specifier: workspace:*
+        version: link:../review
+      '@retake/runner-web':
+        specifier: workspace:*
+        version: link:../runner-web
+      '@retake/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
 
   packages/core:
     dependencies:
@@ -232,6 +262,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.5)
+      '@retake/compose':
+        specifier: workspace:*
+        version: link:../compose
       '@retake/core':
         specifier: workspace:*
         version: link:../core
@@ -302,6 +335,9 @@ importers:
       '@retake/components':
         specifier: workspace:*
         version: link:../components
+      '@retake/compose':
+        specifier: workspace:*
+        version: link:../compose
       '@retake/core':
         specifier: workspace:*
         version: link:../core

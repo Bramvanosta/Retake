@@ -22,7 +22,7 @@ import { openWorkspace } from '../src/workspace.js';
 import { prepareRun } from '../src/execute-run.js';
 import { runInProcess } from '../src/in-process.js';
 import { runWorker } from '../src/jobs/worker.js';
-import { runnerWebCapture } from '../src/capture/runner-web-capture.js';
+import { runnerWebCapture } from '@retake/compose';
 import { signalInterrupts } from '../src/interrupts.js';
 import { systemClock } from '../src/clock.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
@@ -41,7 +41,7 @@ import { captureRunnerContract } from './capture-runner-contract.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { CONFINEMENTS } from '../src/caller.js';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 const hasChromium = chromiumExecutable().path !== null;
 const root = await mkdtemp(join(tmpdir(), 'retake-capture-runner-'));

@@ -22,6 +22,7 @@
  * separate process, runs them. The same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
+import { productPorts } from '@retake/compose';
 import { RETAKE_VERSION } from '@retake/core/base';
 import { staleEngine } from '@retake/core/io';
 import type { StaleEngine } from '@retake/core/io';
@@ -84,7 +85,7 @@ export async function startMcpServer(o: McpServerOptions): Promise<void> {
     console.debug = toStderr;
   }
   let engine: Promise<Engine> | undefined;
-  const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp' }));
+  const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp', ports: productPorts() }));
   await getEngine();
   // Hotfix v0.2.5: the installed engine is read again at each call; an update under this process stops it once the
   // call that saw it is answered.

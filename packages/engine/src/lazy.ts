@@ -1,29 +1,45 @@
 /**
- * The engine's lazy imports of the heavy packages, one each: loaded on first use, so a command that needs neither never
- * pays for them. Each adapter's loader is used in its home only (the import-rules ratchet's `loader-use`): `editor` in
- * render/ (the Renderer port's package adapter and the editor's other work: render/editor-calls.ts), `hooks` in
- * hook-run/ (the HookRunner port's package adapter), `review` and `thumbs` in review/ (the Reviewer's), `runnerWeb` in
- * capture/ (the CaptureRunner's), `sandbox` in sandboxes/ (the Sandboxes port's), `components` in registries/
- * (the ComponentRegistries port's and the component calls beside it).
+ * The engine's two adapter modules, as the composition package binds them (`@retake/compose`: its loaders, loaded on
+ * first use): the editor's and the components package's, whose work the render folder and the registries folder hand
+ * on under names of their own (render/editor-calls.ts, render/work.ts, registries/component-calls.ts). The engine never
+ * loads an adapter package itself — this file names their roots as types only (the import-rules ratchet's
+ * `engine-load`) — and each loader is used in its home only (`loader-use`): `editor` in render/, `components` in
+ * registries/. Before a composition root binds them, a call is refused by name.
  */
+import { EngineError } from './errors.js';
 
-/** Lazy: @retake/editor pulls in Remotion's renderer and bundler (its planner and render records too). */
-export const editor = () => import('@retake/editor');
+/** The editor's module (its root: the planner, the renderer, the previews, their errors). */
+export type EditorModule = typeof import('@retake/editor');
+/** The components package's module (its root: the registry, the catalogue's disk work, the pure helpers). */
+export type ComponentsModule = typeof import('@retake/components');
 
-/** Lazy: @retake/review pulls in sharp and the editor. */
-export const review = () => import('@retake/review');
+/** What a composition root binds: each module's loader (the composition package's lazy imports). */
+export interface AdapterModules {
+  editor(): Promise<EditorModule>;
+  components(): Promise<ComponentsModule>;
+}
 
-/** Lazy: the review's thumbnail entry — sharp and one ffmpeg process, never the editor (≈ 350 ms and ≈ 90 MB less). */
-export const thumbs = () => import('@retake/review/thumbs');
+// The process's by nature, not an engine's (the import-rules ratchet's engine-state, ENGINE_STATE_PROCESS): which
+// editor and components code this process loads. Two engines of one process share it.
+let bound: AdapterModules | undefined;
 
-/** Lazy: @retake/hooks pulls in the database driver (pg) and the hook kinds. */
-export const hooks = () => import('@retake/hooks');
+/**
+ * Bind the adapter modules (a composition root, once per process): binding the same modules again is a no-op, binding
+ * others once some are bound is refused (they would change under the engines already made).
+ */
+export function bindAdapterModules(modules: AdapterModules): void {
+  if (bound === modules) return;
+  if (bound) throw new EngineError('internal', 'other adapter modules are bound in this process already: a process binds one product');
+  bound = modules;
+}
 
-/** Lazy: @retake/runner-web pulls in Playwright, the capture's encoder and its in-page kit. */
-export const runnerWeb = () => import('@retake/runner-web');
+function modules(): AdapterModules {
+  if (!bound) throw new EngineError('internal', 'no adapter modules are bound: a composition root builds the engine from @retake/compose (productPorts)');
+  return bound;
+}
 
-/** Lazy: @retake/sandbox pulls in the database driver (pg) and the process and docker-compose providers. */
-export const sandbox = () => import('@retake/sandbox');
+/** The editor's module (Remotion's renderer and bundler come with it; its planner and render records too). */
+export const editor = async (): Promise<EditorModule> => modules().editor();
 
-/** Lazy: @retake/components pulls in esbuild (a component's compile check) and the registry's readers. */
-export const components = () => import('@retake/components');
+/** The components package's module (esbuild comes with it: a component's compile check, the registry's readers). */
+export const components = async (): Promise<ComponentsModule> => modules().components();

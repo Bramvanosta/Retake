@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEngine } from '../src/index.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, Renderer, Reviewer } from '../src/index.js';
 import type { RenderJobResult } from '../src/jobs/types.js';

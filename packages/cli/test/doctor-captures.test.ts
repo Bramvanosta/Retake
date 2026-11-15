@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isTakeOwnerCommand } from '@retake/engine/testing';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 import { capturesCheck } from '@retake/engine/doctor';
 import { systemProbes } from '../src/commands/doctor.js';
 import type { CapturesProbe } from '../src/commands/doctor.js';
@@ -96,7 +96,7 @@ describe('doctor: Captures first', () => {
   it("the system probe: a worker's marker is a Retake take of this workspace, another node process's is not; an absent folder is not made", async () => {
     const root = join(base, 'ws');
     await mkdir(root, { recursive: true });
-    const captures = systemProbes(enginePorts()).captures!;
+    const captures = systemProbes(productPorts()).captures!;
     const worker = await markerOwner(join(base, 'bin', 'worker-main.js'), root);
     const other = await markerOwner(join(base, 'other', 'tool.js'), root);
     try {

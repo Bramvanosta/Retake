@@ -5,9 +5,7 @@
  */
 export { admission } from './admission.js';
 export { PRUNE_FORM_MAX_LINES, preflightHooks, pruneApprovalRequest } from './approvals.js';
-export { runnerWebCapture } from './capture/runner-web-capture.js';
 export { historyFile } from './history.js';
-export { packageHookRunner } from './hook-run/package-hooks.js';
 export { STUDIO_CSP, studioCsp } from './http/gate.js';
 export { readPrivateToken } from './http/token-file.js';
 export { indexFile } from './index-db/index-db.js';
@@ -40,7 +38,6 @@ export { JOB_RECORD_VERSION } from './jobs/types.js';
 export { WATCH_SCAN_BUDGET } from './library-watch.js';
 export { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash } from './library.js';
 export { newRecordId } from './record.js';
-export { editorRenderer, withPreviewBackend } from './render/editor-renderer.js';
 export { RenderMemos, renderRecordReads, reportReads } from './renders.js';
 export { RUN_THUMBS_MAX_KEYS } from './run-thumbs.js';
 export { validateScenarioText } from './scenarios.js';

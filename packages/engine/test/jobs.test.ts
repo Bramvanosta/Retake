@@ -32,7 +32,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 let ws: string;
 let engine: Engine;

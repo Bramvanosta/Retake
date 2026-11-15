@@ -13,7 +13,7 @@ import { agentChecks, callerOf } from './caller.js';
 import type { EngineClient } from './caller.js';
 import { thumbnail } from './reviews.js';
 import { usageCounts } from './history.js';
-import { enginePorts } from './ports.js';
+import { boundProduct, enginePorts } from './ports.js';
 import { authApi } from './facade/auth-api.js';
 import { commentsApi } from './facade/comments-api.js';
 import { engineContext } from './facade/context.js';
@@ -60,8 +60,10 @@ export function agentTrust(client: EngineClient): boolean {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  // The façade's composition root: the ports a test hands, else the product's (the MCP server and the Studio hand none).
+  // The façade's composition root: the ports a test hands, else the bound product's — refused here, at creation, when
+  // no product is bound and a package port is not handed (enginePorts), or when the engine would start a worker.
   const ports = enginePorts(opts.ports);
+  if (opts.autoStartWorker !== false) boundProduct('an engine that starts its worker');
   const ctx = await engineContext(opts, ports);
   const { ws, queue, studio } = ctx;
   const engine: Omit<Engine, 'caller' | 'clock' | 'envVars'> = {

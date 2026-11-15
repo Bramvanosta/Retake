@@ -26,7 +26,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 const T = STARTER_TEMPLATES_DIR;
 let root: string;

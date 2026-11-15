@@ -16,10 +16,10 @@ import type { HookContext, LoadedProject } from '@retake/core';
 import { thumbJpeg } from '@retake/review/thumbs';
 import { CancelledError, registerSessionCopy } from '@retake/runner-web';
 import { enginePorts } from '../src/ports.js';
-import { packageHookRunner } from '../src/hook-run/package-hooks.js';
-import { packageReviewer } from '../src/review/review-package.js';
-import { packageSandboxes } from '../src/sandboxes/package-sandboxes.js';
-import { runnerWebCapture } from '../src/capture/runner-web-capture.js';
+import { packageHookRunner } from '@retake/compose';
+import { packageReviewer } from '@retake/compose';
+import { packageSandboxes } from '@retake/compose';
+import { runnerWebCapture } from '@retake/compose';
 import { systemClock } from '../src/clock.js';
 import type { Reviewer, Sandboxes } from '../src/index.js';
 import type { CaptureRunner, HookBrowser } from '../src/capture/runner.js';
@@ -27,15 +27,15 @@ import type { HookRunner } from '../src/hook-run/runner.js';
 import type { ComponentRegistries } from '../src/registries/registries.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
-import * as lazy from '../src/lazy.js';
+import * as lazy from '../../compose/src/lazy.js';
 import { MEMORY_PNG } from '../src/render/memory-renderer.js';
 
 // Which loader each member called: the real loaders, recorded.
 const calls: string[] = [];
 // A loader made to fail once (the package cannot be loaded): its error, as thrown.
 const failing: { next?: Error } = {};
-vi.mock('../src/lazy.js', async (actual) => {
-  const real = await actual<typeof import('../src/lazy.js')>();
+vi.mock('../../compose/src/lazy.js', async (actual) => {
+  const real = await actual<typeof import('../../compose/src/lazy.js')>();
   const spy = <K extends keyof typeof real>(k: K) =>
     ((...a: unknown[]) => {
       calls.push(k);

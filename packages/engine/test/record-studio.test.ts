@@ -59,7 +59,7 @@ import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { fileFacts } from '@retake/core/io';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 

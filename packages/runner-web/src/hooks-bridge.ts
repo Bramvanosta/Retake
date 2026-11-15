@@ -4,7 +4,7 @@
  * type it names is core's shared hook-run vocabulary (core hook-run.ts: CaptureHookRunner, HookJournal, HookContext,
  * HookResult, ConfirmHook). The runner never loads the hooks package, and keeps no mirror of its types: the engine's
  * port extends the same CaptureHookRunner, and the hooks package's runHooks and Journal satisfy it where the engine
- * wraps them (engine hook-run/package-hooks.ts).
+ * wraps them (the composition package's package-hooks.ts).
  */
 import type { CaptureHookRunner, HookResult } from '@retake/core/hooks';
 import { RunnerError, errorMessage } from './errors.js';

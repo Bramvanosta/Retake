@@ -28,7 +28,7 @@ import { enginePorts } from '../src/ports.js';
 import { openWorkspace } from '../src/workspace.js';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 let root = '';
 let project: LoadedProject;

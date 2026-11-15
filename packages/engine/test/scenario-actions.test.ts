@@ -28,7 +28,7 @@ import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
 import { writeRun } from '@retake/test-support/runs';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 let ws: string;
 let ui: Engine;

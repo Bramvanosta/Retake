@@ -18,6 +18,7 @@
   ],
   "dependencies": {
     "@retake/components": "workspace:*",
+    "@retake/compose": "workspace:*",
     "@retake/core": "workspace:*",
     "@retake/editor": "workspace:*",
     "@retake/engine": "workspace:*",

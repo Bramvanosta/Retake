@@ -26,7 +26,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
 const T = STARTER_TEMPLATES_DIR;

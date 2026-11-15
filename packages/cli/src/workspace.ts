@@ -1,19 +1,20 @@
 /** Workspace and project loading: moved into @retake/engine, shared with the MCP server. */
-import { enginePorts, openWorkspace as openEngineWorkspace } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
+import { openWorkspace as openEngineWorkspace } from '@retake/engine/shell';
 import type { EnginePorts, JobQueueView, OpenedWorkspace } from '@retake/engine';
 import type { WorkspaceConfig } from '@retake/core/project';
 
 export { openProject } from '@retake/engine/shell';
 
 /**
- * The ports of the CLI's own work (ports.ts enginePorts: the system's clock, the disk's stores, the file queue, the
- * editor's renderer): what its commands stamp with, write authored files through and render with in process. Made
+ * The ports of the CLI's own work (the composition package's productPorts: the system's clock, the disk's stores, the
+ * file queue, the editor's renderer): what its commands stamp with, write authored files through and render with in process. Made
  * once per `main()` (its composition root, main.ts) and handed to every command in its global options (`ports`): a
  * command names the ports it is handed, never the adapters (the import-rules ratchet's `clock-read`, `store-new`,
  * `queue` and `loader-use` checks).
  */
 export function cliEnginePorts(): EnginePorts {
-  return enginePorts();
+  return productPorts();
 }
 
 /** The workspace of a command a person types (`--root`, else $RETAKE_ROOT, else the lookup): a person's policy, the agent policy off. */

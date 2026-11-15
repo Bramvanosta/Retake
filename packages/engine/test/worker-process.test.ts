@@ -93,7 +93,7 @@ interface Worker {
 }
 
 function startWorker(root: string, ...args: string[]): Worker {
-  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
+  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/compose/src/worker-main.ts'), '--root', root, ...args], {
     cwd: REPO,
     env: { ...process.env, RETAKE_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],

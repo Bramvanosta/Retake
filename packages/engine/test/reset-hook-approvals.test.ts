@@ -26,7 +26,7 @@ import { openSandbox } from '@retake/sandbox';
 import type { Sandbox } from '@retake/sandbox';
 import { approvalChecker } from '../src/approvals.js';
 import { createEngine } from '../src/index.js';
-import { packageHookRunner } from '../src/hook-run/package-hooks.js';
+import { packageHookRunner } from '@retake/compose';
 import { seedApprovalItems } from '../src/approvals.js';
 import type { ApprovalRequest, Engine } from '../src/index.js';
 import type { ApprovalItem } from '../src/approvals.js';

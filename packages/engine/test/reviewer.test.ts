@@ -16,7 +16,7 @@ import { PERSON_POLICY } from '@retake/core';
 import { RENDER_FRAME_MAX_PX } from '../src/render-frames.js';
 import { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX } from '../src/reviews.js';
 import { createEngine } from '../src/index.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import { RENDER_FRAME_QUALITY } from '../src/render-frames.js';
 import { findPrevious, findRender } from '@retake/review';
 import { previousOfRender } from '../src/render-records.js';

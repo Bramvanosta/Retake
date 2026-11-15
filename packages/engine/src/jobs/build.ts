@@ -9,8 +9,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RETAKE_VERSION } from '@retake/core/base';
+import { boundWorkerEntry } from '../ports.js';
 
 /** The package.json of the folder of a module (its package's root: the first folder up that has one). */
 function packageRoot(from: string): string | undefined {
@@ -31,19 +32,28 @@ function retakeDeps(root: string): string[] {
 }
 
 /**
- * The folders whose modules a worker runs: this package's own, and the resolved entry folder of every @retake/*
- * package it depends on at run time, transitively (core, hooks, runner-web, sandbox… — read from the package.json files,
+ * The folders whose modules a worker runs: this package's own, the bound composition package's (its worker entry's),
+ * and the resolved entry folder of every @retake/* package they depend on at run time, transitively (core, hooks, runner-web, sandbox… — read from the package.json files,
  * so a new dependency is covered without a list to maintain).
  */
 export function buildDirs(): string[] {
   const own = dirname(dirname(fileURLToPath(import.meta.url))); // …/engine/dist or …/engine/src
   const dirs = [own];
-  const seen = new Set<string>();
+  // The engine itself is this folder: a package that depends on it (the composition package) lists it once.
+  const seen = new Set<string>(['@retake/engine']);
   const queue: Array<{ name: string; from: string }> = [];
   const enqueue = (root: string | undefined, from: string) => {
     if (root) for (const name of retakeDeps(root)) if (!seen.has(name)) seen.add(name), queue.push({ name, from });
   };
   enqueue(packageRoot(own), import.meta.url);
+  // The composition package whose worker entry runs (the bound product's), and what it depends on: its adapters.
+  const entry = boundWorkerEntry();
+  if (entry) {
+    const composed = dirname(entry);
+    if (!dirs.includes(composed)) dirs.push(composed);
+    const root = packageRoot(composed);
+    enqueue(root, root ? join(root, 'package.json') : pathToFileURL(entry).href);
+  }
   while (queue.length) {
     const { name, from } = queue.shift()!;
     let entryDir: string;
@@ -52,7 +62,7 @@ export function buildDirs(): string[] {
     } catch {
       continue; /* not resolvable from here (a bundler): the version still counts */
     }
-    dirs.push(entryDir);
+    if (!dirs.includes(entryDir)) dirs.push(entryDir);
     const root = packageRoot(entryDir);
     enqueue(root, root ? join(root, 'package.json') : from);
   }

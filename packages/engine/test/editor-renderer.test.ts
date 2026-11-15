@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ loads: 0, failNext: 0, made: 0, backends: [] as unknown[], asked: [] as string[] }));
 
-vi.mock('../src/lazy.js', () => ({
+vi.mock('../../compose/src/lazy.ts', () => ({
   editor: async () => {
     state.loads++;
     if (state.failNext > 0) {
@@ -33,9 +33,13 @@ vi.mock('../src/lazy.js', () => ({
       },
     };
   },
+  // The composition package's other loaders: not this file's (its ports bag is made with them, none called).
+  components: async () => {
+    throw new Error('not loaded in this test');
+  },
 }));
 
-import { editorRenderer, withPreviewBackend } from '../src/render/editor-renderer.js';
+import { editorRenderer, withPreviewBackend } from '@retake/compose';
 
 beforeEach(() => {
   Object.assign(state, { loads: 0, failNext: 0, made: 0, backends: [], asked: [] });

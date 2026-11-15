@@ -54,6 +54,7 @@
     "packages/components/test/slots.test.ts",
     "packages/components/test/theme.test.ts",
     "packages/components/test/validate.test.ts",
+    "packages/compose/test/product.test.ts",
     "packages/core/test/agent-policy.test.ts",
     "packages/core/test/agent-shell.test.ts",
     "packages/core/test/agent-trust.test.ts",

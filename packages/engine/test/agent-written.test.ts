@@ -3,6 +3,7 @@
  * journals for writes it does not hold; asked when it cannot be known), which shell hooks a run executes, and how the
  * listing renders them. The CLI's question is held in packages/cli/test/run-agent-hooks.test.ts.
  */
+import { productPorts } from '@retake/compose';
 import { appendFile, chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -49,7 +50,7 @@ const HOOKED = (v: string, cmd = 'touch a') => `video: ${v}\nsetup:\n  - shell: 
 const parsed = (text: string): Scenario => parseScenario(text, {}).scenario as Scenario;
 const TPL = { pages: { app: 'http://app.example.test' }, vars: { who: 'world' }, run: { id: '20260101-120000-x', dir: '/runs/20260101-120000-x' } };
 
-const HOOKS = enginePorts().hooks;
+const HOOKS = productPorts().hooks;
 
 async function author(name: string) {
   const file = join(projectDir, 'scenarios', `${name}.yaml`);

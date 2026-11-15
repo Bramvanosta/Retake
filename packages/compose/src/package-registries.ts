@@ -1,11 +1,11 @@
 /**
  * The product's ComponentRegistries: the components package behind the port — its registry loader and its catalogue's
- * disk work (validation, scaffold, preview status, source files) — loaded through the engine's loader on the first call
+ * disk work (validation, scaffold, preview status, source files) — loaded through the composition package's loader on the first call
  * (lazy.ts `components`: esbuild comes with it). Each member calls the package's function with the same arguments: its
- * answers and its refusals are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
+ * answers and its refusals are the package's, unchanged. Made by the composition package only (ports.ts productPorts).
  */
-import { components } from '../lazy.js';
-import type { ComponentRegistries } from './registries.js';
+import type { ComponentRegistries } from '@retake/engine/composition';
+import { components } from './lazy.js';
 
 export function packageRegistries(): ComponentRegistries {
   return {

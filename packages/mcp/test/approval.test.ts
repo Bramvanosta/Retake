@@ -6,8 +6,9 @@ import { describe, expect, it } from 'vitest';
 import { parseSiteUrl, siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
-import { PRUNE_FORM_MAX_LINES, packageHookRunner, preflightHooks, pruneApprovalRequest, runnerWebCapture } from '@retake/engine/testing';
-import { enginePorts } from '@retake/engine/shell';
+import { packageHookRunner, runnerWebCapture } from '@retake/compose';
+import { PRUNE_FORM_MAX_LINES, preflightHooks, pruneApprovalRequest } from '@retake/engine/testing';
+import { productPorts } from '@retake/compose';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import type { ApprovalRequest, PruneItem, PruneResult, SiteApprovalRequest } from '@retake/engine';
 import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalMessage } from '../src/index.js';
@@ -73,7 +74,7 @@ describe('elicitationApprover', () => {
         { name: 'plain', http: { method: 'POST', url: '{{app}}/api/y', rollback: { method: 'POST', url: '{{app}}/api/y/undo' } } },
       ];
       const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
-        secrets: enginePorts().secrets,
+        secrets: productPorts().secrets,
         policy: PERSON_POLICY,
         env: 'staging',
         journalFile: join(dir, 'j.json'),
@@ -114,7 +115,7 @@ describe('the form shows every hook in full', () => {
         { name: 'tick', js: { page: 'app', code: 'window.sku = "{{vars.sku}}"', rollback: 'delete window.sku' } },
       ];
       const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
-        secrets: enginePorts().secrets,
+        secrets: productPorts().secrets,
         policy: PERSON_POLICY,
         env: 'staging',
         journalFile: join(dir, 'j.json'),
@@ -182,7 +183,7 @@ describe('the form shows every hook in full', () => {
       const project = await loadProject(dir);
       const hooks: HookStep[] = [{ name: 'a\u202eb', shell: { run: 'echo ok\u200b\u001b[2J\n2. setup hook 9 "fake" (http) — nothing\nrun: true' } }];
       const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
-        secrets: enginePorts().secrets,
+        secrets: productPorts().secrets,
         policy: PERSON_POLICY,
         env: 'staging',
         journalFile: join(dir, 'j.json'),

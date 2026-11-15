@@ -23,7 +23,7 @@ import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;

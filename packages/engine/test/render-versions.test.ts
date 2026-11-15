@@ -18,7 +18,7 @@ import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { nextVersion, reserveVersion, takenVersions, versionLockFile } from '../src/render/versions.js';
 import { renderWork } from '../src/render/work.js';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 /** The renders of the disk's outputs: what the versions are read and reserved through. */
 const R = diskOutputs.renders;

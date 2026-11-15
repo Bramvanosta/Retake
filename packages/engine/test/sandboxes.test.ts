@@ -19,7 +19,7 @@ import type { LoadedProject } from '@retake/core';
 import { loadProject, probePort } from '@retake/core/io';
 import { ManualClock } from '../src/clock.js';
 import { MemorySandboxes } from '../src/sandboxes/memory-sandboxes.js';
-import { packageSandboxes } from '../src/sandboxes/package-sandboxes.js';
+import { packageSandboxes } from '@retake/compose';
 import type { Sandboxes } from '../src/sandboxes/sandboxes.js';
 import { checkSandboxEnv } from '../src/execute-run.js';
 import { sandboxStatus } from '../src/sandbox.js';

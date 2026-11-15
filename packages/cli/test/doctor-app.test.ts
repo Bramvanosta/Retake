@@ -18,7 +18,7 @@ import type { BundleInfo } from '@retake/core/io';
 import { appChecks as appChecksAt, launchUpdates, updateCheck } from '@retake/engine/doctor';
 import { doctorChecks } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 import { diskOutputs, diskWorkspaceReads } from '@retake/engine/testing';
 
 /** The app's lines seen now. */
@@ -160,7 +160,7 @@ describe("doctor: the workspace's worker of another copy of Retake", () => {
     policy: PERSON_POLICY,
     reads: diskWorkspaceReads,
     outputs: diskOutputs,
-    registries: enginePorts().registries,
+    registries: productPorts().registries,
   };
   mkdirSync(ws.projectsDir, { recursive: true });
   const mcpLine = async (worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>>) => {
@@ -174,7 +174,7 @@ describe("doctor: the workspace's worker of another copy of Retake", () => {
         exec: async () => null,
       }),
       ws,
-      { ports: enginePorts() },
+      { ports: productPorts() },
     );
     return checks.find((c) => c.name === 'MCP')!;
   };

@@ -60,7 +60,6 @@ export { LoginOptionError, loginTarget, signInPersona } from './login.js';
 export { jobOutcome, jobProgress, jobWhat } from './operations/job-words.js';
 export { RunFolder } from './outputs/run-files.js';
 export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork, planOfRun } from './pipeline.js';
-export { enginePorts } from './ports.js';
 export { writeNewProject, firstErrorLine, openProjectBySlug } from './projects.js';
 export { DEFAULT_KEEP_RENDERS, formatBytes } from './prune.js';
 export { rawExportWork } from './raw-export.js';

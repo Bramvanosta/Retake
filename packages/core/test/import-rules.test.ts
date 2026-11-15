@@ -433,79 +433,80 @@ describe('the import-rules ratchet', () => {
     const ports = (rel: string, text: string): string[] => lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
 
     it('flags an adapter loader imported from lazy.ts outside its home, under its name or an alias; its home is free', () => {
-      expect(loaders('packages/engine/src/jobs/a.ts', "import { review } from '../lazy.js';\nawait review();")).toEqual(['loader-use packages/engine/src/jobs/a.ts → review']);
-      expect(loaders('packages/engine/src/a.ts', "import { hooks as h, thumbs } from './lazy.js';")).toEqual([
-        'loader-use packages/engine/src/a.ts → hooks',
-        'loader-use packages/engine/src/a.ts → thumbs',
+      expect(loaders('packages/engine/src/jobs/a.ts', "import { components } from '../lazy.js';\nawait components();")).toEqual(['loader-use packages/engine/src/jobs/a.ts → components']);
+      expect(loaders('packages/engine/src/a.ts', "import { editor as e, components } from './lazy.js';")).toEqual([
+        'loader-use packages/engine/src/a.ts → editor',
+        'loader-use packages/engine/src/a.ts → components',
       ]);
-      expect(loaders('packages/engine/src/comments/a.ts', "import { review } from '../lazy';")).toEqual(['loader-use packages/engine/src/comments/a.ts → review']);
+      expect(loaders('packages/engine/src/comments/a.ts', "import { components } from '../lazy';")).toEqual(['loader-use packages/engine/src/comments/a.ts → components']);
       // The homes (LOADER_HOMES), the loader file itself and a type-only import are free.
-      expect(loaders('packages/engine/src/review/review-package.ts', "import { review, thumbs } from '../lazy.js';")).toEqual([]);
-      expect(loaders('packages/engine/src/hook-run/package-hooks.ts', "import { hooks } from '../lazy.js';")).toEqual([]);
-      expect(loaders('packages/engine/src/review/x.ts', "import { hooks } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/x.ts → hooks']);
-      // The capture runner's loader: free in capture/ only.
-      expect(loaders('packages/engine/src/capture/runner-web-capture.ts', "import { runnerWeb } from '../lazy.js';")).toEqual([]);
-      expect(loaders('packages/engine/src/jobs/worker.ts', "import { runnerWeb as rw } from '../lazy.js';\nawait rw();")).toEqual(['loader-use packages/engine/src/jobs/worker.ts → runnerWeb']);
-      expect(loaders('packages/engine/src/capture/x.ts', "export { runnerWeb } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/capture/x.ts → runnerWeb re-exported']);
-      expect(loaders('packages/engine/src/lazy.ts', "export const review = () => import('@retake/review');")).toEqual([]);
-      expect(loaders('packages/engine/src/a.ts', "import type { review } from './lazy.js';\nimport { type hooks } from './lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/registries/component-calls.ts', "import { components } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/render/work.ts', "import { editor } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/registries/x.ts', "import { editor } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/x.ts → editor']);
+      // The ports' package adapters are the composition package's: the engine's loader has no loader of theirs, and
+      // the old homes are homes no more.
+      expect(Object.keys(lib.LOADER_HOMES).sort()).toEqual(['components', 'editor']);
+      expect(loaders('packages/engine/src/capture/x.ts', "import { components } from '../lazy.js';\nawait components();")).toEqual(['loader-use packages/engine/src/capture/x.ts → components']);
+      expect(loaders('packages/engine/src/render/x.ts', "export { editor } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/render/x.ts → editor re-exported']);
+      expect(loaders('packages/engine/src/lazy.ts', 'export const editor = async () => modules().editor();')).toEqual([]);
+      expect(loaders('packages/engine/src/a.ts', "import type { editor } from './lazy.js';\nimport { type components } from './lazy.js';")).toEqual([]);
       // The editor's loader: in the render folder only, where the renderer's adapter and the work on the editor are.
       expect(lib.LOADER_HOMES.editor).toBe('packages/engine/src/render/');
       expect(loaders('packages/engine/src/render/editor-calls.ts', "import { editor } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/renders.ts', "import { editor } from './lazy.js';\nawait editor();")).toEqual(['loader-use packages/engine/src/renders.ts → editor']);
       expect(loaders('packages/engine/src/jobs/render-job.ts', "import { editor as ed } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/jobs/render-job.ts → editor']);
       // Another module of the same name is not the loader file.
-      expect(loaders('packages/engine/src/a.ts', "import { review } from './jobs/lazy.js';\nimport { review as r } from './lazy-review.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/a.ts', "import { editor } from './jobs/lazy.js';\nimport { components as c } from './lazy-components.js';")).toEqual([]);
     });
 
     it('flags the loader file imported whole or by import(), and a loader re-exported anywhere, its home included', () => {
-      expect(loaders('packages/engine/src/a.ts', "import * as lazy from './lazy.js';\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
-      expect(loaders('packages/engine/src/review/a.ts', "const { review } = await import('../lazy.js');")).toEqual(['loader-use packages/engine/src/review/a.ts → import() of lazy.ts']);
-      expect(loaders('packages/engine/src/jobs/a.ts', "import { editor, review } from '../lazy.js';\nexport { review };")).toEqual([
+      expect(loaders('packages/engine/src/a.ts', "import * as lazy from './lazy.js';\nawait lazy.editor();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
+      expect(loaders('packages/engine/src/registries/a.ts', "const { components } = await import('../lazy.js');")).toEqual(['loader-use packages/engine/src/registries/a.ts → import() of lazy.ts']);
+      expect(loaders('packages/engine/src/jobs/a.ts', "import { editor, components } from '../lazy.js';\nexport { components };")).toEqual([
         'loader-use packages/engine/src/jobs/a.ts → editor',
-        'loader-use packages/engine/src/jobs/a.ts → review',
-        'loader-use packages/engine/src/jobs/a.ts → review re-exported',
+        'loader-use packages/engine/src/jobs/a.ts → components',
+        'loader-use packages/engine/src/jobs/a.ts → components re-exported',
       ]);
-      expect(loaders('packages/engine/src/review/a.ts', "import { review as rv } from '../lazy.js';\nexport { rv as loadReview };")).toEqual([
-        'loader-use packages/engine/src/review/a.ts → review re-exported',
+      expect(loaders('packages/engine/src/registries/a.ts', "import { components as c } from '../lazy.js';\nexport { c as loadComponents };")).toEqual([
+        'loader-use packages/engine/src/registries/a.ts → components re-exported',
       ]);
-      expect(loaders('packages/engine/src/review/a.ts', "export { thumbs } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/a.ts → thumbs re-exported']);
+      expect(loaders('packages/engine/src/registries/a.ts', "export { components } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/a.ts → components re-exported']);
       expect(loaders('packages/engine/src/a.ts', "export * from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
       expect(loaders('packages/engine/src/a.ts', "export * as lazy from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
       // TypeScript's import-equals and a require of the loader file; a type-only one loads nothing.
-      expect(loaders('packages/engine/src/a.ts', "import lazy = require('./lazy.js');\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
-      expect(loaders('packages/engine/src/review/a.ts', "import type lazy = require('../lazy.js');")).toEqual([]);
+      expect(loaders('packages/engine/src/a.ts', "import lazy = require('./lazy.js');\nawait lazy.editor();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
+      expect(loaders('packages/engine/src/registries/a.ts', "import type lazy = require('../lazy.js');")).toEqual([]);
       expect(loaders('packages/engine/src/jobs/a.ts', "const lazy = require('../lazy.js');")).toEqual(['loader-use packages/engine/src/jobs/a.ts → require() of lazy.ts']);
       // The limits the title names: a computed name, a loader exported under a name of its own.
       expect(loaders('packages/engine/src/jobs/a.ts', "const p = '../lazy.js';\nawait import(p);")).toEqual([]);
-      expect(loaders('packages/engine/src/review/a.ts', "import { review } from '../lazy.js';\nexport const load = review;")).toEqual([]);
+      expect(loaders('packages/engine/src/registries/a.ts', "import { components } from '../lazy.js';\nexport const load = components;")).toEqual([]);
       const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'loader-use')!.title;
       for (const words of ['import lazy = require', 'computed at run time', 'export const load = review']) expect(title, words).toContain(words);
       // Outside the engine nothing is read (a shell cannot reach lazy.ts: R13).
-      expect(loaders('packages/cli/src/a.ts', "import { review } from '../../engine/src/lazy.js';")).toEqual([]);
+      expect(loaders('packages/cli/src/a.ts', "import { components } from '../../engine/src/lazy.js';")).toEqual([]);
     });
 
     it('flags the hooks and review adapters named as values outside their roots', () => {
-      const use = "import { packageHookRunner, packageReviewer } from '@retake/engine';\nconst p = { hooks: packageHookRunner(), reviewer: packageReviewer() };";
+      const use = "import { packageHookRunner, packageReviewer } from '@retake/compose';\nconst p = { hooks: packageHookRunner(), reviewer: packageReviewer() };";
       expect(ports('packages/cli/src/commands/a.ts', use)).toEqual([
         'loader-use packages/cli/src/commands/a.ts → packageHookRunner outside a root',
         'loader-use packages/cli/src/commands/a.ts → packageReviewer outside a root',
       ]);
-      expect(ports('packages/engine/src/jobs/a.ts', "import * as p from '../hook-run/package-hooks.js';\nf(p.packageHookRunner);")).toEqual([
+      expect(ports('packages/engine/src/jobs/a.ts', "import * as p from '@retake/compose';\nf(p.packageHookRunner);")).toEqual([
         'loader-use packages/engine/src/jobs/a.ts → packageHookRunner outside a root',
       ]);
       for (const root of lib.PORT_ROOTS.packageHookRunner) expect(ports(root, 'f(packageHookRunner());'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.packageReviewer) expect(ports(root, 'f(packageReviewer());'), root).toEqual([]);
-      expect(ports('packages/engine/src/index.ts', "export { packageHookRunner } from './hook-run/package-hooks.js';\nexport { packageReviewer } from './review/review-package.js';")).toEqual([]);
+      expect(ports('packages/compose/src/index.ts', "export { packageHookRunner } from './package-hooks.js';\nexport { packageReviewer } from './review-package.js';")).toEqual([]);
       // The capture runner's adapter: its file and the bag only; a CLI command names the capture of the ports
       // it is handed.
-      expect(ports('packages/cli/src/interrupt.ts', "import { runnerWebCapture } from '@retake/engine';\nrunnerWebCapture().cleanupSync();")).toEqual([
+      expect(ports('packages/cli/src/interrupt.ts', "import { runnerWebCapture } from '@retake/compose';\nrunnerWebCapture().cleanupSync();")).toEqual([
         'loader-use packages/cli/src/interrupt.ts → runnerWebCapture outside a root',
       ]);
-      expect(ports('packages/engine/src/jobs/worker.ts', "import { runnerWebCapture as c } from '../capture/runner-web-capture.js';\nconst x = c();")).toEqual([
+      expect(ports('packages/engine/src/jobs/worker.ts', "import { runnerWebCapture as c } from '@retake/compose';\nconst x = c();")).toEqual([
         'loader-use packages/engine/src/jobs/worker.ts → runnerWebCapture outside a root',
       ]);
-      expect(lib.PORT_ROOTS.runnerWebCapture).toEqual(['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts']);
+      expect(lib.PORT_ROOTS.runnerWebCapture).toEqual(['packages/compose/src/runner-web-capture.ts', 'packages/compose/src/ports.ts']);
       for (const root of lib.PORT_ROOTS.runnerWebCapture) expect(ports(root, 'f(runnerWebCapture());'), root).toEqual([]);
     });
 
@@ -530,18 +531,24 @@ describe('the import-rules ratchet', () => {
     });
 
     it('the Sandboxes port: its loader in sandboxes/ only, its adapter named at its roots only, its port file on the types entry of the sandbox package', () => {
-      expect(lib.LOADER_HOMES.sandbox).toBe('packages/engine/src/sandboxes/');
-      expect(loaders('packages/engine/src/sandboxes/package-sandboxes.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual([]);
-      expect(loaders('packages/engine/src/jobs/sandbox-job.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual(['loader-use packages/engine/src/jobs/sandbox-job.ts → sandbox']);
-      expect(loaders('packages/engine/src/execute-run.ts', "import { sandbox as sb } from './lazy.js';")).toEqual(['loader-use packages/engine/src/execute-run.ts → sandbox']);
-      expect(loaders('packages/engine/src/sandboxes/x.ts', "export { sandbox } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/sandboxes/x.ts → sandbox re-exported']);
-      expect(lib.PORT_ROOTS.packageSandboxes).toEqual(['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts']);
+      // The sandbox package is loaded by the composition package only (its own loader, outside the engine's rules); the
+      // engine loads it nowhere, its loader file included (engine-load), and names it as types through its types entry.
+      expect(lib.LOADER_HOMES.sandbox).toBeUndefined();
+      expect(loaders('packages/compose/src/package-sandboxes.ts', "import { sandbox } from './lazy.js';\nawait sandbox();")).toEqual([]);
+      expect(hits({ 'packages/engine/src/jobs/sandbox-job.ts': ['@retake/sandbox'] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('engine-load '))).toEqual([
+        'engine-load packages/engine/src/jobs/sandbox-job.ts → @retake/sandbox',
+      ]);
+      expect(hits({ [lib.ENGINE_LOADER as string]: ['@retake/sandbox'] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('engine-load '))).toEqual([
+        `engine-load ${lib.ENGINE_LOADER} → @retake/sandbox`,
+      ]);
+      expect(hits({ 'packages/engine/src/sandboxes/x.ts': ['@retake/sandbox/types'] }).filter((h) => h.startsWith('engine-load '))).toEqual([]);
+      expect(lib.PORT_ROOTS.packageSandboxes).toEqual(['packages/compose/src/package-sandboxes.ts', 'packages/compose/src/ports.ts']);
       expect(lib.PORT_ROOT_RULE.packageSandboxes).toBe('loader-use');
       for (const root of lib.PORT_ROOTS.packageSandboxes) expect(ports(root, 'f(packageSandboxes());'), root).toEqual([]);
-      expect(ports('packages/cli/src/commands/sandbox.ts', "import { packageSandboxes } from '@retake/engine';\nconst s = packageSandboxes();")).toEqual([
+      expect(ports('packages/cli/src/commands/sandbox.ts', "import { packageSandboxes } from '@retake/compose';\nconst s = packageSandboxes();")).toEqual([
         'loader-use packages/cli/src/commands/sandbox.ts → packageSandboxes outside a root',
       ]);
-      expect(ports('packages/engine/src/jobs/sandbox-job.ts', "import * as ps from '../sandboxes/package-sandboxes.js';\nf(ps.packageSandboxes);")).toEqual([
+      expect(ports('packages/engine/src/jobs/sandbox-job.ts', "import * as ps from '@retake/compose';\nf(ps.packageSandboxes);")).toEqual([
         'loader-use packages/engine/src/jobs/sandbox-job.ts → packageSandboxes outside a root',
       ]);
       const port = 'packages/engine/src/sandboxes/sandboxes.ts';
@@ -549,33 +556,33 @@ describe('the import-rules ratchet', () => {
       const at = (fileImports: Record<string, readonly string[]>): string[] => lib.portTypeHits(fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
       expect(at({ [port]: ['@retake/core', '@retake/core/io', '@retake/sandbox/types'] })).toEqual([]);
       expect(at({ [port]: ['@retake/sandbox'] })).toEqual([`port-types ${port} → @retake/sandbox`]);
-      // The engine names the sandbox package nowhere but in its loader and through the types entry (R11 holds no sandbox pair).
+      // The engine names the sandbox package nowhere but through the types entry (R11 holds no sandbox pair).
       const entries = ratchetOfRepo();
       expect(entries.filter((e) => e.startsWith('R11 ') && e.includes('@retake/sandbox'))).toEqual([]);
     });
 
     it('the ComponentRegistries port: its loader in registries/ only, its adapter named at its roots only, its port file on the geometry entry; no registry load is left to an adapter', () => {
       expect(lib.LOADER_HOMES.components).toBe('packages/engine/src/registries/');
-      expect(loaders('packages/engine/src/registries/package-registries.ts', "import { components } from '../lazy.js';\nawait components();")).toEqual([]);
+      expect(loaders('packages/engine/src/registries/component-calls.ts', "import { components } from '../lazy.js';\nawait components();")).toEqual([]);
       expect(loaders('packages/engine/src/components.ts', "import { components } from './lazy.js';\nawait components();")).toEqual(['loader-use packages/engine/src/components.ts → components']);
       expect(loaders('packages/engine/src/registries/x.ts', "export { components } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/x.ts → components re-exported']);
       // A port's own file is no home: it names no adapter, its loader included (every port's: the sandbox's too).
       expect(loaders('packages/engine/src/registries/registries.ts', "import { components } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/registries/registries.ts → components']);
-      expect(loaders('packages/engine/src/sandboxes/sandboxes.ts', "import { sandbox } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/sandboxes/sandboxes.ts → sandbox']);
-      expect(lib.PORT_ROOTS.packageRegistries).toEqual(['packages/engine/src/registries/package-registries.ts', 'packages/engine/src/ports.ts']);
+      expect(loaders('packages/engine/src/render/renderer.ts', "import { editor } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/render/renderer.ts → editor']);
+      expect(lib.PORT_ROOTS.packageRegistries).toEqual(['packages/compose/src/package-registries.ts', 'packages/compose/src/ports.ts']);
       expect(lib.PORT_ROOT_RULE.packageRegistries).toBe('loader-use');
       for (const root of lib.PORT_ROOTS.packageRegistries) expect(ports(root, 'f(packageRegistries());'), root).toEqual([]);
-      expect(ports('packages/engine/src/templates.ts', "import { packageRegistries } from './registries/package-registries.js';\nconst r = packageRegistries();")).toEqual([
+      expect(ports('packages/engine/src/templates.ts', "import { packageRegistries } from '@retake/compose';\nconst r = packageRegistries();")).toEqual([
         'loader-use packages/engine/src/templates.ts → packageRegistries outside a root',
       ]);
       const port = 'packages/engine/src/registries/registries.ts';
       expect(lib.PORT_FILES).toContain(port);
       expect(lib.engineLayerOf(port)?.layer).toBe('ports');
-      expect(lib.engineLayerOf('packages/engine/src/registries/package-registries.ts')?.layer).toBe('adapters');
+      expect(lib.engineLayerOf('packages/engine/src/registries/component-calls.ts')?.layer).toBe('adapters');
       const at = (fileImports: Record<string, readonly string[]>): string[] => lib.portTypeHits(fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
       expect(at({ [port]: ['@retake/components/geometry', '../errors.js'] })).toEqual([]);
       expect(at({ [port]: ['@retake/components'] })).toEqual([`port-types ${port} → @retake/components`]);
-      // The engine names the components package in its loader and its registries home only (R11 holds no pair), and the
+      // The engine names the components package as types in its loader and its registries home only (R11 holds no pair), and the
       // editor's plan and render and the review load no registry by themselves (no R14 pair of theirs on the package).
       const entries = ratchetOfRepo();
       expect(entries.filter((e) => e.startsWith('R11 '))).toEqual([]);
@@ -699,14 +706,14 @@ describe('the import-rules ratchet', () => {
   it("the editor's renderer is named at its roots only (the ports bag and its own file): a CLI command takes the renderer of the ports it is handed", () => {
     const ports = (rel: string, text: string): string[] =>
       lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
-    expect(lib.PORT_ROOTS.editorRenderer).toEqual(['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts']);
-    expect(ports('packages/cli/src/commands/render.ts', "import { editorRenderer } from '@retake/engine';\nconst r = editorRenderer();")).toEqual([
+    expect(lib.PORT_ROOTS.editorRenderer).toEqual(['packages/compose/src/editor-renderer.ts', 'packages/compose/src/ports.ts']);
+    expect(ports('packages/cli/src/commands/render.ts', "import { editorRenderer } from '@retake/compose';\nconst r = editorRenderer();")).toEqual([
       'loader-use packages/cli/src/commands/render.ts → editorRenderer outside a root',
     ]);
-    expect(ports('packages/engine/src/jobs/job-child.ts', "import { editorRenderer } from '../render/editor-renderer.js';\nconst r = editorRenderer();")).toEqual([
+    expect(ports('packages/engine/src/jobs/job-child.ts', "import { editorRenderer } from '@retake/compose';\nconst r = editorRenderer();")).toEqual([
       'loader-use packages/engine/src/jobs/job-child.ts → editorRenderer outside a root',
     ]);
-    expect(ports('packages/engine/src/ports.ts', "import { editorRenderer } from './render/editor-renderer.js';\nconst r = editorRenderer();")).toEqual([]);
+    expect(ports('packages/compose/src/ports.ts', "import { editorRenderer } from './editor-renderer.js';\nconst r = editorRenderer();")).toEqual([]);
     expect(ratchetOfRepo().filter((e) => e.includes('editorRenderer'))).toEqual([]);
   });
 
@@ -802,7 +809,7 @@ describe('the import-rules ratchet', () => {
       (lib.envReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
 
     it('counts each process.env read in packages/engine/src outside its homes: a member, the whole value, a default parameter, process["env"]; not a comment, a string or another package', () => {
-      expect(lib.ENV_HOMES).toEqual(['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts']);
+      expect(lib.ENV_HOMES).toEqual(['packages/engine/src/ports.ts']);
       const f = 'packages/engine/src/jobs/x.ts';
       expect(at(f, 'export const a = process.env.RETAKE_HOME;')).toEqual([`${f} → 1`]);
       expect(at(f, "export function b(env = process.env) { return { ...process.env, x: process['env'].Y, env }; }")).toEqual([`${f} → 3`]);
@@ -1501,7 +1508,7 @@ describe('the import-rules ratchet', () => {
       eng('plan-types', "import type { EditPlan } from '@retake/editor/plan';\n", '@retake/editor/plan'),
       // In an adapter home (ADAPTER_HOMES: the folders of LOADER_HOMES) an adapter root's types are free, its values are
       // not; the editor's values there are R9's.
-      eng('review/home-types', "import type { ReviewOptions } from '@retake/review';\n", '@retake/review'),
+      eng('registries/home-types', "import type { ComponentRegistry } from '@retake/components';\n", '@retake/components'),
       eng('render/home-editor-types', "import type { RenderVideoOptions } from '@retake/editor';\n", '@retake/editor'),
       eng('render/home-editor-value', "import { renderVideo } from '@retake/editor';\n", '@retake/editor'),
       eng('render/home-value', "import { pidAlive } from '@retake/sandbox';\n", '@retake/sandbox'),
@@ -1537,14 +1544,31 @@ describe('the import-rules ratchet', () => {
         .filter((h) => h.includes('editor-value') || h.includes('plan-value'))
         .map((h) => h.split(' ')[0])
         .sort(),
-    ).toEqual(['R11', 'R9', 'R9']);
-    expect(lib.ADAPTER_HOMES).toEqual([
-      'packages/engine/src/render/',
-      'packages/engine/src/hook-run/',
-      'packages/engine/src/review/',
-      'packages/engine/src/capture/',
-      'packages/engine/src/sandboxes/',
-      'packages/engine/src/registries/',
+    ).toEqual(['R11', 'R9', 'R9', 'engine-load', 'engine-load']);
+    expect(lib.ADAPTER_HOMES).toEqual(['packages/engine/src/render/', 'packages/engine/src/registries/']);
+    // engine-load: every value form of an adapter package outside its domain entries, the loader and the homes included; types are free.
+    expect(
+      all
+        .filter((h) => h.startsWith('engine-load '))
+        .map((h) => h.replace(/^engine-load packages\/engine\/src\/(.+)\.ts → /, '$1: '))
+        .sort(),
+    ).toEqual([
+      'dynamic-template: @retake/runner-web',
+      'dynamic: @retake/runner-web',
+      'editor-value: @retake/editor',
+      'import-equals: @retake/sandbox',
+      'jobs/thumbs: @retake/review/thumbs',
+      'lazy: @retake/sandbox',
+      'mixed: @retake/sandbox',
+      'reexport-all: @retake/hooks',
+      'reexport-namespace: @retake/hooks',
+      'reexport: @retake/sandbox',
+      'render/home-editor-value: @retake/editor',
+      'render/home-value: @retake/sandbox',
+      'require: @retake/sandbox',
+      'root-of-a-domain-entry: @retake/components',
+      'side-effect: @retake/sandbox',
+      'value: @retake/sandbox',
     ]);
     // R11 is a rule of the list, with no loader check of its own (R9 owns the loaders of these files).
     const r11 = (lib.RULES as { id: string; typeOnlyCheck?: unknown; loaders?: boolean }[]).find((r) => r.id === 'R11')!;
@@ -1558,11 +1582,43 @@ describe('the import-rules ratchet', () => {
     }
     expect(hitsOf({ 'packages/engine/src/computed.ts': { text: "const name = '@retake/' + 'sandbox';\nconst sb = await import(name);\n", specs: [] } })).toEqual([
       'R9 packages/engine/src/computed.ts → import()',
+      'engine-load packages/engine/src/computed.ts → import()',
     ]);
     // A file that cannot be read counts as a value import (the check fails closed).
     expect(hits({ 'packages/engine/src/gone.ts': ['@retake/hooks'] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('R11 '))).toEqual([
       'R11 packages/engine/src/gone.ts → @retake/hooks',
     ]);
+  });
+
+  it("the composition package: it imports no shell, only it imports the engine's composition entry, no package below it depends on it in any field, and the binding is the engine's one process state", () => {
+    const none = join(tmpdir(), 'retake-import-rules-none');
+    const of = (rule: string, fileImports: Record<string, readonly string[]>) => hits(fileImports, none).filter((h) => h.startsWith(`${rule} `));
+    // compose-shell: the composition package names no shell, in any form.
+    expect(of('compose-shell', { 'packages/compose/src/a.ts': ['@retake/mcp', '@retake/ui', '@retake/cli', '@retake/engine', '@retake/editor'] })).toEqual([
+      'compose-shell packages/compose/src/a.ts → @retake/mcp',
+      'compose-shell packages/compose/src/a.ts → @retake/ui',
+      'compose-shell packages/compose/src/a.ts → @retake/cli',
+    ]);
+    // composition-entry: a shell (or any other package) builds from the composition package, never from the engine's entry for it.
+    expect(
+      of('composition-entry', {
+        'packages/ui/src/server/ports.ts': ['@retake/engine/composition'],
+        'packages/compose/src/ports.ts': ['@retake/engine/composition'],
+        'packages/engine/src/x.ts': ['@retake/engine/composition'],
+        'packages/cli/src/a.ts': ['@retake/engine/shell'],
+      }),
+    ).toEqual(['composition-entry packages/ui/src/server/ports.ts → @retake/engine/composition']);
+    // engine-deps reads every dependency field (the scan's declaredAny): a dev or a peer dependency is one too.
+    expect((lib.engineDepHits({ engine: ['core', 'editor', 'mcp'], sandbox: ['core', 'compose'], cli: ['compose'] }) as Hit[]).map((h) => `${h.file} → ${h.spec}`)).toEqual([
+      'packages/engine/package.json → @retake/mcp',
+      'packages/sandbox/package.json → @retake/compose',
+    ]);
+    expect(scanOfRepo().declaredAny.engine).toEqual(scanOfRepo().declared.engine);
+    // engine-state: the product binding is the only top-level state of ports.ts and lazy.ts (ENGINE_STATE_PROCESS).
+    expect(Object.keys(lib.ENGINE_STATE_PROCESS).sort()).toEqual(['packages/engine/src/lazy.ts', 'packages/engine/src/ports.ts']);
+    const state = (rel: string, text: string): string[] => (lib.engineStateHits(ROOT, [{ rel, pkg: 'engine', text, specs: [] }], { whole: false }) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+    expect(state('packages/engine/src/ports.ts', 'let product;\nlet other = 1;\n')).toEqual(['packages/engine/src/ports.ts → other (let)']);
+    expect(state('packages/engine/src/lazy.ts', 'let bound;\n')).toEqual([]);
   });
 
   it('a shell may import a domain entry, not the package behind it', () => {
@@ -1779,6 +1835,10 @@ describe('the import-rules ratchet', () => {
       'R7 packages/review/src/spans.ts → node:child_process',
       'R8 packages/review/src/spans.ts → @retake/editor',
       'R9 packages/engine/src/x.ts → @retake/editor',
+      // The engine loads no adapter package in any value form, its loader included (a type-only re-export is free).
+      'engine-load packages/engine/src/lazy.ts → @retake/sandbox',
+      'engine-load packages/engine/src/x.ts → @retake/editor',
+      'engine-load packages/engine/src/x.ts → @retake/hooks',
     ]);
     // A cycle through the form is a cycle too (the file graph reads the same list).
     const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
@@ -1798,9 +1858,10 @@ describe('the import-rules ratchet', () => {
     const loader = lib.ENGINE_LOADER as string;
     const uses = lib.moduleUses(ts, loader, readFileSync(join(ROOT, loader), 'utf8')) as { values: Set<string>; statics: Set<string> };
     // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
-    // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
-    expect([...uses.statics]).toEqual([]);
-    expect([...uses.values].sort()).toEqual(['@retake/components', '@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web', '@retake/sandbox']);
+    // file the adapter's values through `./lazy.js`, unseen. It loads nothing itself: the composition package binds
+    // the modules it hands on (engine-load reads this file too).
+    expect([...uses.statics].filter((m) => !m.startsWith('.'))).toEqual([]);
+    expect([...uses.values].filter((m) => !m.startsWith('.')).sort()).toEqual([]);
     // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
     const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
     for (const text of [
@@ -1834,7 +1895,7 @@ describe('the import-rules ratchet', () => {
     expect(Object.values(lib.LAYERS as Record<string, string[]>).flat()).not.toContain(lib.TEST_SUPPORT);
     expect(scanOfRepo().pkgs).not.toContain(lib.TEST_SUPPORT);
     const layers = lib.LAYERS as Record<string, string[]>;
-    expect(Object.keys(layers)).toEqual(['domain', 'adapters', 'application', 'shells']);
+    expect(Object.keys(layers)).toEqual(['domain', 'adapters', 'application', 'composition', 'shells']);
     expect(Object.values(layers).flat().sort()).toEqual(dirs);
     expect(new Set(Object.values(layers).flat()).size).toBe(dirs.length);
     // The lists are the rules' own: R2 reads the adapters, R4 the shells.

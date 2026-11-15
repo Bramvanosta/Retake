@@ -1,15 +1,14 @@
 /**
- * The product's hook runner: the hooks package behind the HookRunner port. The package is loaded through the engine's
+ * The product's hook runner: the hooks package behind the HookRunner port. The package is loaded through the composition package's
  * loader (lazy.ts `hooks`) on a member's first call — a command that runs no hook never loads it — and each member
  * calls the package's function with the same arguments: what runs, what is journaled and signed, and every approval's
- * fingerprint are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
+ * fingerprint are the package's, unchanged. Made by the composition package only (ports.ts productPorts).
  */
 import { join } from 'node:path';
 import type { HookStep } from '@retake/core/hooks';
-import { EngineError } from '../errors.js';
-import { hooks } from '../lazy.js';
-import { runFolderOf } from '../outputs/outputs.js';
-import type { HookJournal, HookRunner, PendingHookJournal } from './runner.js';
+import { EngineError, runFolderOf } from '@retake/engine/composition';
+import type { HookJournal, HookRunner, PendingHookJournal } from '@retake/engine/composition';
+import { hooks } from './lazy.js';
 
 type Hooks = Awaited<ReturnType<typeof hooks>>;
 type Journal = Hooks['Journal']['prototype'];

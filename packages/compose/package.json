@@ -1,0 +1,29 @@
+{
+  "name": "@retake/compose",
+  "version": "0.2.6",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/editor": "workspace:*",
+    "@retake/engine": "workspace:*",
+    "@retake/hooks": "workspace:*",
+    "@retake/review": "workspace:*",
+    "@retake/runner-web": "workspace:*",
+    "@retake/sandbox": "workspace:*"
+  }
+}

@@ -129,9 +129,10 @@ describe("the adapters' and the Studio's main entries", () => {
   it.each(ROOTS)('%s: every name of its root is named by another package through it', (pkg, spec, file, domain) => {
     const { values, types, stars } = entryNames(file);
     expect(stars, 'a star re-export hides what the entry holds: only its domain entry is re-exported whole').toEqual(domain);
-    // The engine reaches an adapter's root through its loader (engine/src/lazy.ts: `(await editor()).planRun`), so its
-    // sources count whatever specifier they name.
-    const users = [...SRC, ...TESTS].filter((f) => pkgOf(f.rel) !== pkg && (f.text.includes(`'${spec}'`) || f.rel.startsWith('packages/engine/src/')));
+    // The engine and the composition package reach an adapter's root through a loader (`(await editor()).planRun`), so
+    // their sources count whatever specifier they name.
+    const loads = (rel: string) => rel.startsWith('packages/engine/src/') || rel.startsWith('packages/compose/src/');
+    const users = [...SRC, ...TESTS].filter((f) => pkgOf(f.rel) !== pkg && (f.text.includes(`'${spec}'`) || loads(f.rel)));
     const unused = [...values, ...types].filter((n) => !users.some((f) => new RegExp(`\\b${n}\\b`).test(f.text)));
     expect(unused).toEqual([]);
   });

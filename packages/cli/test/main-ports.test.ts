@@ -6,7 +6,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 import { memoryJobQueues } from '@retake/engine/testing';
 import type { JobQueues } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
@@ -28,7 +28,7 @@ describe('the ports main() is handed', () => {
     const asked: string[] = [];
     const queues: JobQueues = (root, cli, clock, env) => (asked.push(root), memory(root, cli, clock, env));
     const io = memoryIo();
-    const code = await main(['node', 'retake', '--root', ws, 'jobs', '--json'], io, enginePorts({ queues }));
+    const code = await main(['node', 'retake', '--root', ws, 'jobs', '--json'], io, productPorts({ queues }));
     expect(code).toBe(EXIT.ok);
     expect(asked.length).toBeGreaterThan(0);
     expect(new Set(asked).size).toBe(1);

@@ -21,7 +21,7 @@ import type { RenderRecord } from '@retake/editor';
 import { EngineError, createEngine } from '../src/index.js';
 import { addComment, listComments } from '../src/comments.js';
 import { pruneProject } from '../src/prune.js';
-import { packageReviewer } from '../src/review/review-package.js';
+import { packageReviewer } from '@retake/compose';
 import type { Engine } from '../src/index.js';
 import { checkRenderRequest } from '../src/jobs/render-job.js';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';

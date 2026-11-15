@@ -7,6 +7,7 @@
     { "path": "packages/runner-web" },
     { "path": "packages/review" },
     { "path": "packages/engine" },
+    { "path": "packages/compose" },
     { "path": "packages/components" },
     { "path": "packages/editor" },
     { "path": "packages/mcp" },

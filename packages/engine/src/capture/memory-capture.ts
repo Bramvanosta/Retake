@@ -91,7 +91,7 @@ export class MemoryCaptureRunner implements CaptureRunner {
     this.#loaded = true;
   }
 
-  /** As runner-web-capture.ts: a synchronous member needs the runner loaded. */
+  /** As the composition package's runner-web-capture.ts: a synchronous member needs the runner loaded. */
   #sync(member: string): void {
     if (!this.#loaded) throw new EngineError('internal', `the capture runner's ${member} was called before it was loaded: its composition root awaits capture.load() first`);
   }

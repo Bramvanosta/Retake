@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
-import { editorRenderer } from '../src/render/editor-renderer.js';
+import { editorRenderer } from '@retake/compose';
 import { planWork } from '../src/pipeline.js';
 import type { PlannedRun } from '../src/index.js';
 import { hasTool } from '@retake/test-support/repo';

@@ -29,7 +29,7 @@ import { jobsDir } from '../src/workspace-state.js';
 import { openProject } from '../src/workspace.js';
 import { renderInProcess, stillInProcess } from '../src/in-process.js';
 import { runWorker } from '../src/jobs/worker.js';
-import { withPreviewBackend } from '../src/render/editor-renderer.js';
+import { withPreviewBackend } from '@retake/compose';
 import type { Engine, JobRecord, RenderRecord } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';
 import { MEMORY_PNG, MEMORY_VIDEO, MemoryRenderer } from '../src/render/memory-renderer.js';

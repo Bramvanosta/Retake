@@ -11,11 +11,11 @@ import { describe, expect, it } from 'vitest';
 import type { RunJobInput } from '../src/jobs/job-input.js';
 import { EngineError } from '../src/index.js';
 import { ManualClock, stampOf } from '../src/clock.js';
+import type { Clock } from '../src/clock.js';
 import { newJobId } from '../src/jobs/ids.js';
 import { selfIdentity } from '../src/jobs/proc.js';
 import { verifiedApprovals } from '../src/jobs/signing.js';
 import type { JobQueue, JobRecord } from '../src/index.js';
-import type { Clock } from '../src/clock.js';
 import type { YieldMark } from '../src/jobs/job-queue.js';
 
 export const RUN_INPUT: RunJobInput = {

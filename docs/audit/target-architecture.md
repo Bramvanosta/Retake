@@ -42,11 +42,14 @@ The steps to get there are in [action-plan.md](action-plan.md); the words for th
 
 ```text
 shells        cli · mcp · ui/server · ui/app · apps/desktop          protocol only: parse, call invoke() (the CLI: the engine's functions), render the answer
-                 │
+                 │  (their engine built from the composition package)
 application   @retake/engine  (. façade + types, ./shell in-process values, ./contract, catalogue, ./testing; pipeline, policy, ports)
                  │  ports: JobQueue ProjectStore WorkspaceReads Outputs CaptureRunner Renderer Reviewer
                  │         SandboxProvider HookRunner Secrets Clock HostResolver ComponentRegistries
                  │         Approver FileFacts
+                 ▲
+composition   @retake/compose  the package adapters behind the ports, the ports bag that wires them (productPorts),
+                 │             the jobs worker's entry; what the shells build their engine from
                  ▼
 adapters      runner-web · editor/render · review (media) · sandbox · hooks · components (compile)
               file queue (then L5.14's store) · index-db · integrations (Claude registrations: @retake/engine/integrations)
@@ -64,13 +67,17 @@ an adapter's root holds the names another package uses and its domain entry whol
 
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters
 import the domain and the engine's ports only; shells import the engine's façade and contract only, and never another
-shell; the Studio app imports types only; nothing but the composition roots (CLI entry, MCP entry, Studio server
+shell; the Studio app imports types only; the engine loads no adapter package — its loader included — and depends on core
+and the domain entries' packages only (`engine-load`, `engine-deps`): the product's package adapters and their default
+ports live in the composition package (`@retake/compose`), which binds the editor's and the components' modules, the
+package adapters and the worker entry into the engine and which only a shell imports (`compose-use`; R2: no adapter
+names it); nothing but the composition roots (CLI entry, MCP entry, Studio server
 entry, worker entry) wires adapters to ports. A shell may be typed against a *domain entry* of an adapter package
 (`@retake/components/geometry`, `@retake/editor/plan`, `@retake/review/checks`, `@retake/hooks/describe`, and the type-only `@retake/runner-web/types` and `@retake/sandbox/types`: pure, no adapter code) — its types
 only: a value of one is a hit like any adapter import, since a shell that plans or checks by itself is a second
 orchestration — and never imports the package behind it (R4). The engine names an adapter package's root in that
-adapter's home only — the folder of its port's package adapter (`render/` for the editor, `hook-run/`, `review/`,
-`capture/`, `sandboxes/`), where its loader is used too (`loader-use`) — and there as types only (R11: elsewhere an
+adapter's home only — the folder whose work hands its names on (`render/` for the editor, `registries/` for the
+components), where its loader is used too (`loader-use`) — and there as types only (R11: elsewhere an
 import of the root in any form, types included, is a hit; the components' root value import of the engine's own
 component loader is the 1 entry left); everywhere else it names an adapter through its domain entry, whose values and
 types are free, or through a name a home hands on (the render folder's `editor-calls.ts`: planning, the lookups, the

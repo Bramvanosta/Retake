@@ -3,7 +3,7 @@
  * the engine's catalogue, previews, themes and brands compute — a manifest's params' defaults and checks, a component's
  * fit for a use, the palette and theme-file makers, a font file's face from its name, the theme tokens, the kit's major,
  * where a scaffold and the library's samples lie, and the library's constants. None reads or writes a file, compiles or
- * runs code (the port's members do). Loaded through the engine's loader on the first call (lazy.ts `components`); each
+ * runs code (the port's members do). Loaded through the engine's loader on the first call (lazy.ts `components`, the module the composition package binds); each
  * member is the package's own, handed on unchanged.
  */
 import type * as Library from '@retake/components';

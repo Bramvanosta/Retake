@@ -1,14 +1,12 @@
 /**
  * The product's sandboxes: the sandbox package behind the Sandboxes port, with its process and docker-compose providers.
- * The package is loaded through the engine's loader (lazy.ts `sandbox`) on the first call — a command that touches no
+ * The package is loaded through the composition package's loader (lazy.ts `sandbox`) on the first call — a command that touches no
  * sandbox never loads it (nor pg) — and `open` is the package's `openSandbox`: the handle is its Sandbox, every call and
- * every refusal (SandboxError, its code and words) the package's, unchanged. Made by the composition roots only
- * (ports.ts enginePorts).
+ * every refusal (SandboxError, its code and words) the package's, unchanged. Made by the composition package only
+ * (ports.ts productPorts).
  */
-import { sandbox } from '../lazy.js';
-import type { HookRunner } from '../hook-run/runner.js';
-import type { Secrets } from '../secrets/secrets.js';
-import type { SandboxHandle, Sandboxes } from './sandboxes.js';
+import type { HookRunner, SandboxHandle, Sandboxes, Secrets } from '@retake/engine/composition';
+import { sandbox } from './lazy.js';
 
 type SandboxPackage = Awaited<ReturnType<typeof sandbox>>;
 

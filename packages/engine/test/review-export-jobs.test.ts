@@ -39,7 +39,7 @@ import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review
 import type { Workspace } from '@retake/test-support/review';
 import { linkSharedCache } from '@retake/test-support/render';
 import { scratchHome } from '@retake/test-support/home';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 // biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
 type Untyped = any;

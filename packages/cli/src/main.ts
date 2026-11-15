@@ -18,6 +18,7 @@ import { registerSignInCommands } from './program/sign-in.js';
 import { registerUpkeepCommands } from './program/upkeep.js';
 import { registerWorkspaceCommands } from './program/workspace.js';
 import { Ui } from './ui.js';
+import { bindProduct } from '@retake/compose';
 import { cliEnginePorts } from './workspace.js';
 import type { GlobalOptions, ProgramOptions } from './workspace.js';
 import type { EnginePorts } from '@retake/engine';
@@ -120,9 +121,11 @@ export function commandPaths(): string[] {
 /**
  * Run the CLI with `argv` (process.argv form: the first two entries are ignored). Never throws:
  * returns the exit code (0 ok, 1 failure, 2 usage error). The CLI's composition root: its commands are handed `ports`
- * (default the product's, cliEnginePorts: made once, when the first command runs).
+ * (default the product's, cliEnginePorts: made once, when the first command runs). The product is bound into the
+ * engine first, ports handed or not: the editor's work a command asks of the engine, and the worker it starts.
  */
 export async function main(argv: readonly string[] = process.argv, io: Io = processIo(), ports?: EnginePorts): Promise<ExitCode> {
+  bindProduct();
   let code: ExitCode = EXIT.ok;
   let made: EnginePorts | undefined = ports;
   const program = buildProgram(

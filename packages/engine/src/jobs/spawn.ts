@@ -1,6 +1,6 @@
 /**
  * Starting the jobs worker of a workspace: `ensureWorker` after each submit — nothing when the worker lock's
- * holder is alive, else a detached `node …/engine/worker-main.js --root <ws>` whose output goes to
+ * holder is alive, else a detached `node …/compose/worker-main.js --root <ws>` (the bound product's worker entry) whose output goes to
  * .retake/workers/worker.log. It outlives the client that started it (a capture finishes with its teardown even
  * when the MCP session closes) and exits once idle. Run from the sources (tests), the same entry is started as
  * TypeScript through tsx with the packages' `source` export condition. From an app bundle the worker gets the bundle's
@@ -12,9 +12,10 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { existsSync, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { RETAKE_VERSION } from '@retake/core/base';
 import { bundleNodeArgs, engineLocation } from '@retake/core/io';
+import { boundProduct } from '../ports.js';
 import { LOCK_VERSION_RE, WORKER_CLIENT_RE, liveWorker, otherCopy, workersDir } from './lock.js';
 
 /** Starts the worker process: node's `spawn` (tests inject one to see the command and the environment). */
@@ -43,14 +44,13 @@ function tsxLoader(from: string): string | undefined {
   }
 }
 
-/** node's arguments up to the worker-main entry (built, or the sources through tsx with the `source` condition). */
+/** node's arguments up to the bound product's worker entry (built, or the sources through tsx with the `source` condition). */
 function entryArgs(): string[] {
-  const here = fileURLToPath(import.meta.url); // …/engine/(dist|src)/jobs/spawn.(js|ts)
-  const fromSources = here.endsWith('.ts');
-  const entry = join(dirname(dirname(here)), fromSources ? 'worker-main.ts' : 'worker-main.js');
+  const entry = boundProduct('a jobs worker').workerEntry; // …/compose/(dist|src)/worker-main.(js|ts)
+  const fromSources = entry.endsWith('.ts');
   const args: string[] = [];
   if (fromSources) {
-    const loader = tsxLoader(dirname(here));
+    const loader = tsxLoader(dirname(entry));
     if (!loader) throw new Error('cannot start a worker from the sources: tsx is not installed (pnpm install)');
     args.push('--conditions=source', '--import', loader);
   } else {
@@ -60,7 +60,7 @@ function entryArgs(): string[] {
   return args;
 }
 
-/** The command line of a worker for `root`: the engine's worker-main entry, built or from the sources. */
+/** The command line of a worker for `root`: the bound product's worker-main entry, built or from the sources. */
 export function workerCommand(root: string, opts: Pick<WorkerSpawnOptions, 'idleExitMs' | 'startedBy'> = {}): { command: string; args: string[] } {
   const args = entryArgs();
   args.push('--root', root);

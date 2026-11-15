@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createComponent, loadComponentRegistry } from '@retake/components';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 import { MemoryRegistries, emptyRegistry } from '../src/registries/memory-registries.js';
 import { registryLoader } from '../src/registries/registries.js';
 import { componentCalls } from '../src/registries/component-calls.js';

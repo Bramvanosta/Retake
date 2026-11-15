@@ -21,7 +21,7 @@ import { EngineError } from '../src/index.js';
 import { openWorkspace } from '../src/workspace.js';
 import { planOfRun, planWork } from '../src/pipeline.js';
 import { rawExportWork } from '../src/raw-export.js';
-import { runnerWebCapture } from '../src/capture/runner-web-capture.js';
+import { runnerWebCapture } from '@retake/compose';
 import { diskWorkspaceReads } from '../src/workspace-reads/disk-reads.js';
 import { diskOutputs } from '../src/outputs/disk-outputs.js';
 import type { OpenedWorkspace, RunRef } from '../src/index.js';
@@ -29,7 +29,7 @@ import type { CaptureRaw } from '../src/capture/runner.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { openProjectBySlug } from '../src/projects.js';
 import { syntheticRunRecord } from '@retake/test-support/render';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 import { loadComponentRegistry } from '@retake/components';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));

@@ -38,7 +38,7 @@ import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { oneButtonPress } from './recorded-events.js';
 import { scratchHome } from '@retake/test-support/home';
 import { FAST } from '@retake/test-support/capture';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
 

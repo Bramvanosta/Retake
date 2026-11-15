@@ -7,6 +7,10 @@
 import { createInterface } from 'node:readline';
 import { createEngine } from '../../src/index.js';
 import type { EngineClient } from '../../src/index.js';
+import { bindProduct } from '../../../compose/src/index.js';
+
+// A process of its own: the product bound, as a composition root does.
+bindProduct();
 
 const [root, client] = process.argv.slice(2);
 const engine = await createEngine({ root: root!, client: client as EngineClient, autoStartWorker: false });

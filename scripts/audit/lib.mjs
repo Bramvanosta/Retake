@@ -61,7 +61,8 @@ function walk(dir, out = [], keep = isScanned) {
 }
 
 /**
- * Every source file of every package: `{ pkgs, nameToDir, declared, files: [{ rel, pkg, text, specs }], fileImports }`.
+ * Every source file of every package: `{ pkgs, nameToDir, declared, declaredAny, files: [{ rel, pkg, text, specs }], fileImports }`
+ * (`declared`: the @retake run-time dependencies of each package; `declaredAny`: with its dev and peer ones too).
  * `specs` are the module specifiers of the file (specifiersOf): what the compiler's pre-processor finds (static,
  * `import type`, `import()`, `require()`) and every import / export declaration of the syntax tree.
  */
@@ -71,12 +72,16 @@ export function scan(root) {
   const pkgs = fs.readdirSync(pkgsDir).filter((d) => d !== TEST_SUPPORT && fs.existsSync(path.join(pkgsDir, d, 'package.json')));
   const nameToDir = {};
   const declared = {};
+  const declaredAny = {};
+  const retakeNames = (deps) =>
+    Object.keys(deps)
+      .filter((n) => n.startsWith('@retake/'))
+      .map((n) => n.replace('@retake/', ''));
   for (const d of pkgs) {
     const pj = JSON.parse(fs.readFileSync(path.join(pkgsDir, d, 'package.json'), 'utf8'));
     nameToDir[pj.name] = d;
-    declared[d] = Object.keys({ ...pj.dependencies })
-      .filter((n) => n.startsWith('@retake/'))
-      .map((n) => n.replace('@retake/', ''));
+    declared[d] = retakeNames({ ...pj.dependencies });
+    declaredAny[d] = retakeNames({ ...pj.dependencies, ...pj.devDependencies, ...pj.peerDependencies });
   }
   const files = [];
   const fileImports = {};
@@ -89,7 +94,7 @@ export function scan(root) {
       fileImports[rel] = specs;
     }
   }
-  return { pkgs, nameToDir, declared, files, fileImports };
+  return { pkgs, nameToDir, declared, declaredAny, files, fileImports };
 }
 
 /** Whether a specifier is an I/O module for the package report of imports.mjs. */
@@ -179,7 +184,14 @@ const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'compone
  * Every package of the repository in its layer (docs/audit/target-architecture.md): a folder of packages/ that is in
  * none, or in two, fails packages/core/test/import-rules.test.ts — a new package is given its rules on purpose.
  */
-export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['engine'], shells: SHELLS };
+/**
+ * The product's composition (docs/audit/target-architecture.md): the package that makes the adapters of the product's
+ * packages behind the engine's ports and the ports bag that wires them, and the jobs worker's entry. The shells build
+ * their engine from it; the engine and the adapters never name it (compose-use), and the engine depends on core and
+ * the adapters' domain entries only (engine-deps, engine-load).
+ */
+export const COMPOSITION = 'compose';
+export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['engine'], composition: [COMPOSITION], shells: SHELLS };
 /**
  * The tests' shared helpers: a workspace package of test code only — no build, never a dependency of
  * a package, never in the app — and so in no layer: the source rules read the product's packages and the scan leaves it
@@ -236,7 +248,7 @@ const coreIoImport = (s, f) => {
  * string; a BlockList matches addresses in memory) — an import naming only these is not I/O; any other form of the
  * import (another name, a default or namespace import, require(), import()) is.
  */
-/** The one file of the engine that loads an adapter's code (its lazy imports). */
+/** The engine's loader: the editor's and the components' modules as the composition package binds them (the engine loads no adapter itself: engine-load). */
 export const ENGINE_LOADER = 'packages/engine/src/lazy.ts';
 /** Where the engine's renderer port, its adapters and the work on them live: the only engine folder that names the editor's render functions. */
 export const RENDER_HOME = 'packages/engine/src/render/';
@@ -292,8 +304,8 @@ export const WORKSPACE_LOADERS = [
 export const STORAGE_FILE = 'packages/engine/src/storage.ts';
 /**
  * Where each product adapter of a port may be named as a value (clock-read, store-new, workspace-read, loader-use,
- * queue): its own file, the ports bag (packages/engine/src/ports.ts enginePorts: the one place the defaults are
- * written) and the composition roots that call it — createEngine, the jobs worker, the job process, the CLI's cliEnginePorts
+ * queue): its own file, the ports bag (packages/engine/src/ports.ts enginePorts: the one place the engine's own defaults
+ * are written; packages/compose/src/ports.ts productAdapters: the package adapters') and the composition roots that call it — createEngine, the jobs worker, the job process, the CLI's cliEnginePorts
  * — and the job queues' defaults (for tests: the roots pass their clock, the queue check holds them to it). The file
  * queue's entry is the `queue` rule's roots (wiringHits reads it, with its class forms).
  */
@@ -301,6 +313,7 @@ export const PORT_ROOTS = {
   systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
   enginePorts: [
     'packages/engine/src/ports.ts',
+    'packages/compose/src/ports.ts',
     'packages/engine/src/engine.ts',
     'packages/engine/src/jobs/worker.ts',
     'packages/engine/src/jobs/job-child.ts',
@@ -310,15 +323,15 @@ export const PORT_ROOTS = {
   diskProjectStores: ['packages/engine/src/store/project-store.ts', 'packages/engine/src/ports.ts'],
   diskWorkspaceReads: ['packages/engine/src/workspace-reads/disk-reads.ts', 'packages/engine/src/ports.ts'],
   MemoryWorkspace: ['packages/engine/src/workspace-reads/memory-reads.ts'],
-  packageHookRunner: ['packages/engine/src/hook-run/package-hooks.ts', 'packages/engine/src/ports.ts'],
-  packageReviewer: ['packages/engine/src/review/review-package.ts', 'packages/engine/src/ports.ts'],
-  runnerWebCapture: ['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts'],
-  packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
-  editorRenderer: ['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts'],
+  packageHookRunner: ['packages/compose/src/package-hooks.ts', 'packages/compose/src/ports.ts'],
+  packageReviewer: ['packages/compose/src/review-package.ts', 'packages/compose/src/ports.ts'],
+  runnerWebCapture: ['packages/compose/src/runner-web-capture.ts', 'packages/compose/src/ports.ts'],
+  packageSandboxes: ['packages/compose/src/package-sandboxes.ts', 'packages/compose/src/ports.ts'],
+  editorRenderer: ['packages/compose/src/editor-renderer.ts', 'packages/compose/src/ports.ts'],
   systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
   systemHosts: ['packages/engine/src/host-lookup.ts', 'packages/engine/src/ports.ts'],
   diskOutputs: ['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts'],
-  packageRegistries: ['packages/engine/src/registries/package-registries.ts', 'packages/engine/src/ports.ts'],
+  packageRegistries: ['packages/compose/src/package-registries.ts', 'packages/compose/src/ports.ts'],
   MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts', 'packages/engine/src/workspace-reads/memory-reads.ts'],
   FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
 };
@@ -342,22 +355,18 @@ export const PORT_ROOT_RULE = {
   FileJobQueue: 'queue',
 };
 /**
- * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
- * port's package adapter lives — the editor's in the render folder, where the renderer's adapter and the work on the
- * editor are (render-call holds its render entries there too).
+ * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in the folder whose work hands
+ * the module's names on — the editor's in the render folder (the work on the editor; render-call holds its render
+ * entries there too), the components' in the registries folder. The package adapters of the ports are the composition
+ * package's (packages/compose/src), with its own loaders.
  */
 export const LOADER_HOMES = {
   editor: RENDER_HOME,
-  hooks: 'packages/engine/src/hook-run/',
-  review: 'packages/engine/src/review/',
-  thumbs: 'packages/engine/src/review/',
-  runnerWeb: 'packages/engine/src/capture/',
-  sandbox: 'packages/engine/src/sandboxes/',
   components: 'packages/engine/src/registries/',
 };
 /**
- * The engine's adapter homes (the folders of LOADER_HOMES): where a port's package adapter lives, the only engine files
- * that may name an adapter package's root — its types included (R11). Everywhere else the engine names an adapter
+ * The engine's adapter homes (the folders of LOADER_HOMES): the only engine files that may name an adapter package's
+ * root, as types (R11; engine-load holds that no engine file loads one). Everywhere else the engine names an adapter
  * through its domain entry (DOMAIN_ENTRIES), or through a name a home hands on.
  */
 export const ADAPTER_HOMES = [...new Set(Object.values(LOADER_HOMES))];
@@ -398,7 +407,7 @@ export const PORT_FILES = [
  * - views: views/ — what a screen reads, put together from the use cases and the jobs' state;
  * - facade: engine.ts and facade/ (createEngine and its sub-APIs);
  * - operations: operations/ (the shells' operations, invoke);
- * - entries: the package entries and the worker's main.
+ * - entries: the package entries (composition.ts among them: what the composition package wires).
  */
 const ENGINE_SRC = 'packages/engine/src/';
 export const ENGINE_LAYERS = [
@@ -411,7 +420,6 @@ export const ENGINE_LAYERS = [
       'format.ts',
       'stored-json.ts',
       'workspace-state.ts',
-      'bundle-env.ts',
       'version-ledger.ts',
       'project-lock.ts',
       'refs.ts',
@@ -463,7 +471,7 @@ export const ENGINE_LAYERS = [
   { layer: 'views', paths: ['views/'] },
   { layer: 'facade', paths: ['engine.ts', 'facade/'] },
   { layer: 'operations', paths: ['operations/'] },
-  { layer: 'entries', paths: ['index.ts', 'shell-entry.ts', 'testing.ts', 'contract.ts', 'doctor-entry.ts', 'integrations.ts', 'worker-main.ts'] },
+  { layer: 'entries', paths: ['index.ts', 'shell-entry.ts', 'testing.ts', 'contract.ts', 'doctor-entry.ts', 'integrations.ts', 'composition.ts'] },
 ];
 /** The layer of an engine source (`rel` from the repository root): its index in ENGINE_LAYERS and name, or undefined. */
 export function engineLayerOf(rel) {
@@ -534,9 +542,10 @@ export const RENDER_CALLS = [
 ];
 /**
  * Where the engine reads this process's environment (env-read): the ports bag (its `env` default, the one the
- * composition roots hand on) and the job process's and worker's entry (worker-main.ts: their command line's settings).
+ * composition roots hand on). The job process's and worker's entry is the composition package's (worker-main.ts: their
+ * command line's settings), outside the engine.
  */
-export const ENV_HOMES = ['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts'];
+export const ENV_HOMES = ['packages/engine/src/ports.ts'];
 /** The doctor's probes adapter (doctor-exec): the one file of the engine's doctor that starts programs. */
 export const DOCTOR_PROBES_HOME = 'packages/engine/src/doctor/machine-probes.ts';
 /** The one module that names playwright-core's private browser registry (browser-registry). */
@@ -684,7 +693,12 @@ export const RULES = [
     loaders: true,
     pure: PURE_BINDINGS,
   },
-  { id: 'R2', title: 'adapters never import application or shells', files: (f) => ADAPTERS.includes(pkgOf(f)), bad: (s) => ['engine', 'mcp', 'ui', 'cli'].includes(retake(s)) },
+  {
+    id: 'R2',
+    title: 'adapters never import application, composition or shells',
+    files: (f) => ADAPTERS.includes(pkgOf(f)),
+    bad: (s) => ['engine', COMPOSITION, 'mcp', 'ui', 'cli'].includes(retake(s)),
+  },
   {
     id: 'R3',
     title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)',
@@ -731,7 +745,7 @@ export const RULES = [
   },
   {
     id: 'R9',
-    title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit (its planner entry, @retake/editor/plan, a pure domain entry, is free), and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`,
+    title: `the engine reaches the editor's code through its loader only (${ENGINE_LOADER}: the module the composition package binds): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit (its planner entry, @retake/editor/plan, a pure domain entry, is free), and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; engine-load holds every adapter package, the loader included). Not seen: a require made through an aliased createRequire (\`import { createRequire as cr }\`, then \`cr(…)(…)\`)`,
     files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
     bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan',
     typeOnlyCheck: true,
@@ -739,7 +753,7 @@ export const RULES = [
   },
   {
     id: 'R11',
-    title: `the engine names an adapter package's root in its adapter homes only (ADAPTER_HOMES: the folders of LOADER_HOMES, where each port's package adapter lives), outside its loader (${ENGINE_LOADER}): elsewhere in packages/engine/src an import of runner-web, review, sandbox, hooks, components or the editor in any form — a type import, a type re-export, \`typeof import()\`, a value — is a hit, and inside a home a value one of the first five (the editor's values there are R9's); their domain entries (DOMAIN_ENTRIES) are free everywhere. Not seen: a value or a type reached through another engine file (the loader, a home that hands a name on: the editor's calls in render/, and \`componentCalls()\` in registries/, which hands on the components package's pure members only — params' defaults and checks, a component's fit, the palette and theme-file makers, a font file's face, the theme tokens, the kit's major, the scaffold and samples paths, the library's constants — while what reads or writes a component's files or compiles its code is the ComponentRegistries port's)`,
+    title: `the engine names an adapter package's root in its adapter homes only (ADAPTER_HOMES: the folders of LOADER_HOMES, render/ and registries/, whose work hands the editor's and the components' names on), outside its loader (${ENGINE_LOADER}): elsewhere in packages/engine/src an import of runner-web, review, sandbox, hooks, components or the editor in any form — a type import, a type re-export, \`typeof import()\`, a value — is a hit, and inside a home a value one of the first five (the editor's values there are R9's; engine-load holds every value import of them, the homes and the loader included); their domain entries (DOMAIN_ENTRIES) are free everywhere. Not seen: a value or a type reached through another engine file (the loader, a home that hands a name on: the editor's calls in render/, and \`componentCalls()\` in registries/, which hands on the components package's pure members only — params' defaults and checks, a component's fit, the palette and theme-file makers, a font file's face, the theme tokens, the kit's major, the scaffold and samples paths, the library's constants — while what reads or writes a component's files or compiles its code is the ComponentRegistries port's)`,
     files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
     bad: (s, f) => ADAPTERS.includes(retake(s)) && !DOMAIN_ENTRIES.includes(s) && !(retake(s) === 'editor' && inAdapterHome(f)),
     typeOnlyCheck: (_s, f) => inAdapterHome(f),
@@ -766,6 +780,32 @@ export const RULES = [
       const p = retake(s);
       return !!p && ADAPTERS.includes(p) && p !== pkgOf(f) && !DOMAIN_ENTRIES.includes(s);
     },
+  },
+  {
+    id: 'engine-load',
+    title: `the engine loads no adapter package: in every source of packages/engine/src, its loader (${ENGINE_LOADER}) included, a value import, a re-export, \`import()\` or \`require()\` of runner-web, review, sandbox, hooks, components or the editor by any entry but a domain entry (DOMAIN_ENTRIES) is a hit, and so is a loader that could load one unseen — \`import()\` of a computed name, a made \`require\`, process.getBuiltinModule(); types are free here (R11 holds where): the code of an adapter package is loaded by the composition package (@retake/compose) only, which binds the editor's and the components' modules into the engine's loader. Not seen: a require made through an aliased createRequire (\`import { createRequire as cr }\`, then \`cr(…)(…)\`), as for R9`,
+    files: (f) => f.startsWith('packages/engine/src/'),
+    bad: (s) => ADAPTERS.includes(retake(s)) && !DOMAIN_ENTRIES.includes(s),
+    typeOnlyCheck: true,
+    loaders: true,
+  },
+  {
+    id: 'compose-use',
+    title: `only a shell builds from the composition package: in packages/*/src outside the shells (cli, mcp, the Studio's server: ui/src outside src/app, which R5 holds) and the composition package itself, an import of @retake/${COMPOSITION} in any form — a type, a value, a re-export, \`import()\` — is a hit (the engine and the adapters are what it composes)`,
+    files: (f) => pkgOf(f) !== COMPOSITION && !(SHELLS.includes(pkgOf(f)) && !f.startsWith('packages/ui/src/app/')),
+    bad: (s) => retake(s) === COMPOSITION,
+  },
+  {
+    id: 'compose-shell',
+    title: `the composition package imports no shell: in packages/${COMPOSITION}/src an import of @retake/cli, @retake/mcp or @retake/ui in any form — a type, a value, a re-export, \`import()\` — is a hit (the shells build from it, never the reverse)`,
+    files: (f) => pkgOf(f) === COMPOSITION,
+    bad: (s) => SHELLS.includes(retake(s)),
+  },
+  {
+    id: 'composition-entry',
+    title: `the engine's composition entry (@retake/engine/composition: the ports bag, the product binding, the worker and the job process) is imported by the composition package only: in packages/*/src outside packages/${COMPOSITION}/src and the engine itself, an import of it in any form is a hit (a shell builds its engine from @retake/${COMPOSITION})`,
+    files: (f) => !['engine', COMPOSITION].includes(pkgOf(f)),
+    bad: (s) => s === '@retake/engine/composition' || s.startsWith('@retake/engine/composition/'),
   },
   {
     id: 'engine-io',
@@ -804,6 +844,11 @@ export const CHECKS = [
       "the engine's own layers (ENGINE_LAYERS: kernel, ports, adapters, use-cases, jobs, views, facade, operations, entries — lowest first) import downwards only: in packages/engine/src a relative import, re-export, import() or `import('…')` type of an engine file of a higher layer is a hit (entries: the file, the specifier and the two layers), types included, and so is a file no path of the table places (`no layer`). Not seen: what another package reaches through an entry (the shells' rules), a specifier computed at run time",
   },
   {
+    id: 'engine-deps',
+    title:
+      "the engine depends on core and the domain entries' packages only: the @retake dependencies of packages/engine/package.json — dependencies, devDependencies and peerDependencies alike — are core and the packages of DOMAIN_ENTRIES (ENGINE_DEPS), which it reaches by those entries alone (engine-load) — never the composition package (@retake/compose) nor a shell — and neither core nor an adapter depends on the composition package (entries: the package.json and the dependency)",
+  },
+  {
     id: 'job-files',
     title:
       "a job handler (JOB_HANDLER: packages/engine/src/jobs/<kind>-job.ts) reads and writes its job's files through the JobQueue port (its submit's files: JobQueue.file; the render browser it records: recordBrowser / recordedBrowser), never by a path of the file queue: an import of JOB_FILE_NAMES (JobFiles, JobFilePaths) there — a type import too, under an alias — is a hit (entries: the file and the name). Not seen: a path reached through another module, `typeof import('…')`, a member of a namespace import (`import type * as Q` then `Q.JobFiles`), the paths handed in a value of another type",
@@ -811,7 +856,7 @@ export const CHECKS = [
   {
     id: 'engine-state',
     title:
-      "the engine's use cases and views (ENGINE_STATELESS) hold no state of the module: what they remember between calls (memos, the undo ledgers, caches) is an engine's, held in its context (facade/context.ts EngineCaches) and handed in — so two engines of one process (tests, a server hosting several) share none. In a file of those layers each name a top-level `let` / `var` binds (destructured too), a top-level `const` made with `new` (a Map, Set, WeakMap, WeakSet or Array unless typed `Readonly…`; any other class but a value) and a top-level `const` the file changes (a member written, a changing method called on it — behind a cast too —, `Object.assign` to it) are hits (entries: the file, the name and why), except ENGINE_STATE_ALLOWED's, each with its reason (counters for tests, what is the process's by nature); an allowed name its file no longer declares is a hit, as a stale entry is. Not seen: a closure's state, a member of a member, a write through an alias, a class's static field, a destructured `const` changed later, `Object.defineProperty` and the other Object / Reflect writers",
+      "the engine's use cases and views (ENGINE_STATELESS) hold no state of the module: what they remember between calls (memos, the undo ledgers, caches) is an engine's, held in its context (facade/context.ts EngineCaches) and handed in — so two engines of one process (tests, a server hosting several) share no memory of their work. What they do share is the process's by nature, a named exception (ENGINE_STATE_PROCESS: ports.ts `product` and lazy.ts `bound`, the only top-level state those two files may hold): the product bound once per process — which adapter code it loads and which worker entry it starts — while each engine's ports may still differ. In a file of those layers (and of ENGINE_STATE_PROCESS) each name a top-level `let` / `var` binds (destructured too), a top-level `const` made with `new` (a Map, Set, WeakMap, WeakSet or Array unless typed `Readonly…`; any other class but a value) and a top-level `const` the file changes (a member written, a changing method called on it — behind a cast too —, `Object.assign` to it) are hits (entries: the file, the name and why), except ENGINE_STATE_ALLOWED's, each with its reason (counters for tests, what is the process's by nature); an allowed name its file no longer declares is a hit, as a stale entry is. Not seen: a closure's state, a member of a member, a write through an alias, a class's static field, a destructured `const` changed later, `Object.defineProperty` and the other Object / Reflect writers",
   },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   {
@@ -833,7 +878,7 @@ export const CHECKS = [
   },
   {
     id: 'loader-use',
-    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/, \`components\` in registries/ — where its port's package adapter lives), never in a port's own file there (PORT_FILES: the port names no adapter), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer, of the secrets, of the host resolver and of the component registries, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\`, \`systemSecrets\`, \`systemHosts\` and \`packageRegistries\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose: \`previewMaking()\` / \`playerMaking()\` in render/, and \`componentCalls()\` in registries/ — the components package's pure members, no file read or written, no code compiled or run), a loader reached through another engine module that imported it`,
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`components\` in registries/ — the work that hands their names on; the ports' package adapters are the composition package's), never in a port's own file there (PORT_FILES: the port names no adapter), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of the hooks, review, capture and sandboxes ports, of the renderer, of the secrets, of the host resolver and of the component registries, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\`, \`systemSecrets\`, \`systemHosts\` and \`packageRegistries\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose: \`previewMaking()\` / \`playerMaking()\` in render/, and \`componentCalls()\` in registries/ — the components package's pure members, no file read or written, no code compiled or run), a loader reached through another engine module that imported it`,
   },
   {
     id: 'port-types',
@@ -2109,6 +2154,16 @@ export function jobFileHits(root, files) {
 /** The engine layers whose files hold no state of the module (engine-state): what is remembered between calls is an engine's. */
 export const ENGINE_STATELESS = ['use-cases', 'views'];
 /**
+ * The engine's state that is the process's by nature, outside those layers (engine-state reads these files too, and
+ * these names are the only top-level state they may hold): the product bound once per process — which adapter code the
+ * process loads and which worker entry it starts. Two engines of one process share it; their ports may still differ
+ * (an engine handed every package port uses no product).
+ */
+export const ENGINE_STATE_PROCESS = {
+  'packages/engine/src/ports.ts': { product: "the product bound into this process (bindProduct): its package adapters' defaults and the worker entry it starts" },
+  'packages/engine/src/lazy.ts': { bound: 'the adapter modules bound into this process (bindAdapterModules): which editor and components code it loads' },
+};
+/**
  * The module-level state of those layers that is legitimate, by file and name, each with its reason (engine-state reads
  * them before it counts a hit): never a memo, a ledger or a cache — those are an engine's (facade/context.ts EngineCaches).
  */
@@ -2167,9 +2222,9 @@ export function engineStateHits(root, files, { whole = true } = {}) {
     ts.SyntaxKind.AmpersandEqualsToken,
   ]);
   for (const { rel, text } of files) {
-    if (!ENGINE_STATELESS.includes(engineLayerOf(rel)?.layer)) continue;
+    if (!ENGINE_STATELESS.includes(engineLayerOf(rel)?.layer) && !ENGINE_STATE_PROCESS[rel]) continue;
     seen.add(rel);
-    const allowed = ENGINE_STATE_ALLOWED[rel] ?? {};
+    const allowed = { ...ENGINE_STATE_ALLOWED[rel], ...ENGINE_STATE_PROCESS[rel] };
     const sf = parse(ts, rel, text);
     const found = new Map();
     const consts = new Set();
@@ -2224,8 +2279,24 @@ export function engineStateHits(root, files, { whole = true } = {}) {
     for (const name of Object.keys(allowed).sort()) if (!declared.has(name)) hits.push({ rule: 'engine-state', file: rel, spec: `${name} (allowed, not declared)` });
   }
   if (whole && seen.size)
-    for (const [rel, names] of Object.entries(ENGINE_STATE_ALLOWED))
+    for (const [rel, names] of Object.entries({ ...ENGINE_STATE_ALLOWED, ...ENGINE_STATE_PROCESS }))
       if (!seen.has(rel)) for (const name of Object.keys(names).sort()) hits.push({ rule: 'engine-state', file: rel, spec: `${name} (allowed, not declared)` });
+  return hits;
+}
+
+/**
+ * The engine's package dependencies (engine-deps): the @retake packages its package.json depends on — run-time, dev and
+ * peer dependencies alike (`declaredAny`) — are
+ * core and the packages of the domain entries (DOMAIN_ENTRIES: what it imports of them), never the composition package
+ * nor a shell; and no package below the composition (core, an adapter, the engine) depends on it (`<package> →
+ * @retake/<dependency>`).
+ */
+export const ENGINE_DEPS = ['core', ...new Set(DOMAIN_ENTRIES.map((e) => retake(e)))];
+export function engineDepHits(declared) {
+  const hits = [];
+  for (const d of declared.engine ?? []) if (!ENGINE_DEPS.includes(d)) hits.push({ rule: 'engine-deps', file: 'packages/engine/package.json', spec: `@retake/${d}` });
+  for (const pkg of [...LAYERS.domain, ...LAYERS.adapters].filter((p) => declared[p]))
+    for (const d of declared[pkg]) if (d === COMPOSITION) hits.push({ rule: 'engine-deps', file: `packages/${pkg}/package.json`, spec: `@retake/${d}` });
   return hits;
 }
 
@@ -2842,6 +2913,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...coreRootHits(root, scanned.files),
     ...doctorExecHits(root, scanned.files),
     ...engineLayerHits(scanned.fileImports),
+    ...engineDepHits(scanned.declaredAny),
     ...jobFileHits(root, scanned.files),
     ...engineStateHits(root, scanned.files),
   ])

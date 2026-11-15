@@ -23,7 +23,7 @@ import { bundleHash } from '@retake/editor';
 import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
 import { LIBRARY_FILES, libraryCacheDir } from '../src/library.js';
 import { createEngine } from '../src/index.js';
-import { editorRenderer, withPreviewBackend } from '../src/render/editor-renderer.js';
+import { editorRenderer, withPreviewBackend } from '@retake/compose';
 import { runWorker } from '../src/jobs/worker.js';
 import type { Engine, FreeBytes, JobRecord } from '../src/index.js';
 import type { LibraryStatesView } from '../src/library.js';

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { HookContext, HookStep, LoadedProject } from '@retake/core';
-import { packageHookRunner } from '../src/hook-run/package-hooks.js';
+import { packageHookRunner } from '@retake/compose';
 import { runWorker } from '../src/jobs/worker.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { hookRunnerContract } from './hook-runner-contract.js';

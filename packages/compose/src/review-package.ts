@@ -1,12 +1,12 @@
 /**
- * The product's reviewer: the review package behind the Reviewer port, loaded through the engine's loader on a
+ * The product's reviewer: the review package behind the Reviewer port, loaded through the composition package's loader on a
  * member's first call. Two entries, as before the port: the frames of a video and the thumbnails of an image come from
  * its light entry (lazy.ts `thumbs`: sharp and ffmpeg, never the editor), everything else from its root (lazy.ts
  * `review`). Each member calls the package's function with the same arguments: the review's artefacts, the sizes and
- * the qualities are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
+ * the qualities are the package's, unchanged. Made by the composition package only (ports.ts productPorts).
  */
-import { review, thumbs } from '../lazy.js';
-import type { Reviewer } from './reviewer.js';
+import type { Reviewer } from '@retake/engine/composition';
+import { review, thumbs } from './lazy.js';
 
 export function packageReviewer(): Reviewer {
   return {

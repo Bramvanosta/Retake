@@ -71,12 +71,12 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
 
 import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
 import { INSPECT_KEEP } from '@retake/engine/testing';
-import { enginePorts } from '@retake/engine/shell';
+import { productPorts } from '@retake/compose';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { recordGolden } from '@retake/test-support/golden';
 
 /** The CLI's ports, handed to each main() call (its composition root's argument): what its commands are handed. */
-const cliPorts = enginePorts();
+const cliPorts = productPorts();
 
 const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));

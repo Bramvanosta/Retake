@@ -20,6 +20,7 @@
  * Whoever holds the token is an MCP client of this workspace — the agent's trust, and the approver of its own forms
  * (as with stdio, where the client that spawns `retake mcp` answers them).
  */
+import { productPorts } from '@retake/compose';
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
 import { RETAKE_VERSION } from '@retake/core/base';
@@ -69,7 +70,7 @@ export interface McpHttpServer {
 export async function startMcpHttpServer(o: McpHttpOptions): Promise<McpHttpServer> {
   const log = o.log ?? (() => undefined);
   let engine: Promise<Engine> | undefined;
-  const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp' }));
+  const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp', ports: productPorts() }));
   await getEngine();
   const handler = mcpHttpHandler({
     name: 'retake',

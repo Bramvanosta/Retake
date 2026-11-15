@@ -4,7 +4,7 @@
  * thumbnails the façade serves (a run's thumbnails, a render's frame, a review's images, a comment's still, an
  * inspection's marked screenshot). The review's vocabulary comes from its domain entry (`@retake/review/checks`); the
  * frames' options are written here. It names no adapter otherwise, types included (the import-rules ratchet's
- * `port-types`). Adapters: the review package (`packageReviewer`, review-package.ts) and an in-memory one for tests
+ * `port-types`). Adapters: the review package (`packageReviewer`, the composition package's review-package.ts) and an in-memory one for tests
  * (`MemoryReviewer`, memory-reviewer.ts).
  *
  * Which earlier render a review compares with is not the reviewer's: a records rule, run by the engine over core.

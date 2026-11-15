@@ -18,11 +18,15 @@ packages/editor       edit planner (planEdit → EditPlan, reframing), the Remot
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
 packages/engine       the engine API the CLI and the MCP server share: workspace / project loading, project, scenario
                       (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,
-                      the run executor of `retake run`, the job queue and its worker (worker-main.ts), the local
+                      the run executor of `retake run`, the job queue and its worker, the local
                       HTTP servers' gate, 127.0.0.1 listener, tokens and discovery file (src/http/), the workspace
                       index (src/index-db/: node:sqlite, the stat poll, the job watch); `@retake/engine/contract`:
                       the operation contract (ToolDef, the SDK-free invoke the MCP server and the Studio share) and
                       the operation catalogue (catalogue.ts: every operation, its kind and the shells that serve it)
+packages/compose      the product's composition: the adapters of the product's packages behind the engine's ports
+                      (hooks, review, capture, sandboxes, the editor's renderer, the component registries), the ports
+                      bag that wires them (productPorts) and the jobs worker's entry (worker-main.ts); the shells build
+                      their engine from it, and the engine depends on core and the adapters' domain entries only
 packages/mcp          the MCP server (`retake mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
                       results, --print-config
 packages/test-support the helpers the tests of several packages share (`@retake/test-support/<module>`: the fixture

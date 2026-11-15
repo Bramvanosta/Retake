@@ -80,14 +80,17 @@ export default defineConfig({
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
       '@retake/review/checks': fileURLToPath(new URL('./packages/review/src/checks-entry.ts', import.meta.url)),
       '@retake/review': pkg('review'),
-      // Before '@retake/engine', as for the kit: the operation contract's, the catalogue's, the integrations', the machine checks', the shells' in-process values' and the other packages' tests' own entries.
+      // Before '@retake/engine', as for the kit: the operation contract's, the catalogue's, the integrations', the machine checks', the shells' in-process values', the other packages' tests' and the composition package's own entries.
       '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),
       '@retake/engine/catalogue': fileURLToPath(new URL('./packages/engine/src/catalogue.ts', import.meta.url)),
       '@retake/engine/integrations': fileURLToPath(new URL('./packages/engine/src/integrations.ts', import.meta.url)),
       '@retake/engine/doctor': fileURLToPath(new URL('./packages/engine/src/doctor-entry.ts', import.meta.url)),
       '@retake/engine/shell': fileURLToPath(new URL('./packages/engine/src/shell-entry.ts', import.meta.url)),
       '@retake/engine/testing': fileURLToPath(new URL('./packages/engine/src/testing.ts', import.meta.url)),
+      '@retake/engine/composition': fileURLToPath(new URL('./packages/engine/src/composition.ts', import.meta.url)),
       '@retake/engine': pkg('engine'),
+      // The product's composition (its adapters and ports bag): the shells build their engine from it.
+      '@retake/compose': pkg('compose'),
       '@retake/mcp': pkg('mcp'),
       '@retake/ui/testing': fileURLToPath(new URL('./packages/ui/src/testing.ts', import.meta.url)),
       '@retake/ui': pkg('ui'),

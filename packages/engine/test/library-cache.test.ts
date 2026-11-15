@@ -40,7 +40,7 @@ import type { LibraryEntryMeta, LibraryKeyContext } from '../src/library.js';
 import { REPO } from '@retake/test-support/repo';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
 import { openWorkspace } from '../src/workspace.js';
-import { packageRegistries } from '../src/registries/package-registries.js';
+import { packageRegistries } from '@retake/compose';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;

@@ -36,6 +36,11 @@
       "types": "./dist/integrations.d.ts",
       "default": "./dist/integrations.js"
     },
+    "./composition": {
+      "source": "./src/composition.ts",
+      "types": "./dist/composition.d.ts",
+      "default": "./dist/composition.js"
+    },
     "./testing": {
       "source": "./src/testing.ts",
       "types": "./dist/testing.d.ts",

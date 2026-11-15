@@ -21,7 +21,7 @@ import { openSandbox } from '@retake/sandbox';
 import { EngineError, createEngine } from '../src/index.js';
 import { FileJobQueue } from '../src/jobs/queue.js';
 import { historyFile } from '../src/history.js';
-import { packageHookRunner } from '../src/hook-run/package-hooks.js';
+import { packageHookRunner } from '@retake/compose';
 import { seedApprovalItems } from '../src/approvals.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
@@ -72,7 +72,7 @@ let queue: FileJobQueue;
 const children: ChildProcess[] = [];
 
 function startWorker(env: NodeJS.ProcessEnv = {}): { exited: Promise<number | null>; err(): string; out(): string } {
-  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', ws, '--idle-exit', '600'], {
+  const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/compose/src/worker-main.ts'), '--root', ws, '--idle-exit', '600'], {
     cwd: REPO,
     env: { ...process.env, RETAKE_HOME: home, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
