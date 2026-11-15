@@ -207,6 +207,7 @@
     "packages/engine/test/path-theme-long-name.test.ts",
     "packages/engine/test/pick.test.ts",
     "packages/engine/test/pipeline.test.ts",
+    "packages/engine/test/plan-signature-memo.test.ts",
     "packages/engine/test/ports.test.ts",
     "packages/engine/test/preview-library-job.test.ts",
     "packages/engine/test/project-lock-wait.test.ts",

@@ -889,11 +889,14 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   return view;
 }
 
-/** Plan signatures of render records (a record never changes once written: keyed by its id and times). */
+/**
+ * Plan signatures of render records (a record never changes once written: keyed by its project, file, id and times —
+ * two projects' records of one id and times are two records).
+ */
 const planSigMemo = new Map<string, string | null>();
 /** Null: the record's plan has no signature (planSignature). */
-function memoPlanSignature(r: StoredRenderRecord): string | null {
-  const key = `${r.id}|${r.created_at}|${r.finished_at}`;
+export function memoPlanSignature(r: StoredRenderRecord): string | null {
+  const key = JSON.stringify([r.project, r.file, r.id, r.created_at, r.finished_at]);
   let sig = planSigMemo.get(key);
   if (sig === undefined) {
     sig = planSignature(r.plan);
