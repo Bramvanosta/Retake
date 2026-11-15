@@ -18,7 +18,7 @@ import type { BundleInfo } from '@retake/core/io';
 import { appChecks as appChecksAt, launchUpdates, updateCheck } from '@retake/engine/doctor';
 import { doctorChecks } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
-import { diskOutputs, diskWorkspaceReads } from '@retake/engine';
+import { diskOutputs, diskWorkspaceReads, enginePorts } from '@retake/engine';
 
 /** The app's lines seen now. */
 const appChecks = (p: DoctorProbes) => appChecksAt(p, Date.now());
@@ -172,6 +172,7 @@ describe("doctor: the workspace's worker of another copy of Retake (critique M6)
         exec: async () => null,
       }),
       ws,
+      { ports: enginePorts() },
     );
     return checks.find((c) => c.name === 'MCP')!;
   };

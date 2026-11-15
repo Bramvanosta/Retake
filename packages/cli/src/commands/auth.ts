@@ -18,7 +18,7 @@ import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 // Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
@@ -30,7 +30,7 @@ function shellQuote(s: string): string {
 }
 
 /** `retake`, with `-C <root>` when the command line named the workspace root: the start of the commands messages print. */
-export function retakeCommand(global: GlobalOptions): string {
+export function retakeCommand(global: Pick<GlobalOptions, 'root'>): string {
   return global.root ? `retake -C ${shellQuote(resolve(global.root))}` : 'retake';
 }
 
@@ -83,12 +83,17 @@ export async function signInPersona(
       project,
       env,
       persona,
-      { mode, policy: opts.policy, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
       {
-        interrupts: { open: (o) => onInterrupt(ui, o) },
-        sessions: cliPorts.capture.sessions,
-        env: cliPorts.env,
-        secrets: cliPorts.secrets,
+        mode,
+        policy: opts.policy,
+        ...(opts.page !== undefined ? { page: opts.page } : {}),
+        ...(opts.url !== undefined ? { url: opts.url } : {}),
+      },
+      {
+        interrupts: { open: (o) => onInterrupt(ui, global.ports, o) },
+        sessions: global.ports.capture.sessions,
+        env: global.ports.env,
+        secrets: global.ports.secrets,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onOpen: (url) =>
           ui.line(
@@ -182,15 +187,15 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
   }
   const rows: Array<{ persona: ResolvedPersona; state: PersonaState; project: LoadedProject }> = [];
   for (const project of projects) {
-    for (const r of await projectPersonaStates(project, command, cliPorts.capture.sessions, opts.env)) rows.push({ ...r, project });
+    for (const r of await projectPersonaStates(project, command, global.ports.capture.sessions, opts.env)) rows.push({ ...r, project });
   }
   if (opts.check) {
-    const stop = await onInterrupt(ui);
+    const stop = await onInterrupt(ui, global.ports);
     try {
       const done = await recheckSessions(rows, {
         policy: ws.policy,
-        sessions: cliPorts.capture.sessions,
-        now: () => cliPorts.clock.now(),
+        sessions: global.ports.capture.sessions,
+        now: () => global.ports.clock.now(),
         signal: stop.signal,
         interrupted: () => stop.interrupted,
         log: (_level, msg) => ui.debug(msg),

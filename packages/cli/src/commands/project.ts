@@ -8,7 +8,7 @@ import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, signInPersona } from './auth.js';
 
@@ -61,7 +61,7 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
     await ws.reads.planNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
   }
-  const project = await writeNewProject(ws, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root, cliPorts));
+  const project = await writeNewProject(ws, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root, global.ports));
   const c = ui.c;
   ui.ok(`created project ${c.bold(project.slug)} in ${ui.path(project.dir)}`);
   ui.line(c.dim('  README.md     what the product is, audience, goals, tone, accounts (by reference)'));

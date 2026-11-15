@@ -4,7 +4,7 @@
  * as no job, a claim that is not one as a dead worker's, a provenance file that is not this tool's says so, a token, a
  * lock, a marker, a browser record, an inspection report, a live file or a frame header that is not one reads as none.
  */
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -199,17 +199,16 @@ describe('the live channel', () => {
   it('a live file that is not one reads as none', async () => {
     const dir = await folder('live');
     const file = join(dir, 'live.json');
-    const queue = { claimOf: async () => ({ pid: process.pid, at: 'x' }) };
-    const files = { live: () => file };
+    const queue = { claimOf: async () => ({ pid: process.pid, at: 'x' }), liveRecord: async () => readFile(file, 'utf8') };
     const write = async (r: Record<string, unknown>) => {
       await writeFile(file, JSON.stringify({ v: 1, job: 'j_x', run: '20261113-100000-quote', port: 4400, token: TOKEN, pid: process.pid, ...r }), { mode: 0o600 });
       await chmod(file, 0o600);
     };
     await write({});
-    expect(await readLiveChannel(queue, files, 'j_x')).toMatchObject({ port: 4400, job: 'j_x' });
+    expect(await readLiveChannel(queue, 'j_x')).toMatchObject({ port: 4400, job: 'j_x' });
     for (const bad of [{ job: 'j_y' }, { run: '../x' }, { port: 0 }, { token: 'x' }, { pid: 'me' }, { v: 2 }]) {
       await write(bad);
-      expect(await readLiveChannel(queue, files, 'j_x'), JSON.stringify(bad)).toBeNull();
+      expect(await readLiveChannel(queue, 'j_x'), JSON.stringify(bad)).toBeNull();
     }
   });
 

@@ -13,6 +13,7 @@ import { agentJobsCheck } from '@retake/engine/doctor';
 import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
 import type { DoctorCheck, DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
+import { enginePorts } from '@retake/engine';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 
@@ -93,7 +94,7 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
 
 async function doctor(probes: DoctorProbes, opts: { project?: string; json?: boolean } = {}) {
   const io = memoryIo();
-  const code = await doctorCommand(new Ui(io), { root: ws }, opts, probes);
+  const code = await doctorCommand(new Ui(io), { root: ws, ports: enginePorts() }, opts, probes);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -384,7 +385,7 @@ describe('retake doctor (mocked environment)', () => {
       await writeFile(join(broken, 'themes'), 'not a folder\n');
       await writeFile(join(broken, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: themes\n');
       const io = memoryIo();
-      const code = await doctorCommand(new Ui(io), { root: broken }, { json: true }, macProbes());
+      const code = await doctorCommand(new Ui(io), { root: broken, ports: enginePorts() }, { json: true }, macProbes());
       const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
       expect(code).toBe(EXIT.failure);
       expect(byName(list, 'Workspace')).toMatchObject({
@@ -411,7 +412,7 @@ describe('retake doctor (mocked environment)', () => {
       const io = memoryIo();
       const code = await doctorCommand(
         new Ui(io),
-        { root: broken },
+        { root: broken, ports: enginePorts() },
         { json: true },
         macProbes({ exec: async (cmd) => ({ code: 0, stdout: `${cmd.endsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 7.1\n`, stderr: '' }), which: (c) => `/usr/bin/${c}` }),
       );
@@ -488,7 +489,7 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
   afterAll(async () => rm(bare, { recursive: true, force: true }));
   const run = async (probes: DoctorProbes, root = bare) => {
     const io = memoryIo();
-    const code = await doctorCommand(new Ui(io), { root }, { json: true }, probes);
+    const code = await doctorCommand(new Ui(io), { root, ports: enginePorts() }, { json: true }, probes);
     return { code, checks: (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks };
   };
 
@@ -627,7 +628,7 @@ describe('retake doctor (this machine)', () => {
   });
 
   it('real probes: PATH lookup, ffmpeg version, HEAD on a live and a closed port', async () => {
-    const p = systemProbes();
+    const p = systemProbes(enginePorts());
     expect(p.which('node')).toMatch(/node$/);
     expect(p.which('surely-not-a-command-xyz')).toBeNull();
     expect(await p.exec('surely-not-a-command-xyz', [], 1000)).toBeNull();
@@ -682,7 +683,7 @@ describe('retake doctor --project: personas (R-AUTH-02)', () => {
       await writeFile(files('ops').snapshot, '{"cookies":[],"origins":[]}');
       await writeStatus(files('ops').statusFile, { status: 'expired', by: 'auth-status', detail: 'app:/ops landed on the sign-in page (https://app.staging.example.com/login)' });
       await writeFile(files('quiet').snapshot, '{"cookies":[],"origins":[]}');
-      const real = systemProbes();
+      const real = systemProbes(enginePorts());
       const probes = macProbes({ env: { RETAKE_HOME: home }, exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
       const outside = await checks(probes, 'shop');
       expect(byName(outside.checks, 'Session home')).toMatchObject({ status: 'ok', detail: `${home} (RETAKE_HOME) · outside any git work tree` });
@@ -723,7 +724,7 @@ describe('retake doctor --project: personas (R-AUTH-02)', () => {
   });
 
   it('a profile of the single-account form in a git work tree, not ignored: a warning', async () => {
-    const real = systemProbes();
+    const real = systemProbes(enginePorts());
     const repo = await mkdtemp(join(tmpdir(), 'studio-doctor-git-'));
     try {
       await real.exec('git', ['init', '-q', repo], 10_000);

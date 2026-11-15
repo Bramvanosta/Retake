@@ -7,14 +7,15 @@
  * added, changed or removed in the workspace (with the content of the hook journals, the sandbox manifests, the marker
  * files and the workspace components' manifests; the rest by name), and the options of the replaced calls.
  *
- * The heavy calls are replaced at their boundary: the engine's Sandboxes port (`packageSandboxes`, what `cliPorts`
- * is made of; L7.28 — before it, @retake/sandbox's `openSandbox`, with the same records) opens a fake handle (the real
- * one's env, kind, paths and capabilities; up / down / reset / status / logs answer fixed results and journal a seed
- * step as the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder and settings from the
- * runner's own `rawPackageDir` / `rawSettings`; `rawExportRun`, the gate, stays real), and the engine's `editorRenderer`
- * (what `cliPorts.renderer` is made of) is the memory renderer (no bundle, no browser: 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless
- * `shell: echo …` hooks, run for real in the temp workspace), the hook journals, the sandbox scaffold (`initSandbox`),
- * the component registry, validation and scaffold are the real code.
+ * The heavy calls are replaced at their boundary: the engine's Sandboxes port (`packageSandboxes`, what
+ * `cliEnginePorts` is made of; L7.28 — before it, @retake/sandbox's `openSandbox`, with the same records) opens a fake
+ * handle (the real one's env, kind, paths and capabilities; up / down / reset / status / logs answer fixed results and
+ * journal a seed step as the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder
+ * and settings from the runner's own `rawPackageDir` / `rawSettings`; `rawExportRun`, the gate, stays real), and the
+ * engine's `editorRenderer` (what the CLI ports' `renderer` is made of) is the memory renderer (no bundle, no browser:
+ * 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless `shell: echo …` hooks, run for real in the temp
+ * workspace), the hook journals, the sandbox scaffold (`initSandbox`), the component registry, validation and scaffold
+ * are the real code.
  *
  * Normalised, and only these: clocks (ISO stamps other than the fixture's own 2026-01-01 ones, a run id's stamp made
  * now, HH:MM:SS, durations), ids made at run time (jobs' and journals'), the workspace and repository paths, the host
@@ -263,10 +264,12 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
   };
 });
 
-// The renderer as the CLI's composition root builds it (engine ports.ts imports it by this path: cliPorts.renderer).
+// The renderer as the CLI's composition root builds it (engine ports.ts imports it by this path: the CLI ports'
+// renderer).
 vi.mock('../../engine/src/render/editor-renderer.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../engine/src/render/editor-renderer.ts')>();
-  // cliPorts is made when the CLI loads, before the memory renderer below: each call goes to it when it is made.
+  // The CLI's ports are made when a command first runs, after the memory renderer below: each call goes to it when it
+  // is made.
   type R = ReturnType<typeof real.editorRenderer>;
   const now = (): R => fakes.renderer as R;
   return {

@@ -1,23 +1,23 @@
 import { doctorChecks as engineDoctorChecks, doctorSummary, machineProbes } from '@retake/engine/doctor';
 import type { DoctorCheck, DoctorProbes } from '@retake/engine/doctor';
-import type { OpenedWorkspace } from '@retake/engine';
+import type { EnginePorts, OpenedWorkspace } from '@retake/engine';
 import { EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
-import { cliPorts, openWorkspace } from '../workspace.js';
+import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { retakeCommand } from './auth.js';
 
 export type { CapturesProbe, CheckStatus, DoctorCheck, DoctorProbes, ExecResult, RendersProbe, SandboxProbe } from '@retake/engine/doctor';
 
 /** The probes of this machine, with what the CLI's ports know of it (the capture browser, the render path, the sandboxes). */
-export function systemProbes(): DoctorProbes {
-  return machineProbes(cliPorts);
+export function systemProbes(ports: EnginePorts): DoctorProbes {
+  return machineProbes(ports);
 }
 
 /** Every doctor check, in display order (the engine's), its hints' commands written the way this command line was (`-C <root>`). */
-export function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
-  return engineDoctorChecks(probes, ws, cliPorts, { ...(opts.project !== undefined ? { project: opts.project } : {}), retake: retakeCommand(opts.global ?? {}) });
+export function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: Pick<GlobalOptions, 'root'>; ports: EnginePorts }): Promise<DoctorCheck[]> {
+  return engineDoctorChecks(probes, ws, opts.ports, { ...(opts.project !== undefined ? { project: opts.project } : {}), retake: retakeCommand(opts.global ?? {}) });
 }
 
 export interface DoctorOptions {
@@ -26,9 +26,9 @@ export interface DoctorOptions {
 }
 
 /** `retake doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
-export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes()): Promise<ExitCode> {
+export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes(global.ports)): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const checks = await doctorChecks(probes, ws, { project: opts.project, global });
+  const checks = await doctorChecks(probes, ws, { project: opts.project, global, ports: global.ports });
   const { ok, failures: fails, warnings: warns } = doctorSummary(checks);
   if (opts.json) {
     ui.result(JSON.stringify({ ok, failures: fails, warnings: warns, checks }, null, 2));

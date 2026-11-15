@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
-import { THEME_USES_STATS, createEngine, openWorkspace, templateView, diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { THEME_USES_STATS, ThemeEditMemos, createEngine, openWorkspace, templateView, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
@@ -138,7 +138,7 @@ describe('theme view (L4.7)', () => {
     expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
     const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
-    const rv = await templateView(repoWs, 'editorial');
+    const rv = await templateView(repoWs, 'editorial', new ThemeEditMemos());
     expect(rv.source).toBe('workspace');
     expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Retake \(its folder lies in the Retake package\)/) });
     // A theme folder that is a link to another folder is not even listed (core listTemplates takes real folders).

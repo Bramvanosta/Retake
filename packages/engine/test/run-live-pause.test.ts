@@ -168,7 +168,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const asked = await engine.runs.pause('w', sub.run_id, true);
     expect(asked.job?.pause_requested_at).toEqual(expect.any(String));
     // The live channel: a reader of live.json connects and collects frames until the run ends.
-    const info = await waitFor('live.json', () => readLiveChannel(queue, queue.files, sub.job.id).then((i) => i ?? undefined));
+    const info = await waitFor('live.json', () => readLiveChannel(queue, sub.job.id).then((i) => i ?? undefined));
     const frames: LiveFeedFrame[] = [];
     const feed = openLiveFeed(info, { onFrame: (f) => frames.push(f) });
     const paused = await waitFor('paused', async () => {

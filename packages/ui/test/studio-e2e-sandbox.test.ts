@@ -41,7 +41,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, Frame, Page } from 'playwright-core';
 import { scaffoldDir } from '@retake/components';
-import { memoRegistry } from '@retake/engine';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -434,7 +433,7 @@ afterAll(async () => {
 
 /** Allow every workspace component of the test in this Studio session (what the Allow button does, by content hash). */
 async function allowAll(): Promise<void> {
-  const registry = (await memoRegistry(studio.engine.workspace)).registry;
+  const registry = await studio.engine.components.registry();
   for (const c of await workspaceComponents(registry)) studio.previewAllow.allow(c.id, c.hash);
 }
 

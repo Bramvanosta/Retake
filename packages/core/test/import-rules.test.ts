@@ -362,7 +362,8 @@ describe('the import-rules ratchet', () => {
       expect(ports('packages/cli/src/commands/a.ts', "import { enginePorts } from '@retake/engine';\nconst p = enginePorts();")).toEqual([
         'clock-read packages/cli/src/commands/a.ts → enginePorts outside a root',
       ]);
-      // The roots: the ports bag, createEngine, the worker, the job process, the CLI's cliPorts; each adapter's own file.
+      // The roots: the ports bag, createEngine, the worker, the job process, the CLI's cliEnginePorts; each adapter's
+      // own file.
       for (const root of lib.PORT_ROOTS.enginePorts) expect(ports(root, 'const p = enginePorts();'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.systemClock) expect(ports(root, 'f(systemClock);'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.diskProjectStores) expect(ports(root, 'f(diskProjectStores);'), root).toEqual([]);
@@ -496,7 +497,8 @@ describe('the import-rules ratchet', () => {
       for (const root of lib.PORT_ROOTS.packageHookRunner) expect(ports(root, 'f(packageHookRunner());'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.packageReviewer) expect(ports(root, 'f(packageReviewer());'), root).toEqual([]);
       expect(ports('packages/engine/src/index.ts', "export { packageHookRunner } from './hook-run/package-hooks.js';\nexport { packageReviewer } from './review/review-package.js';")).toEqual([]);
-      // The capture runner's adapter (L7.12): its file and the bag only; a CLI command names cliPorts.capture.
+      // The capture runner's adapter (L7.12): its file and the bag only; a CLI command names the capture of the ports
+      // it is handed.
       expect(ports('packages/cli/src/interrupt.ts', "import { runnerWebCapture } from '@retake/engine';\nrunnerWebCapture().cleanupSync();")).toEqual([
         'loader-use packages/cli/src/interrupt.ts → runnerWebCapture outside a root',
       ]);
@@ -665,7 +667,7 @@ describe('the import-rules ratchet', () => {
     });
   });
 
-  it("the editor's renderer is named at its roots only (the ports bag and its own file): a CLI command takes cliPorts.renderer", () => {
+  it("the editor's renderer is named at its roots only (the ports bag and its own file): a CLI command takes the renderer of the ports it is handed", () => {
     const ports = (rel: string, text: string): string[] =>
       lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
     expect(lib.PORT_ROOTS.editorRenderer).toEqual(['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts']);
@@ -2778,8 +2780,43 @@ describe('the import-rules ratchet', () => {
       expect(at(`${E}jobs/queue.ts`, 'export class JobFiles {}')).toEqual([]);
     });
 
+    it('flags the module-level state of a use case or a view: a let, a collection or an instance made with new, a const the file changes; values, Readonly tables, other layers and the allowed names are free', () => {
+      const at = (rel: string, text: string): string[] => (lib.engineStateHits(ROOT, [{ rel, text }], { whole: false }) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+      const uc = `${E}a-use-case.ts`;
+      const counted = `${E}renders.ts`;
+      const view = `${E}views/timeline-view.ts`;
+      expect(at(uc, 'let memo: string | undefined;')).toEqual([`${uc} → memo (let)`]);
+      expect(at(view, 'const views = new Map<string, number>();')).toEqual([`${view} → views (new Map)`]);
+      expect(at(uc, "import { VersionLedger } from './version-ledger.js';\nconst versions = new VersionLedger();")).toEqual([`${uc} → versions (new VersionLedger)`]);
+      expect(at(uc, 'const hits = { n: 0 };\nexport function f() {\n  hits.n++;\n}')).toEqual([`${uc} → hits (changed)`]);
+      expect(at(uc, 'const seen: string[] = [];\nexport function f(x: string) {\n  seen.push(x);\n}')).toEqual([`${uc} → seen (changed)`]);
+      expect(at(uc, 'const o = {} as Record<string, number>;\nexport function f() {\n  o["k"] = 1;\n}')).toEqual([`${uc} → o (changed)`]);
+      // Values and constant tables; a function's own state; another layer (an adapter, the façade, an operation).
+      expect(
+        at(
+          uc,
+          "const KINDS: ReadonlySet<string> = new Set(['a']);\nconst RE = new RegExp('x');\nconst LIMIT = 4;\nconst T = { a: 1 };\nexport function g() {\n  const m = new Map();\n  m.set(1, 2);\n  return T.a + LIMIT;\n}",
+        ),
+      ).toEqual([]);
+      for (const other of [`${E}jobs/queue.ts`, `${E}facade/context.ts`, `${E}operations/library.ts`]) expect(at(other, 'let x = 1;\nconst m = new Map();'), other).toEqual([]);
+      // The allowed names, each with its reason.
+      expect(at(counted, 'export const reportReads = { n: 0 };\nexport const renderRecordReads = { n: 0 };\nexport function f() {\n  reportReads.n++;\n}')).toEqual([]);
+      // A destructured let, Object.assign and a changing call behind a cast are state too.
+      expect(at(uc, 'let { a, b: [c] } = { a: 1, b: [2] };')).toEqual([`${uc} → a (let)`, `${uc} → c (let)`]);
+      expect(at(uc, 'const o = {};\nexport function f() {\n  Object.assign(o, { k: 1 });\n}')).toEqual([`${uc} → o (changed)`]);
+      expect(at(uc, 'const m: ReadonlyMap<string, number> = new Map();\nexport function f() {\n  (m as Map<string, number>).set("k", 1);\n}')).toEqual([`${uc} → m (changed)`]);
+      // An allowed name its file no longer declares is stale, as a ratchet entry is; so is an allowed file gone from
+      // the layers.
+      expect(at(counted, 'export const reportReads = { n: 0 };')).toEqual([`${counted} → renderRecordReads (allowed, not declared)`]);
+      const gone = (lib.engineStateHits(ROOT, [{ rel: `${E}a-new-file.ts`, text: '' }], { whole: true }) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+      expect(gone).toContain(`${counted} → reportReads (allowed, not declared)`);
+      expect(lib.engineLayerOf(`${E}index-db/sqlite.ts`)?.layer).toBe('adapters');
+      for (const [f, names] of Object.entries(lib.ENGINE_STATE_ALLOWED as Record<string, Record<string, string>>))
+        for (const [n, why] of Object.entries(names)) expect(why.trim(), `${f} ${n}`).not.toBe('');
+    });
+
     it('holds today: no crossing, no I/O in the operations and the façade, no handler on the queue’s paths', () => {
-      expect(ratchetOfRepo().filter((e) => /^(engine-layer|engine-io|job-files) /.test(e))).toEqual([]);
+      expect(ratchetOfRepo().filter((e) => /^(engine-layer|engine-io|job-files|engine-state) /.test(e))).toEqual([]);
       // The render browser a job records goes through the port, both adapters.
       for (const f of ['jobs/job-queue.ts', 'jobs/queue-core.ts']) expect(readFileSync(join(ROOT, E, f), 'utf8'), f).toContain('recordedBrowser(id: string)');
     });

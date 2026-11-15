@@ -137,7 +137,7 @@ async function prepareSubmit(ctx: SubmitContext, req: RunSubmitRequest): Promise
   const project = await openProjectBySlug(ctx.ws, req.project);
   // The file is read first as the Studio and MCP read scenarios (L4.2): inside the project once links are followed, a
   // regular file of bounded size — never through a link out, never a FIFO that would hold the reader.
-  await getScenario(project, req.scenario);
+  await getScenario(project, req.scenario, undefined);
   try {
     return { project, prepared: await prepareRun(ctx.ws, project, req.scenario, { dry: req.mode === 'dry', until: req.until, hooks: req.hooks, env: req.env, sandbox: req.sandbox }) };
   } catch (e) {

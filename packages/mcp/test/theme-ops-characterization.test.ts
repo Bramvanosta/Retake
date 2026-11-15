@@ -356,7 +356,7 @@ async function viaStudio(): Promise<{ studio: Answers; callers: Answers }> {
     ['ui, a theme that does not exist', uiEngine, valid('no-such')],
   ];
   for (const [label, engine, args] of cases) {
-    const r = await invoke(edit, engine, args, { shell: 'studio', signal: new AbortController().signal });
+    const r = await invoke(edit, engine, args, { shell: 'studio', startedIn: process.cwd(), signal: new AbortController().signal });
     const answer = r.ok ? { ok: true, summary: r.output.summary } : { ok: false, code: r.error.code, message: r.error.message, ...(r.error.details ? { details: r.error.details } : {}) };
     callers.push({ op: `theme_edit (${label})`, args: normalise(args, n), answer: normalise(answer, n) });
   }

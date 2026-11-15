@@ -1,4 +1,5 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
+import type { VersionLedger } from '../version-ledger.js';
 import type { RenderOutputs } from '../outputs/outputs.js';
 import { RunFolder } from '../outputs/run-files.js';
 import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines, errorMessage } from '@retake/core/base';
@@ -107,7 +108,7 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<CommentApplied> {
   // The scenario is written as the caller's (the Studio's: a person applies there).
   const { scope } = o;
@@ -120,7 +121,7 @@ export async function applyProposal(
     if (!r.ok) throw new EngineError('invalid', `${r.problem} — the file is never overwritten: fix it or remove it`);
     checkIfMatch(f, r.hash, req.ifMatch);
     const entry = proposalEntry(r.thread, req.entry_id);
-    const today = await getScenario(project, r.thread.scenario);
+    const today = await getScenario(project, r.thread.scenario, o.seen);
     const why = notActionable(r.thread, entry, today, 'applied');
     if (why) throw why;
     const text = rebuildProposal(today, entry.proposal, 'applied');
@@ -140,7 +141,7 @@ export async function applyProposal(
         project,
         r.thread.scenario,
         { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } },
-        { agent: true, via: 'studio', files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}), scope },
+        { agent: true, via: 'studio', files: o.files, reads: o.reads, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}), scope },
       );
     } catch (e) {
       if (e instanceof EngineError && e.message.startsWith('not saved: '))
@@ -225,7 +226,7 @@ export async function getProposal(
   project: LoadedProject,
   id: string,
   entryId: string | undefined,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
@@ -234,7 +235,7 @@ export async function getProposal(
   const p = entry.proposal;
   let today: ScenarioText | null = null;
   try {
-    today = await getScenario(project, r.thread.scenario);
+    today = await getScenario(project, r.thread.scenario, o.seen);
   } catch (e) {
     if (!(e instanceof EngineError && e.code === 'not_found')) throw e;
   }
@@ -354,7 +355,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);
@@ -362,7 +363,7 @@ export async function proposalForPreview(
   if (r.thread.scenario !== scenario) throw argError('proposal', `comment ${r.thread.id} is a comment on ${r.thread.scenario}, not on ${scenario}`);
   if (typeof req.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(req.entry_id)) throw argError('entry_id', `invalid entry id "${String(req.entry_id).slice(0, 80)}": r_ + 26 characters`);
   const entry = proposalEntry(r.thread, req.entry_id);
-  const today = await getScenario(project, scenario);
+  const today = await getScenario(project, scenario, o.seen);
   const why = notActionable(r.thread, entry, today, 'previewed');
   if (why) throw why;
   const text = rebuildProposal(today, entry.proposal, 'previewed');

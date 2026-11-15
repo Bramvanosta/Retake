@@ -20,7 +20,6 @@ import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scaffoldDir } from '@retake/components';
-import { memoRegistry } from '@retake/engine';
 import { COMPONENT_PREVIEW_FORMAT, checkPreviewSpec, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -130,7 +129,7 @@ describe('the forbid scan of a component preview (checkPreviewSpec)', () => {
   });
 
   it('every component of the registry × the three starters is previewed by theme_preview (layout-pip / layout-split too)', async () => {
-    const { registry } = await memoRegistry(studio.engine.workspace);
+    const registry = await studio.engine.components.registry();
     const ids = registry.list().map((i) => i.manifest.id);
     expect(ids).toEqual(expect.arrayContaining(['studio/layout-pip', 'studio/layout-split', 'studio/card-cta', 'studio/outro-stack']));
     const refused: string[] = [];
@@ -256,7 +255,7 @@ describe.skipIf(!canRun)('the preview frame plays a component preview (Chromium)
   it("⚑ a workspace component not allowed is absent from the frame's bundle; the frame says its stand-in draws", async () => {
     const d = await preview({ theme: 'editorial', target: { component: 'acme/held' } });
     expect(d.preview_held?.map((h) => h.id)).toEqual(['acme/held']);
-    const bundle = await studio.bundles.get((await memoRegistry(studio.engine.workspace)).registry, (id, hash) => studio.previewAllow.has(id, hash));
+    const bundle = await studio.bundles.get(await studio.engine.components.registry(), (id, hash) => studio.previewAllow.has(id, hash));
     expect(bundle.held).toContain('acme/held');
     expect(bundle.js.includes(MARK)).toBe(false);
     await frameIt(d, 30);

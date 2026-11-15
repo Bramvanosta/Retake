@@ -19,6 +19,11 @@ import { ensureWorker } from '../jobs/spawn.js';
 import type { JobRecord } from '../jobs/types.js';
 import { workerEnvOf } from '../jobs/worker-env.js';
 import { ProjectBoards } from '../views/project-board.js';
+import { RegistryMemo, TimelineMemos } from '../views/timeline-view.js';
+import { PreviewSamplesMemo } from '../views/theme-preview.js';
+import { RenderMemos } from '../renders.js';
+import { ThemeEditMemos } from '../theme-edit.js';
+import { VersionLedger } from '../version-ledger.js';
 import { openProjectBySlug } from '../projects.js';
 import { RenderFrames } from '../render-frames.js';
 import { RunDataCache } from '../run-data.js';
@@ -70,6 +75,40 @@ export interface EngineContext {
   readonly renderFrames: RenderFrames;
   readonly views: ScenarioViews;
   readonly boards: ProjectBoards;
+  /** What this engine remembers between calls (never shared with another engine of the process). */
+  readonly caches: EngineCaches;
+}
+
+/**
+ * The memos and ledgers of one engine: what its views reuse while the files they read are unchanged, and the versions
+ * of the files it showed or wrote (an undo / redo `restore` writes back only one of these). Bounded as each says.
+ */
+export interface EngineCaches {
+  /** The workspace's component registry. */
+  readonly registry: RegistryMemo;
+  /** The timeline views (the registry is the one above). */
+  readonly timeline: TimelineMemos;
+  /** The render list's and the board's report summaries and plan signatures. */
+  readonly renders: RenderMemos;
+  /** The theme editor's uses and its template.yaml versions. */
+  readonly themeEdit: ThemeEditMemos;
+  /** The theme preview's samples. */
+  readonly previewSamples: PreviewSamplesMemo;
+  /** The versions of each scenario file this engine showed or wrote. */
+  readonly scenarioVersions: VersionLedger;
+}
+
+/** A new engine's caches: empty. */
+export function engineCaches(): EngineCaches {
+  const registry = new RegistryMemo();
+  return {
+    registry,
+    timeline: new TimelineMemos(registry),
+    renders: new RenderMemos(),
+    themeEdit: new ThemeEditMemos(),
+    previewSamples: new PreviewSamplesMemo(),
+    scenarioVersions: new VersionLedger(),
+  };
 }
 
 function shellQuote(s: string): string {
@@ -96,6 +135,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
   const { queue, files: jobFiles } = ports.queues(ws.root, studio, ports.clock, ports.env);
+  const caches = engineCaches();
   const commentIndex = new CommentIndex();
   const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
@@ -136,6 +176,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
       return { job: open.id, state: open.state === 'running' ? 'running' : 'queued', ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
     },
     runs: runData,
+    seen: caches.scenarioVersions,
   });
   // L5.10a: the Project screen's board, its memos apart from the views' (critique H1: never evict the open scenario's).
   const boards = new ProjectBoards({
@@ -147,6 +188,8 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
       const job = await queue.ofRun(slug, run.id);
       return (job ? overlaid(run.status, job) : undefined) ?? run.status;
     },
+    renderMemos: caches.renders,
+    seen: caches.scenarioVersions,
   });
   // The sessions of a parsed scenario on an environment: the Run screen's panel (auth.forScenario) and the capture's
   // sessions_ack rule (on the scenario and environment the run submit settled).
@@ -182,5 +225,6 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
     renderFrames,
     views,
     boards,
+    caches,
   };
 }

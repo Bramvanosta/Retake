@@ -539,6 +539,8 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
         reads: ws.reads,
         ifMatch: null,
         agent: req.agent === true,
+        // A recording's own save (the CLI's, a job's): no engine shows it.
+        seen: undefined,
         scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli'), clock: ports.clock, stores: ports.stores },
       });
       saved = { file: r.file, path: r.path, hash: r.hash };

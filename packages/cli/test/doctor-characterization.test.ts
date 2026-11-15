@@ -13,6 +13,7 @@ import { EXIT, memoryIo } from '../src/index.js';
 import { doctorCommand } from '../src/commands/doctor.js';
 import type { DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
+import { enginePorts } from '@retake/engine';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const PINNED = fileURLToPath(new URL('./fixtures/doctor', import.meta.url));
@@ -99,7 +100,7 @@ function probes(): DoctorProbes {
 
 async function doctor(json: boolean) {
   const io = memoryIo();
-  const code = await doctorCommand(new Ui(io), { root: ws }, { project: 'shop', json }, probes());
+  const code = await doctorCommand(new Ui(io), { root: ws, ports: enginePorts() }, { project: 'shop', json }, probes());
   const named = (s: string) => s.replaceAll(home, '<home>').replaceAll(ws, '<ws>').replaceAll(TEMPLATES, '<templates>');
   return { code, out: named(io.stdout()), err: named(io.stderr()) };
 }

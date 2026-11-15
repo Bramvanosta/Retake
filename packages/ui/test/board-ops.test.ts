@@ -16,7 +16,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, renderRecordReads, reportReads, scanSources, diskWorkspaceReads, diskOutputs } from '@retake/engine';
+import {
+  FILE_FACTS_TTL_MS,
+  FileJobQueue,
+  ProjectBoards,
+  RenderMemos,
+  ScenarioViews,
+  VersionLedger,
+  openProjectBySlug,
+  renderRecordReads,
+  reportReads,
+  scanSources,
+  diskWorkspaceReads,
+  diskOutputs,
+} from '@retake/engine';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -219,6 +232,8 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
       queue,
       files: queue.files,
       project: (slug) => openProjectBySlug(wsc, slug),
+      renderMemos: new RenderMemos(),
+      seen: new VersionLedger(),
       overlay: async (_slug, r) => {
         overlays++;
         return r.status;

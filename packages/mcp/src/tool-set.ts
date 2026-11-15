@@ -114,7 +114,7 @@ export function protocolTool(t: ToolDef, engine: () => Promise<Engine>, o: { sta
         if (t.name !== 'engine_info') return errorResult(new EngineError('unavailable', staleWords(stale), { details: { stale } }));
       }
       const approver = elicitationApprover(elicit);
-      const r = await invoke(t, engine, args, { shell: 'mcp', signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
+      const r = await invoke(t, engine, args, { shell: 'mcp', startedIn: process.cwd(), signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
       if (!r.ok) return errorResult(r.error);
       // engine_info already says it (its own `stale`); any other answer is marked here, its data keeping `stale` too.
       const output: ToolOutput =

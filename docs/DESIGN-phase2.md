@@ -629,7 +629,7 @@ transport; `template_list`'s wording stays true).
   re-parsed, every file it names a regular file of its own folder reached without a symbolic link and with one name
   (images checked, SVGs scanned, fonts sniffed), the registry resolving every kind (kept params validated), then
   written atomically under the storage write lock keyed on the real path (workspace `.retake/locks/`). `restore`
-  (undo / redo) sends bytes + sha256, accepted only for a version this process showed (view) or wrote, then checked
+  (undo / redo) sends bytes + sha256, accepted only for a version this engine showed (view) or wrote, then checked
   again like any write except for hidden characters.
 - **View** (`templates.view`): editable or why, sha256, the whole text (null when it is not text the Studio edits),
   the allow-listed fields as written, each kind's entry and resolution, the folder's fonts (sniffed) and images

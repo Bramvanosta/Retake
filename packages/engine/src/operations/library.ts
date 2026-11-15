@@ -47,7 +47,6 @@ import { openProjectBySlug } from '../projects.js';
 import { pathFree } from '../renders.js';
 import { themeForWork } from '../templates.js';
 import type { TemplateSummary } from '../templates.js';
-import { memoRegistry } from '../views/timeline-view.js';
 import { PREVIEW_JOB, READ } from './annotations.js';
 import { defineOperation } from './define.js';
 
@@ -218,7 +217,7 @@ const viewSignature = async (engine: Engine, slug: string, asked: string | undef
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, slug);
   const t = await themeForWork(ws, p, asked);
-  const reg = (await memoRegistry(ws)).registry;
+  const reg = await engine.components.registry();
   // One entry budget for the whole signature (review A L4), as the event stream's scan.
   const budget = watchBudget();
   return [
@@ -344,7 +343,7 @@ export const libraryImages = defineOperation({
     }
     if (a.committed?.length) {
       const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await components();
-      const reg = (await memoRegistry(ws)).registry;
+      const reg = await engine.components.registry();
       for (const id of [...new Set(a.committed)]) {
         // A built-in only (B15): a workspace component of that id (an override) never shows the built-in's picture.
         const info = reg.has(id) ? reg.get(id) : undefined;

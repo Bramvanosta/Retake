@@ -10,7 +10,7 @@ import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import { printReview, runReview } from './review.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -256,19 +256,19 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const runId = run.id;
   // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
   warnLatest(ui, run, { scenario, json: opts.json });
-  const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering run ${runId}`);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
   const { signal, dispose } = abortOnSigint(ui);
   try {
     // The render, then its line of the workspace's history (the engine's in-process operation).
     const record = await renderInProcess({
-      renderer: cliPorts.renderer,
+      renderer: global.ports.renderer,
       ws,
       workPolicy: ws.policy,
       project,
       root: ws.root,
-      clock: cliPorts.clock,
+      clock: global.ports.clock,
       run: runId,
       scenario,
       template: opts.theme,
@@ -283,7 +283,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     let review;
     if (opts.review) {
       try {
-        review = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, render: record.record, quiet: opts.json });
+        review = await runReview(ui, global.ports.reviewer, { policy: ws.policy, project, render: record.record, quiet: opts.json });
       } catch (e) {
         if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
         throw e;
@@ -334,13 +334,13 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out ? resolve(opts.out) : await defaultStillFile(project, scenario, plan.variant, frame);
   // Captures first (L5.14): the run was planned (resolved) before any wait.
-  const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering frame ${frame} of run ${run.id}`);
   const t0 = performance.now();
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
     // The still, then its line of the workspace's history (a still is a render too).
-    await stillInProcess({ renderer: cliPorts.renderer, workPolicy: ws.policy, plan, frame, out, root: ws.root, clock: cliPorts.clock, registry, project });
+    await stillInProcess({ renderer: global.ports.renderer, workPolicy: ws.policy, plan, frame, out, root: ws.root, clock: global.ports.clock, registry, project });
   } finally {
     ui.clearStatus();
     await gate.dispose();

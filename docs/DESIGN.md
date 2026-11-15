@@ -2209,18 +2209,19 @@ workers/worker.log      what workers print (stderr), appended
   in-memory queue (`memory-queue.ts`: tests of the code that is handed a queue) keep them, and one contract suite holds
   both (`packages/engine/test/job-queue-contract.ts`). The paths are the file queue's file part (`JobFiles` — a job's
   folder, job.json, browser.json, live.json, yield.json, events.jsonl), handed apart from the queue to the code that
-  reads or writes a job's files itself (the worker: a render's browser; the live channel; the Studio's live run through
-  `Engine.jobFiles`; the project board's stat memo). Only the composition roots build the file queue: the engine, the
-  worker, the job process and the CLI's `workspaceQueue` (its in-process commands read it so that their pruning spares
-  the folders of active jobs), plus the adapter's own `withOwnMemory()`; every other module is handed one (the
-  ratchet's `queue` rule). `<workspace>/.retake` and its jobs folder are named by `workspace-state.ts`; what an
-  interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`, `jobs/worker.ts`) opens the workspace (trust
-  `mcp`, never beside a worker from before the rename), builds the queue and takes the lock, then orchestrates parts
-  that share one record of everything it holds (`jobs/worker-record.ts`), a module each: the process's signals
-  (`worker-signals.ts`), the recovery of what earlier workers left (`worker-recovery.ts`), the loop, its drain and the
-  hand-over (`worker-loop.ts`), the claims of a turn and the capture slot (`worker-slots.ts`, `worker-claim.ts`), the
-  heavy slot (`worker-heavy.ts`: its job process, yield, cancel and end) and the ends the worker writes itself
-  (`worker-finish.ts`).
+  reads or writes a job's files itself (the live channel's writer; the project board's stat memo). A job's other files
+  are read through the port: its browser record (`recordedBrowser`), its events by byte range (`eventsRange`: the
+  Studio's live run) and its live record (`liveRecord`); the façade hands no path of the queue. Only the composition
+  roots build the file queue: the engine, the worker, the job process and the CLI's `workspaceQueue` (its in-process
+  commands read it so that their pruning spares the folders of active jobs), plus the adapter's own `withOwnMemory()`;
+  every other module is handed one (the ratchet's `queue` rule). `<workspace>/.retake` and its jobs folder are named by
+  `workspace-state.ts`; what an interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`,
+  `jobs/worker.ts`) opens the workspace (trust `mcp`, never beside a worker from before the rename), builds the queue
+  and takes the lock, then orchestrates parts that share one record of everything it holds (`jobs/worker-record.ts`), a
+  module each: the process's signals (`worker-signals.ts`), the recovery of what earlier workers left
+  (`worker-recovery.ts`), the loop, its drain and the hand-over (`worker-loop.ts`), the claims of a turn and the capture
+  slot (`worker-slots.ts`, `worker-claim.ts`), the heavy slot (`worker-heavy.ts`: its job process, yield, cancel and
+  end) and the ends the worker writes itself (`worker-finish.ts`).
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, core/io proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived

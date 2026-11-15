@@ -448,7 +448,7 @@ describe('the operation contract', () => {
   it('invoke: arguments named per problem as an invalid EngineError; a handler error typed; never throws (L7.21: was callTool)', async () => {
     // The probe under a catalogue name the CLI serves (invoke refuses a name the catalogue does not hold).
     const probe = { ...tool, name: 'job_list' as const };
-    const o = { shell: 'cli' as const, signal: new AbortController().signal };
+    const o = { shell: 'cli' as const, startedIn: process.cwd(), signal: new AbortController().signal };
     const bad = await invoke(probe, engine, { wait_s: 99, extra: 1 }, o);
     expect(bad.ok).toBe(false);
     if (bad.ok) return;

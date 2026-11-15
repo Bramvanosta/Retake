@@ -56,6 +56,7 @@ import { NODE_THEME_HASHES } from '../theme-files.js';
 import type { ThemeHashes } from '../theme-files.js';
 import type { RenderEditSource } from '../jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from '../scenarios.js';
+import type { VersionLedger } from '../version-ledger.js';
 import { sha256Hex } from '../storage.js';
 import { themeUnusable } from '../templates.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -150,14 +151,55 @@ const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !
 // ── Memo (critique B13) ─────────────────────────────────────────────────────
 
 const VIEW_MEMO_MAX = 4;
-const viewMemo = new Map<string, Promise<TimelineViewResult>>();
-/** What a memoised view's planning read beyond its key, and its signature then (checked again on each hit). */
-const viewDeps = new Map<string, { sig: string; now: () => string }>();
-/** Theme folders' content hashes, by folder and its files' signature. */
-const themeHashMemo = new Map<string, string>();
-let registryMemo: { sig: string; registry: Promise<ComponentRegistry> } | undefined;
-const musicMemo = new Map<string, number | undefined>();
-const captureMemo = new Map<string, Promise<TimelineCaptureInfo>>();
+/**
+ * The workspace's component registry, held by one engine (its context's caches) and reused while its components'
+ * folders are unchanged: the timeline views, a scenario's field edits, the comments' proposals, the library and the
+ * theme previews of that engine.
+ */
+export class RegistryMemo {
+  #held: { sig: string; registry: Promise<ComponentRegistry> } | undefined;
+
+  /** The registry of `ws`'s components, loaded again when their folders changed. */
+  async get(ws: OpenedWorkspace): Promise<{ sig: string; registry: ComponentRegistry }> {
+    const sig = componentsSignature(ws.componentsDir);
+    if (!this.#held || this.#held.sig !== sig) {
+      const c = await components();
+      const held = { sig, registry: c.loadComponentRegistry({ root: ws.root }) };
+      this.#held = held;
+      held.registry.catch(() => {
+        if (this.#held === held) this.#held = undefined;
+      });
+    }
+    return { sig, registry: await this.#held.registry };
+  }
+
+  clear(): void {
+    this.#held = undefined;
+  }
+}
+
+/** The timeline view's memos of one engine (its context's caches): bounded as each map says. */
+export class TimelineMemos {
+  readonly views = new Map<string, Promise<TimelineViewResult>>();
+  /** What a memoised view's planning read beyond its key, and its signature then (checked again on each hit). */
+  readonly deps = new Map<string, { sig: string; now: () => string }>();
+  /** Theme folders' content hashes, by folder and its files' signature. */
+  readonly themeHashes = new Map<string, string>();
+  readonly music = new Map<string, number | undefined>();
+  readonly captures = new Map<string, Promise<TimelineCaptureInfo>>();
+
+  constructor(readonly registry: RegistryMemo) {}
+
+  /** Forget every memoised view, and the registry. */
+  clear(): void {
+    this.views.clear();
+    this.deps.clear();
+    this.themeHashes.clear();
+    this.registry.clear();
+    this.music.clear();
+    this.captures.clear();
+  }
+}
 
 /** A cheap signature of the workspace's components: each component folder's and manifest's mtime (two levels). */
 function componentsSignature(dir: string): string {
@@ -187,17 +229,6 @@ function componentsSignature(dir: string): string {
   return sha256Hex(parts.join('\n')).slice(0, 16);
 }
 
-/** The workspace's component registry, reused while its components' folders are unchanged (timeline views, set_field). */
-export async function memoRegistry(ws: OpenedWorkspace): Promise<{ sig: string; registry: ComponentRegistry }> {
-  const sig = componentsSignature(ws.componentsDir);
-  if (!registryMemo || registryMemo.sig !== sig) {
-    const c = await components();
-    registryMemo = { sig, registry: c.loadComponentRegistry({ root: ws.root }) };
-    registryMemo.registry.catch(() => (registryMemo = undefined));
-  }
-  return { sig, registry: await registryMemo.registry };
-}
-
 const statKey = (file: string): string => {
   try {
     const st = statSync(file);
@@ -216,24 +247,14 @@ const ffprobeKey = (policy: WorkPolicy): string => {
   }
 };
 
-async function musicLength(file: string, policy: WorkPolicy): Promise<number | undefined> {
+async function musicLength(memo: TimelineMemos['music'], file: string, policy: WorkPolicy): Promise<number | undefined> {
   const key = `${file}|${statKey(file)}|${ffprobeKey(policy)}`;
-  if (musicMemo.has(key)) return musicMemo.get(key);
+  if (memo.has(key)) return memo.get(key);
   const probe = await probeMediaFile(file, policy);
   const length = probe && probe.duration_s > 0 ? probe.duration_s : undefined;
-  if (musicMemo.size > 32) musicMemo.delete(musicMemo.keys().next().value!);
-  musicMemo.set(key, length);
+  if (memo.size > 32) memo.delete(memo.keys().next().value!);
+  memo.set(key, length);
   return length;
-}
-
-/** Forget every memoised view (tests). */
-export function clearTimelineViewMemo(): void {
-  viewMemo.clear();
-  viewDeps.clear();
-  themeHashMemo.clear();
-  registryMemo = undefined;
-  musicMemo.clear();
-  captureMemo.clear();
 }
 
 // ── The capture's codec and keyframes (critique B14) ────────────────────────
@@ -291,13 +312,13 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
   }
 }
 
-function memoCapture(file: string, policy: WorkPolicy): Promise<TimelineCaptureInfo> {
+function memoCapture(memo: TimelineMemos['captures'], file: string, policy: WorkPolicy): Promise<TimelineCaptureInfo> {
   const key = `${file}|${statKey(file)}|${ffprobeKey(policy)}`;
-  let p = captureMemo.get(key);
+  let p = memo.get(key);
   if (!p) {
     p = captureInfo(file, { policy });
-    if (captureMemo.size > 16) captureMemo.delete(captureMemo.keys().next().value!);
-    captureMemo.set(key, p);
+    if (memo.size > 16) memo.delete(memo.keys().next().value!);
+    memo.set(key, p);
   }
   return p;
 }
@@ -308,7 +329,7 @@ const SPEED_RANGE = { min_exclusive: 0, max: 16 };
 const DURATION_RANGE = { min_exclusive: 0, max: 600 };
 
 /** What the switch of an intro / outro map leaves alone: its component and duration (the other keys are its content). */
-const SWITCH_KEYS = new Set(['component', 'duration']);
+const SWITCH_KEYS: ReadonlySet<string> = new Set(['component', 'duration']);
 
 /**
  * What the file says at a field (`true` for an intro / outro written as a map), or `map` when a map is written there;
@@ -394,13 +415,13 @@ export function filmedChangeWords(change: string): string {
 }
 
 /** A theme folder's content hash, memoised by its files' signature (names, sizes, mtimes). */
-function themeHash(hashes: ThemeHashes, dir: string): string {
+function themeHash(memo: TimelineMemos['themeHashes'], hashes: ThemeHashes, dir: string): string {
   const key = `${dir}|${hashes.statSignature(dir)}`;
-  let h = themeHashMemo.get(key);
+  let h = memo.get(key);
   if (h === undefined) {
     h = hashes.contentHash(dir);
-    if (themeHashMemo.size > 16) themeHashMemo.delete(themeHashMemo.keys().next().value!);
-    themeHashMemo.set(key, h);
+    if (memo.size > 16) memo.delete(memo.keys().next().value!);
+    memo.set(key, h);
   }
   return h;
 }
@@ -441,6 +462,7 @@ function stepLabels(text: string | undefined): Record<string, string> {
 }
 
 async function buildView(
+  memos: TimelineMemos,
   ws: OpenedWorkspace,
   cli: string,
   project: LoadedProject,
@@ -452,7 +474,7 @@ async function buildView(
   /** The take shown is the default one (none was asked for): it is among the choices even when the list ends before it. */
   defaulted = false,
 ): Promise<TimelineViewResult> {
-  const { registry } = await memoRegistry(ws);
+  const { registry } = await memos.registry.get(ws);
   let planned;
   let source: RenderEditSource;
   try {
@@ -460,7 +482,7 @@ async function buildView(
       ws,
       cli,
       { project: req.project, scenario: req.scenario, ...(req.run_id ? { run_id: req.run_id } : {}) },
-      { registry, musicLength: (file) => musicLength(file, ws.policy), ...(proposal ? { editText: proposal.text } : {}) },
+      { registry, musicLength: (file) => musicLength(memos.music, file, ws.policy), ...(proposal ? { editText: proposal.text } : {}) },
     ));
   } catch (e) {
     if (e instanceof EngineError && e.code === 'refused') {
@@ -481,7 +503,7 @@ async function buildView(
   const threads = await listComments(ws.outputs.renders, project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
   // (A plan this version made always has a signature; '' would match no record.)
   const planSha = planSignature(plan) ?? '';
-  const themeSha = themeHash(hashes, planned.template.dir);
+  const themeSha = themeHash(memos.themeHashes, hashes, planned.template.dir);
   // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
   // B M5); any other only at the step, marker or segment it pointed at.
   const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
@@ -521,7 +543,7 @@ async function buildView(
   const shownText = proposal ? proposal.text : file.yaml;
   const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
   const choices = await choicesOf(registry, root, plan, editable, themes);
-  const capture = await memoCapture(planned.captureFile, ws.policy);
+  const capture = await memoCapture(memos.captures, planned.captureFile, ws.policy);
   // The takes to choose from: the scenario's newest captures of any status, in the one order of runs.
   const runs = (await (await import('../runs.js')).listRuns(ws.outputs.runs, project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
   if (defaulted && !runs.includes(planned.run.id)) runs.unshift(planned.run.id);
@@ -574,7 +596,13 @@ function depsOf(hashes: ThemeHashes, r: TimelineViewResult): (() => string) | un
  * The timeline view of a scenario's take (see the module comment). The same key (file, run, timeline, components)
  * returns the memoised view: a click's write and the event it raises plan once.
  */
-export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: AgentChannel }): Promise<TimelineViewResult> {
+export async function timelineView(
+  ws: OpenedWorkspace,
+  cli: string,
+  req: TimelineViewRequest,
+  o: { agent: boolean; via: AgentChannel; memos: TimelineMemos; seen: VersionLedger },
+): Promise<TimelineViewResult> {
+  const memos = o.memos;
   const t0 = performance.now();
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
@@ -582,7 +610,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   const project = await openProjectBySlug(ws, req.project);
   let file: { hash?: string; yaml?: string; blocked?: string } = {};
   try {
-    const text = await getScenario(project, req.scenario);
+    const text = await getScenario(project, req.scenario, o.seen);
     const parsed = text.utf8 ? parseScenario(text.yaml, { files: ws.reads.fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
     const blocked = scenarioEditBlocker(project, text, parsed, o);
     file = { hash: text.hash, yaml: text.yaml, ...(blocked ? { blocked: blocked.why } : {}) };
@@ -597,7 +625,12 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
     if (!pr || typeof pr !== 'object' || typeof pr.comment_id !== 'string' || !COMMENT_ID_RE.test(pr.comment_id) || typeof pr.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(pr.entry_id)) {
       throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
     }
-    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: ws.reads.fileFacts(ws.policy), reads: ws.reads });
+    proposal = await proposalForPreview(project, req.scenario, pr, {
+      registry: async () => (await memos.registry.get(ws)).registry,
+      files: ws.reads.fileFacts(ws.policy),
+      reads: ws.reads,
+      seen: o.seen,
+    });
     if (req.run_id !== undefined && req.run_id !== proposal.run_id) {
       throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
     }
@@ -614,7 +647,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   // The themes the scenario's theme switch offers (a theme copied or created since: a new view).
   const listed = await ws.reads.listTemplates(project.root);
   const unusable: Record<string, string> = {};
-  const reg = (await memoRegistry(ws)).registry;
+  const reg = (await memos.registry.get(ws)).registry;
   for (const t of listed) {
     const why = await themeUnusable(t.dir, reg, ws);
     if (why !== null) unusable[t.name] = why;
@@ -638,30 +671,30 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       proposal ? [proposal.comment_id, proposal.entry, proposal.result_sha256] : null,
     ]),
   ).slice(0, 24);
-  let p = viewMemo.get(key);
+  let p = memos.views.get(key);
   // A hit whose theme files or served files changed since its planning plans again (review B H3).
-  const deps = viewDeps.get(key);
+  const deps = memos.deps.get(key);
   if (p && deps && deps.now() !== deps.sig) {
-    viewMemo.delete(key);
-    viewDeps.delete(key);
+    memos.views.delete(key);
+    memos.deps.delete(key);
     p = undefined;
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
+    const built = buildView(memos, ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
     p = built;
-    viewMemo.set(key, built);
-    if (viewMemo.size > VIEW_MEMO_MAX) {
-      const oldest = viewMemo.keys().next().value!;
-      viewMemo.delete(oldest);
-      viewDeps.delete(oldest);
+    memos.views.set(key, built);
+    if (memos.views.size > VIEW_MEMO_MAX) {
+      const oldest = memos.views.keys().next().value!;
+      memos.views.delete(oldest);
+      memos.deps.delete(oldest);
     }
-    built.catch(() => viewMemo.delete(key));
+    built.catch(() => memos.views.delete(key));
     const hashes = NODE_THEME_HASHES;
     void built.then(
       (r) => {
         const now = depsOf(hashes, r);
-        if (now && viewMemo.get(key) === built) viewDeps.set(key, { sig: now(), now });
+        if (now && memos.views.get(key) === built) memos.deps.set(key, { sig: now(), now });
       },
       () => undefined,
     );

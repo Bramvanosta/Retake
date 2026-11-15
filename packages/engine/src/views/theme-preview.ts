@@ -16,7 +16,7 @@ import { previewMaking } from '../render/editor-calls.js';
 import { firstErrorLine, openProjectBySlug } from '../projects.js';
 import { pathFree } from '../renders.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
-import { memoRegistry } from './timeline-view.js';
+import type { RegistryMemo } from './timeline-view.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { errorMessage } from '@retake/core/base';
 
@@ -55,7 +55,21 @@ export interface ThemePreviewBuilt {
 /** Or why nothing is previewed (`not_previewed`) or what failed (`preview_error`, path-free). */
 export type ThemePreviewBuild = { built: ThemePreviewBuilt } | { answer: ThemePreviewBase & ({ not_previewed: string } | { preview_error: string }) };
 
-let samplesMemo: Promise<PreviewSamples> | undefined;
+/** The preview samples of one engine (its context's caches): loaded once, again after a failure. */
+export class PreviewSamplesMemo {
+  #held: Promise<PreviewSamples> | undefined;
+
+  get(load: () => PreviewSamples | Promise<PreviewSamples>): Promise<PreviewSamples> {
+    if (!this.#held) {
+      const held = Promise.resolve().then(load);
+      this.#held = held;
+      held.catch(() => {
+        if (this.#held === held) this.#held = undefined;
+      });
+    }
+    return this.#held;
+  }
+}
 
 /** The theme with the draft's colours (memory only). */
 function withDraft(t: LoadedTemplate, draft: ThemePreviewDraft | undefined): LoadedTemplate {
@@ -83,12 +97,16 @@ function withDraft(t: LoadedTemplate, draft: ThemePreviewDraft | undefined): Loa
  * (`refused`), a component not in the registry (`not_found`). `start` is called once the target is settled, and
  * what it throws is thrown.
  */
-export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequest, o: { start: () => ThemePreviewServe }): Promise<ThemePreviewBuild> {
+export async function buildThemePreview(
+  ws: OpenedWorkspace,
+  a: ThemePreviewRequest,
+  o: { start: () => ThemePreviewServe; registry: RegistryMemo; samples: PreviewSamplesMemo },
+): Promise<ThemePreviewBuild> {
   const p = await openProjectBySlug(ws, a.project);
   const loaded = await themeForWork(ws, p, a.theme);
   const problems = themeAssetProblems(loaded);
   if (problems.length) throw new EngineError('refused', `${problems.map((x) => pathFree(x, ws.root)).join('; ')}: a theme serves only its own files`);
-  const registry = (await memoRegistry(ws)).registry;
+  const registry = (await o.registry.get(ws)).registry;
   const tpl = withDraft(loaded, a.draft);
   const targetKind = typeof a.target === 'string' ? a.target : 'component';
   const base: ThemePreviewBase = { theme: loaded.name, target: { kind: targetKind, ...(typeof a.target === 'object' ? { component: a.target.component } : {}) } };
@@ -122,9 +140,7 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
   const info = registry.get(id);
   const register = o.start();
   const [making, comps] = [await previewMaking(), await components()];
-  samplesMemo ??= Promise.resolve().then(() => making.loadSamples());
-  samplesMemo.catch(() => (samplesMemo = undefined));
-  const samples = await samplesMemo;
+  const samples = await o.samples.get(() => making.loadSamples());
   // Every file the spec names is served by the shell under the project's capability, from its own folder only.
   const serve =
     (within: string) =>

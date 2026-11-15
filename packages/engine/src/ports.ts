@@ -1,10 +1,11 @@
 /**
  * The engine's ports bag: the adapters a composition root chooses — createEngine (its `ports` option, which the MCP
  * server and the Studio leave out), the jobs worker (`WorkerOptions.ports`), the job process and the CLI
- * (`cli/src/workspace.ts` `cliPorts`). `enginePorts` is the one place their defaults are written: nothing but those
- * roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
- * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs`, `systemHosts` or `FileJobQueue` (the
- * import-rules ratchet's `clock-read`, `store-new`, `workspace-read`, `loader-use`, `output-read` and `queue` checks).
+ * (`cli/src/workspace.ts` `cliEnginePorts`). `enginePorts` is the one place their defaults are written: nothing but
+ * those roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
+ * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs`,
+ * `systemHosts` or `FileJobQueue` (the import-rules ratchet's `clock-read`, `store-new`, `workspace-read`,
+ * `loader-use`, `output-read` and `queue` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
 import type { CaptureRunner } from './capture/runner.js';

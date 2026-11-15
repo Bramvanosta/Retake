@@ -1,10 +1,11 @@
 /**
- * The plan signatures of render records, held for the process (renders.ts memoPlanSignature): a record never changes
- * once written, but two projects can hold records of one id and times — each keeps its own plan's signature.
+ * The plan signatures of render records, held per engine (renders.ts memoPlanSignature, the engine's RenderMemos): a
+ * record never changes once written, but two projects can hold records of one id and times — each keeps its own plan's
+ * signature; and one engine's memo is not another's.
  */
 import { describe, expect, it } from 'vitest';
 import type { StoredRenderRecord } from '@retake/core/render';
-import { memoPlanSignature } from '../src/renders.js';
+import { RenderMemos, memoPlanSignature } from '../src/renders.js';
 import { planSignature } from '../src/index.js';
 
 const record = (project: string, plan: object): StoredRenderRecord =>
@@ -21,8 +22,22 @@ describe('memoPlanSignature', () => {
   it("two projects' records of one id and times keep each its own plan's signature", () => {
     const a = record('alpha', { segments: [1] });
     const b = record('beta', { segments: [2] });
-    expect(memoPlanSignature(a)).toBe(planSignature(a.plan));
-    expect(memoPlanSignature(b)).toBe(planSignature(b.plan));
-    expect(memoPlanSignature(a)).not.toBe(memoPlanSignature(b));
+    const memos = new RenderMemos();
+    expect(memoPlanSignature(memos, a)).toBe(planSignature(a.plan));
+    expect(memoPlanSignature(memos, b)).toBe(planSignature(b.plan));
+    expect(memoPlanSignature(memos, a)).not.toBe(memoPlanSignature(memos, b));
+  });
+
+  it("is one engine's memo: another engine's memos hold none of its signatures", () => {
+    const a = record('alpha', { segments: [1] });
+    const mine = new RenderMemos();
+    const theirs = new RenderMemos();
+    memoPlanSignature(mine, a);
+    expect(mine.planSigs.size).toBe(1);
+    expect(theirs.planSigs.size).toBe(0);
+    // A signature held by one is never served to the other (the key is the same record's).
+    mine.planSigs.set([...mine.planSigs.keys()][0]!, 'held');
+    expect(memoPlanSignature(mine, a)).toBe('held');
+    expect(memoPlanSignature(theirs, a)).toBe(planSignature(a.plan));
   });
 });

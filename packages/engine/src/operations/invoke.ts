@@ -17,6 +17,10 @@ import type { Progress, ToolCallOutcome, ToolContext, ToolDef } from './define.j
 /** How a shell calls: who it is, the call's cancel, and (MCP) its progress notifications and approver. */
 export interface InvokeOptions {
   shell: Shell;
+  /**
+   * The folder the shell's process was started in (engine_info's `started_in`): the shell reads it, an operation never.
+   */
+  startedIn: string;
   /** Aborted when the client cancels the call: it ends a wait, never the job. */
   signal: AbortSignal;
   progress?: (p: Progress) => void;
@@ -71,7 +75,7 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
     const e = typeof engine === 'function' ? await engine() : engine;
     const refused = op.callers?.(e.caller, p.data);
     if (refused) return { ok: false, error: refused };
-    const ctx: ToolContext = { engine: e, signal: o.signal, ...(o.progress ? { progress: o.progress } : {}), ...(o.approver ? { approver: o.approver } : {}) };
+    const ctx: ToolContext = { engine: e, startedIn: o.startedIn, signal: o.signal, ...(o.progress ? { progress: o.progress } : {}), ...(o.approver ? { approver: o.approver } : {}) };
     const key = op.serialize?.(p.data);
     if (key === undefined) return { ok: true, output: await op.run(p.data, ctx) };
     return { ok: true, output: await operationChain(e)(key, () => op.run(p.data, ctx)) };

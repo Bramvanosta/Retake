@@ -41,8 +41,8 @@ import { zRunId } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { JOB_STATES } from '@retake/engine';
 import type { JobState } from '@retake/engine';
-import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, readPlainRange, securityHeaders, toEngineError } from '@retake/engine';
-import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
+import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, securityHeaders, toEngineError } from '@retake/engine';
+import type { Engine, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
 import { bestEffort, decodeOrKeep } from '@retake/core/base';
 
@@ -98,6 +98,9 @@ export interface LiveItem {
 
 // ─── reading a growing JSON-lines file from byte offsets ─────────────────────────────────────────────────────────────
 
+/** A ranged read of a growing file: its bytes from an offset and its size, or why none. */
+type TailRead = RangeRead | { ok: false; reason: string };
+
 /** Lines of a growing file, from a byte offset: complete lines only, each with the offset of its end. */
 export class JsonlTail {
   private partial: Buffer[] = [];
@@ -112,7 +115,7 @@ export class JsonlTail {
   broken: string | null = null;
 
   constructor(
-    private readonly read: (offset: number, max: number) => RangeRead | { ok: false; reason: string },
+    private readonly read: (offset: number, max: number) => TailRead | Promise<TailRead>,
     start: number,
     /** True when `start` may fall inside a line (a tail start): its rest is dropped. */
     cut = false,
@@ -123,12 +126,12 @@ export class JsonlTail {
   }
 
   /** New complete lines (at most `budget` bytes read); `notes` says what was skipped. */
-  pull(budget: number): { lines: Array<{ text: string; end: number }>; notes: string[]; size: number | null } {
+  async pull(budget: number): Promise<{ lines: Array<{ text: string; end: number }>; notes: string[]; size: number | null }> {
     const lines: Array<{ text: string; end: number }> = [];
     const notes: string[] = [];
     let size: number | null = null;
     while (!this.broken && budget > 0) {
-      const r = this.read(this.next, Math.min(LIVE_READ_CHUNK, budget));
+      const r = await this.read(this.next, Math.min(LIVE_READ_CHUNK, budget));
       if (!r.ok) {
         if (r.reason !== 'missing') this.broken = r.reason;
         break;
@@ -486,11 +489,11 @@ class RunStream {
    * New lines of both files, as view items (at most POLL_READ_MAX bytes each, or `budget`), in time order (review B L5:
    * the run's lines and the worker's merged by `ts`, each file's own order kept — a reload shows the same order).
    */
-  pull(budget = POLL_READ_MAX): { items: LiveItem[]; notes: string[] } {
+  async pull(budget = POLL_READ_MAX): Promise<{ items: LiveItem[]; notes: string[] }> {
     const notes: string[] = [];
-    const take = (tail: JsonlTail, src: LiveItem['src']): LiveItem[] => {
+    const take = async (tail: JsonlTail, src: LiveItem['src']): Promise<LiveItem[]> => {
       const items: LiveItem[] = [];
-      const r = tail.pull(budget);
+      const r = await tail.pull(budget);
       notes.push(...r.notes);
       for (const l of r.lines) {
         let parsed: unknown;
@@ -506,8 +509,8 @@ class RunStream {
       }
       return items;
     };
-    const run = take(this.log, 'log');
-    const job = this.jobLog ? take(this.jobLog, 'job') : [];
+    const run = await take(this.log, 'log');
+    const job = this.jobLog ? await take(this.jobLog, 'job') : [];
     return { items: mergeByTime(run, job), notes };
   }
 
@@ -524,7 +527,7 @@ class RunStream {
     if (this.busy || this.closed) return;
     this.busy = true;
     try {
-      const { items, notes } = this.pull();
+      const { items, notes } = await this.pull();
       for (const n of notes) this.write(sse('progress', { src: 'log', seq: this.log.cursor, ev: { type: 'note', message: n } }));
       for (const it of items) this.write(sse('progress', it));
       if (++this.ticks % 4 !== 0 && !this.sawEnd) return;
@@ -565,7 +568,7 @@ class RunStream {
     const overdue = this.sawEnd > 0 && Date.now() - this.sawEnd > END_GRACE_MS;
     if (!(runDone && jobDone) && !overdue) return;
     if (this.closed) return;
-    const last = this.pull(LIVE_TAIL_MAX);
+    const last = await this.pull(LIVE_TAIL_MAX);
     for (const it of last.items) this.write(sse('progress', it));
     this.write(sse('end', { ...(status ? { status } : {}), ...(jobState ? { job_state: jobState } : {}) }));
     this.close();
@@ -639,7 +642,7 @@ class FrameFeed {
         return;
       }
       if (job.state === 'running') {
-        const info = await readLiveChannel(this.live.queue, this.live.files, this.jobId);
+        const info = await readLiveChannel(this.live.queue, this.jobId);
         if (info && !signal.aborted) {
           this.connected = true;
           this.live.upstreams++;
@@ -674,11 +677,10 @@ export class RunLive {
   readonly engine: Engine;
   /**
    * The engine's job queue itself, not one with its own memory: it is asked only who claimed a job (claimOf keeps no
-   * memory), never what holds heavy work.
+   * memory), a job's live record and its events by byte range (the port's reads: no path of the queue here), never
+   * what holds heavy work.
    */
-  readonly queue: Pick<JobQueueView, 'claimOf'>;
-  /** The queue's paths (Engine.jobFiles): a job's live.json, and its events read here by byte range. */
-  readonly files: Pick<JobFiles, 'live' | 'events'>;
+  readonly queue: Pick<JobQueueView, 'claimOf' | 'liveRecord' | 'eventsRange'>;
   readonly pollMs: number;
   readonly feeds = new Map<string, FrameFeed>();
   private readonly streams = new Set<RunStream>();
@@ -693,7 +695,6 @@ export class RunLive {
   constructor(private readonly o: RunLiveOptions) {
     this.engine = o.engine;
     this.queue = o.engine.queue;
-    this.files = o.engine.jobFiles;
     this.pollMs = o.pollMs ?? RUN_LIVE_POLL_MS;
   }
 
@@ -758,16 +759,16 @@ export class RunLive {
       const log = new JsonlTail((o, m) => folder.readRange('log.jsonl', o, m), logStart, truncated);
       let jobLog: JsonlTail | null = null;
       if (jobId) {
-        const file = this.files.events(jobId);
-        const jobSize = size(readPlainRange(file, 0, 0));
+        const events = (o: number, m: number) => this.queue.eventsRange(jobId!, o, m);
+        const jobSize = size(await events(0, 0));
         let jobStart = from === 'after' ? (a.after?.job ?? 0) : 0;
         if (jobStart > jobSize) jobStart = 0;
         const cut = jobSize - jobStart > LIVE_TAIL_MAX;
         if (cut) jobStart = jobSize - LIVE_TAIL_MAX;
-        jobLog = new JsonlTail((o, m) => readPlainRange(file, o, m), jobStart, cut);
+        jobLog = new JsonlTail(events, jobStart, cut);
       }
       stream = new RunStream(this, res, { project: a.project, run: a.run_id, jobId }, log, jobLog, scrub);
-      const first = stream.pull(LIVE_TAIL_MAX);
+      const first = await stream.pull(LIVE_TAIL_MAX);
       snapshot = { from, truncated, items: first.items, notes: first.notes };
       const finished = status.finished || (status.job ? FINISHED_JOB_STATES.has(status.job.state) : false);
       const wants = a.frames ?? mode === 'dry';

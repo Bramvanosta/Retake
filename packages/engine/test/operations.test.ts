@@ -16,7 +16,7 @@
  * refuse every caller but the Studio and tests (drivesRecordScreen as their callers).
  * L7.21: the deprecated `callTool` alias is gone; invoke is the one call (the contract and @retake/mcp export no other).
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -201,7 +201,7 @@ describe('invoke', () => {
   it('refuses a shell that does not serve the operation, before the parse and without the engine', async () => {
     asked = 0;
     // engine_info has no CLI command (the catalogue's cli facet is a reason).
-    const r = await invoke(OPERATIONS_BY_NAME.engine_info, getter, { not: 'parsed' }, { shell: 'cli', signal });
+    const r = await invoke(OPERATIONS_BY_NAME.engine_info, getter, { not: 'parsed' }, { shell: 'cli', startedIn: process.cwd(), signal });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBeInstanceOf(EngineError);
@@ -211,12 +211,12 @@ describe('invoke', () => {
     // An operation the catalogue does not know at all.
     const probe = { name: 'no_such_op', title: 'x', description: 'x', input: z.strictObject({}), annotations: {}, run: async () => ({ summary: 'ran', data: {} }) };
     for (const shell of ['mcp', 'studio', 'cli'] as const) {
-      const p = await invoke(probe, getter, {}, { shell, signal });
+      const p = await invoke(probe, getter, {}, { shell, startedIn: process.cwd(), signal });
       expect(!p.ok && p.error.code).toBe('not_found');
     }
     expect(asked).toBe(0);
     // Served: it runs (job_list is served by all three shells).
-    const served = await invoke({ ...OPERATIONS_BY_NAME.job_list, run: async () => ({ summary: 'ran', data: {} }) }, getter, {}, { shell: 'cli', signal });
+    const served = await invoke({ ...OPERATIONS_BY_NAME.job_list, run: async () => ({ summary: 'ran', data: {} }) }, getter, {}, { shell: 'cli', startedIn: process.cwd(), signal });
     expect(served.ok).toBe(true);
   });
 
@@ -227,7 +227,7 @@ describe('invoke', () => {
       [OPERATIONS_BY_NAME.auth_login, { project: 'p', mode: 'fast' }],
       [OPERATIONS_BY_NAME.project_update_readme, {}],
     ] as Array<[ToolDef, unknown]>) {
-      const a = await invoke(op, getter, args, { shell: 'mcp', signal });
+      const a = await invoke(op, getter, args, { shell: 'mcp', startedIn: process.cwd(), signal });
       const r = op.input.safeParse(args);
       expect(a.ok || r.success, op.name).toBe(false);
       if (a.ok || r.success) continue;
@@ -259,26 +259,36 @@ describe('invoke', () => {
         return { summary: 'ran', data: { n: args.n } };
       },
     });
-    expect((await invoke(ruled, getter, { n: 'x' }, { shell: 'mcp', signal })).ok).toBe(false);
+    expect((await invoke(ruled, getter, { n: 'x' }, { shell: 'mcp', startedIn: process.cwd(), signal })).ok).toBe(false);
     expect(seen).toEqual([]);
-    const refused = await invoke(ruled, getter, { n: 2 }, { shell: 'mcp', signal });
+    const refused = await invoke(ruled, getter, { n: 2 }, { shell: 'mcp', startedIn: process.cwd(), signal });
     expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'not for an agent']);
     expect(seen).toEqual(['callers mcp mcp 2']);
-    const ok = await invoke(ruled, getter, {}, { shell: 'mcp', signal });
+    const ok = await invoke(ruled, getter, {}, { shell: 'mcp', startedIn: process.cwd(), signal });
     expect(ok.ok && ok.output.data).toEqual({ n: 1 });
     expect(seen).toEqual(['callers mcp mcp 2', 'callers mcp mcp 1', 'run 1']);
     // The engine's own caller decides, whoever the shell is: a person's engine passes the same call.
     const person = { caller: callerOf('cli') } as unknown as Engine;
-    expect((await invoke(ruled, person, { n: 2 }, { shell: 'cli', signal })).ok).toBe(true);
+    expect((await invoke(ruled, person, { n: 2 }, { shell: 'cli', startedIn: process.cwd(), signal })).ok).toBe(true);
   });
 
   it('hands the handler the engine, the signal, and progress and approver only when given', async () => {
     let ctxKeys: string[] = [];
     const probe = { ...OPERATIONS_BY_NAME.job_list, run: async (_a: unknown, ctx: object) => ((ctxKeys = Object.keys(ctx).sort()), { summary: 's', data: {} }) } as ToolDef;
-    await invoke(probe, engine, {}, { shell: 'mcp', signal });
-    expect(ctxKeys).toEqual(['engine', 'signal']);
-    await invoke(probe, engine, {}, { shell: 'mcp', signal, progress: () => undefined, approver: { approve: async () => ({ approved: false }) as never } });
-    expect(ctxKeys).toEqual(['approver', 'engine', 'progress', 'signal']);
+    await invoke(probe, engine, {}, { shell: 'mcp', startedIn: process.cwd(), signal });
+    expect(ctxKeys).toEqual(['engine', 'signal', 'startedIn']);
+    await invoke(probe, engine, {}, { shell: 'mcp', startedIn: process.cwd(), signal, progress: () => undefined, approver: { approve: async () => ({ approved: false }) as never } });
+    expect(ctxKeys).toEqual(['approver', 'engine', 'progress', 'signal', 'startedIn']);
+  });
+
+  it("hands the handler the folder the shell started in (engine_info's started_in): the shell's word, never the operation's own read", async () => {
+    let got: unknown;
+    const probe = { ...OPERATIONS_BY_NAME.job_list, run: async (_a: unknown, ctx: { startedIn: string }) => ((got = ctx.startedIn), { summary: 's', data: {} }) } as unknown as ToolDef;
+    await invoke(probe, engine, {}, { shell: 'mcp', startedIn: '/a/folder/elsewhere', signal });
+    expect(got).toBe('/a/folder/elsewhere');
+    // engine_info answers it as started_in (the MCP stdio test: the client's folder); it reads no folder of this
+    // process itself.
+    expect(readFileSync(new URL('../src/operations/project.ts', import.meta.url), 'utf8')).not.toMatch(/process\.cwd\(\)/);
   });
 
   it('never throws: a handler that throws anything, caller rules that throw, an engine getter that fails', async () => {
@@ -289,7 +299,7 @@ describe('invoke', () => {
       }),
       engine,
       {},
-      { shell: 'studio', signal },
+      { shell: 'studio', startedIn: process.cwd(), signal },
     );
     expect(!a.ok && [a.error.code, a.error.message]).toEqual(['internal', 'a string']);
     const b = await invoke(
@@ -298,7 +308,7 @@ describe('invoke', () => {
       }),
       engine,
       {},
-      { shell: 'studio', signal },
+      { shell: 'studio', startedIn: process.cwd(), signal },
     );
     expect(!b.ok && b.error.code).toBe('conflict');
     const c = await invoke(
@@ -310,10 +320,10 @@ describe('invoke', () => {
       } as ToolDef,
       engine,
       {},
-      { shell: 'studio', signal },
+      { shell: 'studio', startedIn: process.cwd(), signal },
     );
     expect(!c.ok && [c.error.code, c.error.message]).toEqual(['internal', 'rule broke']);
-    const d = await invoke(OPERATIONS_BY_NAME.job_list, () => Promise.reject(new EngineError('unavailable', 'no engine')), {}, { shell: 'studio', signal });
+    const d = await invoke(OPERATIONS_BY_NAME.job_list, () => Promise.reject(new EngineError('unavailable', 'no engine')), {}, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(!d.ok && d.error.code).toBe('unavailable');
     // Values String() cannot show (review fix): an object without a prototype, a throwing toString, an Error whose
     // message getter throws.
@@ -339,7 +349,7 @@ describe('invoke', () => {
         }),
         engine,
         {},
-        { shell: 'studio', signal },
+        { shell: 'studio', startedIn: process.cwd(), signal },
       );
       expect(!r.ok && r.error.code, label).toBe('internal');
       const c2 = await invoke(
@@ -348,7 +358,7 @@ describe('invoke', () => {
         }),
         async () => engine,
         {},
-        { shell: 'mcp', signal },
+        { shell: 'mcp', startedIn: process.cwd(), signal },
       );
       expect(!c2.ok && c2.error.code, label).toBe('internal');
     }
@@ -414,7 +424,7 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
   it('runs the calls of one key in order, one at a time; another key or another engine does not wait', async () => {
     const log: string[] = [];
     const { op, release } = gated(log);
-    const call = (e: Engine, key: string, n: string) => invoke(op, e, { key, n }, { shell: 'studio', signal });
+    const call = (e: Engine, key: string, n: string) => invoke(op, e, { key, n }, { shell: 'studio', startedIn: process.cwd(), signal });
     const first = call(engineA, 'k', '1');
     const second = call(engineA, 'k', '2');
     const other = call(engineA, 'j', '3');
@@ -452,13 +462,13 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
       gates.get(n)!();
     };
     const get = async () => engineA;
-    const first = invoke(edit, get, args('#111111'), { shell: 'studio', signal });
-    const second = invoke(edit, get, args('#222222'), { shell: 'studio', signal });
-    const other = invoke(edit, get, args('#333333', 'other'), { shell: 'studio', signal });
+    const first = invoke(edit, get, args('#111111'), { shell: 'studio', startedIn: process.cwd(), signal });
+    const second = invoke(edit, get, args('#222222'), { shell: 'studio', startedIn: process.cwd(), signal });
+    const other = invoke(edit, get, args('#333333', 'other'), { shell: 'studio', startedIn: process.cwd(), signal });
     await tick();
     expect(log.sort()).toEqual(['start #111111', 'start #333333']);
     // An engine given as itself (not a getter) shares the getter's chain: a third call of the key waits behind them.
-    const third = invoke(edit, engineA, args('#444444'), { shell: 'studio', signal });
+    const third = invoke(edit, engineA, args('#444444'), { shell: 'studio', startedIn: process.cwd(), signal });
     await release('#111111');
     await tick();
     expect(log).toContain('start #222222');
@@ -473,9 +483,9 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     const log: string[] = [];
     const { op, release } = gated(log, (n) => n === 'no');
     const engine = { caller: callerOf('ui') } as unknown as Engine;
-    const held = invoke(op, engine, { key: 'k', n: '1' }, { shell: 'studio', signal });
+    const held = invoke(op, engine, { key: 'k', n: '1' }, { shell: 'studio', startedIn: process.cwd(), signal });
     await tick();
-    const refused = await invoke(op, engine, { key: 'k', n: 'no' }, { shell: 'studio', signal });
+    const refused = await invoke(op, engine, { key: 'k', n: 'no' }, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'no no']);
     expect(log).toEqual(['start 1']);
     await release('1');
@@ -492,8 +502,8 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
         throw new EngineError('conflict', 'changed');
       },
     });
-    expect((await invoke(failing, engine, {}, { shell: 'studio', signal })).ok).toBe(false);
-    const after = invoke(op, engine, { key: 'k', n: '2' }, { shell: 'studio', signal });
+    expect((await invoke(failing, engine, {}, { shell: 'studio', startedIn: process.cwd(), signal })).ok).toBe(false);
+    const after = invoke(op, engine, { key: 'k', n: '2' }, { shell: 'studio', startedIn: process.cwd(), signal });
     await release('2');
     expect((await after).ok).toBe(true);
   });
@@ -508,10 +518,10 @@ describe("theme_edit's caller rule (L7.17: editsThemes as the operation's caller
     for (const client of ['ui', 'cli', 'test'] as const) expect(op.callers!(callerOf(client), {} as never), client).toBeUndefined();
     // Through invoke on an engine that has no workspace: the parse first, then the refusal, nothing read.
     const engine = { caller: callerOf('mcp') } as unknown as Engine;
-    const bad = await invoke(op, engine, { theme: '../x' }, { shell: 'studio', signal });
+    const bad = await invoke(op, engine, { theme: '../x' }, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(!bad.ok && bad.error.code).toBe('invalid');
     const valid = { theme: 'mine', if_match: 'a'.repeat(64), edit: { kind: 'set_field', field: 'colors.accent', to: '#123456' } };
-    const refused = await invoke(op, engine, valid, { shell: 'studio', signal });
+    const refused = await invoke(op, engine, valid, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual([
       'refused',
       'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)',
@@ -574,14 +584,14 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
 
   it('refuse through invoke after the parse and before anything is read (an engine with no workspace)', async () => {
     const engine = { caller: callerOf('mcp') } as unknown as Engine;
-    const bad = await invoke(ops.thread_add, engine, { ...add, text: '' }, { shell: 'studio', signal });
+    const bad = await invoke(ops.thread_add, engine, { ...add, text: '' }, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(!bad.ok && bad.error.code).toBe('invalid');
     for (const [op, args] of [
       [ops.thread_add, add],
       [ops.thread_reopen, { project: 'p', comment_id: 'c_01JQ0000000000000000000000', if_match: H }],
       [ops.thread_apply, { project: 'p', comment_id: 'c_01JQ0000000000000000000000', entry_id: 'r_01JQ0000000000000000000000', if_match: H }],
     ] as Array<[ToolDef, unknown]>) {
-      const r = await invoke(op, engine, args, { shell: 'studio', signal });
+      const r = await invoke(op, engine, args, { shell: 'studio', startedIn: process.cwd(), signal });
       expect(!r.ok && r.error.code, op.name).toBe('refused');
     }
     const person = { caller: callerOf('ui') } as unknown as Engine;
@@ -589,7 +599,7 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
       ops.comment_reply,
       person,
       { project: 'p', comment_id: 'c_01JQ0000000000000000000000', text: 'x', proposal: { scenario_yaml: 'x', scenario_hash: H } },
-      { shell: 'mcp', signal },
+      { shell: 'mcp', startedIn: process.cwd(), signal },
     );
     expect(!r.ok && words(r.error)).toEqual(PROPOSAL);
   });
@@ -676,7 +686,7 @@ describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five
     for (const withApprover of [false, true]) {
       seen.length = 0;
       for (const [op, args] of calls) {
-        const r = await invoke(op, fake, args, { shell: 'mcp', signal, ...(withApprover ? { approver } : {}) });
+        const r = await invoke(op, fake, args, { shell: 'mcp', startedIn: process.cwd(), signal, ...(withApprover ? { approver } : {}) });
         expect(r.ok, op.name).toBe(true);
       }
       const opts = withApprover ? { approver } : {};
@@ -693,7 +703,7 @@ describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five
     }
     // The Studio serves none of them: refused before the engine is asked.
     seen.length = 0;
-    for (const [op, args] of calls) expect((await invoke(op, fake, args, { shell: 'studio', signal })).ok, op.name).toBe(false);
+    for (const [op, args] of calls) expect((await invoke(op, fake, args, { shell: 'studio', startedIn: process.cwd(), signal })).ok, op.name).toBe(false);
     expect(seen).toEqual([]);
   });
 });
@@ -766,9 +776,9 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
     for (const client of ['mcp', 'cli'] as const) {
       const engine = { caller: callerOf(client) } as unknown as Engine;
       for (const [name, what] of Object.entries(SCREEN)) {
-        const bad = await invoke(byName[name]!, engine, { ...ARGS[name], project: '../x' }, { shell: 'studio', signal });
+        const bad = await invoke(byName[name]!, engine, { ...ARGS[name], project: '../x' }, { shell: 'studio', startedIn: process.cwd(), signal });
         expect(!bad.ok && bad.error.code, `${name} ${client}`).toBe('invalid');
-        const refused = await invoke(byName[name]!, engine, ARGS[name], { shell: 'studio', signal });
+        const refused = await invoke(byName[name]!, engine, ARGS[name], { shell: 'studio', startedIn: process.cwd(), signal });
         expect(!refused.ok && [refused.error.code, refused.error.message.startsWith(`${what} is the Studio's (its Record screen): `)], `${name} ${client}`).toEqual(['refused', true]);
       }
     }
@@ -779,7 +789,7 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
       workspace: { root: '/w' },
       record: { view: async (p: string, id: string) => (seen.push(`view ${p} ${id}`), { rec_id: id, state: 'missing', counts: { actions: 0 }, untrusted: null }) },
     } as unknown as Engine;
-    const ok = await invoke(byName.record_view!, ui, ARGS.record_view, { shell: 'studio', signal });
+    const ok = await invoke(byName.record_view!, ui, ARGS.record_view, { shell: 'studio', startedIn: process.cwd(), signal });
     expect(ok.ok).toBe(true);
     expect(seen).toEqual([`view p ${rec}`]);
   });
@@ -792,15 +802,15 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
       scenarios: { save: async (...a: unknown[]) => (calls.push(a), { created: true, path: 'scenarios/x.yaml', hash: 'a'.repeat(64), warnings: [] }) },
     } as unknown as Engine;
     const approver = { approve: async () => ({ approved: false }) } as unknown as Approver;
-    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'mcp', signal, approver });
-    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', keep_renders: 2 }, { shell: 'mcp', signal });
+    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'mcp', startedIn: process.cwd(), signal, approver });
+    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', keep_renders: 2 }, { shell: 'mcp', startedIn: process.cwd(), signal });
     expect(calls[0]).toEqual(['p', { dry_run: false }, { approver }]);
     expect((calls[0]![2] as { approver: Approver }).approver).toBe(approver);
     expect(calls[1]).toStrictEqual(['p', { keep_renders: 2, dry_run: true }, {}]);
-    await invoke(OPERATIONS_BY_NAME.scenario_save, engine, { project: 'p', name: 'x', yaml: 'video: x\n', if_match: 'b'.repeat(64) }, { shell: 'mcp', signal });
+    await invoke(OPERATIONS_BY_NAME.scenario_save, engine, { project: 'p', name: 'x', yaml: 'video: x\n', if_match: 'b'.repeat(64) }, { shell: 'mcp', startedIn: process.cwd(), signal });
     expect(calls[2]).toEqual(['p', 'x', 'video: x\n', { ifMatch: 'b'.repeat(64) }]);
     // The Studio serves none of MCP's: refused before the engine is asked.
-    const studio = await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'studio', signal, approver });
+    const studio = await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'studio', startedIn: process.cwd(), signal, approver });
     expect(!studio.ok && studio.error.code).toBe('not_found');
     expect(calls).toHaveLength(3);
   });
@@ -817,7 +827,7 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
       expect(engine.clock).toBe(clock);
       expect(Object.getOwnPropertyDescriptor(engine, 'clock')).toMatchObject({ writable: false, configurable: false });
       const name = async () => {
-        const r = await invoke(OPERATIONS_BY_NAME.record_options, engine, { project: 'p' }, { shell: 'studio', signal });
+        const r = await invoke(OPERATIONS_BY_NAME.record_options, engine, { project: 'p' }, { shell: 'studio', startedIn: process.cwd(), signal });
         return r.ok ? r.output.data.default_name : r.error.message;
       };
       expect(await name()).toBe('recorded-20310506-0708');

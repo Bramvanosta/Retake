@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml, stepGuard, PERSON_POLICY } from '@retake/core';
-import { captureInfo, clearTimelineViewMemo, createEngine, planSignature } from '../src/index.js';
+import { captureInfo, createEngine, planSignature } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { FIXTURES, synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
@@ -167,7 +167,7 @@ afterAll(async () => {
 
 describe('timeline view (L4.5)', () => {
   it("tracks, edit source and the inspector's choices, each option usable or disabled with why", async () => {
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const r = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const { view: v, plan } = r;
     expect(v).toMatchObject({
@@ -216,7 +216,7 @@ describe('timeline view (L4.5)', () => {
   });
 
   it('memo (critique B13): a second read and the event after a write plan once; a switch shows in the next view; the switch time measured', async () => {
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const t0 = performance.now();
     const first = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const cold = performance.now() - t0;
@@ -291,7 +291,7 @@ describe('timeline view (L4.5)', () => {
   });
 
   it('review B M4 / mutation M4: a thread added after a view is pinned in the next one (the comments folder is in the key)', async () => {
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(before.view.pins).toEqual({ placed: [], elsewhere: [] });
     await writeThread('c_01JAAAAAAAAAAAAAAAAAAAAAAA', { render: 'tl-v1', created: '2026-01-01T13:00:00.000Z', frame: 10, anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 } });
@@ -302,7 +302,7 @@ describe('timeline view (L4.5)', () => {
   });
 
   it('review B M5 / H1: plan and theme signatures; a thread made on a render of this very version is pinned at its own frame', async () => {
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const r = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(r.view.plan_sha256).toBe(planSignature(r.plan));
     expect(r.view.theme_sha256).toMatch(/^[0-9a-f]{16}$/);
@@ -328,7 +328,7 @@ describe('timeline view (L4.5)', () => {
       [{ ...JSON.parse(JSON.stringify(r.plan)), fps: 25 }, r.view.theme_sha256],
       [JSON.parse(JSON.stringify(r.plan)), '0123456789abcdef'],
     ] as const) {
-      clearTimelineViewMemo();
+      engine.timeline.forget();
       await record(plan, theme);
       const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
       expect(other.view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame: step.from, by: 'step' }]);
@@ -371,14 +371,14 @@ describe('timeline view (L4.5)', () => {
       ],
     ];
     for (const [name, write] of cases) {
-      clearTimelineViewMemo();
+      engine.timeline.forget();
       await rm(join(dir, 'renders'), { recursive: true, force: true });
       await write();
       const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
       expect(other.view.pins.placed, name).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame: step.from, by: 'step' }]);
     }
     // The control: the same record of its own file, succeeded, at the comment's creation time — at its frame again.
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     await rm(join(dir, 'renders'), { recursive: true, force: true });
     await record(plan, theme);
     expect((await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame, by: 'frame' }]);
@@ -390,7 +390,7 @@ describe('timeline view (L4.5)', () => {
       anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 },
       run: '20260101-120000-other',
     });
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const both = (await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins;
     expect(both.placed.filter((p) => p.by === 'frame').map((p) => p.id)).toEqual(['c_01JBBBBBBBBBBBBBBBBBBBBBBB']);
     expect(both.placed.find((p) => p.id === 'c_01JCCCCCCCCCCCCCCCCCCCCCCC')?.by).not.toBe('frame');
@@ -410,7 +410,7 @@ describe('timeline view (L4.5)', () => {
     t.video.template = './template';
     await writeFile(join(own, 'runs', RUN, 'timeline.json'), JSON.stringify(t));
     await writeFile(join(own, 'scenarios', `${SCENARIO}.yaml`), TEXT);
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const read = () => view(engine.timeline.view({ project: 'own', scenario: SCENARIO }));
     const a = await read();
     expect((await read()).memo).toBe(true);
@@ -480,7 +480,7 @@ describe("timeline view of the fixture's quote (critique B13: measured)", () => 
         }),
       );
       const e = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
-      clearTimelineViewMemo();
+      e.timeline.forget();
       const t0 = performance.now();
       const cold = await view(e.timeline.view({ project: 'northfield-fixture', scenario: 'quote' }));
       const coldMs = performance.now() - t0;
@@ -520,7 +520,7 @@ describe('timeline view of a 4-minute take (critique B13: measured)', () => {
     await writeFile(join(runDir, 'capture.mp4'), 'not read');
     await runJson(runDir, id, 'long');
     await writeFile(join(dir, 'scenarios', 'long.yaml'), text);
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const t0 = performance.now();
     const cold = await view(engine.timeline.view({ project: 'demo', scenario: 'long' }));
     const coldMs = performance.now() - t0;

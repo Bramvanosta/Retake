@@ -49,7 +49,7 @@ export async function pruneCommand(ui: Ui, global: GlobalOptions, projectArg: st
     if (!/^[1-9]\d*$/.test(opts.keepRenders)) throw new UsageError(`--keep-renders ${opts.keepRenders}: a whole number from 1`);
     keep = Number(opts.keepRenders);
   }
-  const engine = await createEngine({ ...(global.root ? { root: resolve(global.root) } : {}), client: 'cli', autoStartWorker: false });
+  const engine = await createEngine({ ...(global.root ? { root: resolve(global.root) } : {}), client: 'cli', autoStartWorker: false, ports: global.ports });
   const r: PruneResult = await engine.projects.prune(projectArg, { keep_renders: keep, dry_run: opts.yes !== true });
   if (opts.json) {
     ui.result(JSON.stringify(r, null, 2));

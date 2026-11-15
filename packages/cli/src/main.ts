@@ -18,7 +18,9 @@ import { registerSignInCommands } from './program/sign-in.js';
 import { registerUpkeepCommands } from './program/upkeep.js';
 import { registerWorkspaceCommands } from './program/workspace.js';
 import { Ui } from './ui.js';
-import type { GlobalOptions } from './workspace.js';
+import { cliEnginePorts } from './workspace.js';
+import type { GlobalOptions, ProgramOptions } from './workspace.js';
+import type { EnginePorts } from '@retake/engine';
 
 export const VERSION = RETAKE_VERSION;
 
@@ -38,11 +40,14 @@ const FAMILIES: readonly ((ctx: ProgramContext) => void)[] = [
   registerLaterCommands,
 ];
 
-/** Build the `retake` program. Actions store their exit code through `setExit`. */
-function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
+/**
+ * Build the `retake` program. Actions store their exit code through `setExit`; each is handed the CLI's ports
+ * (`ports`: made on the first action that runs, so `--help` makes none).
+ */
+function buildProgram(io: Io, setExit: (code: ExitCode) => void, ports: () => EnginePorts): Command {
   const program = new Command('retake');
   let ui: Ui | null = null;
-  const globals = (): GlobalOptions => program.opts<GlobalOptions>();
+  const globals = (): GlobalOptions => ({ ...program.opts<ProgramOptions>(), ports: ports() });
   const getUi = (): Ui => {
     if (!ui) {
       const g = globals();
@@ -88,7 +93,7 @@ export function helpTexts(): string[] {
     out.push(c.helpInformation());
     c.commands.forEach(walk);
   };
-  walk(buildProgram(memoryIo(), () => {}));
+  walk(buildProgram(memoryIo(), () => {}, cliEnginePorts));
   return out;
 }
 
@@ -106,7 +111,7 @@ export function commandPaths(): string[] {
     }
   };
   walk(
-    buildProgram(memoryIo(), () => {}),
+    buildProgram(memoryIo(), () => {}, cliEnginePorts),
     '',
   );
   return out;
@@ -114,11 +119,17 @@ export function commandPaths(): string[] {
 
 /**
  * Run the CLI with `argv` (process.argv form: the first two entries are ignored). Never throws:
- * returns the exit code (0 ok, 1 failure, 2 usage error).
+ * returns the exit code (0 ok, 1 failure, 2 usage error). The CLI's composition root: its commands are handed `ports`
+ * (default the product's, cliEnginePorts: made once, when the first command runs).
  */
-export async function main(argv: readonly string[] = process.argv, io: Io = processIo()): Promise<ExitCode> {
+export async function main(argv: readonly string[] = process.argv, io: Io = processIo(), ports?: EnginePorts): Promise<ExitCode> {
   let code: ExitCode = EXIT.ok;
-  const program = buildProgram(io, (c) => (code = c));
+  let made: EnginePorts | undefined = ports;
+  const program = buildProgram(
+    io,
+    (c) => (code = c),
+    () => (made ??= cliEnginePorts()),
+  );
   try {
     await program.parseAsync([...argv]);
     return code;
@@ -127,7 +138,7 @@ export async function main(argv: readonly string[] = process.argv, io: Io = proc
       if (e.code === 'commander.helpDisplayed' || e.code === 'commander.version') return EXIT.ok;
       return EXIT.usage;
     }
-    const ui = new Ui(io, program.opts<GlobalOptions>().verbose === true);
+    const ui = new Ui(io, program.opts<ProgramOptions>().verbose === true);
     ui.clearStatus();
     if (isKnownError(e)) {
       ui.error(errorText(e));

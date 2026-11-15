@@ -45,7 +45,7 @@ function engineOf(o: { plan?: PlanPreviewView; submit?: Record<string, unknown> 
     },
   } as unknown as Engine;
 }
-const ctx = (engine: Engine) => ({ engine, signal: new AbortController().signal });
+const ctx = (engine: Engine) => ({ engine, startedIn: process.cwd(), signal: new AbortController().signal });
 const outside = (data: unknown): string => JSON.stringify({ ...(data as object), untrusted: null });
 
 describe('the trusted lines about the run `latest` picked', () => {

@@ -11,6 +11,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientPath } from '@retake/core/io';
 import { EngineError, servedWorkspaceRoot } from '@retake/engine';
+import type { EnginePorts } from '@retake/engine';
 import {
   MCP_HTTP_TOKEN_ENV,
   SERVER_NAME,
@@ -25,7 +26,6 @@ import {
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
-import { cliPorts } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { stopSignal } from '../interrupt.js';
 
@@ -38,7 +38,7 @@ export interface McpCommandOptions {
 }
 
 /** `--print-config --http` and `--http`: the registration, or the server until Ctrl-C / SIGTERM. */
-async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<ExitCode> {
+async function mcpHttp(ui: Ui, ports: EnginePorts, root: string, opts: McpCommandOptions): Promise<ExitCode> {
   const mcp = await import('@retake/mcp');
   const { mcpHttpTokenFile, stableToken } = await import('@retake/engine');
   let port = mcp.DEFAULT_MCP_HTTP_PORT;
@@ -46,7 +46,7 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     port = Number(opts.port);
     if (!/^\d+$/.test(opts.port) || port > 65535) throw new UsageError(`--port must be a port number from 0 to 65535, got "${opts.port}"`);
   }
-  const file = mcpHttpTokenFile(cliPorts.env);
+  const file = mcpHttpTokenFile(ports.env);
   let token;
   try {
     token = await stableToken(file, { rotate: opts.rotateToken === true });
@@ -117,7 +117,7 @@ export function studioBin(): string {
  * must look like one.
  */
 export function workspaceRoot(global: GlobalOptions): string | undefined {
-  return servedWorkspaceRoot(cliPorts.reads, global.root);
+  return servedWorkspaceRoot(global.ports.reads, global.root);
 }
 
 export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommandOptions): Promise<ExitCode> {
@@ -129,10 +129,10 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
     return EXIT.usage;
   }
   if ((opts.port !== undefined || opts.rotateToken || opts.json) && !opts.http) throw new UsageError('--port, --rotate-token and --json go with --http');
-  if (opts.http) return mcpHttp(ui, root, opts);
+  if (opts.http) return mcpHttp(ui, global.ports, root, opts);
   const mcp = await import('@retake/mcp');
   if (opts.printConfig) {
-    const input = { root, bin: studioBin(), env: cliPorts.env };
+    const input = { root, bin: studioBin(), env: global.ports.env };
     ui.result(JSON.stringify(mcpConfigJson(input), null, 2));
     ui.line('');
     const repo = pluginMarketplaceRoot(input.bin);

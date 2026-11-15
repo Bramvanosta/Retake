@@ -19,6 +19,7 @@
  *   must have the stored result hash, and the hunks must be the canonical diff of those bytes — else nothing is shown as
  *   exact, previewed or applied.
  */
+import type { VersionLedger } from './version-ledger.js';
 import { applyHunks, canonicalJson, diffLines, errorMessage, joinLines, lineBreaks, parseYaml, sameHunks, textLines } from '@retake/core/base';
 import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, filmedChangesOf, textEol } from '@retake/core/scenario';
 import { CommentProposalSchema, PROPOSAL_CHANGED_LINES_MAX, proposalHunksProblem, proposalLineProblem } from '@retake/core/comments';
@@ -155,7 +156,7 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
@@ -163,7 +164,7 @@ export async function checkProposedText(
       project,
       scenario,
       { hash: today.hash, edit: { kind: 'replace_text', text } },
-      { agent: true, via: 'studio', files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}) },
+      { agent: true, via: 'studio', files: o.files, reads: o.reads, seen: o.seen, ...(o.registry ? { registry: o.registry } : {}) },
     );
   } catch (e) {
     throw restage(e, stage);
@@ -201,7 +202,7 @@ export async function buildProposal(
   project: LoadedProject,
   scenario: string,
   input: ProposalInput,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
@@ -213,7 +214,7 @@ export async function buildProposal(
   }
   let today: ScenarioText;
   try {
-    today = await getScenario(project, scenario);
+    today = await getScenario(project, scenario, o.seen);
   } catch (e) {
     if (e instanceof EngineError && e.code === 'not_found') throw new EngineError('not_found', `not proposed: the thread's scenario file scenarios/${scenario}.yaml is not there`);
     throw e;

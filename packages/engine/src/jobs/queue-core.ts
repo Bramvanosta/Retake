@@ -25,7 +25,7 @@ import { signApprovals } from './signing.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
-import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, RecordedBrowser, TakeHold, YieldMark } from './job-queue.js';
+import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobRangeRead, JobMark, JobPosition, JobQueue, RecordedBrowser, TakeHold, YieldMark } from './job-queue.js';
 import { bestEffort } from '@retake/core/base';
 import { storedJson } from '../stored-json.js';
 import { z } from 'zod';
@@ -72,6 +72,15 @@ export interface JobEntries {
   read(id: string, name: string): Promise<string | undefined>;
   /** A submit's file, read as stored: a plain file of at most `max` bytes (never a link followed), else why not. */
   readPlain(id: string, name: string, max: number): Promise<JobFileRead>;
+  /**
+   * At most `max` bytes of an entry from `offset`, and its size (a growing entry: events.jsonl); never a link followed.
+   */
+  readRange(id: string, name: string, offset: number, max: number): Promise<JobRangeRead>;
+  /**
+   * An entry only this user may have written and only they may read (live.json), of at most `max` bytes; else
+   * undefined.
+   */
+  readPrivate(id: string, name: string, max: number): Promise<string | undefined>;
   /** When an entry was last written (ISO), or undefined. */
   mtime(id: string, name: string): Promise<string | undefined>;
   /** Create an entry only if it does not exist: false when it does; a job that is gone throws ENOENT. */
@@ -359,6 +368,14 @@ export abstract class StoredJobQueue implements JobQueue {
     const lines = events.map((e) => JSON.stringify({ seq: ++seq, t, ...e })).join('\n') + '\n';
     await this.entries.append(id, 'events.jsonl', lines);
     return seq;
+  }
+
+  async eventsRange(id: string, offset: number, max: number): Promise<JobRangeRead> {
+    return this.entries.readRange(checkJobId(id), 'events.jsonl', offset, max);
+  }
+
+  async liveRecord(id: string, max: number): Promise<string | undefined> {
+    return this.entries.readPrivate(checkJobId(id), 'live.json', max);
   }
 
   async events(id: string, opts: { after?: number; limit?: number } = {}): Promise<JobEvent[]> {

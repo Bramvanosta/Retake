@@ -82,7 +82,7 @@ export interface ReviewView {
 const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpg|png|json|md)$/;
 /** A segment / scene id as review_get shows it (what safeName keeps: the names of the review's files). */
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-const SEGMENT_KINDS = new Set(['intro', 'clip', 'card', 'interstitial', 'outro']);
+const SEGMENT_KINDS: ReadonlySet<string> = new Set(['intro', 'clip', 'card', 'interstitial', 'outro']);
 
 /**
  * A file of the review folder `dir` named by `p`'s base name (`sub`: in that subfolder), when it is there (links

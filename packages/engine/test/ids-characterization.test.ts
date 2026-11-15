@@ -43,7 +43,7 @@ import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
 import { checkRenderRequest, renderVersionOf } from '../src/jobs/render-job.js';
-import { readListedRecord, renderView } from '../src/renders.js';
+import { RenderMemos, readListedRecord, renderView } from '../src/renders.js';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Case, Workspace } from '@retake/test-support/review';
 import { authorScope } from './helpers.js';
@@ -390,7 +390,7 @@ describe('run folders', () => {
       await writeFile(file, JSON.stringify({ v: LIVE_FILE_VERSION, job: `j_${BODY}`, run, port: 4999, token: 'a'.repeat(43), pid: me.pid, ...(me.started_at ? { started_at: me.started_at } : {}) }), {
         mode: 0o600,
       });
-      return (await readLiveChannel({ claimOf: async () => ({ ...me, at: '2026-10-20T10:00:00.000Z' }) as never }, { live: () => file }, `j_${BODY}`)) !== null;
+      return (await readLiveChannel({ claimOf: async () => ({ ...me, at: '2026-10-20T10:00:00.000Z' }) as never, liveRecord: async () => readFile(file, 'utf8') }, `j_${BODY}`)) !== null;
     };
     expect([await read(`${STAMP}quote`), await read(a(200))]).toEqual([true, true]);
     expect([await read(a(201)), await read('.tmp-quote'), await read('a/b'), await read(''), await read(7)]).toEqual([false, false, false, false, false]);
@@ -533,6 +533,7 @@ describe('render records', () => {
   it('a render as listed names its take and its theme, or says unknown', async () => {
     const view = async (extra: Record<string, unknown>) => {
       const v = await renderView(
+        new RenderMemos(),
         diskOutputs.reviews,
         p.dir,
         {

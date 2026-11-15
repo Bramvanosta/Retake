@@ -9,7 +9,7 @@ import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { cliPorts, openProject, openWorkspace, workspaceQueue } from '../workspace.js';
+import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
 
@@ -77,8 +77,8 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
     run = await inspectInProcess({
       policy: ws.policy,
       root: ws.root,
-      clock: cliPorts.clock,
-      ...(opts.out === undefined ? { pruneUnlessOpenIn: { queue: workspaceQueue(ws), inspections: ws.outputs.inspections } } : {}),
+      clock: global.ports.clock,
+      ...(opts.out === undefined ? { pruneUnlessOpenIn: { queue: workspaceQueue(ws, global.ports), inspections: ws.outputs.inspections } } : {}),
       prepared,
       runsDir,
       id,
@@ -86,11 +86,11 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
       ...(targets.length ? { targets } : {}),
       ...(limit !== undefined ? { limit } : {}),
       images: opts.images ?? 'marked',
-      frames: cliPorts.reviewer.frames,
-      capture: cliPorts.capture,
-      secrets: cliPorts.secrets,
+      frames: global.ports.reviewer.frames,
+      capture: global.ports.capture,
+      secrets: global.ports.secrets,
       runs: ws.outputs.runs,
-      hooks: cliPorts.hooks,
+      hooks: global.ports.hooks,
       loginCommand: loginCommandFor(global),
     });
   } finally {

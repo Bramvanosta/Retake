@@ -31,7 +31,7 @@ import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, runWorker } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { createPrompt } from '../src/app/words/library-words.js';
@@ -80,7 +80,7 @@ async function seedFailed(key: string, kind: 'poster' | 'loop', component: strin
   const e = join(libraryCacheDir({ root: ws }), key);
   await mkdir(e, { recursive: true });
   // Recorded under the registry as it is now (review A M3 / B H1: a failure under another registry reads as missing).
-  const bundle = await libraryRegistryHash((await memoRegistry(studio.engine.workspace)).registry);
+  const bundle = await libraryRegistryHash(await studio.engine.components.registry());
   await writeFile(
     join(e, LIBRARY_FILES.failed),
     JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), reason, bundle }),

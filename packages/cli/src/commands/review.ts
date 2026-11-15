@@ -8,7 +8,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
 import { renderNotes } from './render-notes.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
@@ -61,7 +61,7 @@ export function printReview(ui: Ui, r: ReviewResult): void {
   ui.line(c.dim(`  report ${ui.path(files.report_md)} · ${formatMs(r.review.ms)}`));
 }
 
-/** Run a review on `reviewer` (the command's: cliPorts) with a status line; returns the result. */
+/** Run a review on `reviewer` (the command's: global.ports) with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
   reviewer: Reviewer,
@@ -108,11 +108,11 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   } else found = await bestEffort(findRenderOf(ws.outputs.renders, project, render), 'a render that cannot be found is reviewed by its id as given (review says what is missing)');
   const renderId = render === 'latest' && found ? found.entry.name : render;
   if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
-  const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'reviewing', noWait: opts.wait === false });
   if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, global.ports.reviewer, { policy: ws.policy, project, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

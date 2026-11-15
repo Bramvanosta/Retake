@@ -5,7 +5,7 @@
  * glossary's homonyms.
  *
  * The clock is chosen at the composition roots (ports.ts `enginePorts`: createEngine's `ports`, the jobs worker, the job
- * process, the CLI's `cliPorts`) and handed down; nothing else names `systemClock` (the import-rules ratchet's
+ * process, the CLI's `cliEnginePorts`) and handed down; nothing else names `systemClock` (the import-rules ratchet's
  * `clock-read` check). Elapsed time and deadlines (the worker's timers, waits, grace periods, a line's `ms`) are not
  * stamps: they read the same port's monotonic side (`monotonic()`), so a scheduler is tested on a ManualClock without
  * real time. Memo lifetimes and file times stay on the system's time, each file pinned by the same check with its reason.

@@ -13,7 +13,7 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .command('init')
     .description('make a folder a workspace: retake.yaml (every key commented), projects/ and a .gitignore; an existing workspace is left as it is, a non-empty folder refused')
     .argument('[dir]', 'the folder (default: the current one; created when missing)')
-    .action(action((u, _g, dir: string | undefined) => initCommand(u, dir)));
+    .action(action((u, g, dir: string | undefined) => initCommand(u, g, dir)));
 
   program
     .command('new')

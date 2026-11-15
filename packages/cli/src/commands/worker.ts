@@ -6,7 +6,6 @@
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
-import { cliPorts } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface WorkerCommandOptions {
@@ -21,7 +20,7 @@ export async function workerCommand(_ui: Ui, global: GlobalOptions, opts: Worker
     if (!Number.isInteger(idleExitMs) || idleExitMs < 0) throw new UsageError(`--idle-exit must be a whole number of milliseconds, got "${opts.idleExit}"`);
   }
   const { runWorker, workspaceRootOf } = await import('@retake/engine');
-  const root = workspaceRootOf(cliPorts.reads, global.root);
+  const root = workspaceRootOf(global.ports.reads, global.root);
   const code = await runWorker({ root, ...(idleExitMs !== undefined ? { idleExitMs } : {}), once: opts.once === true });
   return code === 0 ? EXIT.ok : EXIT.failure;
 }

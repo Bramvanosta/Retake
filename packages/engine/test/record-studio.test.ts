@@ -469,7 +469,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
     it('the write path of Save: agent trust refuses a secret reference, with no path in the answer', async () => {
       const p = await project();
       const yaml = `version: 1\nvideo: trust-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Note}, text: "{{env:HOME}}"}\n`;
-      const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
+      const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads, undefined));
       expect(e.code).toBe('invalid');
       expect(JSON.stringify({ m: e.message, d: e.details })).not.toContain(p.dir);
       expect((e.details as { issues: Array<{ scene?: string; step?: number }> }).issues[0]).toMatchObject({ scene: 'lab', step: 0 });
@@ -715,7 +715,7 @@ describe('the Studio side of a recording, case after case', { shuffle: false }, 
       const p = await project();
       const rlo = String.fromCharCode(0x202e);
       const yaml = `version: 1\nvideo: hidden-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - click: Save\n      - click: "Cancel${rlo}lecnac"\n`;
-      const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
+      const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads, undefined));
       expect(e.code).toBe('invalid');
       expect(e.message).toMatch(/scene lab, step 2 holds U\+202E \(a direction control\)/);
       expect(firstHiddenChar(e.message)).toBeUndefined();

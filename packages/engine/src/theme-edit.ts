@@ -13,9 +13,9 @@
  *   folder with no link on the way (logo / wordmark checked as images — SVGs scanned —, fonts sniffed), the registry
  *   resolving every kind (kept params validated against the new component); then written atomically under the storage
  *   write lock keyed on the file's real path (workspace `.retake/locks/`), its mode kept.
- * - Undo / redo (critique B14): `restore` sends the bytes and their sha256, accepted only for a version this process
- *   showed (view) or wrote — never text a page made up; a restored version skips only the hidden-character check (it was
- *   on disk once) and passes every other check again.
+ * - Undo / redo (critique B14): `restore` sends the bytes and their sha256, accepted only for a version this engine
+ *   showed (view) or wrote — never text a page made up; a restored version skips only the hidden-character check (it
+ *   was on disk once) and passes every other check again.
  * - The view is path-free (files relative to the theme folder); a font's name table and anything else a file's maker
  *   wrote is under `untrusted`.
  */
@@ -64,12 +64,16 @@ interface ThemeLocation {
   realFile: string;
 }
 
-// The versions of each template.yaml this process showed (view) or wrote: undo / redo restore only these (critique B14).
-const versions = new VersionLedger();
+/** The theme editor's memos of one engine (its context's caches). */
+export class ThemeEditMemos {
+  /**
+   * The versions of each template.yaml this engine showed (view) or wrote: undo / redo restore only these (critique
+   * B14).
+   */
+  readonly versions = new VersionLedger();
 
-/** Whether this process showed or wrote that version of a theme's template.yaml (its real path). */
-export function knownThemeVersion(realFile: string, hash: string): boolean {
-  return versions.knows(realFile, hash);
+  /** The last themeUses answer, while its signature holds. */
+  uses: { root: string; sig: string; uses: Map<string, ThemeEditView['used_by']> } | undefined;
 }
 
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
@@ -248,7 +252,6 @@ async function themeFiles(realDir: string): Promise<{ files: string[]; links: st
 /** Projects and scenarios naming each theme (what an edit of it re-renders), every project and scenario read once. */
 /** themeUses computations (tests: the memo spares them while no project file moved). */
 export const THEME_USES_STATS = { computed: 0 };
-let usesMemo: { root: string; sig: string; uses: Map<string, ThemeEditView['used_by']> } | undefined;
 
 /**
  * The file-level signature of what themeUses reads (review B L6): the projects folder, each project's project.yaml and
@@ -279,11 +282,12 @@ function usesSignature(ws: OpenedWorkspace): string {
   return parts.join('\n');
 }
 
-async function themeUses(ws: OpenedWorkspace): Promise<Map<string, ThemeEditView['used_by']>> {
+async function themeUses(ws: OpenedWorkspace, memos: ThemeEditMemos): Promise<Map<string, ThemeEditView['used_by']>> {
   const sig = usesSignature(ws);
-  if (usesMemo && usesMemo.root === ws.root && usesMemo.sig === sig) return usesMemo.uses;
+  const held = memos.uses;
+  if (held && held.root === ws.root && held.sig === sig) return held.uses;
   const uses = await themeUsesNow(ws);
-  usesMemo = { root: ws.root, sig, uses };
+  memos.uses = { root: ws.root, sig, uses };
   return uses;
 }
 
@@ -316,19 +320,19 @@ async function themeUsesNow(ws: OpenedWorkspace): Promise<Map<string, ThemeEditV
 }
 
 /** Projects and scenarios that name the theme (what an edit of it re-renders). */
-async function usedBy(ws: OpenedWorkspace, name: string): Promise<ThemeEditView['used_by']> {
-  return (await themeUses(ws)).get(name) ?? { projects: [], scenarios: [] };
+async function usedBy(ws: OpenedWorkspace, memos: ThemeEditMemos, name: string): Promise<ThemeEditView['used_by']> {
+  return (await themeUses(ws, memos)).get(name) ?? { projects: [], scenarios: [] };
 }
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** One theme as its editor shows it (see the header); remembers the version shown (undo restores only those). */
-export async function templateView(ws: OpenedWorkspace, name: string): Promise<ThemeEditView> {
+export async function templateView(ws: OpenedWorkspace, name: string, memos: ThemeEditMemos): Promise<ThemeEditView> {
   const loc = await locateTheme(ws, name);
   const read = readThemeText(loc);
   const blocker = textBlocker(name, read);
   const editable: ThemeEditable = loc.editable !== true ? loc.editable : blocker ? { why: blocker } : true;
-  if (read.sha256) versions.remember(loc.realFile, read.sha256);
+  if (read.sha256) memos.versions.remember(loc.realFile, read.sha256);
   const value = read.utf8 ? parseYaml(read.text).value : undefined;
   const root = isObj(value) ? value : {};
   const fields: ThemeEditView['fields'] = {};
@@ -447,7 +451,7 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
     palette,
     warnings,
     issues,
-    used_by: await usedBy(ws, name),
+    used_by: await usedBy(ws, memos, name),
     untrusted: { fonts: untrustedFonts },
   };
 }
@@ -485,7 +489,7 @@ export function themeEditRefused(c: Caller): EngineError | undefined {
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
-export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope }): Promise<ThemeEditResult> {
+export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope; memos: ThemeEditMemos }): Promise<ThemeEditResult> {
   const refused = themeEditRefused(callerOf(o.client));
   if (refused) throw refused;
   const loc = await locateTheme(ws, name);
@@ -505,7 +509,7 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
     if (typeof edit.text !== 'string' || sha256Hex(edit.text) !== edit.text_hash) {
       throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
     }
-    if (!knownThemeVersion(loc.realFile, edit.text_hash)) {
+    if (!o.memos.versions.knows(loc.realFile, edit.text_hash)) {
       throw new EngineError('refused', `the text to restore is not a version of ${name}/template.yaml the Studio showed or wrote: nothing written — read the theme again`, {
         details: { argument: 'edit.text_hash' },
       });
@@ -554,8 +558,8 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
   const res = await o.scope.stores.at(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
-  versions.remember(loc.realFile, base.sha256);
-  versions.remember(loc.realFile, res.sha256);
+  o.memos.versions.remember(loc.realFile, base.sha256);
+  o.memos.versions.remember(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
   return { name, sha256: res.sha256, label, removed, ...extra, warnings };
 }
@@ -586,10 +590,10 @@ export interface ThemeEditList {
  * editable or read-only with why — decided by real path (critique B15), the starters and anything in the package
  * read-only ("Copy to edit") —, and with a project its own theme folder (read-only: edit it by hand). Path-free.
  */
-export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): Promise<ThemeEditList> {
+export async function themeEditList(ws: OpenedWorkspace, projectSlug: string | undefined, memos: ThemeEditMemos): Promise<ThemeEditList> {
   const project = projectSlug !== undefined ? await openProjectBySlug(ws, projectSlug) : undefined;
   const own = typeof project?.config.template === 'string' ? project.config.template : undefined;
-  const uses = await themeUses(ws);
+  const uses = await themeUses(ws, memos);
   const colorsOf = (t: Template | undefined): ThemeListItem['colors'] => {
     const c = t?.colors;
     const pick = (v: unknown) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : undefined);

@@ -519,7 +519,7 @@ async function viaInvoke(): Promise<Answers> {
   const out: Answers = [];
   for (const c of INVOKED) {
     if (!engines.has(c.client)) engines.set(c.client, await createEngine({ root: ws, client: c.client, autoStartWorker: false }));
-    const r = await invoke(tools.get(c.op)!, engines.get(c.client)!, c.args, { shell: 'studio', signal: new AbortController().signal });
+    const r = await invoke(tools.get(c.op)!, engines.get(c.client)!, c.args, { shell: 'studio', startedIn: process.cwd(), signal: new AbortController().signal });
     const answer = r.ok
       ? { ok: true, data: r.output.data }
       : { ok: false, error: { code: r.error.code, message: r.error.message, ...(r.error.fix ? { fix: r.error.fix } : {}), ...(r.error.details ? { details: r.error.details } : {}) } };

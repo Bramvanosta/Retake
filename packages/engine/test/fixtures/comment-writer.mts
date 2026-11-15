@@ -8,4 +8,4 @@ import { fileFacts } from '@retake/core/io';
 
 const [root, slug, id, name, count] = process.argv.slice(2);
 const project = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }), slug);
-for (let i = 0; i < Number(count); i++) await replyComment(project, id, `${name} reply ${i}`, { via: 'cli', name }, { renders: diskOutputs.renders, scope: personScope(project.root, enginePorts()), files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads });
+for (let i = 0; i < Number(count); i++) await replyComment(project, id, `${name} reply ${i}`, { via: 'cli', name }, { renders: diskOutputs.renders, scope: personScope(project.root, enginePorts()), files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, seen: undefined });

@@ -36,7 +36,6 @@ import {
   createEngine,
   drainBody,
   listenLoopback,
-  memoRegistry,
   newSecret,
   readBody,
   securityHeaders,
@@ -325,7 +324,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     player: playerNow,
     forbid,
     allow: previewAllow,
-    registry: async () => (await memoRegistry(engine.workspace)).registry,
+    registry: () => engine.components.registry(),
     leases,
     unsaved,
     desktop,
@@ -448,7 +447,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       if (!res.writableEnded) ac.abort();
     });
     calls++;
-    const r = await invoke(tool, getEngine, args, { shell: 'studio', signal: ac.signal });
+    const r = await invoke(tool, getEngine, args, { shell: 'studio', startedIn: process.cwd(), signal: ac.signal });
     if (!r.ok) {
       const e = r.error;
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
@@ -484,7 +483,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     player = await startPlayerServer({
       studioPort: port,
       // Built-in components, and the workspace components the person allowed (by content) in this session.
-      bundle: async () => bundles.get((await memoRegistry(engine.workspace)).registry, (id, hash) => previewAllow.has(id, hash)),
+      bundle: async () => bundles.get(await engine.components.registry(), (id, hash) => previewAllow.has(id, hash)),
       log,
       ...(o.playerPort ? { port: o.playerPort } : {}),
     });

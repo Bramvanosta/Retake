@@ -34,6 +34,7 @@
  * `.retake/` is agent-writable); MCP and CLI recordings are read-only here (their job saved them already), and so is
  * one whose origin cannot be verified. The engine gates every operation of this module to the `ui` and `test` clients.
  */
+import type { VersionLedger } from './version-ledger.js';
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -222,6 +223,8 @@ export interface RecordStudioContext {
   files: WorkFileFacts;
   /** What the project's theme and a saved draft's checks read the workspace by (its WorkspaceReads). */
   reads: WorkspaceReads;
+  /** The engine's ledger of the scenario versions it showed or wrote. */
+  seen: VersionLedger;
 }
 
 // ── Reading the folder ─────────────────────────────────────────────────────
@@ -502,7 +505,7 @@ async function writeAnnotations(dir: string, a: RecordAnnotations): Promise<void
 
 // ── The draft ──────────────────────────────────────────────────────────────
 
-const ACTION_EVENT_KINDS = new Set(['pointer', 'dblclick', 'type', 'select_native', 'file', 'key']);
+const ACTION_EVENT_KINDS: ReadonlySet<string> = new Set(['pointer', 'dblclick', 'type', 'select_native', 'file', 'key']);
 
 /**
  * The draft of the recording as it is now (meta.json's context with the current project.yaml), or why not. A Studio
@@ -891,6 +894,8 @@ export async function saveRecordedDraft(
   scope: StoreScope,
   files: WorkFileFacts,
   reads: WorkspaceReads,
+  /** The engine's ledger of the scenario versions it showed or wrote (the saved file is one). */
+  seen: VersionLedger | undefined,
 ): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
@@ -902,7 +907,7 @@ export async function saveRecordedDraft(
   const taken = () => new EngineError('conflict', `scenario ${name} exists: choose another name (a recording never replaces a scenario)`, { fix: 'choose another name' });
   if (project.scenarios.includes(name)) throw taken();
   try {
-    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope, files, reads });
+    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope, files, reads, seen });
     return { file: r.file, hash: r.hash, warnings: r.warnings.length };
   } catch (e) {
     if (e instanceof Error && e.name === 'ScenarioError') {
@@ -956,7 +961,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     if (errors.length) {
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
-    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files, ctx.reads);
+    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files, ctx.reads, ctx.seen);
     const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: stampOf(ctx.scope.clock) } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };

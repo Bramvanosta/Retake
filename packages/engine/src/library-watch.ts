@@ -43,7 +43,7 @@ export function watchBudget(entries = WATCH_SCAN_BUDGET): WatchBudget {
   return { left: entries };
 }
 
-const SKIP = new Set(['node_modules']);
+const SKIP: ReadonlySet<string> = new Set(['node_modules']);
 
 function names(dir: string): string[] {
   try {

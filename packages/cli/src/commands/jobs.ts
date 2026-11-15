@@ -30,7 +30,7 @@ export interface JobsStatusOptions {
 }
 
 async function engineOf(global: GlobalOptions): Promise<Engine> {
-  return createEngine({ ...(global.root ? { root: resolve(global.root) } : {}), client: 'cli', autoStartWorker: false });
+  return createEngine({ ...(global.root ? { root: resolve(global.root) } : {}), client: 'cli', autoStartWorker: false, ports: global.ports });
 }
 
 function checkId(id: string): void {

@@ -21,7 +21,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, editorRenderer, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker, withPreviewBackend } from '@retake/engine';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, editorRenderer, libraryCacheDir, libraryRegistryHash, runWorker, withPreviewBackend } from '@retake/engine';
 import type { FreeBytes } from '@retake/engine';
 import type { PreviewBackend } from '@retake/editor';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, UI_OPS, startStudioServer } from '../src/index.js';
@@ -268,7 +268,7 @@ describe('failures on the page (L4.7 review A L2 / B H1)', () => {
     const v = (await viewOf()).data;
     const a = item(v, 'studio/card-title');
     // A failure recorded under the registry as it is now (a stale one reads as missing), its words quoting paths.
-    const registryHash = await libraryRegistryHash((await memoRegistry(studio.engine.workspace)).registry);
+    const registryHash = await libraryRegistryHash(await studio.engine.components.registry());
     const e = join(libraryCacheDir({ root: ws }), a.loop.key);
     await mkdir(e, { recursive: true });
     const reason = `its preview failed: Module build failed (from ${ws}/node_modules/x/loader.js): ${ws}/components/acme/marked/index.tsx and /Users/someone/secret/plan.ts`;

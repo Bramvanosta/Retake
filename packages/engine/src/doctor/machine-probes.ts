@@ -1,8 +1,8 @@
 /**
  * The product's probes of `retake doctor` (types.ts DoctorProbes): this machine's PATH, programs, files and network,
  * and what the ports know of it — the capture browser (CaptureRunner `probe`), the render path and browser (Renderer
- * `machine`), a sandbox's status (Sandboxes `open`). Made by a composition root with its ports (the CLI: `cliPorts`);
- * nothing here is started before a check asks.
+ * `machine`), a sandbox's status (Sandboxes `open`). Made by a composition root with its ports (the CLI:
+ * `cliEnginePorts`); nothing here is started before a check asks.
  */
 import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';

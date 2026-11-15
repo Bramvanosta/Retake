@@ -1,5 +1,5 @@
 import { EXIT } from './errors.js';
-import { cliPorts } from './workspace.js';
+import type { EnginePorts } from '@retake/engine';
 import type { Ui } from './ui.js';
 import { bestEffort } from '@retake/core/base';
 
@@ -22,9 +22,9 @@ export interface Interrupt {
  * A second signal removes the copies synchronously, runs `onQuitSync` (a sandbox kills the processes this call started,
  * L1.8) and exits. `message` replaces the "closing the browser" line of the first signal.
  */
-export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; onQuitSync?: () => void; message?: string } = {}): Promise<Interrupt> {
-  // Loaded before the handlers: a second signal removes the session copies synchronously (the capture port).
-  const capture = cliPorts.capture;
+export async function onInterrupt(ui: Ui, ports: Pick<EnginePorts, 'capture'>, opts: { exit?: () => Promise<void>; onQuitSync?: () => void; message?: string } = {}): Promise<Interrupt> {
+  // Loaded before the handlers: a second signal removes the session copies synchronously (the command's capture port).
+  const capture = ports.capture;
   await capture.load();
   const controller = new AbortController();
   let count = 0;

@@ -70,8 +70,8 @@ export {
   updateProjectReadme,
 } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
-export { editScenario, getScenario, knownScenarioVersion, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
-export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './views/timeline-view.js';
+export { editScenario, getScenario, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
+export { RegistryMemo, SLOW_SCRUB_KEYFRAME_S, TimelineMemos, captureInfo, timelineView } from './views/timeline-view.js';
 export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './views/timeline-view.js';
 export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
 export type { FieldOption } from './field-options.js';
@@ -397,6 +397,7 @@ export {
 } from './jobs/render-job.js';
 export type { InlineReview, LatestRunNotice, PassedOverRuns, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
 export {
+  RenderMemos,
   SCENARIO_RENDERS_MAX,
   failureWords,
   latestRenderMembers,
@@ -411,6 +412,7 @@ export {
   withoutPaths,
 } from './renders.js';
 export type { LatestRenderNotice, PassedOverRenders, RenderForWork } from './renders.js';
+export { VersionLedger } from './version-ledger.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine } from './jobs/export-job.js';
@@ -483,7 +485,7 @@ export type {
 } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
-export { THEME_USES_STATS, editTemplate, knownThemeVersion, templateView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';
+export { THEME_USES_STATS, ThemeEditMemos, editTemplate, templateView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';
 export type { ThemeComponentView, ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView, ThemeEditable, ThemeListItem } from './theme-edit.js';
 export { THEME_COPY_MAX_BYTES, THEME_COPY_MAX_FILES, copyTheme } from './brand/copy.js';
 export type { ThemeCopied } from './brand/copy.js';
@@ -686,5 +688,4 @@ export {
 } from './library-watch.js';
 export type { WatchBudget } from './library-watch.js';
 // theme_preview's spec (L7.17: built by the engine; the Studio serves it on its player origin).
-export { buildThemePreview } from './views/theme-preview.js';
 export type { ThemePreviewBase, ThemePreviewBuild, ThemePreviewBuilt, ThemePreviewDraft, ThemePreviewRequest, ThemePreviewServe } from './views/theme-preview.js';

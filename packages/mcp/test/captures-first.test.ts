@@ -23,7 +23,7 @@ const retakeHome = scratchHome();
 /** One tool by its name, called with loose arguments: its answer's data as a plain record (each test reads the keys it expects). */
 const tool = (name: string, args: Record<string, unknown>) => {
   const t: ToolDef = TOOLS.find((x) => x.name === name)!;
-  return t.run(args, { engine, signal: new AbortController().signal }) as Promise<ToolOutput<Record<string, unknown>>>;
+  return t.run(args, { engine, startedIn: process.cwd(), signal: new AbortController().signal }) as Promise<ToolOutput<Record<string, unknown>>>;
 };
 
 beforeAll(async () => {

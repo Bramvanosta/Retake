@@ -65,7 +65,7 @@ async function checkShownEdit(project: LoadedProject, scenario: string, planned:
   let now = planned.edit.sha256;
   if (now === undefined) {
     const { getScenario } = await import('../scenarios.js');
-    now = await getScenario(project, scenario).then(
+    now = await getScenario(project, scenario, undefined).then(
       (t) => t.hash,
       () => undefined,
     );

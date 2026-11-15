@@ -8,17 +8,17 @@
  * answer types the app reads.
  *
  * - `theme_preview {project, theme, target, draft?, lease}`: the theme editor's live preview — the editor's
- *   ComponentPreviewSpec (motion mode) of the theme's intro, its layout with its caption over the sample screen (`clip`),
- *   its outro, or one component in the theme, built by the engine (buildThemePreview) with every file served by the
- *   player origin under the project's capability (the theme's fonts / logo, the sample screens), and published here as
- *   a `component-preview` (the `forbid` scan of every string); `draft` colours apply in memory, never written. A
- *   workspace component the spec renders is held out of the frame's bundle until the person allows it
+ *   ComponentPreviewSpec (motion mode) of the theme's intro, its layout with its caption over the sample screen
+ *   (`clip`), its outro, or one component in the theme, built by the engine (engine.templates.previewSpec) with every
+ *   file served by the player origin under the project's capability (the theme's fonts / logo, the sample screens), and
+ *   published here as a `component-preview` (the `forbid` scan of every string); `draft` colours apply in memory, never
+ *   written. A workspace component the spec renders is held out of the frame's bundle until the person allows it
  *   (`preview_held`, the timeline's Allow card: preview_allow). A theme whose intro / outro is its own video, image or
  *   Lottie (B10) is not previewed here — said. The page's lease is one of the timeline's (timeline_leave ends it).
  */
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { EngineError, buildThemePreview, firstErrorLine, pathFree } from '@retake/engine';
+import { EngineError, firstErrorLine, pathFree } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import { THEME_ARGS, defineTool } from '@retake/engine/contract';
 import type { PreviewLeases, PreviewHeld } from './preview-leases.js';
@@ -104,7 +104,7 @@ export async function themePreview(engine: Engine, a: z.infer<typeof PreviewInpu
   const ws = engine.workspace;
   const scope = a.project;
   let player: PlayerServer | undefined;
-  const r = await buildThemePreview(ws, a, {
+  const r = await engine.templates.previewSpec(a, {
     start: () => {
       const p = o.player!();
       player = p;

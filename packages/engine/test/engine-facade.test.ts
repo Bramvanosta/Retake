@@ -31,7 +31,6 @@ function shape(o: Record<string, unknown>): Array<string | [string, string[]]> {
 const SHAPE: Array<string | [string, string[]]> = [
   'root',
   'queue',
-  'jobFiles',
   'workspace',
   'cli',
   'info',
@@ -44,11 +43,11 @@ const SHAPE: Array<string | [string, string[]]> = [
   ['env', ['reset']],
   ['auth', ['status', 'login', 'cancelSignIn', 'forScenario']],
   ['renders', ['plan', 'submit', 'status', 'ofScenario', 'frame', 'outline']],
-  ['timeline', ['view']],
+  ['timeline', ['view', 'forget']],
   ['reviews', ['submit', 'get', 'image']],
   ['exports', ['submit']],
-  ['templates', ['list', 'get', 'create', 'fromSite', 'site', 'view', 'edit', 'copy', 'files', 'sites', 'siteConflicts', 'preview']],
-  ['components', ['list', 'get', 'validate', 'create', 'preview', 'library', 'libraryRender']],
+  ['templates', ['list', 'get', 'create', 'fromSite', 'site', 'view', 'editList', 'edit', 'copy', 'files', 'sites', 'siteConflicts', 'previewSpec', 'preview']],
+  ['components', ['registry', 'list', 'get', 'validate', 'create', 'preview', 'library', 'libraryRender']],
   ['inspect', ['submit', 'get']],
   ['record', ['submit', 'get', 'view', 'annotate', 'save', 'discard', 'stop', 'list']],
   'thumbnail',
@@ -69,13 +68,12 @@ describe('the engine façade', () => {
     expect(engine.info().root).toBe(engine.root);
     expect(engine.workspace.root).toBe(engine.root);
     // The queue is handed as its port: the type has no `files` member (the object is still the file queue, which has
-    // one), so its paths are handed beside it — this workspace's jobs folder, and that very queue's own paths, not
-    // those of a second queue on the same folder.
-    // @ts-expect-error — the port has no `files` member: the paths are `engine.jobFiles`
+    // one), and no path of it is handed beside it — a job's files are read through the port (eventsRange, liveRecord).
+    // @ts-expect-error — the port has no `files` member, and the façade hands no paths of the queue
     void engine.queue.files;
-    expect(engine.jobFiles.dir).toBe(join(engine.root, '.retake', 'jobs'));
+    expect(engine).not.toHaveProperty('jobFiles');
     expect(engine.queue).toBeInstanceOf(FileJobQueue);
-    expect(engine.jobFiles).toBe((engine.queue as FileJobQueue).files);
+    expect((engine.queue as FileJobQueue).files.dir).toBe(join(engine.root, '.retake', 'jobs'));
     expect(engine.cli).toMatch(/^retake -C /);
   });
 

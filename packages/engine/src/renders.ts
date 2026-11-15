@@ -693,11 +693,21 @@ const n0 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) 
 
 /** report.json read and summed up, by path, while its stat holds (L5.10a fixes, review A-L3: every board read). */
 const REPORT_MEMO_MAX = 512;
-const reportMemo = new Map<string, { sig: string; r: { counts: Record<string, unknown>; at: string } | undefined }>();
+/** The render list's memos of one engine (its context's caches): report.json summaries and plan signatures. */
+export class RenderMemos {
+  /** report.json read and summed up, by path, while its stat holds. */
+  readonly reports = new Map<string, { sig: string; r: { counts: Record<string, unknown>; at: string } | undefined }>();
+  /**
+   * Plan signatures of render records (a record never changes once written: keyed by its project, file, id and times —
+   * two projects' records of one id and times are two records).
+   */
+  readonly planSigs = new Map<string, string | null>();
+}
 /** Counter for tests: report.json files read. */
 export const reportReads = { n: 0 };
 
-async function reportOf(reviews: OutputFolder, file: string): Promise<{ counts: Record<string, unknown>; at: string } | undefined> {
+async function reportOf(memos: RenderMemos, reviews: OutputFolder, file: string): Promise<{ counts: Record<string, unknown>; at: string } | undefined> {
+  const reportMemo = memos.reports;
   // Its signature as the file itself is (no link followed): the memo's key.
   const sig = await reviews.signature(file);
   const held = reportMemo.get(file);
@@ -718,8 +728,8 @@ async function reportOf(reviews: OutputFolder, file: string): Promise<{ counts: 
 }
 
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
-async function reportSummary(reviews: OutputFolder, projectDir: string, id: string, since: string): Promise<{ summary: RenderReviewSummary; at: string } | undefined> {
-  const r = await reportOf(reviews, join(reviews.dirOf(projectDir), id, 'report.json'));
+async function reportSummary(memos: RenderMemos, reviews: OutputFolder, projectDir: string, id: string, since: string): Promise<{ summary: RenderReviewSummary; at: string } | undefined> {
+  const r = await reportOf(memos, reviews, join(reviews.dirOf(projectDir), id, 'report.json'));
   if (!r) return undefined;
   const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
@@ -751,11 +761,18 @@ const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
  * inline review, or review/<id>/report.json. `renderJobs`: the project's render jobs of this scenario (newest first);
  * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board (L5.10a).
  */
-export async function renderView(reviews: OutputFolder, projectDir: string, r: StoredRenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): Promise<ScenarioRenderView> {
+export async function renderView(
+  memos: RenderMemos,
+  reviews: OutputFolder,
+  projectDir: string,
+  r: StoredRenderRecord,
+  renderJobs: readonly JobRecord[],
+  reviewJobs: readonly JobRecord[],
+): Promise<ScenarioRenderView> {
   let review: RenderReviewSummary = { state: 'none' };
   const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
   const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
-  const report = r.status === 'succeeded' ? await reportSummary(reviews, projectDir, r.id, r.created_at) : undefined;
+  const report = r.status === 'succeeded' ? await reportSummary(memos, reviews, projectDir, r.id, r.created_at) : undefined;
   if (standalone) review = { state: standalone.state === 'running' ? 'running' : 'queued', job: standalone.id };
   else if (job && !FINISHED_JOB_STATES.has(job.state)) review = { state: 'running', job: job.id };
   else {
@@ -787,14 +804,14 @@ export async function renderView(reviews: OutputFolder, projectDir: string, r: S
             .filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined)
             .sort()
         : [],
-    ...(r.plan && typeof r.plan === 'object' && memoPlanSignature(r) !== null ? { plan_sha256: memoPlanSignature(r)! } : {}),
+    ...(r.plan && typeof r.plan === 'object' && memoPlanSignature(memos, r) !== null ? { plan_sha256: memoPlanSignature(memos, r)! } : {}),
     ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
     review,
   };
 }
 
 /** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
-export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, slug: string, scenario: string): Promise<ScenarioRendersView> {
+export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, slug: string, scenario: string, memos: RenderMemos): Promise<ScenarioRendersView> {
   checkProjectSlug(slug);
   checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
@@ -826,7 +843,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   // Newest first (the one order of renders, reversed).
   const records = orderRenders(found).reverse();
   const renders: ScenarioRenderView[] = [];
-  for (const r of records.slice(0, SCENARIO_RENDERS_MAX)) renders.push(await renderView(ws.outputs.reviews, project.dir, r, renderJobs, reviewJobs));
+  for (const r of records.slice(0, SCENARIO_RENDERS_MAX)) renders.push(await renderView(memos, ws.outputs.reviews, project.dir, r, renderJobs, reviewJobs));
 
   const jobs: ScenarioRenderJobView[] = [];
   for (const j of [...renderJobs].reverse()) {
@@ -886,12 +903,11 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
 }
 
 /**
- * Plan signatures of render records (a record never changes once written: keyed by its project, file, id and times —
- * two projects' records of one id and times are two records).
+ * A render record's plan signature, held in the engine's memo (RenderMemos.planSigs). Null: the record's plan has no
+ * signature (planSignature).
  */
-const planSigMemo = new Map<string, string | null>();
-/** Null: the record's plan has no signature (planSignature). */
-export function memoPlanSignature(r: StoredRenderRecord): string | null {
+export function memoPlanSignature(memos: RenderMemos, r: StoredRenderRecord): string | null {
+  const planSigMemo = memos.planSigs;
   const key = JSON.stringify([r.project, r.file, r.id, r.created_at, r.finished_at]);
   let sig = planSigMemo.get(key);
   if (sig === undefined) {

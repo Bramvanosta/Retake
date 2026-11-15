@@ -44,6 +44,11 @@ export interface CancelMark extends JobMark {
   reason?: 'discard';
 }
 
+/**
+ * Bytes of a job's growing file from an offset (JobQueueView.eventsRange): the bytes and the file's size, or why none.
+ */
+export type JobRangeRead = { ok: true; bytes: Buffer; size: number } | { ok: false; reason: PlainFileProblem };
+
 /** A file a submit added to a job (enqueue `files`), as read: its text, or why there is none to read. */
 export type JobFileRead = { ok: true; text: string } | { ok: false; reason: PlainFileProblem };
 
@@ -138,6 +143,17 @@ export interface JobQueueView {
   events(id: string, opts?: { after?: number; limit?: number }): Promise<JobEvent[]>;
   /** The seq of the last event written (0: none): where a writer that did not keep the seq goes on from (append). */
   lastSeq(id: string): Promise<number>;
+  /**
+   * At most `max` bytes of the job's events as written (JSON lines) from byte `offset`, and their size (the Studio's
+   * live run follows them as they grow, by byte cursor). Never a link followed; `missing` before the first event.
+   */
+  eventsRange(id: string, offset: number, max: number): Promise<JobRangeRead>;
+  /**
+   * The live channel record of a running job as its worker wrote it (live.json: jobs/live-channel.ts reads it), when
+   * it is trusted as a record of this user's — for the file queue a regular file of this user that no one else may
+   * read, of at most `max` bytes, never through a link; undefined otherwise.
+   */
+  liveRecord(id: string, max: number): Promise<string | undefined>;
 }
 
 /** The whole queue: the view, the submit (the engine's operations) and the writes of the worker that claimed a job. */

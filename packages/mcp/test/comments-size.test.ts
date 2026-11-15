@@ -25,7 +25,7 @@ const lastEntry: Record<string, string> = {};
 const retakeHome = scratchHome();
 
 const tool = (name: string): ToolDef => TOOLS.find((t) => t.name === name)!;
-const ctx = (): ToolContext => ({ engine, signal: new AbortController().signal });
+const ctx = (): ToolContext => ({ engine, startedIn: process.cwd(), signal: new AbortController().signal });
 type CallResult = ReturnType<typeof okResult>;
 const chars = (r: CallResult) => r.content.reduce((n, b) => n + (b.type === 'text' ? b.text.length : 0), 0);
 /** The text of a result's first block (undefined when it is not a text block: the expectation on it then fails). */

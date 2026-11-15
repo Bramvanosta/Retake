@@ -25,7 +25,7 @@ async function infoWith(lock: Record<string, unknown>) {
   await writeFile(workerLockFile(root), JSON.stringify({ ...(await selfIdentity()), host: 'h', build: 'other', since: new Date().toISOString(), ...lock }));
   const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
   const tool = TOOLS.find((t) => t.name === 'engine_info')!;
-  return tool.run({}, { engine, signal: new AbortController().signal });
+  return tool.run({}, { engine, startedIn: process.cwd(), signal: new AbortController().signal });
 }
 
 describe('engine_info and a worker of another copy of Retake', () => {

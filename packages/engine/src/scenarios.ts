@@ -37,7 +37,7 @@ import { storeOf } from './store/store.js';
 import type { StoreScope } from './store/store.js';
 import { confinementOf } from './caller.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
-import { VersionLedger } from './version-ledger.js';
+import type { VersionLedger } from './version-ledger.js';
 
 export interface ScenarioText {
   name: string;
@@ -73,15 +73,6 @@ function caseTwin(project: LoadedProject, ref: string): string | null {
   return names.find((n) => n.toLowerCase() === want.toLowerCase()) ?? null;
 }
 
-// The versions of each scenario file this process showed (getScenario) or wrote (review A L3): undo / redo `restore`
-// only these — an earlier version the person had on disk may hold a hidden character today's file no longer has.
-const versions = new VersionLedger();
-
-/** Whether this process showed or wrote that version of the file (`path`: getScenario's). */
-export function knownScenarioVersion(path: string, hash: string): boolean {
-  return versions.knows(path, hash);
-}
-
 /** The file of a scenario name: scenarios/<name>.yaml, else an existing scenarios/<name>.yml. */
 function existingScenarioRef(project: LoadedProject, name: string): string {
   const yml = scenarioRef(name, '.yml');
@@ -89,7 +80,13 @@ function existingScenarioRef(project: LoadedProject, name: string): string {
   return scenarioRef(name);
 }
 
-export async function getScenario(project: LoadedProject, name: string): Promise<ScenarioText> {
+/**
+ * A scenario's file as it is. `seen`: the versions of each scenario file the engine reading it showed or wrote (its
+ * context's ledger; review A L3) — undo / redo `restore` only these, an earlier version the person had on disk may
+ * hold a hidden character today's file no longer has. Undefined: no engine's ledger (a job's own check, a direct
+ * caller) — the read or write is remembered nowhere, and an edit's `restore` is refused.
+ */
+export async function getScenario(project: LoadedProject, name: string, seen: VersionLedger | undefined): Promise<ScenarioText> {
   checkScenarioName(name);
   const storage = new LocalStorage(project.dir);
   const ref = existingScenarioRef(project, name);
@@ -101,7 +98,7 @@ export async function getScenario(project: LoadedProject, name: string): Promise
   }
   const path = storage.resolve(ref);
   const [realScenarios, real, realProject] = await Promise.all([realpath(projectPath(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
-  versions.remember(path, read.sha256);
+  seen?.remember(path, read.sha256);
   return {
     name,
     file: ref,
@@ -198,7 +195,7 @@ export async function saveScenarioText(
   project: LoadedProject,
   name: string,
   yaml: string,
-  opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
+  opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = scenarioRef(name);
@@ -236,7 +233,7 @@ export async function saveScenarioText(
   }
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
   const res = await store.writeText(ref, text, { ifMatch: opts.ifMatch ?? null, what: 'scenario' });
-  versions.remember(path, res.sha256);
+  opts.seen?.remember(path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (scenario) {
     const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts) }).scenario : undefined;
@@ -352,11 +349,11 @@ export async function editScenario(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
-  versions.remember(p.base.path, res.sha256);
+  o.seen?.remember(p.base.path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (p.scenario)
     await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock, stores: o.scope.stores });
@@ -390,9 +387,9 @@ export async function prepareScenarioEdit(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads; seen: VersionLedger | undefined },
 ): Promise<PreparedScenarioEdit> {
-  const base = await getScenario(project, name);
+  const base = await getScenario(project, name, o.seen);
   if (base.hash !== req.hash) {
     throw new EngineError('conflict', `${base.file} changed since it was read (its hash is no longer the one the edit was made on): read it again`, {
       details: { current: base.hash },
@@ -424,8 +421,9 @@ export async function prepareScenarioEdit(
       if (sha256Hex(edit.text) !== edit.text_hash) {
         throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
       }
-      // Review A L3: only a version of this file the Studio showed or wrote (undo / redo), never any text a page makes up.
-      if (!knownScenarioVersion(base.path, edit.text_hash)) {
+      // Review A L3: only a version of this file this engine showed or wrote (undo / redo), never any text a page makes
+      // up.
+      if (!o.seen?.knows(base.path, edit.text_hash)) {
         throw new EngineError('refused', `the text to restore is not a version of ${base.file} the Studio showed or wrote: nothing written — read the file again`, {
           details: { argument: 'edit.text_hash' },
         });
@@ -498,7 +496,7 @@ export async function prepareScenarioEdit(
       fix: 'shorten it, or edit it in your editor',
     });
   }
-  // A restored version was on disk once (knownScenarioVersion): its hidden characters are the person's own.
+  // A restored version was on disk once (the engine's ledger knows it): its hidden characters are the person's own.
   const hidden = edit.kind === 'restore' ? null : newHiddenCharProblem(text, base.yaml);
   if (hidden) throw new EngineError('invalid', `not saved: ${hidden}`);
   if (o.agent) {

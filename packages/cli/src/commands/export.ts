@@ -7,7 +7,7 @@ import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
 import { renderNotes } from './render-notes.js';
@@ -72,7 +72,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       : await bestEffort(findRenderOf(ws.outputs.renders, project, renderArg), 'a render that cannot be found is exported by its name as given (the export says why it cannot)');
   const render = renderArg === 'latest' && found ? found.entry.name : renderArg;
   if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
-  const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
   if (gate.waited) ui.info(`exporting render ${printableText(render)}`);
   const ac = new AbortController();
   const onSigint = () => ac.abort();
@@ -87,12 +87,12 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The export, then — when it re-rendered formats — its line of the workspace's history (the engine's in-process operation).
     const r = await exportInProcess({
-      renderer: cliPorts.renderer,
+      renderer: global.ports.renderer,
       ws,
       workPolicy: ws.policy,
       project,
       root: ws.root,
-      clock: cliPorts.clock,
+      clock: global.ports.clock,
       render,
       scenario: opts.scenario,
       formats,

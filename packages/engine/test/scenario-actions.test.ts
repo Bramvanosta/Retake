@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, RunDataCache, ScenarioViews, createEngine, openProjectBySlug, openWorkspace, diskWorkspaceReads, diskOutputs } from '../src/index.js';
+import { EngineError, RunDataCache, ScenarioViews, VersionLedger, createEngine, openProjectBySlug, openWorkspace, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
 import { writeRun } from '@retake/test-support/runs';
@@ -182,6 +182,7 @@ describe('memo (critique H2)', () => {
       },
       overlay: async (_slug, r) => r.status,
       runs: new RunDataCache(),
+      seen: new VersionLedger(),
     });
     return { v, blockers: () => blockers };
   };

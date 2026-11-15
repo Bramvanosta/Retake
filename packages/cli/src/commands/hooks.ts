@@ -26,7 +26,7 @@ import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural, truncate } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
 
@@ -65,16 +65,16 @@ function printAccess(ui: Ui, access: RunAccess): void {
 function workOptions(ui: Ui, opts: HookCommandOptions, global: GlobalOptions, policy: WorkPolicy): HookWorkOptions & { trust: 'author' } {
   return {
     policy,
-    hooks: cliPorts.hooks,
-    pages: cliPorts.capture.hookPages,
-    secrets: cliPorts.secrets,
+    hooks: global.ports.hooks,
+    pages: global.ports.capture.hookPages,
+    secrets: global.ports.secrets,
     ...(opts.env !== undefined ? { env: opts.env } : {}),
     allowWrites: opts.allowWrites === true,
     dry: opts.dry === true,
     trust: 'author',
     loginCommand: loginCommandFor(global),
     // Each hook and rollback run is a line of the workspace journal, as the person's.
-    recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+    recordAs: { caller: callerOf('cli'), clock: global.ports.clock },
     replayUnsigned:
       opts.replayUnsigned === true
         ? async (entry, file) => {
@@ -98,7 +98,7 @@ function workOptions(ui: Ui, opts: HookCommandOptions, global: GlobalOptions, po
       }
       return ui.io.confirm(`Run destructive hook (${reason}): ${description}?`);
     },
-    onInterrupt: (closeSessions) => onInterrupt(ui, { exit: closeSessions }),
+    onInterrupt: (closeSessions) => onInterrupt(ui, global.ports, { exit: closeSessions }),
     contextError: (e) => (isAccessError(e) ? new UsageError(e.message) : e),
   };
 }
@@ -166,7 +166,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
           project,
           { file: sel.file, ...(sel.sha256 !== undefined ? { sha256: sel.sha256 } : {}), scenario: sc },
           async () => listingContext(project, sc, opts.env ?? sel.env, { id: runId }),
-          cliPorts.hooks,
+          global.ports.hooks,
           [sel.phase],
         );
         const found = check.ask;
@@ -333,7 +333,7 @@ export interface HooksTrustOptions {
 export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: HooksTrustOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), hooks: cliPorts.hooks, ...(opts.env !== undefined ? { env: opts.env } : {}) });
+  const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), hooks: global.ports.hooks, ...(opts.env !== undefined ? { env: opts.env } : {}) });
   const name = showHiddenCharsLine(view.name);
   if (!view.hooks.length) {
     ui.ok(`scenario ${name} has no shell or sql hooks: nothing to trust`);
@@ -359,7 +359,7 @@ export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectAr
     }
     if (!yes) throw new CliError(`not trusted: the hooks of scenario ${name} stay asked about (nothing written)`);
   }
-  await trustScenarioHooks(project, view, callerOf('cli'), cliPorts);
+  await trustScenarioHooks(project, view, callerOf('cli'), global.ports);
   ui.ok(`the hooks of scenario ${name} are yours now: a run asks again once they change`);
   return EXIT.ok;
 }

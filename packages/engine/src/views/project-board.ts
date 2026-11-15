@@ -46,7 +46,8 @@ import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } fr
 import { RunFolder, lsig } from '../outputs/run-files.js';
 import type { ThumbSource } from '../run-thumbs.js';
 import { readListedRecord, renderView, failureWords, scenarioRenderOf } from '../renders.js';
-import type { ScenarioRenderView } from '../renders.js';
+import type { RenderMemos, ScenarioRenderView } from '../renders.js';
+import type { VersionLedger } from '../version-ledger.js';
 import { readRecord, runFolderIds, takeVerdict } from '../runs.js';
 import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
 import type { RunRecordOnDisk } from '../runs.js';
@@ -163,6 +164,10 @@ export interface ProjectBoardContext {
   project(slug: string): Promise<LoadedProject>;
   /** The run's status with its job overlaid, for a run whose job is not in the board's queue pass (a pass cut short). */
   overlay(slug: string, run: { id: string; status: RunStatus }): Promise<ViewRunStatus>;
+  /** The engine's render memos (report summaries, plan signatures), shared with its render list. */
+  renderMemos: RenderMemos;
+  /** The engine's ledger of the scenario versions it showed or wrote (a file read here is one). */
+  seen: VersionLedger;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -352,7 +357,7 @@ export class ProjectBoards {
       // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
       const views: Array<{ r: StoredRenderRecord; v: ScenarioRenderView }> = [];
-      for (const r of landscape) views.push({ r, v: await renderView(this.ctx.ws.outputs.reviews, p.dir, r, mine, reviewJobs) });
+      for (const r of landscape) views.push({ r, v: await renderView(this.ctx.renderMemos, this.ctx.ws.outputs.reviews, p.dir, r, mine, reviewJobs) });
       // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
       // themes); a record of before L7.9, which holds no folder, by its folder's name — also when it is no theme name.
       const sameTheme = (r: StoredRenderRecord): boolean =>
@@ -485,7 +490,7 @@ export class ProjectBoards {
     const empty = { scenes: 0, cards: 0, interstitials: 0, steps: 0, hooks: 0 };
     let text: Awaited<ReturnType<typeof getScenario>>;
     try {
-      text = await getScenario(p, name);
+      text = await getScenario(p, name, this.ctx.seen);
     } catch (e) {
       return { file: { parsed: false, ok: false, errors: 1, warnings: 0, unreadable: true }, content: empty, error: failureWords(errorMessage(e)) };
     }

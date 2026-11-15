@@ -41,7 +41,8 @@ import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { jobsDir } from '../workspace-state.js';
-import type { JobFilePaths, JobFileRead, TakeHold } from './job-queue.js';
+import type { JobFilePaths, JobFileRead, JobRangeRead, TakeHold } from './job-queue.js';
+import { readPlainRange } from '../outputs/run-files.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
 import { bestEffort } from '@retake/core/base';
@@ -81,7 +82,7 @@ export class JobFiles implements JobFilePaths {
     return join(this.job(id), 'yield.json');
   }
 
-  /** <job>/events.jsonl: the job's events (the Studio's live run tails it by byte range). */
+  /** <job>/events.jsonl: the job's events (the port reads them by byte range: eventsRange). */
   events(id: string): string {
     return join(this.job(id), 'events.jsonl');
   }
@@ -130,6 +131,18 @@ class FileEntries implements JobEntries {
   async readPlain(id: string, name: string, max: number): Promise<JobFileRead> {
     const read = readPlainFile(this.file(id, name), max);
     return read.ok ? { ok: true, text: read.bytes.toString('utf8') } : { ok: false, reason: read.reason };
+  }
+
+  async readRange(id: string, name: string, offset: number, max: number): Promise<JobRangeRead> {
+    return readPlainRange(this.file(id, name), offset, max);
+  }
+
+  async readPrivate(id: string, name: string, max: number): Promise<string | undefined> {
+    // Opened without following a link and checked on the open descriptor (no window between the check and the read):
+    // a regular file of this user, no group or other permission bit, of at most `max` bytes.
+    const uid = process.getuid?.();
+    const r = readPlainRange(this.file(id, name), 0, max, { verify: (st) => (uid === undefined || st.uid === uid) && (st.mode & 0o077) === 0 && st.size <= max });
+    return r.ok ? r.bytes.toString('utf8') : undefined;
   }
 
   async mtime(id: string, name: string): Promise<string | undefined> {

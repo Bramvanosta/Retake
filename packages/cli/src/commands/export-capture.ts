@@ -2,13 +2,13 @@ import { resolve } from 'node:path';
 import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core/model';
 import type { LoadedProject, RawCursorMode, RawFormat, RawFps, RawLayerFormat } from '@retake/core/model';
 import { findRunOf, rawExportWork } from '@retake/engine';
-import type { OpenedWorkspace, RawExportProgress, RawExportResult } from '@retake/engine';
+import type { EnginePorts, OpenedWorkspace, RawExportProgress, RawExportResult } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes, warnLatest } from './render.js';
 
@@ -62,6 +62,7 @@ export interface RawExportEvent {
  */
 export async function rawExportOfRun(
   ui: Ui,
+  ports: Pick<EnginePorts, 'capture'>,
   ws: OpenedWorkspace,
   project: LoadedProject,
   runDir: string,
@@ -79,7 +80,7 @@ export async function rawExportOfRun(
     // refused in its words, before the theme is looked for), the run's theme (a note on stderr when it does not load:
     // the default look), the edit's files, the package. Its refusals state their kind: main prints their sentence.
     const r = await rawExportWork({
-      capture: cliPorts.capture,
+      capture: ports.capture,
       ws,
       project,
       runDir,
@@ -143,12 +144,12 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
   // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
   warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
   // Captures first (L5.14, critique L8): its encodes are heavy work — the run was resolved before any wait.
-  const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
+  const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
   const ac = new AbortController();
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);
   try {
-    const r = await rawExportOfRun(ui, ws, project, runDir, flags, { json: opts.json, signal: ac.signal });
+    const r = await rawExportOfRun(ui, global.ports, ws, project, runDir, flags, { json: opts.json, signal: ac.signal });
     return r.manifest.warnings.length > 0 && r.manifest.clips.length === 0 ? EXIT.failure : EXIT.ok;
   } finally {
     process.removeListener('SIGINT', onSigint);

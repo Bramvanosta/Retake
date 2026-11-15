@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { themeContentHash } from '@retake/editor/plan';
 import { NODE_THEME_FILES } from '../src/theme-files.js';
-import { clearTimelineViewMemo, createEngine } from '../src/index.js';
+import { createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { scratchHome } from '@retake/test-support/home';
@@ -96,7 +96,7 @@ afterAll(async () => {
 
 describe("a scenario's theme on an existing take (critique B1)", () => {
   it("set_field template → the take's next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project's", async () => {
-    clearTimelineViewMemo();
+    engine.timeline.forget();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(before).toMatchObject({ theme: 'editorial', theme_sha256: themeContentHash(join(STARTER_TEMPLATES_DIR, 'editorial'), NODE_THEME_FILES), source: { scenario_changed: false } });
     // The inspector's switch: the project's theme (null), then the listed themes by name.

@@ -30,7 +30,7 @@ const fakes = vi.hoisted(() => ({
   calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
   /** Names made at run time (an inspection's id), replaced by a placeholder. */
   volatile: [] as string[],
-  /** The hook runner each run was handed (L7.12: the CLI's, cliPorts.hooks; kept out of the recorded options). */
+  /** The hook runner each run was handed (L7.12: the CLI's ports' hooks; kept out of the recorded options). */
   hookRunners: [] as unknown[],
   /** The secret resolvers the runs were handed (the CLI's Secrets port), apart from the recorded options like the hook runner. */
   resolvers: [] as unknown[],
@@ -70,10 +70,12 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
 });
 
 import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
-import { INSPECT_KEEP } from '@retake/engine';
+import { INSPECT_KEEP, enginePorts } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { cliPorts } from '../src/workspace.js';
 import { recordGolden } from '@retake/test-support/golden';
+
+/** The CLI's ports, handed to each main() call (its composition root's argument): what its commands are handed. */
+const cliPorts = enginePorts();
 
 const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
@@ -146,7 +148,7 @@ async function retake(name: string, ...args: string[]): Promise<Case> {
   const j0 = (await lines(journal)).length;
   fakes.calls.length = 0;
   const io = memoryIo();
-  const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io, cliPorts);
   const c: Case = {
     code,
     out: normalise(io.stdout()),
@@ -286,7 +288,7 @@ function inspectReport(file: string) {
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-pipeline-cli-'));
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
-  const made = await main(['node', 'retake', '--root', ws, 'new', 'demo', '--name', 'Demo product', '--env', 'staging=app:http://app.example.test'], memoryIo());
+  const made = await main(['node', 'retake', '--root', ws, 'new', 'demo', '--name', 'Demo product', '--env', 'staging=app:http://app.example.test'], memoryIo(), cliPorts);
   expect(made).toBe(EXIT.ok);
   projectDir = join(ws, 'projects', 'demo');
   await writeFile(join(projectDir, 'scenarios', 'tour.yaml'), 'video: tour\nscenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n');
@@ -509,7 +511,7 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', { shu
     const said = async (...args: string[]) => {
       fakes.calls.length = 0;
       const io = memoryIo();
-      const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io);
+      const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io, cliPorts);
       return {
         code,
         lines: io
@@ -577,7 +579,8 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', { shu
   it("every run and inspection was handed the CLI's hook runner (L7.12)", () => {
     expect(fakes.hookRunners.length).toBeGreaterThan(0);
     for (const h of fakes.hookRunners) expect(h).toBe(cliPorts.hooks);
-    // Each run's secrets are resolved through the CLI's Secrets port: its resolver asks cliPorts.secrets, nothing else.
+    // Each run's secrets are resolved through the CLI's Secrets port: its resolver asks the CLI ports' secrets, nothing
+    // else.
     expect(fakes.resolvers).toHaveLength(fakes.hookRunners.length);
   });
 

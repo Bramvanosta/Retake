@@ -35,7 +35,7 @@ afterAll(() => {
 /** The lines of the tool's text for the layout's project (a dry run). */
 async function said(id: string): Promise<{ lines: string[]; data: Record<string, unknown> }> {
   const b = built.get(id)!;
-  const r = await projectPrune.run({ project: b.slug }, { engine, signal: new AbortController().signal });
+  const r = await projectPrune.run({ project: b.slug }, { engine, startedIn: process.cwd(), signal: new AbortController().signal });
   let text = r.summary;
   for (const [name, folder] of Object.entries(b.ids).sort((x, y) => y[1].length - x[1].length)) text = text.replaceAll(folder, name);
   const lines = text

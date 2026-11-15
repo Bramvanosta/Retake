@@ -143,7 +143,9 @@ describe('engine: projects', () => {
     expect(await memoryQueues.of(MEM)?.ids()).toEqual([sub.job.id]);
     expect((await memory.jobs.get(sub.job.id)).state).toBe('queued');
     expect((await memory.jobs.list({ project: 'northfield-fixture' })).map((j) => j.id)).toEqual([sub.job.id]);
-    expect(memory.jobFiles.record(sub.job.id)).toBe(join(MEM, '.retake', 'jobs', sub.job.id, 'job.json'));
+    // The job's files are read through the port, from memory (no path of the queue is handed).
+    expect(memory).not.toHaveProperty('jobFiles');
+    expect(await memory.queue.eventsRange(sub.job.id, 0, 1 << 16)).toEqual(await memoryQueues.of(MEM)!.eventsRange(sub.job.id, 0, 1 << 16));
     expect(existsSync(join(sep, 'retake-memory'))).toBe(false);
   });
 

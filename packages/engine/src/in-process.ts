@@ -7,7 +7,8 @@
  *
  * The history has one writer per kind of line: the worker writes the line of a finished job (historyOf in
  * jobs/run-job-record.ts), these functions the line of a CLI command, record.ts the line of `retake record`. Each
- * option bag carries the caller's `clock` (the CLI's `cliPorts`): what a line without its own `at` is stamped with.
+ * option bag carries the caller's `clock` (the CLI's `cliEnginePorts`): what a line without its own `at` is stamped
+ * with.
  */
 import type { OutputFolder } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
@@ -33,7 +34,7 @@ const rendered = (renders: number): HistoryEntry['counted'] => ({ captures: 0, d
 
 /** Render without a job (the CLI's `retake render`): the pipeline's render, then the history line of a render. */
 export async function renderInProcess(o: RenderVideoOptions & { root: string }): Promise<RenderRecord> {
-  // One clock stamps the record and the history line (the caller's: the CLI's cliPorts).
+  // One clock stamps the record and the history line (the caller's: the CLI's cliEnginePorts).
   const record = await renderWork(o);
   await appendHistory(o.root, { kind: 'render', project: o.project.slug, submitted_by: IN_PROCESS, state: 'succeeded', ms: record.timings.total_ms, counted: rendered(1) }, o.clock);
   return record;

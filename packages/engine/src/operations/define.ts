@@ -47,6 +47,8 @@ export interface ToolOutput<D extends object = object> {
 
 export interface ToolContext {
   engine: Engine;
+  /** The folder the shell's process was started in (the client's: Claude Code's session folder for the MCP server). */
+  startedIn: string;
   /** Aborted when the client cancels the call: it ends a wait, never the job. */
   signal: AbortSignal;
   /** Progress notifications while a call waits (when the client asked for them). */

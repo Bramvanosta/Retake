@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
-import { EngineError, RunDataCache, ScenarioViews, VIEW_STEPS_MAX, WorkspaceIndex, createEngine, openProjectBySlug, runChanges, workspaceChanges } from '../src/index.js';
+import { EngineError, RunDataCache, ScenarioViews, VIEW_STEPS_MAX, VersionLedger, WorkspaceIndex, createEngine, openProjectBySlug, runChanges, workspaceChanges } from '../src/index.js';
 import type { Engine, ScenarioView, StepBinding } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from '@retake/test-support/runs';
 import { scratchHome } from '@retake/test-support/home';
@@ -363,6 +363,7 @@ describe('review fixes (L4.2)', () => {
       },
       overlay: async (_slug, r) => r.status,
       runs: new RunDataCache(),
+      seen: new VersionLedger(),
     });
     const w = await views.view(P, 'blocks');
     expect(w.run_blockers.dry[0].message).toBe('refused from the Studio: step 1 of scene two (click) and setup hook 1 need a person; scene one too');
@@ -419,6 +420,7 @@ describe('memo (B1)', () => {
       },
       overlay: async (_slug, r) => r.status,
       runs,
+      seen: new VersionLedger(),
     });
     const a = await views.view(P, 'blocks');
     const reads = runs.reads;

@@ -38,7 +38,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const ctx = () => ({ engine, signal: new AbortController().signal });
+const ctx = () => ({ engine, startedIn: process.cwd(), signal: new AbortController().signal });
 const LINE = '1 newer file of renders/ passed over: "untrusted.renders_passed_over" names it';
 const PASSED = [{ file: 'quote-final.json', why: 'renamed' }];
 type Out = { summary: string; data: { render_id?: string; renders_passed_over?: number; renders_not_considered?: number; untrusted?: { renders_passed_over?: unknown } } };

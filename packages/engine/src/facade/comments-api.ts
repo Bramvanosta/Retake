@@ -1,7 +1,6 @@
 /** The façade's `comments` (createEngine): threads on renders — read, add and reopen (a person's), reply (a proposal: Claude's), resolve, anchor, apply a proposal, counts. */
 import type { CommentAuthor } from '@retake/core/comments';
 import { EngineError } from '../errors.js';
-import { memoRegistry } from '../views/timeline-view.js';
 import { MCP_AUTHOR_NAME, addComment, anchorAt, applyProposal, defaultAuthorName, getComment, getProposal, listComments, reopenComment, replyComment, resolveComment } from '../comments.js';
 import { commentReplyRefused, commentResolveRefused, proposalApplyRefused, threadAddRefused, threadReopenRefused } from '../comments/rules.js';
 import type { EngineContext } from './context.js';
@@ -14,7 +13,9 @@ const refuse = (e: EngineError | undefined): void => {
 
 /** engine.comments. */
 export function commentsApi(ctx: EngineContext): Engine['comments'] {
-  const { caller, ws, scope, project, commentIndex } = ctx;
+  const { caller, ws, scope, project, commentIndex, caches } = ctx;
+  const registry = async () => (await caches.registry.get(ws)).registry;
+  const seen = caches.scenarioVersions;
   // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
   const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName(ctx.ports.env) });
@@ -29,7 +30,8 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
       refuse(commentReplyRefused(caller, o.proposal));
       return replyComment(await project(slug), id, text, commentAuthor(), {
         ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
-        registry: async () => (await memoRegistry(ws)).registry,
+        registry,
+        seen,
         scope,
         renders: ws.outputs.renders,
         files: ctx.files,
@@ -54,14 +56,15 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
     apply: async (slug, id, req) => {
       refuse(proposalApplyRefused(caller, req.if_match));
       return applyProposal(await project(slug), id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {
-        registry: async () => (await memoRegistry(ws)).registry,
+        registry,
+        seen,
         scope,
         renders: ws.outputs.renders,
         files: ctx.files,
         reads: ws.reads,
       });
     },
-    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry, files: ctx.files, reads: ws.reads }),
+    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry, seen, files: ctx.files, reads: ws.reads }),
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
   };
 }

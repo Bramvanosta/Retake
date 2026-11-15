@@ -14,7 +14,7 @@ import type { Engine } from './types.js';
 
 /** engine.renders. */
 export function rendersApi(ctx: EngineContext): Engine['renders'] {
-  const { ws, project, studio, queue, submitCtx, startWorker, admitted, renderFrames } = ctx;
+  const { ws, project, studio, queue, submitCtx, startWorker, admitted, renderFrames, caches } = ctx;
   return {
     plan: (req) => planPreview(ws, studio, req),
     submit: async (req) => {
@@ -24,7 +24,7 @@ export function rendersApi(ctx: EngineContext): Engine['renders'] {
       return { ...r, ...(worker?.other ? { warnings: [...r.warnings, otherCopyWarning(worker.other)] } : {}), ...(worker ? { worker } : {}) };
     },
     status: (slug, renderId, o = {}) => renderStatus(ws, queue, slug, renderId, o.scenario),
-    ofScenario: (slug, scenario) => scenarioRenders(ws, queue, slug, scenario),
+    ofScenario: (slug, scenario) => scenarioRenders(ws, queue, slug, scenario, caches.renders),
     frame: async (slug, req, o = {}) => renderFrames.frame(await project(slug), req, o),
     outline: async (slug, req) => renderFrames.outline(await project(slug), req),
   };
@@ -32,9 +32,10 @@ export function rendersApi(ctx: EngineContext): Engine['renders'] {
 
 /** engine.timeline. */
 export function timelineApi(ctx: EngineContext): Engine['timeline'] {
-  const { agent, via, ws, studio } = ctx;
+  const { agent, via, ws, studio, caches } = ctx;
   return {
-    view: (req) => timelineView(ws, studio, req, { agent, via }),
+    view: (req) => timelineView(ws, studio, req, { agent, via, memos: caches.timeline, seen: caches.scenarioVersions }),
+    forget: () => caches.timeline.clear(),
   };
 }
 

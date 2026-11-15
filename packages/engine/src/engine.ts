@@ -63,11 +63,10 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   // The façade's composition root: the ports a test hands, else the product's (the MCP server and the Studio hand none).
   const ports = enginePorts(opts.ports);
   const ctx = await engineContext(opts, ports);
-  const { ws, queue, jobFiles, studio } = ctx;
+  const { ws, queue, studio } = ctx;
   const engine: Omit<Engine, 'caller' | 'clock' | 'envVars'> = {
     root: ws.root,
     queue,
-    jobFiles,
     workspace: ws,
     cli: studio,
     info: infoOf(ctx),

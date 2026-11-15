@@ -12,7 +12,7 @@ import type { OpChain } from '../op-chain.js';
 import { stampOf, systemClock } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { jobsDir } from '../workspace-state.js';
-import type { JobFileRead, JobQueues, TakeHold } from './job-queue.js';
+import type { JobFileRead, JobQueues, JobRangeRead, TakeHold } from './job-queue.js';
 import { JobFiles } from './queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
@@ -58,6 +58,18 @@ class MemoryEntries implements JobEntries {
     const text = this.job(id)?.get(name)?.text;
     if (text === undefined) return { ok: false, reason: 'missing' };
     return Buffer.byteLength(text) > max ? { ok: false, reason: 'too_large' } : { ok: true, text };
+  }
+
+  async readRange(id: string, name: string, offset: number, max: number): Promise<JobRangeRead> {
+    const text = this.job(id)?.get(name)?.text;
+    if (text === undefined) return { ok: false, reason: 'missing' };
+    const all = Buffer.from(text, 'utf8');
+    return { ok: true, bytes: all.subarray(Math.min(offset, all.length), Math.min(all.length, Math.max(offset, 0) + Math.max(0, max))), size: all.length };
+  }
+
+  async readPrivate(id: string, name: string, max: number): Promise<string | undefined> {
+    const text = this.job(id)?.get(name)?.text;
+    return text !== undefined && Buffer.byteLength(text) <= max ? text : undefined;
   }
 
   async mtime(id: string, name: string): Promise<string | undefined> {

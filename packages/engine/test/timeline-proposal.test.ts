@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { diffLines, textLines } from '@retake/core';
 import { scaffoldDir } from '@retake/components';
 import { usedComponentIds } from '@retake/editor';
-import { EngineError, clearTimelineViewMemo, createEngine, knownScenarioVersion } from '../src/index.js';
+import { EngineError, createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
@@ -178,7 +178,7 @@ afterAll(async () => {
 
 describe('the timeline previews a proposal (T8, critique B9)', () => {
   it('⚑ plans the proposed caption on the commented take, writes nothing and ⚑ never makes the proposed text a restorable version; the memo keeps the two views apart', async () => {
-    clearTimelineViewMemo();
+    ui.timeline.forget();
     await writeFile(scenarioFile(), TEXT);
     const id = await thread();
     const p = await propose(id, PROPOSED);
@@ -195,9 +195,10 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
     expect(r.text).toBeUndefined();
     expect([await readFile(scenarioFile()), (await stat(scenarioFile())).mtimeMs]).toEqual(before);
     // Never a version `restore` accepts (critique B9 b): restore writes any remembered version and skips the hidden-character check.
-    expect(knownScenarioVersion(scenarioFile(), sha(PROPOSED))).toBe(false);
+    // (The ledger is the engine's: the refusal below is the only way to ask it.)
     const restore = await failure(ui.scenarios.edit('demo', SCENARIO, { hash: sha(TEXT), edit: { kind: 'restore', text: PROPOSED, text_hash: sha(PROPOSED) } }));
     expect(restore).toMatchObject({ code: 'refused', message: expect.stringMatching(/not a version of scenarios\/tl.yaml the Studio showed or wrote/) });
+    expect(restore.details).toEqual({ argument: 'edit.text_hash' });
     expect(await readFile(scenarioFile())).toEqual(before[0]);
     // The file's own view: today's caption, switches on, its text for undo — and the proposal's view again from the memo.
     const file = await view(ui.timeline.view({ project: 'demo', scenario: SCENARIO }));
@@ -233,7 +234,7 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
   });
 
   it('the state is checked on every call: an applied, a superseded or a stale proposal is refused; a thread of another scenario too', async () => {
-    clearTimelineViewMemo();
+    ui.timeline.forget();
     await writeFile(scenarioFile(), TEXT);
     const id = await thread();
     const first = await propose(id, PROPOSED);
@@ -268,7 +269,7 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
   }, 120_000);
 
   it("the plan carries the workspace components the proposal uses: what the Studio's preview hold reads (part C)", async () => {
-    clearTimelineViewMemo();
+    ui.timeline.forget();
     await writeFile(scenarioFile(), TEXT);
     const id = await thread();
     const p = await propose(id, TEXT.replace('{slots: {title: Chapter two}}', '{component: acme/marked, slots: {title: Chapter two}}'));

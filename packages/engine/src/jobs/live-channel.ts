@@ -29,7 +29,6 @@ import type { Socket } from 'node:net';
 import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { isRunId } from '@retake/core/ids';
-import { readPlainRange } from '../outputs/run-files.js';
 import type { LiveFrame, LiveSink } from '@retake/runner-web/types';
 import { checkRequest } from '../http/gate.js';
 import type { RouteSpec } from '../http/gate.js';
@@ -301,13 +300,11 @@ export async function openLiveChannel(o: { files: Pick<JobFiles, 'live'>; jobId:
  * group or other permission bits, of bounded size, naming this job, a valid port and token, and the identity of the
  * worker that holds the job's claim — that worker alive (pid and start time). Null otherwise (no picture).
  */
-export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf'>, files: Pick<JobFiles, 'live'>, jobId: string): Promise<LiveChannelInfo | null> {
-  const file = files.live(jobId);
-  // Opened without following a link and checked on the open descriptor (no window between the check and the read).
-  const uid = process.getuid?.();
-  const r = readPlainRange(file, 0, LIVE_FILE_MAX, { verify: (st) => (uid === undefined || st.uid === uid) && (st.mode & 0o077) === 0 && st.size <= LIVE_FILE_MAX });
-  if (!r.ok) return null;
-  const text = r.bytes.toString('utf8');
+export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf' | 'liveRecord'>, jobId: string): Promise<LiveChannelInfo | null> {
+  // live.json as the queue trusts it (the file queue: a private regular file of this user, never through a link; an
+  // id that is not one is refused).
+  const text = await queue.liveRecord(jobId, LIVE_FILE_MAX);
+  if (text === undefined) return null;
   const v = storedJson(LiveChannelSchema, text) as LiveChannelInfo | undefined;
   if (!v || v.job !== jobId) return null;
   const claim = await bestEffort(queue.claimOf(jobId), 'a claim that cannot be read is no live worker: no channel');

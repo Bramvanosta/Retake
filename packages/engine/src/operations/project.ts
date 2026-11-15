@@ -18,7 +18,7 @@ export const engineInfo = defineOperation({
     "Version, workspace root and features of this Retake engine, its jobs worker (the background process that runs dry runs, captures and the other jobs) and the usage counters of the workspace (captures, dry runs, renders), and started_in: the folder the client started this server in (Claude Code: the session's folder). Call it first to check the server is connected to the right workspace: a started_in outside the workspace root means the registration names another folder than this session's.",
   input: z.strictObject({}),
   annotations: READ,
-  async run(_args, { engine }) {
+  async run(_args, { engine, startedIn }) {
     const info = engine.info();
     const projects = await engine.projects.list();
     const w = await engine.jobs.worker();
@@ -29,7 +29,6 @@ export const engineInfo = defineOperation({
     const usage = await engine.usage();
     // L5.14: what a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
-    const startedIn = process.cwd();
     const elsewhere = outsideWorkspace(startedIn, info.root);
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
     const stale = staleThisEngine(info.version);

@@ -98,19 +98,19 @@ describe('the live channel of a run job', () => {
       expect(info.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
       // No temporary file left beside it.
       expect((await readdir(queue.files.job(id))).sort()).toEqual(['claim', 'live.json']);
-      expect((await readLiveChannel(queue, queue.files, id))?.port).toBe(ch.port);
+      expect((await readLiveChannel(queue, id))?.port).toBe(ch.port);
     } finally {
       await ch.close();
     }
     expect(existsSync(queue.files.live(id))).toBe(false);
-    expect(await readLiveChannel(queue, queue.files, id)).toBeNull();
+    expect(await readLiveChannel(queue, id)).toBeNull();
   });
 
   it('S1: the gate — wrong Host 421, any Origin or Sec-Fetch-* header 403, no or a wrong token 401, another route 404 / method 405; nothing streams', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r1', worker: await selfIdentity() });
     try {
-      const info = (await readLiveChannel(queue, queue.files, id))!;
+      const info = (await readLiveChannel(queue, id))!;
       const auth = { authorization: `Bearer ${info.token}` };
       const p = ch.port;
       expect((await send(p, { headers: { ...auth, host: `evil.example:${p}` } })).status).toBe(421);
@@ -139,7 +139,7 @@ describe('the live channel of a run job', () => {
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r2', worker: await selfIdentity() });
     const ac = new AbortController();
     try {
-      const info = (await readLiveChannel(queue, queue.files, id))!;
+      const info = (await readLiveChannel(queue, id))!;
       const changes: boolean[] = [];
       ch.sink.onWanted((w) => changes.push(w));
       frame(ch, 1);
@@ -187,7 +187,7 @@ describe('the live channel of a run job', () => {
       }
     };
     try {
-      const info = (await readLiveChannel(queue, queue.files, id))!;
+      const info = (await readLiveChannel(queue, id))!;
       await idle(LIVE_SOCKETS_MAX);
       await new Promise((r) => setTimeout(r, 100));
       frame(ch, 1);
@@ -226,7 +226,7 @@ describe('the live channel of a run job', () => {
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r3', worker: await selfIdentity() });
     let sock: Socket | undefined;
     try {
-      const info = (await readLiveChannel(queue, queue.files, id))!;
+      const info = (await readLiveChannel(queue, id))!;
       sock = connect(ch.port, '127.0.0.1');
       await new Promise<void>((r) => sock!.once('connect', () => r()));
       sock.write(`GET ${LIVE_PATH} HTTP/1.1\r\nHost: 127.0.0.1:${ch.port}\r\nAuthorization: Bearer ${info.token}\r\n\r\n`);
@@ -253,40 +253,40 @@ describe('the live channel of a run job', () => {
     const file = queue.files.live(id);
     try {
       const good = await readFile(file, 'utf8');
-      expect(await readLiveChannel(queue, queue.files, id)).not.toBeNull();
+      expect(await readLiveChannel(queue, id)).not.toBeNull();
       // Group / other bits.
       await chmod(file, 0o644);
-      expect(await readLiveChannel(queue, queue.files, id)).toBeNull();
+      expect(await readLiveChannel(queue, id)).toBeNull();
       await chmod(file, 0o600);
-      expect(await readLiveChannel(queue, queue.files, id)).not.toBeNull();
+      expect(await readLiveChannel(queue, id)).not.toBeNull();
       // Another job's live.json copied here.
       const other = await claimedJob();
       await writeFile(queue.files.live(other), good, { mode: 0o600 });
-      expect(await readLiveChannel(queue, queue.files, other)).toBeNull();
+      expect(await readLiveChannel(queue, other)).toBeNull();
       // A link to a private file that would be trusted as live.json itself (this job's, the claiming worker's): the
       // link alone refuses it (opened without following it — no window between a check and the read).
       const linked = await claimedJob();
       const target = join(root, `link-target-${id}.json`);
       await writeFile(target, JSON.stringify({ ...JSON.parse(good), job: linked }), { mode: 0o600 });
       await rename(target, queue.files.live(linked));
-      expect(await readLiveChannel(queue, queue.files, linked)).not.toBeNull();
+      expect(await readLiveChannel(queue, linked)).not.toBeNull();
       await rename(queue.files.live(linked), target);
       await symlink(target, queue.files.live(linked));
-      expect(await readLiveChannel(queue, queue.files, linked)).toBeNull();
+      expect(await readLiveChannel(queue, linked)).toBeNull();
       // A worker that does not hold the claim (another pid in live.json).
       const forged = await claimedJob();
       await writeFile(queue.files.live(forged), JSON.stringify({ ...JSON.parse(good), job: forged, pid: process.pid + 1 }), { mode: 0o600 });
-      expect(await readLiveChannel(queue, queue.files, forged)).toBeNull();
+      expect(await readLiveChannel(queue, forged)).toBeNull();
       // The claim's worker is gone (a pid that exited): a stale file of a killed worker.
       const dead = spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' }).pid!;
       const stale = newJobId(Date.now());
       await mkdir(queue.files.job(stale), { recursive: true });
       await writeFile(join(queue.files.job(stale), 'claim'), JSON.stringify({ pid: dead, at: new Date().toISOString() }));
       await writeFile(queue.files.live(stale), JSON.stringify({ ...JSON.parse(good), job: stale, pid: dead, started_at: undefined }), { mode: 0o600 });
-      expect(await readLiveChannel(queue, queue.files, stale)).toBeNull();
+      expect(await readLiveChannel(queue, stale)).toBeNull();
       // Garbage.
       await writeFile(file, '{"v":1,', { mode: 0o600 });
-      expect(await readLiveChannel(queue, queue.files, id)).toBeNull();
+      expect(await readLiveChannel(queue, id)).toBeNull();
     } finally {
       await ch.close();
     }
@@ -296,7 +296,7 @@ describe('the live channel of a run job', () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ files: queue.files, jobId: id, runId: 'r5', worker: await selfIdentity() });
     try {
-      const info = (await readLiveChannel(queue, queue.files, id))!;
+      const info = (await readLiveChannel(queue, id))!;
       const got: LiveFeedFrame[] = [];
       const feed = openLiveFeed(info, { onFrame: (f) => got.push(f) });
       await until('the stream', () => ch.streams === 1);

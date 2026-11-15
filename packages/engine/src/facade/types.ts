@@ -13,7 +13,6 @@ import type { SandboxStatusView } from '../sandbox.js';
 import type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from '../scenarios.js';
 import type { ScriptDraftView } from '../authoring.js';
 import type { WorkerLockRecord } from '../jobs/lock.js';
-import type { JobFiles } from '../jobs/queue.js';
 import type { JobFilter, JobQueueView } from '../jobs/job-queue.js';
 import type { RunThumbsView } from '../run-thumbs.js';
 import type { ProjectBoardView, RunPoster } from '../views/project-board.js';
@@ -31,7 +30,9 @@ import type { RecordSubmitRequest } from '../jobs/record-job.js';
 import type { InspectReport } from '@retake/runner-web/types';
 import type { LibraryStatesView } from '../library.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from '../components.js';
-import type { ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
+import type { ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
+import type { ThemePreviewBuild, ThemePreviewRequest, ThemePreviewServe } from '../views/theme-preview.js';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ThemeCopied } from '../brand/copy.js';
 import type { BrandFileList } from '../brand/file-list.js';
 import type { SiteList } from '../views/site-list.js';
@@ -229,8 +230,6 @@ export interface Engine {
    * with a memory of their own (JobQueueView.withOwnMemory).
    */
   readonly queue: JobQueueView;
-  /** The file queue's paths, for the code that reads a job's files itself (the Studio's live run: live.json, events). */
-  readonly jobFiles: JobFiles;
   info(): EngineInfo;
   /** What the workspace produced, from its job history (history.jsonl: jobs and CLI runs). */
   usage(): Promise<UsageCounts>;
@@ -405,6 +404,11 @@ export interface Engine {
      * it for the in-process caller only, the plan. Memoised per file / run / components (one planning per change).
      */
     view(req: TimelineViewRequest): Promise<TimelineViewResult>;
+    /**
+     * Forget this engine's timeline views and their memos (the next view plans again: a measure starts cold). Tests use
+     * it: on the same engine, so its ledger and registry stay the ones that showed the views.
+     */
+    forget(): void;
   };
   reviews: {
     /**
@@ -464,6 +468,8 @@ export interface Engine {
      * text and sha256, the allow-listed fields, components, its font and image files checked, palette checks, used by.
      */
     view(name: string): Promise<ThemeEditView>;
+    /** L4.7: the themes as the theme editor lists them (editable or why not, used by), the project's marked. */
+    editList(project?: string): Promise<ThemeEditList>;
     /**
      * L4.7: one verified write of a theme's template.yaml (core applyThemeEdit, if_match, re-parse, files served from
      * its folder only, the registry, the write lock; `restore` of a version shown or written). Refused for MCP.
@@ -477,8 +483,15 @@ export interface Engine {
     sites(): Promise<SiteList>;
     /** Why a host is never extracted as a site: a page of an environment of a project, a protected host (none: empty). */
     siteConflicts(host: string): Promise<string[]>;
+    /**
+     * L4.7 theme_preview's spec (views/theme-preview.ts): built with this engine's registry and preview samples;
+     * `start` hands the shell's registrar of the files it serves.
+     */
+    previewSpec(req: ThemePreviewRequest, o: { start: () => ThemePreviewServe }): Promise<ThemePreviewBuild>;
   };
   components: {
+    /** The workspace's component registry, held by this engine while its components' folders are unchanged. */
+    registry(): Promise<ComponentRegistry>;
     list(kind?: string): Promise<ComponentListView>;
     get(id: string): Promise<ComponentView>;
     /** Manifest, entry and compile check (nothing executed). */

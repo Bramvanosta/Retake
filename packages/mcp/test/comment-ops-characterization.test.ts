@@ -400,7 +400,7 @@ async function viaStudio(): Promise<{ studio: Answers; callers: Answers; busy: u
   ];
   const callers: Answers = [];
   for (const [label, op, shell, engine, args] of cases) {
-    const r = await invoke(op, engine, args, { shell, signal: new AbortController().signal });
+    const r = await invoke(op, engine, args, { shell, startedIn: process.cwd(), signal: new AbortController().signal });
     const answer = r.ok
       ? { ok: true, summary: r.output.summary }
       : { ok: false, code: r.error.code, message: r.error.message, ...(r.error.details ? { details: r.error.details } : {}), status: statusOf(op.name, r.error.code) };

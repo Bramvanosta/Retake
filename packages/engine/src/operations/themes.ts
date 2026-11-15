@@ -45,7 +45,7 @@ import { pathFree } from '../renders.js';
 import { stillPlainFile } from '../views/site-list.js';
 import type { SiteList } from '../views/site-list.js';
 import type { TemplateDetail, TemplateSummary } from '../templates.js';
-import { themeEditList, themeEditRefused } from '../theme-edit.js';
+import { themeEditRefused } from '../theme-edit.js';
 import type { ThemeEditList, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
 import { PREVIEW_JOB, READ, SITE_JOB, THEME_WRITE, WRITE_FILES } from './annotations.js';
 import { defineOperation } from './define.js';
@@ -359,7 +359,7 @@ export const themeList = defineOperation({
   annotations: READ,
   async run(a, { engine }) {
     const ws = engine.workspace;
-    const [themes, comps, p] = await Promise.all([themeEditList(ws, a.project), engine.components.list(), openProjectBySlug(ws, a.project)]);
+    const [themes, comps, p] = await Promise.all([engine.templates.editList(a.project), engine.components.list(), openProjectBySlug(ws, a.project)]);
     const data: ThemeListAnswer = {
       project: a.project,
       ...pathFreeDeep(themes, ws.root),

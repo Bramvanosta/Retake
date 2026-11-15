@@ -10,7 +10,7 @@ import type { Engine } from '@retake/engine';
 
 export async function invokeOperation<D extends object>(op: ToolDef<ToolDef['input'], D>, engine: Engine, args: unknown): Promise<ToolOutput<D>> {
   // A command is not cancelled by a client: its Ctrl-C ends the process (interrupt.ts), so the call's signal never fires.
-  const r = await invoke(op, engine, args, { shell: 'cli', signal: new AbortController().signal });
+  const r = await invoke(op, engine, args, { shell: 'cli', startedIn: process.cwd(), signal: new AbortController().signal });
   if (!r.ok) throw r.error;
   return r.output;
 }

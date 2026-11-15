@@ -161,7 +161,7 @@ describe.skipIf(!canRun)('admission stays inside the submits: once per call, bef
       const op = OPERATIONS_BY_NAME[name as keyof typeof OPERATIONS_BY_NAME] as unknown as ToolDef;
       const engine = engines[c.shell === 'mcp' ? 'mcp' : 'ui'];
       const before = (await queue.list({ states: ['queued', 'running'] })).length;
-      const r = await invoke(op, engine, c.args, { shell: c.shell, signal });
+      const r = await invoke(op, engine, c.args, { shell: c.shell, startedIn: process.cwd(), signal });
       expect(r.ok, JSON.stringify(!r.ok && r.error)).toBe(true);
       const steps = seen.map((s) => `${s.step} ${s.kind} ${s.open - before}`);
       // The check, (a run's checks on the scenario it parsed — sessions_ack of a capture — and again just before its id
@@ -169,7 +169,7 @@ describe.skipIf(!canRun)('admission stays inside the submits: once per call, bef
       expect(steps).toEqual(c.kind === 'run' ? ['admit run 0', 'prepared run 0', 'reserve run 0', 'submit run 1'] : [`admit ${c.kind} 0`, `submit ${c.kind} 1`]);
       seen.length = 0;
       // The same call again: the rule finds the first one's job, nothing more is queued.
-      const again = await invoke(op, engine, c.args, { shell: c.shell, signal });
+      const again = await invoke(op, engine, c.args, { shell: c.shell, startedIn: process.cwd(), signal });
       expect(!again.ok && again.error.code).toBe('conflict');
       expect(seen.map((s) => `${s.step} ${s.kind} ${s.open - before}`)).toEqual([`admit ${c.kind} 1`]);
       expect((await queue.list({ states: ['queued', 'running'] })).length).toBe(before + 1);

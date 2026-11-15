@@ -31,7 +31,7 @@ import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { printIssues } from './validate.js';
 import { loginCommandFor } from './auth.js';
@@ -89,7 +89,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   try {
     const ws = await openWorkspace(global);
     prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
-    checkHeadedDisplay(opts, cliPorts.env);
+    checkHeadedDisplay(opts, global.ports.env);
   } catch (e) {
     if (e instanceof RunOptionError) throw new UsageError(e.message);
     return fail(errorMessage(e));
@@ -126,10 +126,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       project,
       scenario,
       async () => {
-        listedRun = await reserveListedRun(ws.outputs.runs, cliPorts.clock, project, scenario.name);
+        listedRun = await reserveListedRun(ws.outputs.runs, global.ports.clock, project, scenario.name);
         return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
       },
-      cliPorts.hooks,
+      global.ports.hooks,
     );
     trustedHookFiles = check.bound;
     const agentHooks = check.ask;
@@ -165,10 +165,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   let beside: TakeBeside | undefined;
   const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
     if (state === 'start' && !marker) {
-      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner, env: cliPorts.env });
+      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner, env: global.ports.env });
       beside = new TakeBeside({
         root: ws.root,
-        env: cliPorts.env,
+        env: global.ports.env,
         own: () => marker?.name,
         onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`),
       });
@@ -193,10 +193,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       opts,
       {
         policy: ws.policy,
-        capture: cliPorts.capture,
-        secrets: cliPorts.secrets,
-        hooks: cliPorts.hooks,
-        sandboxes: cliPorts.sandboxes,
+        capture: global.ports.capture,
+        secrets: global.ports.secrets,
+        hooks: global.ports.hooks,
+        sandboxes: global.ports.sandboxes,
         // The fix of an expired session names this workspace when the command line did (-C).
         loginCommand: loginCommandFor(global),
         // The id the listing of an agent's shell hooks showed (its folder reserved for this run).
@@ -206,9 +206,9 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),
         // Each hook run is a line of the workspace journal, as the person's.
-        recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+        recordAs: { caller: callerOf('cli'), clock: global.ports.clock },
         // What its history line is stamped with when the run has no end of its own.
-        clock: cliPorts.clock,
+        clock: global.ports.clock,
       },
       {
         issues: (issues, file) => {
@@ -225,7 +225,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
           if (json) emitJson(e);
           else (printer ??= new ProgressPrinter(ui)).handle(e);
         },
-        interrupts: { open: (o) => onInterrupt(ui, o) },
+        interrupts: { open: (o) => onInterrupt(ui, global.ports, o) },
       },
     );
   } catch (e) {
@@ -242,10 +242,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   if (rawFlags) {
     if (!json) ui.line();
     // Its encodes are heavy work (critique L8): they wait for another take filming now, and yield during a later one.
-    const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
+    const gate = await heavyGate(ui, { root: ws.root, env: global.ports.env, what: 'exporting', noWait: opts.wait === false });
     try {
       // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
-      await rawExportOfRun(ui, ws, project, record.dir, { ...rawFlags, cursor: rawCursor }, { json, jsonLines: json });
+      await rawExportOfRun(ui, global.ports, ws, project, record.dir, { ...rawFlags, cursor: rawCursor }, { json, jsonLines: json });
     } catch (e) {
       return fail(`raw export: ${errorMessage(e)}`);
     } finally {

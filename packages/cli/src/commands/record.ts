@@ -7,7 +7,7 @@ import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { cliPorts, openProject, openWorkspace, workspaceQueue } from '../workspace.js';
+import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, retakeCommand } from './auth.js';
 
@@ -51,7 +51,7 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const c = ui.c;
   let actions = 0;
   const recording = () => `${c.red('●')} recording — ${plural(actions, 'action')}; close the window or press Ctrl-C to finish`;
-  const interrupt = await onInterrupt(ui, { message: 'stopping the recording: the window closes and what was recorded is kept…' });
+  const interrupt = await onInterrupt(ui, global.ports, { message: 'stopping the recording: the window closes and what was recorded is kept…' });
   let outcome: RecordOutcome;
   try {
     outcome = await recordScenario(
@@ -69,13 +69,13 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
         submittedBy: 'cli',
       },
       {
-        queue: workspaceQueue(ws),
-        clock: cliPorts.clock,
-        env: cliPorts.env,
-        stores: cliPorts.stores,
-        capture: cliPorts.capture,
-        secrets: cliPorts.secrets,
-        hooks: cliPorts.hooks,
+        queue: workspaceQueue(ws, global.ports),
+        clock: global.ports.clock,
+        env: global.ports.env,
+        stores: global.ports.stores,
+        capture: global.ports.capture,
+        secrets: global.ports.secrets,
+        hooks: global.ports.hooks,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');

@@ -277,6 +277,37 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect(await q.lastSeq(job.id)).toBe(12);
     });
 
+    it('events by byte range: missing before the first, then the lines as written from any offset with their size; a live record none was written of reads nothing; a job id that is not one is refused', async () => {
+      const { queue: q } = await make('events-range');
+      const job = await q.enqueue(RUN_INPUT);
+      expect(await q.eventsRange(job.id, 0, 1024)).toEqual({ ok: false, reason: 'missing' });
+      await q.append(job.id, 0, [
+        { type: 'state', state: 'running' },
+        { type: 'log', level: 'info', message: 'é one' },
+      ]);
+      const all = await q.eventsRange(job.id, 0, 1 << 16);
+      if (!all.ok) throw new Error(`unread: ${all.reason}`);
+      expect(all.size).toBe(all.bytes.length);
+      const lines = all.bytes.toString('utf8').split('\n');
+      expect(lines.pop()).toBe('');
+      expect(lines.map((l) => (JSON.parse(l) as { seq: number }).seq)).toEqual([1, 2]);
+      // From an offset, at most `max` bytes; past the end, none (the size says how far the file goes).
+      const cut = lines[0]!.length + 1;
+      const rest = await q.eventsRange(job.id, cut, 1 << 16);
+      expect(rest.ok && rest.bytes.toString('utf8')).toBe(`${lines[1]}\n`);
+      const some = await q.eventsRange(job.id, 0, 5);
+      expect(some.ok && [some.bytes.length, some.size]).toEqual([5, all.size]);
+      const past = await q.eventsRange(job.id, all.size + 10, 64);
+      expect(past.ok && [past.bytes.length, past.size]).toEqual([0, all.size]);
+      // The bytes grow as the events do: the next read from the old end is the new line.
+      await q.append(job.id, 2, [{ type: 'result' }]);
+      const more = await q.eventsRange(job.id, all.size, 1 << 16);
+      expect(more.ok && (JSON.parse(more.bytes.toString('utf8')) as { seq: number }).seq).toBe(3);
+      expect(await q.liveRecord(job.id, 4096)).toBeUndefined();
+      await expect(q.eventsRange('../x', 0, 1)).rejects.toThrow(/invalid job id/);
+      await expect(q.liveRecord('../x', 4096)).rejects.toThrow(/invalid job id/);
+    });
+
     it('position per lane (captures before heavy jobs, the oldest first); a queued take holds every heavy job (held_by "take")', async () => {
       const { queue: q } = await make('lanes');
       const r1 = await review(q, 1);

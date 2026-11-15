@@ -274,7 +274,7 @@ export const STORAGE_FILE = 'packages/engine/src/storage.ts';
 /**
  * Where each product adapter of a port may be named as a value (clock-read, store-new, workspace-read, loader-use,
  * queue): its own file, the ports bag (packages/engine/src/ports.ts enginePorts: the one place the defaults are
- * written) and the composition roots that call it — createEngine, the jobs worker, the job process, the CLI's cliPorts
+ * written) and the composition roots that call it — createEngine, the jobs worker, the job process, the CLI's cliEnginePorts
  * — and the job queues' defaults (for tests: the roots pass their clock, the queue check holds them to it). The file
  * queue's entry is the `queue` rule's roots (wiringHits reads it, with its class forms).
  */
@@ -430,6 +430,7 @@ export const ENGINE_LAYERS = [
       'storage.ts',
       'theme-files.ts',
       'host-lookup.ts',
+      'index-db/sqlite.ts',
       'ports.ts',
     ],
   },
@@ -720,11 +721,16 @@ export const CHECKS = [
     title:
       "a job handler (JOB_HANDLER: packages/engine/src/jobs/<kind>-job.ts) reads and writes its job's files through the JobQueue port (its submit's files: JobQueue.file; the render browser it records: recordBrowser / recordedBrowser), never by a path of the file queue: an import of JOB_FILE_NAMES (JobFiles, JobFilePaths) there — a type import too, under an alias — is a hit (entries: the file and the name). Not seen: a path reached through another module, `typeof import('…')`, a member of a namespace import (`import type * as Q` then `Q.JobFiles`), the paths handed in a value of another type",
   },
+  {
+    id: 'engine-state',
+    title:
+      "the engine's use cases and views (ENGINE_STATELESS) hold no state of the module: what they remember between calls (memos, the undo ledgers, caches) is an engine's, held in its context (facade/context.ts EngineCaches) and handed in — so two engines of one process (tests, a server hosting several) share none. In a file of those layers each name a top-level `let` / `var` binds (destructured too), a top-level `const` made with `new` (a Map, Set, WeakMap, WeakSet or Array unless typed `Readonly…`; any other class but a value) and a top-level `const` the file changes (a member written, a changing method called on it — behind a cast too —, `Object.assign` to it) are hits (entries: the file, the name and why), except ENGINE_STATE_ALLOWED's, each with its reason (counters for tests, what is the process's by nature); an allowed name its file no longer declares is a hit, as a stale entry is. Not seen: a closure's state, a member of a member, a write through an alias, a class's static field, a destructured `const` changed later, `Object.defineProperty` and the other Object / Reflect writers",
+  },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   {
     id: 'queue',
     title:
-      "only the ports bag builds the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): its default factory in packages/engine/src/ports.ts (the engine, the worker, the job process and the CLI's cliPorts call the factory their ports hold) and the adapter itself, for withOwnMemory; everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter's own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)",
+      "only the ports bag builds the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): its default factory in packages/engine/src/ports.ts (the engine, the worker, the job process and the CLI's cliEnginePorts call the factory their ports hold) and the adapter itself, for withOwnMemory; everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter's own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)",
   },
   {
     id: 'clock-read',
@@ -1047,7 +1053,7 @@ export function ruleHits(root, fileImports, rules = RULES) {
 const QUEUE_CLASS = 'FileJobQueue';
 /**
  * Where the file job queue may be built (PORT_ROOTS): the ports bag's default (ports.ts: the engine, the worker, the
- * job process and the CLI's cliPorts call its factory) and the adapter's own file (its withOwnMemory() makes one).
+ * job process and the CLI's cliEnginePorts call its factory) and the adapter's own file (its withOwnMemory() makes one).
  */
 const QUEUE_ROOTS = PORT_ROOTS[QUEUE_CLASS];
 /** The file queue's own file: its withOwnMemory() hands its clock on through `this.clock`, its constructor has the default. */
@@ -1669,7 +1675,7 @@ const HOOK_CONTEXT = 'createHookContext';
  * The hooks orchestration calls outside the engine (hook-call), read from the syntax tree: in packages/*\/src outside
  * packages/engine/src, each call of `createHookContext` — by its name, under an import alias, or as a member of a
  * namespace import (`e.createHookContext(…)`, `e['createHookContext'](…)`) — and of a HookRunner member of
- * HOOK_RUN_MEMBERS on something named after its owner (`hooks.run(…)`, `cliPorts.hooks.run(…)`, `x.journals['rollback'](…)`),
+ * HOOK_RUN_MEMBERS on something named after its owner (`hooks.run(…)`, `ports.hooks.run(…)`, `x.journals['rollback'](…)`),
  * and in the shells' sources of `.rollbackAll(…)` on anything; counted per file (`{count}`). The callee is read through
  * parentheses, a comma, a cast or `!`, and `.call` / `.apply` / `.bind` of a counted function counts too. A mention in a
  * string, a comment, a type or an import is no call. Not seen (the check's title lists them): a destructured member, a
@@ -1693,7 +1699,7 @@ export function hookCallHits(root, files) {
       if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && (e.propertyName ?? e.name).text === HOOK_CONTEXT) names.add(e.name.text);
     });
     const member = (e) => (ts.isPropertyAccessExpression(e) ? e.name.text : ts.isElementAccessExpression(e) ? literal(ts, e.argumentExpression) : undefined);
-    // `hooks` / `journals` themselves, or a property of that name (`cliPorts.hooks`, `this['journals']`).
+    // `hooks` / `journals` themselves, or a property of that name (`ports.hooks`, `this['journals']`).
     const owner = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e) ? member(e) : undefined);
     // `(f)`, `(0, f)`, `f as T`, `f!`, `<T>f`, `f satisfies T`: the expression that is called.
     const unwrap = (e) => {
@@ -1967,6 +1973,129 @@ export function jobFileHits(root, files) {
       }
     }
   }
+  return hits;
+}
+
+/** The engine layers whose files hold no state of the module (engine-state): what is remembered between calls is an engine's. */
+export const ENGINE_STATELESS = ['use-cases', 'views'];
+/**
+ * The module-level state of those layers that is legitimate, by file and name, each with its reason (engine-state reads
+ * them before it counts a hit): never a memo, a ledger or a cache — those are an engine's (facade/context.ts EngineCaches).
+ */
+export const ENGINE_STATE_ALLOWED = {
+  'packages/engine/src/renders.ts': {
+    reportReads: "a counter for tests (report.json files read): it changes no answer, the Studio's board tests read it",
+    renderRecordReads: 'a counter for tests (renders/ records read): it changes no answer, the board tests read it',
+  },
+  'packages/engine/src/theme-edit.ts': { THEME_USES_STATS: 'a counter for tests (theme uses computed): it changes no answer' },
+  'packages/engine/src/agent-written.ts': { lastWarn: "when this process last said on stderr that a record could not be written: the process's stderr, rate-limited" },
+};
+/** Methods that change the object they are called on (a Map, a Set, an array). */
+const MUTATING_CALLS = new Set(['set', 'add', 'delete', 'clear', 'push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']);
+/** Classes whose instances are values (never changed after they are made). */
+const VALUE_CLASSES = new Set(['RegExp', 'URL', 'TextEncoder', 'TextDecoder', 'Error', 'TypeError', 'RangeError']);
+/** Collections a `Readonly…` type annotation makes a constant lookup table. */
+const COLLECTIONS = new Set(['Map', 'Set', 'WeakMap', 'WeakSet', 'Array']);
+
+/**
+ * engine-state: the module-level state of a file of ENGINE_STATELESS (`<file> → <name> (<why>)`): each name a
+ * top-level `let` or `var` binds, destructured too (`let`); a top-level `const` made with `new` of a class (`new X`) —
+ * a Map, Set, WeakMap, WeakSet or Array unless its type annotation is a `Readonly…` one, any other class but a value
+ * (VALUE_CLASSES); and a top-level `const` the file changes — a member written (`x.n++`, `x.a = …`, `x[k] = …`,
+ * `delete x.a`), a changing method called on it (`x.set(…)`, MUTATING_CALLS; behind a cast or parentheses too) or
+ * `Object.assign(x, …)` — in any function of the file. ENGINE_STATE_ALLOWED's entries are not hits; an allowed name its
+ * file no longer declares at its top level is one (`<name> (allowed, not declared)`), as a stale ratchet entry is, and
+ * so is each name of an allowed file that is no longer one of those layers' (with `whole`: the scan of every file).
+ * Not seen: state reached through another module, a `const` holding a function's closure (`const f = memo()`), a
+ * member of a member (`x.a.b = …`), a write through an alias (`const y = x; y.n++`), a class's static field, a
+ * destructured `const` changed later, `Object.defineProperty` and the other Object / Reflect writers.
+ */
+export function engineStateHits(root, files, { whole = true } = {}) {
+  const ts = loadTs(root);
+  const hits = [];
+  const seen = new Set();
+  const bound = (b, out = []) => {
+    if (ts.isIdentifier(b)) out.push(b.text);
+    else for (const e of b.elements ?? []) if (!ts.isOmittedExpression(e)) bound(e.name, out);
+    return out;
+  };
+  const bare = (e) => {
+    while (e && (ts.isParenthesizedExpression(e) || ts.isNonNullExpression(e) || ts.isAsExpression(e) || (ts.isSatisfiesExpression?.(e) ?? false) || (ts.isTypeAssertionExpression?.(e) ?? false)))
+      e = e.expression;
+    return e;
+  };
+  const ASSIGN = new Set([
+    ts.SyntaxKind.EqualsToken,
+    ts.SyntaxKind.PlusEqualsToken,
+    ts.SyntaxKind.MinusEqualsToken,
+    ts.SyntaxKind.AsteriskEqualsToken,
+    ts.SyntaxKind.SlashEqualsToken,
+    ts.SyntaxKind.BarBarEqualsToken,
+    ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+    ts.SyntaxKind.QuestionQuestionEqualsToken,
+    ts.SyntaxKind.BarEqualsToken,
+    ts.SyntaxKind.AmpersandEqualsToken,
+  ]);
+  for (const { rel, text } of files) {
+    if (!ENGINE_STATELESS.includes(engineLayerOf(rel)?.layer)) continue;
+    seen.add(rel);
+    const allowed = ENGINE_STATE_ALLOWED[rel] ?? {};
+    const sf = parse(ts, rel, text);
+    const found = new Map();
+    const consts = new Set();
+    const declared = new Set();
+    for (const st of sf.statements) {
+      if (!ts.isVariableStatement(st)) continue;
+      const list = st.declarationList;
+      const isConst = (list.flags & ts.NodeFlags.Const) !== 0;
+      for (const d of list.declarations) {
+        const names = bound(d.name);
+        for (const n of names) declared.add(n);
+        if (!isConst) {
+          for (const n of names) found.set(n, 'let');
+          continue;
+        }
+        if (!ts.isIdentifier(d.name)) continue;
+        const name = d.name.text;
+        consts.add(name);
+        const init = bare(d.initializer);
+        if (init && ts.isNewExpression(init) && ts.isIdentifier(init.expression)) {
+          const cls = init.expression.text;
+          const readonlyType = d.type && /^Readonly/.test(d.type.getText(sf));
+          if (VALUE_CLASSES.has(cls) || (COLLECTIONS.has(cls) && readonlyType)) continue;
+          found.set(name, `new ${cls}`);
+        }
+      }
+    }
+    const constOf = (e) => {
+      const b = bare(e);
+      return b && ts.isIdentifier(b) && consts.has(b.text) ? b.text : undefined;
+    };
+    const target = (e) => {
+      const b = bare(e);
+      return b && (ts.isPropertyAccessExpression(b) || ts.isElementAccessExpression(b)) ? constOf(b.expression) : undefined;
+    };
+    const visit = (n) => {
+      let name;
+      if (ts.isBinaryExpression(n) && ASSIGN.has(n.operatorToken.kind)) name = target(n.left);
+      else if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken))
+        name = target(n.operand);
+      else if (ts.isDeleteExpression(n)) name = target(n.expression);
+      else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const callee = n.expression;
+        if (MUTATING_CALLS.has(callee.name.text)) name = constOf(callee.expression);
+        else if (callee.name.text === 'assign' && ts.isIdentifier(callee.expression) && callee.expression.text === 'Object' && n.arguments.length) name = constOf(n.arguments[0]);
+      }
+      if (name && !found.has(name)) found.set(name, 'changed');
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    for (const [name, why] of [...found].sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))) if (!Object.hasOwn(allowed, name)) hits.push({ rule: 'engine-state', file: rel, spec: `${name} (${why})` });
+    for (const name of Object.keys(allowed).sort()) if (!declared.has(name)) hits.push({ rule: 'engine-state', file: rel, spec: `${name} (allowed, not declared)` });
+  }
+  if (whole && seen.size)
+    for (const [rel, names] of Object.entries(ENGINE_STATE_ALLOWED))
+      if (!seen.has(rel)) for (const name of Object.keys(names).sort()) hits.push({ rule: 'engine-state', file: rel, spec: `${name} (allowed, not declared)` });
   return hits;
 }
 
@@ -2584,6 +2713,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...doctorExecHits(root, scanned.files),
     ...engineLayerHits(scanned.fileImports),
     ...jobFileHits(root, scanned.files),
+    ...engineStateHits(root, scanned.files),
   ])
     set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);

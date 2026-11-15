@@ -7,13 +7,13 @@ import { printableText } from '@retake/core/base';
 import { commentAuthorName, regionProblem } from '@retake/core/comments';
 import type { CommentAuthor, CommentRegion } from '@retake/core/comments';
 import { EngineError, addComment, defaultAuthorName, listComments, personScope, reopenComment, replyComment, resolveComment } from '@retake/engine';
-import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
+import type { CommentListView, CommentView, CommentWritten, EnginePorts } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { cliPorts, openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface CommentAddOptions {
@@ -41,8 +41,8 @@ export interface CommentWriteOptions {
   json?: boolean;
 }
 
-function author(given: string | undefined): CommentAuthor {
-  if (given === undefined) return { via: 'cli', name: defaultAuthorName(cliPorts.env) };
+function author(given: string | undefined, ports: EnginePorts): CommentAuthor {
+  if (given === undefined) return { via: 'cli', name: defaultAuthorName(ports.env) };
   const name = commentAuthorName(given);
   if (!name) throw new UsageError('--author: a printable name of 1 to 80 characters');
   return { via: 'cli', name };
@@ -143,7 +143,7 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
     at = Number(opts.at);
   }
   const region = opts.region !== undefined ? parseRegion(opts.region) : undefined;
-  const by = author(opts.author);
+  const by = author(opts.author, global.ports);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const added = await engineCall(() =>
@@ -159,10 +159,10 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
         text,
       },
       by,
-      personScope(project.root, cliPorts),
+      personScope(project.root, global.ports),
       ws.outputs.renders,
       ws.policy,
-      cliPorts.reviewer.frames,
+      global.ports.reviewer.frames,
     ),
   );
   if (opts.json) {
@@ -216,13 +216,15 @@ function printWritten(ui: Ui, what: string, w: CommentWritten, json?: boolean): 
 
 /** `retake comment reply <project> <id> "text"`. */
 export async function commentReplyCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, text: string, opts: CommentWriteOptions): Promise<ExitCode> {
-  const by = author(opts.author);
+  const by = author(opts.author, global.ports);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   return printWritten(
     ui,
     'replied to',
-    await engineCall(() => replyComment(project, id, text, by, { scope: personScope(project.root, cliPorts), renders: ws.outputs.renders, files: fileFacts(ws.policy), reads: ws.reads })),
+    await engineCall(() =>
+      replyComment(project, id, text, by, { scope: personScope(project.root, global.ports), renders: ws.outputs.renders, files: fileFacts(ws.policy), reads: ws.reads, seen: undefined }),
+    ),
     opts.json,
   );
 }
@@ -230,12 +232,12 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, project
 /** `retake comment resolve <project> <id> --note "…" [--render <id>]`. */
 export async function commentResolveCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
   if (opts.note === undefined) throw new UsageError('--note "<what was changed>" is required');
-  const by = author(opts.author);
+  const by = author(opts.author, global.ports);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const w = await engineCall(() =>
     resolveComment(project, id, { note: opts.note as string, ...(opts.render !== undefined ? { render_id: opts.render } : {}) }, by, {
-      scope: personScope(project.root, cliPorts),
+      scope: personScope(project.root, global.ports),
       renders: ws.outputs.renders,
     }),
   );
@@ -244,8 +246,8 @@ export async function commentResolveCommand(ui: Ui, global: GlobalOptions, proje
 
 /** `retake comment reopen <project> <id> [--note "…"]`. */
 export async function commentReopenCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
-  const by = author(opts.author);
+  const by = author(opts.author, global.ports);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  return printWritten(ui, 'reopened', await engineCall(() => reopenComment(project, id, opts.note, by, { scope: personScope(project.root, cliPorts), renders: ws.outputs.renders })), opts.json);
+  return printWritten(ui, 'reopened', await engineCall(() => reopenComment(project, id, opts.note, by, { scope: personScope(project.root, global.ports), renders: ws.outputs.renders })), opts.json);
 }

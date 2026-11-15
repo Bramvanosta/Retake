@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml, stepGuard } from '@retake/core';
 import type { FieldAt } from '@retake/core';
-import { EngineError, createEngine, fieldFitProblem, fieldOptions, memoRegistry, videoPages } from '../src/index.js';
+import { EngineError, createEngine, fieldFitProblem, fieldOptions, videoPages } from '../src/index.js';
 import type { Engine, ScenarioEdit } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
@@ -133,7 +133,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
 
   it("review B: the video's frame offers split / pip when a scene films several pages; on an all-multi-page video a one-page layout says it changes none", async () => {
     const live = parseYaml(await read('live-quote')).value as { scenes: Obj[] };
-    const registry = (await memoRegistry(ui.workspace)).registry;
+    const registry = await ui.components.registry();
     const fit = (await import('@retake/components')).componentFit;
     // live-quote films several pages in every scene: a top-level split dresses them (it could not be picked again
     // before), a one-page style is disabled with why (it would change nothing, silently).

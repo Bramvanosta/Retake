@@ -75,6 +75,52 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.49b)
+- **L7.49b done (2026-11-15; branch `claude/arch-l7`)** — A-S6 closed: what the engine remembers between calls is one
+  engine's, the CLI's commands are handed their ports, the Studio reads a job's files through the JobQueue port, and the
+  ratchet's new `engine-state` check holds the engine's use cases and views to no module state (0 baseline entries).
+  - Code: `facade/context.ts` `EngineCaches` / `engineCaches()` in the context — `RegistryMemo` and `TimelineMemos`
+    (views/timeline-view.ts: the six memos), `RenderMemos` (renders.ts: report summaries, `planSigs` keyed as before),
+    `ThemeEditMemos` (theme-edit.ts: `uses` and the template.yaml `versions` ledger), `PreviewSamplesMemo`
+    (views/theme-preview.ts), `scenarioVersions` (a `VersionLedger`). Bounds and keys unchanged. Handed down:
+    getScenario / saveScenarioText / editScenario / prepareScenarioEdit take `seen` (undefined: a job's own check — remembered
+    nowhere, a restore refused); ScenarioViews / ProjectBoards / RecordStudioContext get `seen` (+ `renderMemos`); the
+    comment-proposal chain an optional `seen`. Removed from the entry: `memoRegistry`, `clearTimelineViewMemo`,
+    `knownScenarioVersion`, `knownThemeVersion`, `buildThemePreview`; added: `RegistryMemo`, `TimelineMemos`,
+    `RenderMemos`, `ThemeEditMemos`, `VersionLedger`. Façade: `components.registry()`, `templates.editList()`,
+    `templates.previewSpec()`, `timeline.forget()`; `Engine.jobFiles` removed (the Studio uses `components.registry()`
+    and `templates.previewSpec()`). JobQueue port `eventsRange(id, offset, max)` and `liveRecord(id, max)` (JobEntries
+    `readRange` / `readPrivate` on both adapters; the file one keeps live.json's private-file check); `readLiveChannel(queue,
+    jobId)`; ui run-live.ts reads both through the port (`JsonlTail` reads are async now). `ToolContext.startedIn` /
+    `InvokeOptions.startedIn` (required): engine_info reads it, the CLI, MCP and Studio shells hand `process.cwd()`.
+    CLI: `cliPorts` gone; workspace.ts `cliEnginePorts()` (still the one `enginePorts` root), `GlobalOptions.ports`,
+    `main(argv, io, ports?)` makes them on the first command; `onInterrupt(ui, ports, o)`, `workspaceQueue(ws, ports)`,
+    `systemProbes(ports)`, `doctorChecks(probes, ws, { ports, … })`, `initWorkspace(dir, ports)`. Four constant Sets typed
+    `ReadonlySet` (library-watch, reviews, record-studio, timeline-view). Docs: DESIGN.md (the queue's paths),
+    DESIGN-phase2.md, target-architecture.md (engine-state), GLOSSARY.
+  - Behaviour: an undo / redo `restore` (scenario, theme) accepts only a version *this engine* showed or wrote (was:
+    this process) — the person's decision of 2026-11-15. No CHANGELOG line: the Studio server and the MCP server each
+    hold one engine, so no person sees it. A job's own reads (run submit check, render submit's shown-edit check, a CLI or
+    job recording's save) remember nothing now; they showed no one. With a memory queue the Studio's live picture reads
+    live.json through the queue (memory entries), so a live channel written on disk beside a memory queue is not seen.
+    The registry memo's failure clears only its own load (it cleared a newer one too).
+  - Tests: new `packages/engine/test/engine-caches.test.ts` (3: per-engine scenario ledger, per-engine registry, memo
+    classes apart; in scripts/test-ci.json `ci`); job-queue contract +1 (events by byte range, both adapters);
+    plan-signature-memo +1; operations +1 (startedIn); import-rules +1 (engine-state). Pins updated: engine-facade
+    SHAPE, engine.test (no jobFiles), the `startedIn` of 14 test files' invoke / ToolContext calls, readLiveChannel's
+    callers (live-channel, run-live-pause, stored-formats, ids-characterization), doctor / sandbox / record / app-bundle
+    / pipeline-cli (ports handed; pipeline-cli hands its ports to main), the `timeline.forget()` of three timeline
+    tests, board-ops / scenario-view / scenario-actions contexts. 24 files run alone, green.
+  - Mutations (each red, restored): a `let` back in renders.ts → `rules.mjs --check` red; engine-state without `let` →
+    import-rules red; one ledger shared by every engine → engine-caches red; the memory readRange ignoring the offset →
+    job-queue (memory) red; engine_info reading `process.cwd()` again → operations red; main() ignoring the ports it is
+    handed → pipeline-cli red (2).
+  - Gates: tsc -b, pnpm typecheck, lint (456, none new), format:check, rules --check (105 → 105, engine-state 0),
+    test-guard (no decrease, no title renamed), check-cites on a scratch copy with the edits: exit 0.
+  - Not done: the live channel's writer (worker side) still writes live.json by the file queue's path (`files.live`);
+    `JobFiles` stays the file queue's, handed to the worker and the board. Process-wide state outside the use cases and
+    views (adapters: jobs/captures.ts, core media probe cache, editor/components module caches) is untouched.
+
 ## State (after L7.53c)
 - **L7.53c done (2026-11-15; branch `claude/arch-l7`)** — the CI tier passes shuffled with seeds 20261115 and 7. Seed 3
   found 7 more files; they are fixed, and each passes alone with seed 3, but no whole-tier run with seed 3 was left in

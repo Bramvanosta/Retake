@@ -24,6 +24,7 @@ import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';
 import { Ui } from '../src/ui.js';
+import { enginePorts } from '@retake/engine';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -521,7 +522,7 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
 describe('retake init (a workspace folder of your own)', () => {
   it('new folder → workspace; existing workspace left; non-empty folder refused; never inside the app', async () => {
     const dir = join(tmp, 'ws-new');
-    expect(await initWorkspace(dir)).toEqual({ root: dir, created: true });
+    expect(await initWorkspace(dir, enginePorts())).toEqual({ root: dir, created: true });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toMatch(/^version: 1$/m);
     // The bytes written, pinned (the workspace's files go through the project store since).
     expect(
@@ -532,19 +533,19 @@ describe('retake init (a workspace folder of your own)', () => {
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.retake/\n');
     expect(readdirSync(join(dir, 'projects'))).toEqual([]);
     writeFileSync(join(dir, 'retake.yaml'), 'version: 1\nprojects_dir: mine\n');
-    expect(await initWorkspace(dir)).toEqual({ root: dir, created: false });
+    expect(await initWorkspace(dir, enginePorts())).toEqual({ root: dir, created: false });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toContain('projects_dir: mine');
     const full = join(tmp, 'ws-full');
     mkdirSync(full);
     writeFileSync(join(full, 'notes.txt'), 'x');
-    await expect(initWorkspace(full)).rejects.toThrow(/is not empty and is not a workspace/);
+    await expect(initWorkspace(full, enginePorts())).rejects.toThrow(/is not empty and is not a workspace/);
     const hidden = join(tmp, 'ws-hidden');
     mkdirSync(hidden);
     writeFileSync(join(hidden, '.DS_Store'), '');
-    expect((await initWorkspace(hidden)).created).toBe(true);
+    expect((await initWorkspace(hidden, enginePorts())).created).toBe(true);
     const app = appBundle();
     overrideBundleInfo(app);
-    await expect(initWorkspace(join(app.root, 'ws'))).rejects.toThrow(BundleError);
+    await expect(initWorkspace(join(app.root, 'ws'), enginePorts())).rejects.toThrow(BundleError);
   });
 });
 
@@ -612,7 +613,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     mkdirSync(ws);
     writeFileSync(join(ws, 'retake.yaml'), 'version: 1\n');
     const io = memoryIo();
-    expect(await componentsPreviewCommand(new Ui(io), { root: ws }, undefined, { all: true })).toBe(0);
+    expect(await componentsPreviewCommand(new Ui(io), { root: ws, ports: enginePorts() }, undefined, { all: true })).toBe(0);
     expect(io.stderr() + io.stdout()).toMatch(/built-in components ship inside the Retake app/);
     expect(io.stderr() + io.stdout()).toMatch(/every preview is up to date/);
   });

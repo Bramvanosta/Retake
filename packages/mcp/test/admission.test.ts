@@ -31,7 +31,7 @@ const open = async () => (await queue.list({ states: ['queued', 'running'], limi
 /** One tool call as the MCP server makes it: served by MCP, the tool's own argument parse, its caller rules, then the handler on the engine. */
 async function call(name: string, args: Record<string, unknown>): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: EngineError }> {
   const tool: ToolDef = TOOLS.find((t) => t.name === name)!;
-  const r = await invoke(tool, async () => engine, args, { shell: 'mcp', signal: new AbortController().signal });
+  const r = await invoke(tool, async () => engine, args, { shell: 'mcp', startedIn: process.cwd(), signal: new AbortController().signal });
   return r.ok ? { ok: true, data: r.output.data as Record<string, unknown> } : { ok: false, error: r.error };
 }
 const refusal = async (name: string, args: Record<string, unknown>) => {

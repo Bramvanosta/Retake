@@ -3,12 +3,12 @@ import { errorMessage, errorsOf, warningsOf } from '@retake/core/base';
 import { bundleInfo } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
 import { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell, personScope, previewsWork } from '@retake/engine';
-import type { ComponentEntry, ComponentRef, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
+import type { ComponentEntry, ComponentRef, EnginePorts, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural, truncate } from '../ui.js';
-import { cliPorts, openWorkspace } from '../workspace.js';
+import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ComponentsListOptions {
@@ -134,14 +134,14 @@ export interface ComponentsCreateOptions {
 }
 
 /** The preview README writer of the workspace's components, journaled as the CLI's (engine componentReadmeWriter). */
-function componentReadmes(ws: OpenedWorkspace) {
-  return componentReadmeWriter(ws, personScope(ws.root, cliPorts));
+function componentReadmes(ws: OpenedWorkspace, ports: EnginePorts) {
+  return componentReadmeWriter(ws, personScope(ws.root, ports));
 }
 
 /** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const created = await componentCreateShell(ws, { id, kind: opts.kind, description: opts.description, name: opts.name }, personScope(ws.root, cliPorts));
+  const created = await componentCreateShell(ws, { id, kind: opts.kind, description: opts.description, name: opts.name }, personScope(ws.root, global.ports));
   // The preview (preview.png + preview.json + the README block) — skipped with a warning when no browser can render.
   let preview: Awaited<ReturnType<typeof previewsWork>>[number] | undefined;
   let previewTheme: string | undefined;
@@ -151,9 +151,9 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
       const { theme, template } = await componentPreviewTheme(ws, opts.theme);
       previewTheme = theme;
       [preview] = await previewsWork({
-        renderer: cliPorts.renderer,
+        renderer: global.ports.renderer,
         workPolicy: ws.policy,
-        readmes: componentReadmes(ws),
+        readmes: componentReadmes(ws, global.ports),
         root: ws.root,
         template,
         targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
@@ -244,9 +244,9 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
   const done = await previewsWork({
-    renderer: cliPorts.renderer,
+    renderer: global.ports.renderer,
     workPolicy: ws.policy,
-    readmes: componentReadmes(ws),
+    readmes: componentReadmes(ws, global.ports),
     root: ws.root,
     registry,
     template,
