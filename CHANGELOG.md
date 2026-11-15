@@ -12,6 +12,15 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- The Studio uses a large screen: no screen is held to a 1200 px column any more, the browser and the inspector grow
+  with the window (up to 300 and 480 px), a wide storyboard shows more frames a row, and Edit's preview takes the
+  height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the
+  search, your projects as cards with a picture of their last take, a New project card, then Lately beside Set up
+  (Claude, the workspace). The browser's foot keeps the version and the UI gallery only.
+- New Studio pages: Locations and cast (every location with its pages and its personas' sessions), a page per location
+  (a sandbox's services, data and files, read only), the project's Settings (project.yaml, read only) and a scenario's
+  Hooks view (before, during and after the take; Board · Hooks · YAML). A search in the title bar opens the palette
+  (⌘K); the themes are cards in their own colours.
 - A sandbox's Postgres snapshot (`reset: {strategy: snapshot}`) is now the template database `<db>__retake_snap`.
   A snapshot your sandbox took before keeps working: its next reset or take renames it (its seed kept, so it is
   restored, not seeded again), or drops it when one under the new name already exists. `retake validate`'s limit of

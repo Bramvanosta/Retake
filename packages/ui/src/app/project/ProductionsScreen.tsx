@@ -1,16 +1,14 @@
 /**
- * The Project screen (B32-Projet; `#/p/<slug>`, a smart group `#/p/<slug>/g/<group>`, a location
- * `#/p/<slug>/loc/<env>`) — the project's productions as a poster grid: ONE listbox (the arrows move, Enter opens, one
+ * The Project screen (B32-Projet; `#/p/<slug>`, a smart group `#/p/<slug>/g/<group>`) — the project's productions as a poster grid: ONE listbox (the arrows move, Enter opens, one
  * tab stop), each poster its last pictured step (run_thumbs through Thumb.tsx, the app's one image source),
  * its title, its state as a shape AND a word (board-words.ts) and its length; a search and a sort; New scenario (the
  * Record screen). Nothing is selected at first: the inspector shows the project (facts, README, recent runs, Lately); a
  * selected production shows its facts (length, content, last take, render, review, location), Open and Render (the
- * status bar's Render on it — it is the scenario in context) and its Lately; a location shows its pages, display URLs,
- * flags and personas.
+ * status bar's Render on it — it is the scenario in context) and its Lately (a location has a page of its own:
+ * LocationScreen.tsx).
  * Reads: the shared project entries (project-data.ts: one project_get, one project_board per open project); a take
  * running is followed by `run_status` (never the whole board at each step). Every value from data is text.
- * A location route shows the location (it clears the selection; selecting a production afterwards shows
- * it: the newest wins); a production the search hides is no longer selected; with the
+ * A production the search hides is no longer selected; with the
  * inspector hidden, what it holds is shown under the grid (ShellSlot inline).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,7 +26,7 @@ import { rememberScenario } from '../shell/modes.js';
 import { ShellSlot } from '../shell/slots.js';
 import { ThumbsProvider } from '../Thumb.js';
 import { Disclosure, EmptyState, LinkButton, PosterGrid, Select, StatusMark, TextField, Toolbar } from '../ui-kit/index.js';
-import { LocationInspector, Poster, ProductionInspector, ProjectInspector } from './production-inspectors.js';
+import { Poster, ProductionInspector, ProjectInspector } from './production-inspectors.js';
 
 export { RunRows } from './production-inspectors.js';
 
@@ -58,7 +56,7 @@ function useRunning(slug: string, board: ProjectBoardView | null): Map<string, P
   return live;
 }
 
-export function ProductionsScreen({ slug, group, env }: { slug: string; group?: ProductionGroup; env?: string }) {
+export function ProductionsScreen({ slug, group }: { slug: string; group?: ProductionGroup }) {
   const view = useProjectView(slug);
   const boardState = useBoard(slug);
   const board = boardState.state === 'ready' ? boardState.data : null;
@@ -76,10 +74,6 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
   useEffect(() => {
     if (gone) setSelected(null);
   }, [gone]);
-  // A location route shows its location: it clears the selection; a production selected afterwards wins.
-  useEffect(() => {
-    if (env !== undefined) setSelected(null);
-  }, [env]);
   const select = (name: string | null) => {
     setSelected(name);
     if (name !== null) rememberScenario(slug, name);
@@ -144,8 +138,8 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
         <p id="pr-keys" className="k-sr">
           Arrow keys move between productions, Enter opens the selected one, Escape clears the selection.
         </p>
-        <ShellSlot name="inspector" inline={current ? 'Production details' : env !== undefined ? 'Location details' : 'Project details'}>
-          {current ? <ProductionInspector s={current} p={p} live={live} /> : env !== undefined ? <LocationInspector p={p} env={env} /> : <ProjectInspector p={p} />}
+        <ShellSlot name="inspector" inline={current ? 'Production details' : 'Project details'}>
+          {current ? <ProductionInspector s={current} p={p} live={live} /> : <ProjectInspector p={p} />}
         </ShellSlot>
       </div>
     </ThumbsProvider>

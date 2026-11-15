@@ -824,8 +824,8 @@ describe('the shell', () => {
 
 describe('the productions listbox and the project shell', () => {
   it('⚑ the poster grid is ONE tab stop: arrows move the selection (a row is three), Home / End, Enter opens, Escape clears; a click selects, a double-click opens', async () => {
-    // Wide enough for the gallery's half column to hold three posters (as many columns as fit).
-    await page.setViewportSize({ width: 2200, height: 900 });
+    // Wide enough for the gallery's half column to hold three posters (as many columns as fit; the panes grow too).
+    await page.setViewportSize({ width: 2400, height: 900 });
     await gallery();
     const col = page.getByTestId('scope-dark');
     const grid = col.getByRole('listbox', { name: /Sample productions/ });
@@ -870,18 +870,18 @@ describe('the productions listbox and the project shell', () => {
     expect((await selected())[0]).toMatch(/^Manage the catalogue/);
   });
 
-  it("the open project: its tree in the browser (Productions and its groups, Library, Locations, Cast, Project); the title bar's project menu goes to another project or Welcome", async () => {
+  it("the open project: its tree in the browser (Productions and its groups, Library, Project: Locations and cast with each location, Settings, README, Record); the title bar's project menu goes to another project or Welcome", async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     const nav = page.getByRole('navigation', { name: 'Studio' });
     await expect.poll(() => nav.getByRole('link', { name: /^Needs a shoot/ }).count(), POLL).toBe(1);
-    for (const name of [/^Productions/, /^Ready to render/, /^Failed/, /^Components/, /^Themes/, /^local/, /^Sessions/, /^README/, /^Record a scenario/])
+    for (const name of [/^Productions/, /^Ready to render/, /^Failed/, /^Components/, /^Themes/, /^Locations and cast/, /^local/, /^Settings/, /^README/, /^Record a scenario/])
       expect(await nav.getByRole('link', { name }).count(), String(name)).toBe(1);
-    expect(await nav.getByRole('heading').allInnerTexts()).toEqual(['Library', 'Locations', 'Cast', 'Project']);
-    // A location's flags in words; a persona's session as a shape and a word.
+    expect(await nav.getByRole('heading').allInnerTexts()).toEqual(['Library', 'Project']);
+    // A location's flags in words, under Locations and cast; its row opens its page.
     expect(await nav.getByRole('link', { name: /^production/ }).innerText()).toMatch(/production$/);
-    await expect.poll(async () => (await nav.locator('.k-source-item.is-quiet').allInnerTexts()).join('|'), POLL).toMatch(/supplier/);
-    expect(await nav.locator('.k-source-item.is-quiet .k-mark-word').first().innerText()).toMatch(/\w/);
+    expect(await nav.getByRole('link', { name: /^production/ }).getAttribute('href')).toBe(`#/p/${P}/loc/production`);
+    expect(await nav.getByRole('link', { name: /^Settings/ }).getAttribute('href')).toBe(`#/p/${P}/settings`);
     // A smart group: the grid filtered, its row current.
     await nav.getByRole('link', { name: /^Needs a shoot/ }).click();
     await page.getByRole('heading', { level: 1, name: 'Needs a shoot' }).waitFor(POLL);

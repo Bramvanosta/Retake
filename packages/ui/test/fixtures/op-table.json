@@ -11,6 +11,7 @@
   "job_list",
   "auth_status",
   "auth_login",
+  "sandbox_status",
   "activity_list",
   "search",
   "projects_overview",
@@ -478,6 +479,38 @@
       "description": "Always 0 from the Studio (the panel follows the job).",
       "type": "number",
       "const": 0
+     }
+    },
+    "required": [
+     "project"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "sandbox_status",
+   "title": "Status of a sandbox",
+   "description": "A sandbox environment of a project (sandbox.yaml): up / partial / down, its services (running, healthy), pages, last seed and reset, and the take lock. It starts nothing.",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {
+     "project": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Project slug (from project_list)."
+     },
+     "env": {
+      "description": "The sandbox environment (default: the first of project.yaml sandboxes).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
      }
     },
     "required": [

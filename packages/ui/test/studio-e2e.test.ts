@@ -181,8 +181,9 @@ describe('the Studio in Chromium', () => {
     expect(text).toMatch(/Last rehearsal failed\s*·\s*quote/);
     const broken = cards.filter({ hasText: 'Broken project' });
     expect(await broken.innerText()).toContain('This project does not load');
-    // The sidebar lists them too, the current screen marked.
-    expect(await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: 'Projects', exact: true }).getAttribute('aria-current')).toBe('page');
+    // Welcome is the list of projects: the window is its own (the browser pane is collapsed, no inspector).
+    expect(await page.getByRole('complementary', { name: 'Browser', includeHidden: true }).isHidden()).toBe(true);
+    expect(await page.getByRole('heading', { level: 1, name: /^Welcome to / }).count()).toBe(1);
     expect(await page.getByTestId('connection').innerText()).toMatch(/Connected/);
     await shot('01-projects');
   });
@@ -196,7 +197,7 @@ describe('the Studio in Chromium', () => {
     await page.getByRole('heading', { name: 'Recent runs' }).waitFor();
     await page.getByText('20261017').or(page.getByText('rehearsal ·').first()).first().waitFor();
     await shot('02-project');
-    // A location's pages, display URLs and flags are in the inspector (the browser's Locations row).
+    // A location's page: its pages, display URLs and flags (the browser's row under Locations and cast).
     await page
       .getByRole('navigation', { name: 'Studio' })
       .getByRole('link', { name: /^local/ })
@@ -357,13 +358,10 @@ describe('the Studio in Chromium', () => {
     // a raw override in the preview could reorder what it shows; the editor below keeps the exact bytes).
     expect(await page.getByTestId('readme-preview').textContent()).toBe(HOSTILE_README.replace('\u202E', '[U+202E]'));
     await shot('07-hostile-project');
-    // The location's page URL and display URL: text in the inspector — reached with a production selected,
-    // no Escape first (the location route shows the location).
-    await poster.click();
-    await page.locator('.sh-inspector .pr-title h3').waitFor();
+    // The location's page URL and display URL: text on its page (the location route has a page of its own).
     await page.goto(`${studio.url}#/p/hostile/loc/staging`);
     await page.getByTestId('location-pages').waitFor();
-    const main = await page.locator('.sh-inspector').innerText();
+    const main = await page.getByTestId('location-pages').innerText();
     expect(main).toContain('https://app.staging.example.com/<svg/onload=window.__pwned=7>');
     await page.goto(`${studio.url}#/p/hostile`);
     await page.getByRole('link', { name: 'Edit the README' }).click();

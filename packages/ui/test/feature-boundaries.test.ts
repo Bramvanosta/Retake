@@ -76,8 +76,19 @@ const FEATURES: Record<string, string[]> = {
   // The library screen; its browser the themes screen shows.
   library: ['library/LibraryBrowser', 'library/LibraryScreen'],
   themes: ['themes/ThemesScreen'],
-  // The project's screens; the create sheet the library uses; the sessions picker of the Record and shoot screens.
-  project: ['project/CastScreen', 'project/CreateSheet', 'project/GalleryScreen', 'project/ProductionsScreen', 'project/ReadmeEditor', 'project/Sessions', 'project/WelcomeScreen'],
+  // The project's screens (a location's page and the settings among them); the create sheet the library uses; the
+  // sessions picker of the Record and shoot screens.
+  project: [
+    'project/CastScreen',
+    'project/CreateSheet',
+    'project/GalleryScreen',
+    'project/LocationScreen',
+    'project/ProductionsScreen',
+    'project/ReadmeEditor',
+    'project/Sessions',
+    'project/SettingsScreen',
+    'project/WelcomeScreen',
+  ],
 };
 
 /** The shared foundations: the root's modules (main.tsx, the entry, apart). A new root module fails until listed here. */

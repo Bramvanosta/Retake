@@ -75,6 +75,43 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after the Studio large-screen pass)
+- **Studio large-screen pass done (2026-11-15; branch `claude/studio-design`, a pull request on `main`)** — the
+  Studio's layout follows the window instead of a 1200 px column, from the person's review of the Studio and the
+  mock-ups canvas "Studio — maquettes grand écran" (https://claude.ai/artifact/HpHSrLTfNFYDPWD4unSeNU, private: its
+  "Maquettes" page and the real screens on "Écrans actuels"). Not a ROADMAP lot (no requirement row).
+  - Shell: `--ui-browser-w` `clamp(240px, 15vw, 300px)`, `--ui-inspector-w` `clamp(320px, 24vw, 480px)`, the centre's
+    side padding `--ui-gutter` (32 – 56 px); no screen caps its width any more (`.sc-screen`, the Review report, the
+    theme editor, Comments, Shoot, Record, the Library detail); a wide storyboard takes 4 then 5 frames a row
+    (container queries, ≥ 1180 / 1500 px of board); the browser's foot is the version, a running worker and the UI
+    gallery (the workspace's folder moved to Welcome).
+  - Welcome rebuilt: the whole window (browser collapsed, no inspector), a greeting beside the search, projects as
+    picture cards (`projects_overview` gains `poster`: the newest capture's last pictured step), a New project card,
+    Lately beside Set up (Claude, the workspace). New tokens `--ui-type-xl` / `--ui-lead-xl`, `--ui-gutter`.
+  - Bugs met on the way (boy-scout rule): Edit's stage shrank to its toolbar when the top notes were empty (an empty
+    `.ed-top` is `display: none`, so the grid's `1fr` row went to the tracks) — each part now keeps its row; the Cast
+    table cut a persona's name ("supplie / r": the session column took 100 %); a button in a callout stretched across it.
+  - Every mock-up page then (the person asked for all of them): the title bar's search (kit `SearchTrigger`, opens the
+    palette); the project's browser regrouped (Library, then Project: Locations and cast with each location under it,
+    Settings, README, Record — the persona rows went to the page); **Locations and cast** (`#/p/<slug>/cast`, every
+    location with its pages and sessions); **a location's page** (`#/p/<slug>/loc/<env>`: pages, a sandbox's services,
+    data and files, its personas — the Project screen no longer shows a location in its inspector); **Settings**
+    (`#/p/<slug>/settings`, project.yaml read only); a scenario's **Hooks** view (`#/p/<slug>/s/<name>/hooks`, Board ·
+    Hooks · YAML); Themes as cards drawn in each theme's colours; README full width; the Set-up sheet's checks as cards.
+  - `sandbox_status` is now served by the Studio (a read: the location page); its other sandbox ops stay refused there.
+    The Studio serves 77 operations (catalogue and op-table counts, the MCP characterizations' "this Studio allows"
+    lists re-recorded).
+  - Tests: the overview golden (`packages/mcp/test/fixtures/query-ops.json`) gains the poster; the mark test reads the
+    64 px mark; three class hooks that now have rules left the hook list; the e2e follow the new tree (Welcome without a
+    browser, the location's page, the 2400 px gallery for three posters); four test titles renamed with what they now
+    say (R-UI-35's, R-UI-36's and R-ARCH-32's evidence follow).
+  - Gates: `pnpm build`, `pnpm typecheck`, `pnpm lint` (none new), `rules.mjs --check`, `--check-cites` 0. Full suite
+    twice: the first run's 7 failures fixed (sizes: the long new components split; feature boundaries: the two new
+    pages are the project's public modules; two board-reads and two comments e2e on the new structure — the composer's
+    Post now has a scroll margin, the bidi check reads a wrapped line); the second run 6948 passed, 3 failed in
+    `studio-e2e-timeline-switch` (a "Saving…" still shown under load) — a load flake: the file 7/7 alone, twice, and
+    with studio-e2e-edit 29/29 (one edit case failed once in a pair run, then 3/3 alone).
+
 ## State (after L7.58)
 - **L7.58 done (2026-11-15; branch `claude/arch-l7`)** — the product's package adapters and their default ports live
   in a new composition package, `@retake/compose` (packages/compose); the shells build their engine from it; the

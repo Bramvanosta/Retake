@@ -96,6 +96,39 @@
   min-width: 0;
   padding-right: var(--ui-space-5);
 }
+.sh-search {
+  display: flex;
+  flex: 1 1 360px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+/* A narrow window: the search gives its room to the screen's context first, then goes (⌘K and the palette stay). */
+@media (max-width: 1280px) {
+  .sh-search {
+    flex-basis: 200px;
+  }
+}
+/* Beside a screen's context control (a scenario's View and Location, a take, a theme), up to 1440 px: the search is its
+   icon alone (named for assistive technology), so the context keeps its words. */
+@media (max-width: 1440px) {
+  .sh-titlebar-end:has(.sh-slot-context:not(:empty)) .sh-search {
+    flex: none;
+  }
+  .sh-titlebar-end:has(.sh-slot-context:not(:empty)) .k-search-trigger {
+    width: var(--ui-control-h);
+    padding: 0;
+    justify-content: center;
+  }
+  .sh-titlebar-end:has(.sh-slot-context:not(:empty)) .k-search-trigger-text,
+  .sh-titlebar-end:has(.sh-slot-context:not(:empty)) .k-search-trigger .k-kbd-group {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .sh-search {
+    display: none;
+  }
+}
 .sh-slot-context {
   display: flex;
   align-items: center;
@@ -175,14 +208,6 @@
 .sh-foot-line {
   margin: 0;
   min-width: 0;
-}
-.sh-foot-label {
-  display: block;
-  font-weight: var(--ui-weight-strong);
-}
-.sh-foot-path {
-  display: block;
-  overflow-wrap: anywhere;
 }
 .sh-foot-link {
   justify-self: start;
@@ -363,7 +388,7 @@
 
 /* The installed app's Set-up sheet (SetupSheet.tsx): wider than a confirmation, scrolling inside the window. */
 dialog.k-sheet[data-testid='setup-sheet'] {
-  width: min(var(--ui-palette-w), calc(100% - 32px));
+  width: min(960px, calc(100% - 32px));
   /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
   max-height: calc(100% - var(--ui-titlebar-h) - var(--ui-space-8));
   overflow-y: auto;
@@ -394,6 +419,18 @@ dialog.k-sheet[data-testid='setup-sheet'] {
 .sh-setup-confirm > p {
   flex-basis: 100%;
   margin: 0;
+}
+
+/* The Set-up sheet's checks as cards, two a row where the window has room (one in a narrow one). */
+dialog.k-sheet[data-testid='setup-sheet'] .k-checklist {
+  grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
+  gap: var(--ui-space-5);
+}
+dialog.k-sheet[data-testid='setup-sheet'] .k-check {
+  padding: var(--ui-space-6);
+  border-top: 0;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-raised);
 }
 
 /* The update sheet's release notes (the feed's plain text: line breaks kept, long ones scroll). */

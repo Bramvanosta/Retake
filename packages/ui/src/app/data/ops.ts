@@ -54,6 +54,8 @@ export type ScenarioBlocksView = Result<'scenario_blocks'>;
 export type ThumbAnswer = Result<'run_thumbs'>;
 /** A job of the queue, as job_list shows it (the Cast's sessions panel); auth_login and sign_in_cancel answer one. */
 export type JobLite = Result<'job_list'>['jobs'][number];
+/** sandbox_status: a sandbox's state, services, seed, last reset, take lock and files (a location's page). */
+export type SandboxAnswer = Result<'sandbox_status'>;
 /** frame_anchor: a frame's anchor for a new thread (its step at that frame now). */
 export type AnchorAnswer = Result<'frame_anchor'>;
 /** render_frame: one frame of a render as a JPEG. */

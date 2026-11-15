@@ -1,5 +1,5 @@
 /**
- * A row of the Themes list: the theme's swatches, its name (a link when it opens in the editor), its tags, what uses it,
+ * A card of the Themes list: the theme's tile (its colours), its swatches, its name (a link when it opens in the editor), its tags, what uses it,
  * Edit / Open and Copy to edit…, why it is read-only and its first problems. Presentational.
  */
 import type { ThemeListAnswer } from '../../server/theme-ops.js';
@@ -16,9 +16,31 @@ export function Swatch({ hex, label }: { hex?: string | null; label: string }) {
   return <span className="tm-swatch" style={{ background: hex }} title={`${label} ${hex}`} aria-label={`${label} ${hex}`} role="img" />;
 }
 
+/**
+ * A theme's tile: its paper, its name in its text colour over an accent rule — theme data drawn as the card's picture
+ * (only hex values reach the style; a theme without them shows the Studio's own video tone).
+ */
+export function ThemeTile({ t }: { t: ListTheme }) {
+  const paper = okHex(t.colors.paper) ? t.colors.paper : undefined;
+  const text = okHex(t.colors.text) ? t.colors.text : undefined;
+  const accent = okHex(t.colors.accent) ? t.colors.accent : undefined;
+  return (
+    <div className="tm-tile" aria-hidden="true" style={paper ? { background: paper } : undefined}>
+      <span className="tm-tile-kicker" style={accent ? { color: accent } : undefined}>
+        Product tour
+      </span>
+      <span className="tm-tile-name" style={text ? { color: text } : undefined}>
+        <Txt text={t.name} />
+      </span>
+      <span className="tm-tile-rule" style={accent ? { background: accent } : undefined} />
+    </div>
+  );
+}
+
 export function ThemeRow({ slug, t, onCopy }: { slug: string; t: ListTheme; onCopy: () => void }) {
   return (
-    <li className="tm-row" data-testid="theme-row" data-theme={t.name} data-editable={t.editable === true ? 'yes' : 'no'}>
+    <li className="tm-row tm-card" data-testid="theme-row" data-theme={t.name} data-editable={t.editable === true ? 'yes' : 'no'}>
+      <ThemeTile t={t} />
       <div className="tm-row-main">
         <span className="tm-swatches" aria-hidden={!t.colors.accent}>
           <Swatch hex={t.colors.paper} label="paper" />

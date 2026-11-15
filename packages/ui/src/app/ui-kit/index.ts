@@ -3,7 +3,7 @@
  * platform (native controls, `<dialog>`, `popover`): no component library. Screens use these (a source lint keeps new
  * screens on the kit and lets the legacy count only go down); `kit.css` reads the `--ui-*` tokens of tokens.ts.
  */
-export { Button, IconButton, Kbd, LinkButton } from './Button.js';
+export { Button, IconButton, Kbd, LinkButton, SearchTrigger } from './Button.js';
 export type { ButtonProps, ButtonSize, ButtonVariant, IconButtonProps } from './Button.js';
 export { AppMark } from './AppMark.js';
 export { Icon, ICON_NAMES } from './Icon.js';

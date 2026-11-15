@@ -10,7 +10,7 @@ import type { Mode, ScenarioContext } from './modes.js';
 const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
 
 /** A Mac (its shortcuts use ⌘; Ctrl+K edits text there). */
-const MAC = typeof navigator !== 'undefined' && /^(?:mac|iphone|ipad)/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform);
+export const MAC = typeof navigator !== 'undefined' && /^(?:mac|iphone|ipad)/i.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform);
 
 /** A field that takes typed text (its own Ctrl+K, if any, stays its own). */
 function inTextField(t: EventTarget | null): boolean {

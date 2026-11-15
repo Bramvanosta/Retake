@@ -15,6 +15,7 @@ import {
   FieldRow,
   FrameCard,
   IconButton,
+  SearchTrigger,
   InspectorSection,
   Kbd,
   LinkButton,
@@ -193,12 +194,13 @@ export function GalleryBasics({ name, s }: { name: string; s: GalleryState }) {
         </Button>
         <LinkButton to={{ name: 'projects' }}>All projects</LinkButton>
       </Section>
-      <Section title="Icon buttons and key caps">
+      <Section title="Icon buttons, key caps and the search">
         <IconButton icon="inspector" label={`Inspector (${name})`} pressed={pressed} onClick={() => setPressed((p) => !p)} />
         <IconButton icon="undo" label="Undo" />
         <IconButton icon="redo" label="Redo" disabled />
         <IconButton icon="more" label="More" size="sm" />
         <Kbd keys={['⇧', '⌘', 'R']} />
+        <SearchTrigger placeholder="Search scenarios, scenes, commands" kbd={['⌘', 'K']} onOpen={() => undefined} />
       </Section>
       <Section title="Segmented controls">
         <Segmented

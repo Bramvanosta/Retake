@@ -746,19 +746,24 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium", () => {
     expect(await cell.evaluate((el) => [el.getAttribute('dir'), getComputedStyle(el).unicodeBidi, getComputedStyle(el).whiteSpace])).toEqual(['ltr', 'bidi-override', 'pre-wrap']);
     // ⚑ Byte order on screen: the Hebrew letters and the text after them are drawn left to right as the
     // bytes go — first letter leftmost, the final "a" rightmost — and the row says it holds right-to-left text.
+    // Reading order on screen: a later byte is to the right on the same line, or on a later line (the cell wraps
+    // where the inspector is narrow).
     const xs = await cell.evaluate((el) => {
       const node = el.querySelector('span')!.firstChild as Text;
-      const x = (i: number) => {
+      const at = (i: number) => {
         const r = document.createRange();
         r.setStart(node, i);
         r.setEnd(node, i + 1);
-        return r.getBoundingClientRect().left;
+        const b = r.getBoundingClientRect();
+        return [Math.round(b.top), b.left] as const;
       };
       const t = node.data;
-      return [x(t.indexOf('ע')), x(t.indexOf('ת')), x(t.lastIndexOf('a'))];
+      return [at(t.indexOf('ע')), at(t.indexOf('ת')), at(t.lastIndexOf('a'))];
     });
-    expect(xs[0]).toBeLessThan(xs[1]);
-    expect(xs[1]).toBeLessThan(xs[2]);
+    const readsBefore = (a: readonly [number, number], b: readonly [number, number]) => (a[0] === b[0] ? a[1] < b[1] : a[0] < b[0]);
+    expect(xs[0][0]).toBe(xs[1][0]);
+    expect(xs[0][1]).toBeLessThan(xs[1][1]);
+    expect(readsBefore(xs[1], xs[2]), JSON.stringify(xs)).toBe(true);
     expect(await page.locator('[data-testid="proposal"] [data-testid="diff-row"][data-kind="add"]').filter({ hasText: 'onerror' }).getByTestId('diff-rtl').innerText()).toBe('right-to-left text');
     // ⚑ Every row is on the page, Apply after the whole diff: the box has no inner scroll.
     const box = page.getByTestId('proposal-diff-box');

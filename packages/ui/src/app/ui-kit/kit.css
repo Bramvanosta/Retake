@@ -57,6 +57,41 @@
 }
 
 /* Buttons */
+/* The title bar's search (SearchTrigger): a field's look, a button's behaviour (it opens the palette). */
+.k-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  height: var(--ui-control-h);
+  padding: 0 var(--ui-space-3) 0 var(--ui-space-4);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-canvas);
+  color: var(--ui-text-3);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-search-trigger:hover {
+  border-color: var(--ui-text-3);
+  color: var(--ui-text-2);
+}
+.k-search-trigger:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.k-search-trigger-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .k-btn {
   display: inline-flex;
   align-items: center;
@@ -1315,6 +1350,10 @@ summary.k-section-title {
 .k-callout-body ul {
   padding-left: var(--ui-space-6);
 }
+/* A button in a callout keeps its own width (a grid item would stretch across the well). */
+.k-callout-body > .k-btn {
+  justify-self: start;
+}
 
 /* The storyboard — a scene's frames (one listbox in a grid of three; the selected one's fill and ring) */
 .k-frames {
@@ -1328,6 +1367,17 @@ summary.k-section-title {
 }
 /* Inside a board (a `k-board` container: the scenario's storyboard), the columns follow its width — three while a frame
    keeps about 180 px, then two, then one (a 900 px window with the inspector shown) */
+/* A wide board (a large screen, the inspector hidden) takes more frames a row, each about 260 px or more. */
+@container k-board (min-width: 1180px) {
+  .k-frames {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@container k-board (min-width: 1500px) {
+  .k-frames {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
 @container k-board (max-width: 600px) {
   .k-frames {
     grid-template-columns: repeat(2, minmax(0, 1fr));

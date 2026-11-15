@@ -5,7 +5,7 @@
  * "Pictures from" picker), the source run and every step's binding to it.
  *
  * The screen in the shell: the scenario's name is the page's (visually hidden) h1 — the title bar names it; the title
- * bar's context holds the View (Board · YAML) and the Location (the environment Rehearse and Capture use, remembered
+ * bar's context holds the View (Board · Hooks · YAML: HooksView.tsx) and the Location (the environment Rehearse and Capture use, remembered
  * per scenario in this tab only, sent as `env` only when it is not the file's own; one choice shared with Prepare and
  * the status bar — run-location.ts); the browser shows the scenario's entries (ScenesBrowser.tsx); the inspector what
  * is selected (ScenarioInspector.tsx — the File in the YAML view). Above both views: a run of this scenario queued or
@@ -37,6 +37,7 @@ import type { ScenarioTab } from '../route.js';
 import { ShellSlot } from '../shell/slots.js';
 import { ThumbsProvider } from '../Thumb.js';
 import { FileInspector, YamlTab } from './YamlTab.js';
+import { HooksView } from './HooksView.js';
 import { scenarioKey, useDirty } from '../drafts.js';
 import { EditBar, IssueLines, useStepEditor } from './StepEditing.js';
 import { Palette } from './StepForm.js';
@@ -157,6 +158,10 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     if (tab === 'yaml') {
       const r = rangeOf(v, s);
       if (r) setFocus(r);
+    } else if (tab === 'hooks') {
+      // A pick from the Hooks view opens the board on it (the hooks themselves stay selected there).
+      location.hash = hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' });
+      window.setTimeout(() => document.getElementById(at)?.scrollIntoView({ block: 'start', behavior: 'auto' }), 0);
     } else document.getElementById(at)?.scrollIntoView({ block: 'start', behavior: 'auto' });
   };
   browse.current = onBrowse;
@@ -191,6 +196,8 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
             <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
             <BoardFooter v={v} slug={slug} name={name} renders={renders} />
           </>
+        ) : tab === 'hooks' ? (
+          <HooksView v={v} slug={slug} name={name} />
         ) : (
           <>
             <ShellSlot name="inspector" inline="File">
@@ -344,7 +351,7 @@ function ScenarioLoading({ error, pick, onDefaultRun }: { error: string | null; 
   );
 }
 
-/** The title bar's context: the View (Board · YAML) and the Location. */
+/** The title bar's context: the View (Board · Hooks · YAML) and the Location. */
 function ScenarioContext({
   slug,
   name,
@@ -369,6 +376,7 @@ function ScenarioContext({
           label="View"
           items={[
             { key: 'board', label: 'Board', to: { name: 'scenario', slug, scenario: name, tab: 'blocks' }, current: tab === 'blocks' },
+            { key: 'hooks', label: 'Hooks', to: { name: 'scenario', slug, scenario: name, tab: 'hooks' }, current: tab === 'hooks' },
             { key: 'yaml', label: 'YAML', to: { name: 'scenario', slug, scenario: name, tab: 'yaml' }, current: tab === 'yaml' },
           ]}
         />

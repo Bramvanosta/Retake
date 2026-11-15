@@ -1,7 +1,8 @@
 /**
  * The Studio app: the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one event
  * stream per browser) and the screens inside the shell — Welcome (the projects, search and recent activity), a
- * project's productions (the poster grid, its smart groups and locations; the Cast), its README editor, a scenario as
+ * project's productions (the poster grid, its smart groups), its locations and cast, a location's page, its settings,
+ * its README editor, a scenario as
  * blocks with its run's pictures, its Shoot screens (Prepare a take and one run live), its timeline (Edit in the
  * shell), its Review report, its frame comments and the preview of a proposed change, its component library and its
  * themes, the Record screen. Every string from the server is a React text node: no HTML from data, ever (a source lint
@@ -23,6 +24,8 @@ import { startUnsavedReport } from './unsaved-report.js';
 import { CommentsScreen } from './review/CommentsScreen.js';
 import { LibraryScreen } from './library/LibraryScreen.js';
 import { CastScreen } from './project/CastScreen.js';
+import { LocationScreen } from './project/LocationScreen.js';
+import { SettingsScreen } from './project/SettingsScreen.js';
 import { ProductionsScreen } from './project/ProductionsScreen.js';
 import { WelcomeScreen } from './project/WelcomeScreen.js';
 import { ReadmeEditor } from './project/ReadmeEditor.js';
@@ -60,7 +63,8 @@ const TITLES: Record<Route['name'], string> = {
   project: 'Productions',
   group: 'Productions',
   location: 'Location',
-  cast: 'Cast',
+  cast: 'Locations and cast',
+  settings: 'Settings',
   readme: 'README',
   scenario: 'Scenario',
   run: 'Shoot',
@@ -99,9 +103,11 @@ function Studio() {
   return (
     <AppShell route={route} list={list}>
       {(route.name === 'projects' || route.name === 'setup') && <WelcomeScreen list={list} />}
-      {(route.name === 'project' || route.name === 'group' || route.name === 'location') && (
+      {route.name === 'location' && <LocationScreen key={`${route.slug}/${route.env}`} slug={route.slug} env={route.env} />}
+      {route.name === 'settings' && <SettingsScreen key={route.slug} slug={route.slug} />}
+      {(route.name === 'project' || route.name === 'group') && (
         // One element for the three (keyed by the project): a smart group or a location keeps the search and the selection.
-        <ProductionsScreen key={route.slug} slug={route.slug} {...(route.name === 'group' ? { group: route.group } : {})} {...(route.name === 'location' ? { env: route.env } : {})} />
+        <ProductionsScreen key={route.slug} slug={route.slug} {...(route.name === 'group' ? { group: route.group } : {})} />
       )}
       {route.name === 'cast' && <CastScreen key={route.slug} slug={route.slug} />}
       {route.name === 'readme' && <ReadmeEditor key={route.slug} slug={route.slug} />}

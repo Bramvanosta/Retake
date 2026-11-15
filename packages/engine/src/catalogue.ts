@@ -141,7 +141,7 @@ const EXPORT_RULES: readonly AdmissionRule[] = ['export_cap'];
 
 // Reasons several operations share.
 const NO_HOOKS_IN_STUDIO = no("the Studio runs hooks only inside a capture, and refuses one whose hooks need a person (a page's script cannot be told from a person's click): a terminal runs them");
-const NO_SANDBOX_IN_STUDIO = no("no Studio screen manages a sandbox (the Studio's runs never start or reset one): `retake sandbox` in a terminal");
+const NO_SANDBOX_IN_STUDIO = no("no Studio screen manages a sandbox (a location's page reads its status only; the Studio's runs never start or reset one): `retake sandbox` in a terminal");
 const COMMENT_PAGE = no('a page is never Claude: the Studio answers threads through its own thread ops (the channel studio, never a proposal)');
 const DESKTOP_ONLY = no("the desktop app's own server only: between its window and its shell");
 const SETUP_ONLY = no("the installed app's Set-up sheet only: no MCP tool can install the command or register Retake with Claude");
@@ -307,7 +307,7 @@ const ENTRIES = [
       ],
     },
   },
-  { name: 'sandbox_status', ...R, cli: ['sandbox status'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
+  { name: 'sandbox_status', ...R, cli: ['sandbox status'], mcp: true, studio: STUDIO },
   { name: 'sandbox_up', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, seeded again when its seed changed"), cli: ['sandbox up'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_reset', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, put back to its seed"), cli: ['sandbox reset'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
 

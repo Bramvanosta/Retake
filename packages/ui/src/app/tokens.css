@@ -19,9 +19,11 @@
   --ui-type-sm: 13px;
   --ui-type-md: 15px;
   --ui-type-lg: 20px;
+  --ui-type-xl: 32px;
   --ui-lead-sm: 18px;
   --ui-lead-md: 22px;
   --ui-lead-lg: 26px;
+  --ui-lead-xl: 38px;
   --ui-tracking: -0.01em;
   --ui-weight-regular: 400;
   --ui-weight-strong: 600;
@@ -35,6 +37,7 @@
   --ui-space-8: 24px;
   --ui-space-9: 32px;
   --ui-space-10: 40px;
+  --ui-gutter: clamp(32px, 2.5vw, 56px);
   --ui-radius-kbd: 4px;
   --ui-radius-segment: 6px;
   --ui-radius-control: 7px;
@@ -45,8 +48,8 @@
   --ui-radius-overlay: 14px;
   --ui-titlebar-h: 48px;
   --ui-statusbar-h: 34px;
-  --ui-browser-w: 240px;
-  --ui-inspector-w: 320px;
+  --ui-browser-w: clamp(240px, 15vw, 300px);
+  --ui-inspector-w: clamp(320px, 24vw, 480px);
   --ui-label-w: 96px;
   --ui-control-h: 30px;
   --ui-control-sm: 26px;
