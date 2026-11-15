@@ -87,9 +87,12 @@ export const UI_STATIC: Record<string, string> = {
   'type-sm': '13px',
   'type-md': '15px',
   'type-lg': '20px',
+  /** Welcome's title. */
+  'type-xl': '32px',
   'lead-sm': '18px',
   'lead-md': '22px',
   'lead-lg': '26px',
+  'lead-xl': '38px',
   tracking: '-0.01em',
   'weight-regular': '400',
   'weight-strong': '600',
@@ -103,6 +106,8 @@ export const UI_STATIC: Record<string, string> = {
   'space-8': '24px',
   'space-9': '32px',
   'space-10': '40px',
+  /** The centre pane's side padding: 32 px in a narrow window, up to 56 px on a large screen. */
+  gutter: 'clamp(32px, 2.5vw, 56px)',
   'radius-kbd': '4px',
   'radius-segment': '6px',
   'radius-control': '7px',
@@ -113,8 +118,10 @@ export const UI_STATIC: Record<string, string> = {
   'radius-overlay': '14px',
   'titlebar-h': '48px',
   'statusbar-h': '34px',
-  'browser-w': '240px',
-  'inspector-w': '320px',
+  /** The browser pane: 240 px in a narrow window, up to 300 px on a large screen. */
+  'browser-w': 'clamp(240px, 15vw, 300px)',
+  /** The inspector: 320 px in a narrow window, up to 480 px on a large screen (it holds forms and pictures). */
+  'inspector-w': 'clamp(320px, 24vw, 480px)',
   'label-w': '96px',
   'control-h': '30px',
   'control-sm': '26px',

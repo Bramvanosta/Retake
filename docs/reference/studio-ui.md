@@ -131,7 +131,8 @@ flight with their own dashed edge, no fade.)
 - Spacing (4-based): `--ui-space-1 … -10` = 2 4 6 8 12 16 20 24 32 40.
 - Radii: key cap 4, segment 6, control 7 (buttons, fields, rows), frame 8, segmented well 9, well 10 (blocker, menu,
   section), card 12, overlay 14 (sheet, palette).
-- Sizes: title bar 48, status bar 34, browser 240, inspector 320 (label column 96 + gap 16), control 30 / small 26 /
+- Sizes: title bar 48, status bar 34, browser 240 – 300 (`clamp(240px, 15vw, 300px)`), inspector 320 – 480
+  (`clamp(320px, 24vw, 480px)`; label column 96 + gap 16), the centre's side padding 32 – 56 (`--ui-gutter`), control 30 / small 26 /
   large 36, icon 16 (1.5 px strokes), status mark 7 (as the canvas; rings 10), frame card ≈ 248 × 140 (16:9), overlay width 560,
   the overlay title bar's inset 80 (0 on the web).
 
@@ -155,19 +156,23 @@ flight with their own dashed edge, no fade.)
   "All projects" → Welcome) › the scenario (text), truncated before they reach the mode switch (at 900 px too). The mode switch is centred: a link per mode when a scenario is in context (the
   route's, or the one opened last in this project while it still lists it), disabled buttons with a hint otherwise.
   It is centred on the window, under the desktop app's overlay bar too (two equal side columns around it; the window
-  buttons' inset sits inside the start one). Right: the screen's context
+  buttons' inset sits inside the start one). Right: the search (a field's look — "Search scenarios, scenes, commands",
+  ⌘K —, a button that opens the command palette; its icon alone beside a context control up to 1440 px, gone under
+  1100 px: ⌘K stays), the screen's context
   control (a select: Location, Take, View) and the inspector toggle (an icon button named "Inspector", pressed while
   shown). Nothing in the bar can be selected as text.
-- **Browser.** A source list. No project open (Welcome): Projects and the workspace's projects. A project open
-  (L5.10a, B32): **Productions** (its count) with its smart groups **Ready to render · Needs a shoot · Failed** (counts);
-  **Library** (Components, Themes); **Locations** (one row per environment, its riskiest flag in a word: production,
-  read-only, sandbox, default); **Cast** (Sessions, then each persona's session as a shape and a word); **Project**
-  (README with "unsaved" while dirty, Record a scenario). Its foot: the workspace path, the version and the worker's
-  pid, the UI gallery link. A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
+- **Browser.** A source list. No project open (Welcome): the pane is collapsed (Welcome is the list of projects). A
+  project open (L5.10a, B32): **Productions** (its count) with its smart groups **Ready to render · Needs a shoot ·
+  Failed** (counts); **Library** (Components, Themes); **Project**: **Locations and cast** (its sessions to sign in in
+  words — "2 to sign in" —, else its count of locations; under it one row per location, its riskiest flag in a word:
+  production, read-only, sandbox, default — each opens its page), **Settings**, **README** ("unsaved" while dirty),
+  **Record a scenario**. Its foot, quiet: the app's name and version, "worker running"
+  (and who started it) while one runs, the UI gallery link — the workspace's folder is Welcome's. A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
   slot; the foot stays) — Video (the total length), Before filming, each scene (number, title, length, a 2 px bar against
   the longest), the cards (quieter), After filming; a row selects its entry and brings it into view (on the board the
   entry, in the YAML view its lines).
-- **Centre.** The only scroller: the bars never move. It starts at the top when the screen changes, and keeps its
+- **Centre.** No screen caps its width (large screens: the grids take more columns, the forms and tables the width);
+  its side padding grows with the window (`--ui-gutter`). The only scroller: the bars never move. It starts at the top when the screen changes, and keeps its
   place when the screen moves inside itself (a thread, a frame, a run, a theme picked).
 - **Inspector.** Shown only while the screen fills it; titled sections, the inspector's field rows (a right-aligned
   label column).
@@ -271,14 +276,22 @@ The Project and Scenario reference is **B32 (« B·3b Épure », round 3, valida
 layout and drawing. C1 / C2 are round 1's rejected « Script » direction: not used. The canvas says "Retake"; the
 Studio keeps `APP_NAME` (L5.13 renames).
 
-- **Welcome** (no project open; R4-Welcome) — built in L5.10a: R4's identity column — the app's 128 px mark (full: The mark and the name), its name,
-  version and one sentence, New project as a command to copy (no write path from the page), the projects folder —
-  beside "Recent projects" (name, slug, scenario and location counts, last run as a shape and a word, location flags in
-  words, folder; a project that does not load with its first error line); one column under 1180 px; then the search and
-  Lately; the inspector: the workspace and Claude (the MCP command to copy; under Lately when the inspector is hidden).
-  Deviations: R4's three columns become two inside the shell (the browser is R4's third); no project poster (they span
-  projects: BL-128), no "This Mac is ready" panel (no doctor op: BL-128), no Open a folder (no write path: BL-128), the
-  projects listed by name, not by recency.
+- **Welcome** (no project open) — the whole window: the browser pane is collapsed (the page is the list of projects)
+  and there is no inspector. A greeting (the app's 64 px mark, "Welcome to Retake" at `--ui-type-xl`, one sentence)
+  beside the search; **Projects** (their count) as cards filling the width (`auto-fill`, ≥ 340 px): each card its
+  picture (`projects_overview`'s `poster`: the last pictured step of the newest capture, else of the newest run with
+  one; run_thumbs through Thumb), name (the one link: it covers the card), scenario and location counts, last run as a
+  shape and a word, location flags in words, folder (a project that does not load: its first error line); then a dashed
+  **New project** card (the command to copy: no write path from the page). Under them **Lately** beside **Set up**
+  (Work with Claude: the MCP command to copy; Workspace: folder, projects folder, version, worker); one column under
+  1100 px. Deviations: no "This Mac is ready" panel (no doctor op: BL-128), no Open a folder (no write path: BL-128),
+  the projects listed by name, not by recency.
+- **Hooks** (`#/p/<slug>/s/<name>/hooks`, the scenario's third view) — the hooks around the take, from the scenario's
+  blocks: a callout when some need a person (a capture is then refused in the Studio; See in Prepare), **Before filming**
+  (the setup hooks numbered, each its kind, name, flags, what it does, its rollback, "Needs a person" and why) beside
+  **After filming** (the teardown hooks, then the rollbacks in reverse order), and **During the take, off camera** as wide
+  as the page: the named hooks as a table (hook, kind, what it does with its variables as written, the steps that call
+  it). The outcome of the run the board pictures per phase; a scene picked in the browser opens the board on it.
 - **The status bar's actions** — built in L5.11a (B32-Projet / B32-Scenario footers): on every screen with a scenario
   in context, its state in a non-live span (*Rehearsing · step 12 of 25 · Watch*, *Capture paused*, *Last take
   succeeded · 2 h ago*, *Idle*; its name first off its own screens; *on staging* when the tab chose another location),
@@ -301,13 +314,25 @@ Studio keeps `APP_NAME` (L5.13 renames).
   last pictured step, its title, its state as a shape and a word, its length); a project.yaml warning line with a
   Disclosure. The inspector: nothing selected → the project (facts, README preview and Edit / Write / Open, recent
   runs, Lately); a production → its poster, title and file, state, facts (length, content, last take, capture, render,
-  review, location), Open and Render (L5.11a: the status bar's Render on that production), Lately; a Location
-  (`#/p/<slug>/loc/<env>`) → its flags, pages (URL, shown as) and personas — a location route clears the selection. The
+  review, location), Open and Render (L5.11a: the status bar's Render on that production), Lately. The
   inspector hidden: its content under the grid, under a heading. The posters reflow (auto-fill, 200 px at least); the
-  search's label is visually hidden behind a search icon (B32). The Cast (`#/p/<slug>/cast`; L5.11a: on the kit — one
-  section per location, the personas as Prepare's session rows, Sign in… / Cancel / Sign in again); the browser's Cast rows put a persona's location on a second line that wraps. Deviations: the canvas's
+  search's label is visually hidden behind a search icon (B32). Deviations: the canvas's
   Location select on this screen is cut (BL-128).
-- **Scenario** (B32-Scenario) — built in L5.10b: the title bar's context holds View (Board · YAML) and Location (the
+- **Locations and cast** (`#/p/<slug>/cast`) — every location of project.yaml as a panel: its name (a link to its
+  page), flags in words and its personas' count, "N sessions to sign in" in words when some are, its pages (key, URL,
+  shown as), then its personas as Prepare's session rows (Sign in… / Cancel / Sign in again) or why none signs in.
+- **A location** (`#/p/<slug>/loc/<env>`) — a page of its own, read only: its name and flags, what its kind means for a
+  take, panels for the pages the video shows, a sandbox's services (state and health, pid or container, started), data
+  (seed current or changed, last reset, take lock) and files (provider, sandbox.yaml, logs, the terminal command to
+  copy) — `sandbox_status`, the one sandbox op the Studio serves: it starts, seeds and resets nothing — and, as wide as
+  the page, its personas' sessions.
+- **Settings** (`#/p/<slug>/settings`) — project.yaml as `project_get` gives it (defaults applied, no login step, a
+  password in a URL masked), read only: whether it is valid, its warnings, then panels — the video (capture, frame,
+  theme, language, clock), the locations and sandboxes (links to their pages), who signs in where (names and how;
+  never a password), the reset hooks and the named hooks every scenario may call (each in one line: kind, name, what it
+  does, its rollback — never a header, body or environment), the test mailbox, the browser and pacing, what a hook may
+  reach (extra hosts, databases, variables, passed-on environment: their names only) and the raw export's defaults.
+- **Scenario** (B32-Scenario) — built in L5.10b: the title bar's context holds View (Board · Hooks · YAML) and Location (the
   environments with their flags in words; a choice holds in this tab only and changes what Rehearse and Capture use —
   L5.11a: Prepare and the status bar share it —; one project.yaml no longer has is dropped and said once); the scenario's
   name is a visually hidden h1 (the title bar keeps it readable at 900 px, its full text in a tooltip). Above the board
@@ -440,7 +465,7 @@ Studio keeps `APP_NAME` (L5.13 renames).
   region, newer renders, still when gone, entries), Claude's proposal (summary, rewrite note, the DiffTable with
   "scenarios/<name>.yaml · line N", the offered buttons, Undo apply, the render after it, Resolve with vN), Reply,
   Resolve, Reopen; while none is open, how comments work. Edit shows the proposal's banner (a Callout: never applies).
-  Deviations: no 64 px thumbnail per row (a still read per row: BL-133); the inspector 320 px (the token), R4 380. At
+  Deviations: no 64 px thumbnail per row (a still read per row: BL-133); the inspector 320 – 480 px (the token), R4 380. At
   900 px the panes keep their places (a trade-off: the frame ≥ 260 px, the diff's code column ≥ 160 px with its lines
   wrapped, no sideways scroll — an e2e holds it); drawing a region there is easier with the four % fields.
 - **README** — built in L5.12b on the kit: a tall text area, the save state in words, Save / Discard changes, the count
@@ -574,7 +599,7 @@ outline behind, the new one in front with a play triangle, on a plate — one dr
 
 | variant | size | drawing | where |
 |---|---|---|---|
-| full | ≥ 64 px | back take a 6-unit outline (50 × 36 at 17, 21), front take filled (50 × 36 at 33, 43), play triangle in the plate's colour (2.5 stroke, round joins) | Welcome (128 px), the desktop icon (1024, and the icns' 128 – 1024 slots) |
+| full | ≥ 64 px | back take a 6-unit outline (50 × 36 at 17, 21), front take filled (50 × 36 at 33, 43), play triangle in the plate's colour (2.5 stroke, round joins) | Welcome (64 px), the desktop icon (1024, and the icns' 128 – 1024 slots) |
 | small | 21 – 63 px | frames 52 × 38 at 15, 19 / 33, 43, an 8-unit outline, no triangle | the icns' 32 pt slot (32 and 64 px) |
 | tiny | ≤ 20 px | both takes filled (56 × 40 at 12, 16; 56 × 42 at 32, 40), no triangle | the title bar (18 px), the favicon, the icns' 16 pt slot |
 

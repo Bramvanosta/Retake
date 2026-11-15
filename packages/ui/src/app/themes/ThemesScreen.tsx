@@ -114,7 +114,7 @@ function ThemeList({ slug, list, reload }: { slug: string; list: Loaded<ThemeLis
               onMade={reload}
             />
           )}
-          <ul className="tm-list" data-testid="theme-list">
+          <ul className="tm-list tm-cards" data-testid="theme-list">
             {d.themes.map((t) => (
               <ThemeRow key={`${t.source}:${t.name}`} slug={slug} t={t} onCopy={() => setCopying(t.name)} />
             ))}

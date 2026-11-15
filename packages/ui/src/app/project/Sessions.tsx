@@ -19,6 +19,7 @@ import { castState, envFlagWords } from '../words/board-words.js';
 import { useEvents } from '../events.js';
 import { reloadProject, useCast, useProjectView } from '../project-data.js';
 import { STORED_WORDS } from '../words/shoot-words.js';
+import { hrefTo } from '../route.js';
 import { Button, Callout, StatusMark } from '../ui-kit/index.js';
 
 export { STORED_WORDS };
@@ -315,8 +316,10 @@ export function SessionRows({
 }
 
 /**
- * The Cast's Sessions: every persona of the project, one section per location (its name and flags in words). It reads
- * the open project's shared `auth_status` entry (project-data.ts: re-read on the events that concern it).
+ * Locations and cast: every location of the project (project.yaml's order), each a panel — its name (a link to its
+ * page) and flags in words, the pages a take opens, then its personas' sessions (SessionRows) or why none signs in. It
+ * reads the open project's shared `project_get` and `auth_status` entries (project-data.ts: re-read on the events that
+ * concern them). A persona of a location the project no longer lists still shows, under its location's name.
  */
 export function SessionsPanel({ slug }: { slug: string }) {
   const s = useCast(slug);
@@ -327,11 +330,12 @@ export function SessionsPanel({ slug }: { slug: string }) {
   const personas = s.state === 'ready' ? s.data.personas : [];
   const byEnv = new Map<string, SessionRowData[]>();
   for (const p of personas) byEnv.set(p.env, [...(byEnv.get(p.env) ?? []), p]);
+  const names = [...envs.map((e) => e.name), ...[...byEnv.keys()].filter((n) => !envs.some((e) => e.name === n))];
   return (
-    <section className="sp-cast" aria-label="Sessions" data-testid="sessions-panel">
-      {s.state === 'loading' && (
+    <section className="sp-cast" aria-label="Locations" data-testid="sessions-panel">
+      {(s.state === 'loading' || project.state === 'loading') && (
         <p className="sc-quiet" role="status">
-          Loading the sessions…
+          Loading the locations and sessions…
         </p>
       )}
       {s.state === 'error' && (
@@ -339,27 +343,61 @@ export function SessionsPanel({ slug }: { slug: string }) {
           <Txt text={s.error} />
         </Callout>
       )}
-      {s.state === 'ready' && personas.length === 0 && <p className="sc-quiet">No persona: this project signs in nowhere.</p>}
+      {project.state === 'error' && (
+        <Callout state="fail" role="alert" title="The project cannot be read">
+          <Txt text={project.error} />
+        </Callout>
+      )}
       {s.state === 'ready' &&
-        [...byEnv].map(([env, rows], i) => {
+        names.map((env, i) => {
           const e = envs.find((x) => x.name === env);
+          const rows = byEnv.get(env) ?? [];
           const flags = e ? envFlagWords(e, env === defaultEnv, env) : '';
+          const attention = rows.filter((r) => !r.sandbox && r.status !== 'valid' && r.status !== 'unchecked').length;
           const id = `cast-env-${i}`;
           return (
-            <section key={env} className="sp-cast-env" aria-labelledby={id}>
+            <section key={env} className="sp-cast-env cf-panel" aria-labelledby={id} data-testid="cast-location">
               <div className="sp-cast-head">
                 <h2 id={id} className="sc-h2">
-                  <Txt text={env} />
+                  {e ? (
+                    <a href={hrefTo({ name: 'location', slug, env })}>
+                      <Txt text={env} />
+                    </a>
+                  ) : (
+                    <Txt text={env} />
+                  )}
                 </h2>
                 <span className="sc-quiet">
-                  <Txt text={`${plural(rows.length, 'persona')}${flags ? ` · ${flags}` : ''}`} />
+                  <Txt text={[...(flags ? [flags] : []), ...(rows.length > 0 ? [plural(rows.length, 'persona')] : [])].join(' · ')} />
                 </span>
+                {attention > 0 && <span className="sp-cast-attention">{shown(`${plural(attention, 'session')} to sign in`)}</span>}
               </div>
-              <SessionRows slug={slug} rows={rows} onChanged={reload} caption={`Sessions on ${env}`} showEnv={false} />
+              {e && <PagesLine e={e} />}
+              {rows.length > 0 ? (
+                <SessionRows slug={slug} rows={rows} onChanged={reload} caption={`Sessions on ${env}`} showEnv={false} />
+              ) : (
+                <p className="sc-quiet">No persona signs in on this location: its pages open signed out.</p>
+              )}
             </section>
           );
         })}
       {s.state === 'ready' && personas.length > 0 && <p className="sc-quiet">The last known state of each saved sign-in (no browser is opened to read it). A run checks again before it films.</p>}
     </section>
+  );
+}
+
+/** A location's pages on one line each: the key, the URL, the one the video shows instead. */
+function PagesLine({ e }: { e: EnvironmentView }) {
+  const pages = Object.entries(e.pages);
+  if (pages.length === 0) return null;
+  return (
+    <ul className="sp-cast-pages" aria-label={`Pages of ${e.name}`}>
+      {pages.map(([key, url]) => (
+        <li key={key}>
+          <Txt className="sp-cast-page" text={key} /> <Txt className="k-mono" text={url} />
+          {e.display?.[key] && <Txt className="sc-quiet" text={` · shown as ${e.display[key]}`} />}
+        </li>
+      ))}
+    </ul>
   );
 }

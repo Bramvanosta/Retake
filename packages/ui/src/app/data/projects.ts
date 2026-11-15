@@ -27,3 +27,4 @@ export function projectRead<K extends ProjectRead>(name: K, args: { project: str
   const read = PROJECT_READS[name] as unknown as (a: { project: string }) => Promise<OpResult<K>>;
   return read(args);
 }
+export const useSandboxStatus = readHook('sandbox_status');

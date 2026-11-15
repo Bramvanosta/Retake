@@ -26,7 +26,26 @@ export interface ProjectOverview {
   slug: string;
   environments: Array<Pick<EnvironmentView, 'name' | 'production' | 'access' | 'sandbox'>>;
   last_run: RunListItem | null;
+  /** The card's picture: the last pictured step of its newest capture (else its newest pictured run), for run_thumbs. */
+  poster?: { run: string; key: string };
   error?: string;
+}
+
+/** How many of a project's newest runs are looked at for its card's picture (a poster each, memoised by the board). */
+const POSTER_RUNS = 8;
+
+/** The newest capture with a picture, else the newest run with one (a rehearsal's screenshot). */
+async function cardPoster(
+  engine: { runs: { poster(project: string, runId: string): Promise<{ run: string; key: string | null }> } },
+  slug: string,
+  runs: readonly RunListItem[],
+): Promise<ProjectOverview['poster']> {
+  const order = [...runs.filter((r) => r.mode !== 'dry'), ...runs.filter((r) => r.mode === 'dry')];
+  for (const r of order) {
+    const p = await engine.runs.poster(slug, r.id).catch(() => null);
+    if (p?.key) return { run: p.run, key: p.key };
+  }
+  return undefined;
 }
 
 /** projects_overview: engine reads (project_get's environments, run_list's newest run) for every project at once. */
@@ -42,8 +61,14 @@ export const projectsOverview = defineOperation({
       list.map(async (p): Promise<ProjectOverview> => {
         if (p.error) return { slug: p.slug, environments: [], last_run: null, error: p.error };
         try {
-          const [view, runs] = await Promise.all([engine.projects.get(p.slug), engine.runs.list(p.slug, { limit: 1 })]);
-          return { slug: p.slug, environments: view.environments.map((e) => ({ name: e.name, production: e.production, access: e.access, sandbox: e.sandbox })), last_run: runs[0] ?? null };
+          const [view, runs] = await Promise.all([engine.projects.get(p.slug), engine.runs.list(p.slug, { limit: POSTER_RUNS })]);
+          const poster = await cardPoster(engine, p.slug, runs);
+          return {
+            slug: p.slug,
+            environments: view.environments.map((e) => ({ name: e.name, production: e.production, access: e.access, sandbox: e.sandbox })),
+            last_run: runs[0] ?? null,
+            ...(poster ? { poster } : {}),
+          };
         } catch (e) {
           return { slug: p.slug, environments: [], last_run: null, error: firstErrorLine(errorMessage(e)) };
         }

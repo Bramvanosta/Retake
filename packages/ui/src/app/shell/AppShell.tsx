@@ -33,7 +33,7 @@ import type { EventMode } from '../events.js';
 import { heldShortWords, heldWords } from '../words/render-words.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { AppMark, Button, CommandPalette, IconButton, Menu, SegmentedLinks, StatusBar, StatusMark, studioShell } from '../ui-kit/index.js';
+import { AppMark, Button, CommandPalette, IconButton, Menu, SearchTrigger, SegmentedLinks, StatusBar, StatusMark, studioShell } from '../ui-kit/index.js';
 import type { Command, IconName, MarkState } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL } from '../words/board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
@@ -49,7 +49,7 @@ import { SetupSheet } from './SetupSheet.js';
 import { UpdateControl } from './UpdateSheet.js';
 import { BrowserPane } from './browser-pane.js';
 import type { OpenProject } from './browser-pane.js';
-import { useMenuCommands } from './menu-commands.js';
+import { MAC, useMenuCommands } from './menu-commands.js';
 import type { CommandInput } from './menu-commands.js';
 import { useHeld, useSaid, useScreenTop, useSlots } from './shell-hooks.js';
 
@@ -111,7 +111,23 @@ function useEngineInfo(): EngineInfoAnswer | null {
   return v;
 }
 
-const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'review', 'library', 'themes', 'record']);
+const PROJECT_ROUTES = new Set<Route['name']>([
+  'project',
+  'group',
+  'location',
+  'cast',
+  'settings',
+  'readme',
+  'scenario',
+  'run',
+  'timeline',
+  'comments',
+  'proposal',
+  'review',
+  'library',
+  'themes',
+  'record',
+]);
 
 interface PaletteInput extends CommandInput {
   project: ProjectSummary | undefined;
@@ -181,7 +197,8 @@ function paletteCommands({ ctx, project, projects, hasInspector, inspectorOff, i
       ['productions', 'Productions', { name: 'project', slug }, 'film'],
       ...BOARD_GROUPS.map((g): [string, string, Route, IconName] => [`g-${g}`, GROUP_LABEL[g], { name: 'group', slug, group: g }, 'folder']),
       ['library', 'Components', { name: 'library', slug }, 'components'],
-      ['cast', 'Cast', { name: 'cast', slug }, 'person'],
+      ['cast', 'Locations and cast', { name: 'cast', slug }, 'person'],
+      ['settings', 'Settings', { name: 'settings', slug }, 'command'],
       ['readme', 'README', { name: 'readme', slug }, 'report'],
       ['record', 'Record a scenario', { name: 'record', slug }, 'record'],
     ];
@@ -222,6 +239,8 @@ function TitleBar({
   hasInspector,
   inspectorShown,
   toggleInspector,
+  onSearch,
+  searchKeys,
 }: {
   route: Route;
   ctx: ScenarioContext | null;
@@ -232,6 +251,8 @@ function TitleBar({
   hasInspector: boolean;
   inspectorShown: boolean;
   toggleInspector: () => void;
+  onSearch: () => void;
+  searchKeys: string[];
 }) {
   return (
     <header className="sh-titlebar">
@@ -270,6 +291,9 @@ function TitleBar({
         />
       </div>
       <div className="sh-titlebar-end">
+        <div className="sh-search">
+          <SearchTrigger placeholder={project ? 'Search scenarios, scenes, commands' : 'Search projects and commands'} kbd={searchKeys} onOpen={onSearch} />
+        </div>
         <div className="sh-slot-context" ref={contextRef} />
         {hasInspector && <IconButton icon="inspector" label="Inspector" pressed={inspectorShown} onClick={toggleInspector} />}
       </div>
@@ -355,10 +379,11 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           hasInspector={hasInspector}
           inspectorShown={inspectorShown}
           toggleInspector={toggleInspector}
+          onSearch={() => setPalette(true)}
+          searchKeys={MAC ? ['⌘', 'K'] : ['Ctrl', 'K']}
         />
         <BrowserPane
           route={route}
-          list={list}
           projects={projects}
           openSlug={openSlug}
           open={open}

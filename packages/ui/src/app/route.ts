@@ -12,8 +12,10 @@
  * theme list and one theme's editor, `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
  * recent recordings, or one recording, live then reviewed. `#/ui` the design system's gallery.
  * `#/setup` the projects with the installed app's Set-up sheet open over them (shell/SetupSheet.tsx).
- * `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
- * screen with a location in its inspector, `#/p/<slug>/cast` the Cast (the personas' sessions).
+ * `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` a
+ * location's page (its pages, its sandbox, its personas), `#/p/<slug>/cast` Locations and cast (every location with
+ * its personas' sessions), `#/p/<slug>/settings` the project's settings (project.yaml, read only),
+ * `#/p/<slug>/s/<name>/hooks` what a scenario's hooks do (before, during and after the take).
  * `#/p/<slug>/s/<name>/review[/<render id>]` the Review report of a scenario's newest render or of one — the
  * render id must have a render id's shape (RENDER_ID: `<scenario>-v<n>[-vertical|-square]`, core's RENDER_ID_RE) or the
  * address is not found (never read with it).
@@ -23,7 +25,7 @@
  */
 import { RENDER_ID, okRenderIdShape } from './id-words.js';
 
-export type ScenarioTab = 'blocks' | 'yaml';
+export type ScenarioTab = 'blocks' | 'hooks' | 'yaml';
 /** The Project screen's smart groups. */
 export type ProductionGroup = 'ready' | 'shoot' | 'failed';
 const GROUPS: readonly string[] = ['ready', 'shoot', 'failed'];
@@ -34,6 +36,7 @@ export type Route =
   | { name: 'group'; slug: string; group: ProductionGroup }
   | { name: 'location'; slug: string; env: string }
   | { name: 'cast'; slug: string }
+  | { name: 'settings'; slug: string }
   | { name: 'readme'; slug: string }
   | { name: 'scenario'; slug: string; scenario: string; tab: ScenarioTab }
   | { name: 'run'; slug: string; scenario: string; run?: string }
@@ -68,9 +71,9 @@ export function parseRoute(hash: string): Route {
   if (path === '' || path === '/') return { name: 'projects' };
   if (path === '/ui' || path === '/ui/') return { name: 'ui' };
   if (path === '/setup' || path === '/setup/') return { name: 'setup' };
-  const m = /^\/p\/([^/]+)(\/readme)?\/?$/.exec(path);
+  const m = /^\/p\/([^/]+)(\/readme|\/settings)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
-  if (m && slug !== null) return m[2] ? { name: 'readme', slug } : { name: 'project', slug };
+  if (m && slug !== null) return m[2] === '/readme' ? { name: 'readme', slug } : m[2] === '/settings' ? { name: 'settings', slug } : { name: 'project', slug };
   // A smart group of the Project screen, a location (the Project screen with it in the inspector), the Cast.
   const g = /^\/p\/([^/]+)\/(?:g\/([^/]+)|loc\/([^/]+)|(cast))\/?$/.exec(path);
   const gSlug = g ? decode(g[1]) : null;
@@ -80,10 +83,10 @@ export function parseRoute(hash: string): Route {
     if (env !== null) return { name: 'location', slug: gSlug, env };
     if (g[4]) return { name: 'cast', slug: gSlug };
   }
-  const s = /^\/p\/([^/]+)\/s\/([^/]+)(\/yaml)?\/?$/.exec(path);
+  const s = /^\/p\/([^/]+)\/s\/([^/]+)(\/yaml|\/hooks)?\/?$/.exec(path);
   const sSlug = s ? decode(s[1]) : null;
   const scenario = s ? decode(s[2]) : null;
-  if (s && sSlug !== null && scenario !== null) return { name: 'scenario', slug: sSlug, scenario, tab: s[3] ? 'yaml' : 'blocks' };
+  if (s && sSlug !== null && scenario !== null) return { name: 'scenario', slug: sSlug, scenario, tab: s[3] === '/yaml' ? 'yaml' : s[3] === '/hooks' ? 'hooks' : 'blocks' };
   const r = /^\/p\/([^/]+)\/s\/([^/]+)\/run(?:\/([^/]+))?\/?$/.exec(path);
   const rSlug = r ? decode(r[1]) : null;
   const rScenario = r ? decode(r[2]) : null;
@@ -163,8 +166,10 @@ export function hrefTo(r: Route): string {
       return `#/p/${encodeURIComponent(r.slug)}/loc/${encodeURIComponent(r.env)}`;
     case 'cast':
       return `#/p/${encodeURIComponent(r.slug)}/cast`;
+    case 'settings':
+      return `#/p/${encodeURIComponent(r.slug)}/settings`;
     case 'scenario':
-      return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}${r.tab === 'yaml' ? '/yaml' : ''}`;
+      return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}${r.tab === 'yaml' ? '/yaml' : r.tab === 'hooks' ? '/hooks' : ''}`;
     case 'run':
       return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/run${r.run !== undefined ? `/${encodeURIComponent(r.run)}` : ''}`;
     case 'timeline': {

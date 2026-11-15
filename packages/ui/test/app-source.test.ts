@@ -1834,7 +1834,6 @@ const CLASS_HOOKS = new Map<string, string>([
   // A screen's root named beside sc-screen (which styles it), or a landmark beside the class that styles it.
   ['cast', 'CastScreen root beside sc-screen'],
   ['pr', 'ProductionsScreen root beside sc-screen'],
-  ['wl', 'WelcomeScreen root beside sc-screen'],
   ['tm-editor', 'the theme editor beside tm-screen'],
   ['sidebar', "the browser's aside beside sh-browser"],
   // A state whose look comes from elsewhere (an attribute, a child, the native state).
@@ -1854,7 +1853,6 @@ const CLASS_HOOKS = new Map<string, string>([
   ['k-progress-label', "a Progress' label"],
   ['k-seg-label', "a segment's label"],
   ['k-source-group', 'a source list group (kit-static pins its markup)'],
-  ['ed-notes', "Edit's notes pane (data-testid beside it)"],
   ['lb-cards', "the Library grid's key-handling wrapper"],
   ['rc-state-mark', "Record's state mark (data-state beside it)"],
   ['rv-family', 'a Review family row inside its RowListItem'],
@@ -1862,7 +1860,6 @@ const CLASS_HOOKS = new Map<string, string>([
   ['sh-foot-meta', "the browser foot's second line beside sh-foot-line"],
   ['sh-scenario-env', 'the status bar\'s " · on <env>" words'],
   ['sh-slot-inspector', "the inspector slot's portal target"],
-  ['sp-col-persona', "Sessions' persona column head"],
   ['sp-group', 'a Shoot checklist group (its head styled)'],
   ['tm-note-message', "a theme note's message beside tm-note"],
   ['wl-project-error', "a Welcome project card's error words"],

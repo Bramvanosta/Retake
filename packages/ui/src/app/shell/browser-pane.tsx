@@ -1,17 +1,19 @@
 /**
  * The shell's browser pane (AppShell.tsx): Welcome's tree (the projects of the workspace), an open project's tree (its
- * pages, Locations, Cast, README and Record) and the workspace foot.
+ * pages: Locations and cast, Settings, README and Record) and a quiet foot (the version, a running worker, the UI gallery; the
+ * workspace's folder is Welcome's).
  */
 import type { ReactNode } from 'react';
 import type { AuthStatus, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
 import type { Loaded } from '../api.js';
-import type { EngineInfoAnswer, ProjectList } from '../data/ops.js';
+import type { EngineInfoAnswer } from '../data/ops.js';
 import { Txt } from '../bits.js';
+import { APP_NAME } from '../brand.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { SourceList, StatusMark } from '../ui-kit/index.js';
+import { SourceList } from '../ui-kit/index.js';
 import type { SourceGroup, SourceItem } from '../ui-kit/index.js';
-import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../words/board-words.js';
+import { BOARD_GROUPS, GROUP_LABEL, envFlagWord, groupCounts } from '../words/board-words.js';
 
 export interface OpenProject {
   view: Loaded<ProjectView>;
@@ -40,8 +42,9 @@ function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] 
 }
 
 /**
- * An open project's browser: Productions and its smart groups, the Library, the Locations (environments
- * with their flags in words), the Cast (each persona's session: a shape and a word), the Project's README and Record.
+ * An open project's browser: Productions and its smart groups, the Library, then the Project — Locations and cast
+ * (its sessions to sign in as a mark, each location under it with its riskiest flag in a word), Settings, README and
+ * Record.
  */
 function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: boolean): SourceGroup[] {
   const board = d.board.state === 'ready' ? d.board.data : null;
@@ -50,7 +53,8 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
   const total = board ? (board.truncated?.total ?? board.scenarios.length) : view?.scenarios.length;
   const row = (key: string, to: Route, label: ReactNode, current: boolean, extra: Partial<SourceItem> = {}): SourceItem => ({ key, to, label, current, ...extra });
   const personas = d.cast.state === 'ready' ? d.cast.data.personas : [];
-  const manyEnvs = new Set(personas.map((p) => p.env)).size > 1;
+  // Sessions a capture would ask for (a persona not a sandbox account, never signed in, expired or failing).
+  const toSign = personas.filter((p) => !p.sandbox && (p.status === 'never' || p.status === 'expired' || p.status === 'error')).length;
   return [
     {
       key: 'productions',
@@ -74,45 +78,22 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
       ],
     },
     {
-      key: 'locations',
-      heading: 'Locations',
-      label: 'Locations',
-      items: view
-        ? view.environments.map((e) => {
-            const flags = envFlagWord(e, e.name === view.default_env);
-            return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, {
-              icon: 'location',
-              ...(flags ? { flag: flags } : {}),
-            });
-          })
-        : [],
-    },
-    {
-      key: 'cast',
-      heading: 'Cast',
-      label: 'Cast',
-      items: [
-        row('cast', { name: 'cast', slug }, 'Sessions', route.name === 'cast', {
-          icon: 'person',
-          ...(d.cast.state === 'ready' ? { count: personas.length } : {}),
-          childrenLabel: 'Personas',
-          children: personas.map((p) => {
-            const c = castState(p);
-            // Several locations: each one under its persona's name, on a line that wraps (never cut off).
-            return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, {
-              quiet: true,
-              flag: <StatusMark state={c.state} word={c.word} />,
-              ...(manyEnvs ? { detail: <Txt text={p.env} /> } : {}),
-            });
-          }),
-        }),
-      ],
-    },
-    {
       key: 'project',
       heading: 'Project',
       label: 'Project',
       items: [
+        row('cast', { name: 'cast', slug }, 'Locations and cast', route.name === 'cast', {
+          icon: 'location',
+          ...(toSign > 0 ? { flag: `${toSign} to sign in` } : view ? { count: view.environments.length } : {}),
+          childrenLabel: 'Locations',
+          children: view
+            ? view.environments.map((e) => {
+                const flags = envFlagWord(e, e.name === view.default_env);
+                return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, flags ? { flag: flags } : {});
+              })
+            : [],
+        }),
+        row('settings', { name: 'settings', slug }, 'Settings', route.name === 'settings', { icon: 'command' }),
         row('readme', { name: 'readme', slug }, 'README', route.name === 'readme', { icon: 'report', ...(readmeDirty ? { flag: 'unsaved' } : {}) }),
         row('record', { name: 'record', slug }, 'Record a scenario', route.name === 'record', { icon: 'record' }),
       ],
@@ -120,10 +101,9 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
   ];
 }
 
-/** The browser pane: the source list (unless a screen fills the slot), the screen's slot, the workspace foot. */
+/** The browser pane: the source list (unless a screen fills the slot), the screen's slot, the foot. */
 export function BrowserPane({
   route,
-  list,
   projects,
   openSlug,
   open,
@@ -134,7 +114,6 @@ export function BrowserPane({
   browserRef,
 }: {
   route: Route;
-  list: Loaded<ProjectList>;
   projects: ProjectSummary[];
   openSlug: string | null;
   open: OpenProject;
@@ -149,16 +128,12 @@ export function BrowserPane({
       {!claimed && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
       <div className="sh-slot-browser" ref={browserRef} hidden={!claimed} />
       <div className="sh-browser-foot">
-        <p className="sh-foot-line">
-          <span className="sh-foot-label">Workspace</span>
-          <Txt className="sh-foot-path k-mono" text={info?.root ?? (list.state === 'ready' ? list.data.root : '')} />
-        </p>
         {info && (
           <p className="sh-foot-line sh-foot-meta">
-            <span className="k-mono">v{info.version}</span>
+            <span>{`${APP_NAME} ${info.version}`}</span>
             {info.worker && (
-              <span className="k-mono">
-                {` · worker pid ${info.worker.pid}`}
+              <span>
+                {' · worker running'}
                 {info.worker.started_by && <>, started by {info.worker.started_by === 'ui' ? 'the Studio' : <Txt text={info.worker.started_by} />}</>}
               </span>
             )}

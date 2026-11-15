@@ -30,6 +30,7 @@ type OverviewShape = {
   slug: string;
   environments: Array<Pick<EnvironmentView, 'name' | 'production' | 'access' | 'sandbox'>>;
   last_run: RunListItem | null;
+  poster?: { run: string; key: string };
   error?: string;
 };
 type RenderReviewShape = {

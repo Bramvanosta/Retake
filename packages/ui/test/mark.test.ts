@@ -248,7 +248,7 @@ describe("the favicon and the Studio's mark", () => {
     const list = { state: 'ready' as const, data: { root: '/w', projects_dir: '/w/projects', projects: [] } };
     const welcome = renderToStaticMarkup(createElement(WelcomeScreen, { list }));
     expect(welcome).toMatch(
-      /<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/,
+      /<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="64" height="64" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/,
     );
     // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden):
     // Rendered, its "App mark" section read.

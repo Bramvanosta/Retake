@@ -293,7 +293,7 @@ describe('the open project reads by events, never by steps', () => {
 });
 
 describe("the Project screen's homes and widths", () => {
-  it('the inspector hidden: the selected production, then the project, then a location show in the centre pane, under a heading', async () => {
+  it('the inspector hidden: the selected production, then the project show in the centre pane, under a heading; a location is a page of its own', async () => {
     const page = await tab(`/p/${P}`);
     await page.locator('[role="option"]').first().click();
     await page.getByRole('button', { name: 'Inspector' }).click();
@@ -304,14 +304,10 @@ describe("the Project screen's homes and widths", () => {
     await page.getByRole('listbox').press('Escape');
     await expect.poll(() => inline.getAttribute('aria-label'), POLL).toBe('Project details');
     expect(await inline.getByTestId('readme-preview').count()).toBe(1);
-    // A location row: its pages in the centre too.
+    // A location row: its page, in the centre (no inspector of its own).
     await page.locator(`.sh-browser a[href="#/p/${P}/loc/production"]`).click();
-    await expect.poll(() => inline.getAttribute('aria-label'), POLL).toBe('Location details');
-    await inline.getByTestId('location-pages').waitFor(POLL);
-    // Shown again: the pane holds it, the centre does not.
-    await page.getByRole('button', { name: 'Inspector' }).click();
-    await expect.poll(() => inline.count(), POLL).toBe(0);
-    await page.getByRole('complementary', { name: 'Inspector' }).getByTestId('location-pages').waitFor(POLL);
+    await page.locator('main').getByTestId('location-screen').getByTestId('location-pages').waitFor(POLL);
+    expect(await page.getByRole('button', { name: 'Inspector' }).count()).toBe(0);
     await page.context().close();
   });
 
@@ -355,7 +351,7 @@ describe("the Project screen's homes and widths", () => {
     await page.context().close();
   });
 
-  it("the warnings' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; a persona's location on its own line", async () => {
+  it("the warnings' disclosure says what it shows; the README preview a tab stop; the folder its full path in a tooltip; each persona under its location", async () => {
     const page = await tab('/p/warned');
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     expect(await page.locator('main summary').innerText()).toBe('Show the warning');
@@ -367,18 +363,17 @@ describe("the Project screen's homes and widths", () => {
     expect(await pre.getAttribute('aria-label')).toBe('README.md, the first lines');
     const folder = inspector.locator('.pr-path');
     expect(await folder.getAttribute('title')).toBe(join(ws, 'projects', P));
-    // The fixture's personas live in more than one location: each one's location is a line of its own, never cut.
-    const rows = page.locator('.sh-browser [aria-label="Personas"] .k-source-item');
-    await rows.first().waitFor(POLL);
-    const details = await page.locator('.sh-browser [aria-label="Personas"] .k-source-detail').allInnerTexts();
-    expect(details.length).toBe(await rows.count());
-    expect(details.every((d) => d.length > 0)).toBe(true);
-    expect(
-      await page
-        .locator('.sh-browser [aria-label="Personas"] .k-source-label')
-        .first()
-        .evaluate((el) => (el.textContent ?? '').includes(' · ')),
-    ).toBe(false);
+    // The fixture's personas live in more than one location: Locations and cast shows each under its location's name.
+    await page.goto(`${studio.url}#/p/${P}/cast`);
+    const panels = page.getByTestId('cast-location');
+    await panels.first().waitFor(POLL);
+    expect(await panels.count()).toBeGreaterThan(1);
+    for (const panel of await panels.all()) {
+      expect((await panel.getByRole('heading', { level: 2 }).innerText()).length).toBeGreaterThan(0);
+      const rows = panel.getByTestId('session-row');
+      for (const row of await rows.all()) expect((await row.getAttribute('data-persona'))?.includes(' · ')).toBe(false);
+    }
+    expect(await page.getByTestId('session-row').count()).toBeGreaterThan(1);
     await page.context().close();
   });
 });

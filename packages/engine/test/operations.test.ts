@@ -642,11 +642,11 @@ describe("the comment operations (the comments façade's caller rules as their c
 });
 
 describe("the hooks, environment-reset and sandbox operations (MCP's five, with the approver)", () => {
-  it("are MCP's only, MCP's TOOLS holds them as these objects, with the hints of their facets and no caller rule or key", () => {
+  it("are MCP's (the Studio reads a sandbox's status only: a location's page), MCP's TOOLS holds them as these objects, with the hints of their facets and no caller rule or key", () => {
     const byName = OPERATIONS_BY_NAME as unknown as Record<string, ToolDef>;
     for (const n of HOOKS_MCP) {
       const op = catalogueOperation(n)!;
-      expect([servedBy(op, 'mcp'), servedBy(op, 'studio')], n).toEqual([true, false]);
+      expect([servedBy(op, 'mcp'), servedBy(op, 'studio')], n).toEqual([true, n === 'sandbox_status']);
       expect(
         TOOLS.find((t) => t.name === n),
         n,
@@ -704,10 +704,10 @@ describe("the hooks, environment-reset and sandbox operations (MCP's five, with 
       ]);
       for (const [, , o] of seen) if (withApprover && 'approver' in o) expect(o.approver).toBe(approver);
     }
-    // The Studio serves none of them: refused before the engine is asked.
+    // The Studio serves none of them but sandbox_status (a read): the others are refused before the engine is asked.
     seen.length = 0;
-    for (const [op, args] of calls) expect((await invoke(op, fake, args, { shell: 'studio', startedIn: process.cwd(), signal })).ok, op.name).toBe(false);
-    expect(seen).toEqual([]);
+    for (const [op, args] of calls) expect((await invoke(op, fake, args, { shell: 'studio', startedIn: process.cwd(), signal })).ok, op.name).toBe(op.name === 'sandbox_status');
+    expect(seen.map(([n]) => n)).toEqual(['sandbox.status']);
   });
 });
 

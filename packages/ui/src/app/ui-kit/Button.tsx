@@ -143,3 +143,18 @@ export function Kbd({ keys }: { keys: string[] }) {
     </span>
   );
 }
+
+/**
+ * The title bar's search: a button that looks like a field ("Search…" and its key caps) and opens the command palette —
+ * the one place to find a project, a scenario, a scene, a theme or a command. Its words are the placeholder's tone; the
+ * name says what it opens.
+ */
+export function SearchTrigger({ placeholder, kbd, onOpen }: { placeholder: string; kbd: string[]; onOpen: () => void }) {
+  return (
+    <button type="button" className="k-search-trigger" aria-label={`${placeholder} (the command palette)`} aria-haspopup="dialog" onClick={onOpen}>
+      <Icon name="search" />
+      <span className="k-search-trigger-text">{shown(placeholder)}</span>
+      <Kbd keys={kbd} />
+    </button>
+  );
+}
