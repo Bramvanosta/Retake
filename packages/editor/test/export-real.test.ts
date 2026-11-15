@@ -1,5 +1,5 @@
 /**
- * L2.8 on real renders of the tiny synthetic run (colour-coded capture): the square composition (DemoSquare) shows the
+ * L2.8 on real renders of the tiny synthetic run (colour-coded capture): the square composition (PlanSquare) shows the
  * plan's source frame, a music bed made procedurally (generateTestTrack) loops and is ducked under footage, and
  * exportRender derives 1080p / WebM / GIF from the master and re-renders the square variant, with a manifest.
  * Needs ffmpeg/ffprobe (libvpx-vp9, libopus) and a Chromium headless shell.
@@ -46,7 +46,7 @@ describe.skipIf(!canRender)('square, music bed and export on real renders', () =
   let exported: ExportResult;
 
   it(
-    "DemoSquare renders the square variant (the plan's source frame in the reframed capture)",
+    "PlanSquare renders the square variant (the plan's source frame in the reframed capture)",
     async () => {
       const timeline = await readJson<Timeline>(join(ws.runDir, 'timeline.json'));
       const registry = await loadComponentRegistry({ root: ws.root });

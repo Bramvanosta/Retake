@@ -3,7 +3,8 @@
  *
  * L5.13 — the old name is gone: no file of the repository says "Demo Studio" (any spelling: demo-studio, DEMO_STUDIO_,
  * demoStudio, wrapped across a line), runs the old command (`studio <sub>`, `pnpm studio`, `Usage: studio`…), or names
- * the old workspace file or home. Since v0.2.1 no code knows an old name (the legacy modules, their tests, the rename
+ * the old workspace file or home, nor its short forms in code (the `Demo…` compositions, the `demo…` recorder, the
+ * `ds…rec` page globals). Since v0.2.1 no code knows an old name (the legacy modules, their tests, the rename
  * script and the upgrade guide are gone: an installation of that time is simply not seen). What is left:
  * - this test, whole;
  * - the history lines of the records: in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
@@ -74,6 +75,8 @@ export const PATTERNS: ReadonlyArray<[string, RegExp]> = [
   ['the plugin key', /user_config\.studio\b|--config studio=/g],
   ['the workspace file', /\bstudio\\?\.yaml\b/g],
   ['the home', /\bstudio[ \t]+home\b|\bstudio(?:Home|_home)\b/gi],
+  // The old name's short forms in code: the compositions, the in-page recorder and its page globals.
+  ['the short forms', /\bDemo(?:Video|Vertical|Square)\w*|\bdemoRecorder\b|(?<![A-Za-z])dsrec/g],
 ];
 
 /** Whole files that are about the old names. */
@@ -181,6 +184,14 @@ describe('the old name is gone (L5.13)', () => {
       'studioHome()',
       "new Command('studio')",
       '--config studio=/r/bin.js',
+      'import { DemoVideo } from "./DemoVideo.js"',
+      'type P = DemoVideoProps',
+      "COMPOSITIONS.vertical === 'DemoVertical'",
+      'the DemoSquare composition',
+      'export function demoRecorder(cfg)',
+      'globalThis.__dsrecFlush()',
+      'const binding = `__dsrec_${hex}`',
+      'filter((n) => /dsrec|binding/i.test(n))',
     ])
       expect(oldNameHits(planted, false).length, planted).toBeGreaterThan(0);
     for (const kept of [
@@ -194,6 +205,12 @@ describe('the old name is gone (L5.13)', () => {
       "comments.apply('demo', studioId)",
       '`retake run`, the retake.yaml file, RETAKE_HOME',
       'a demo of the Studio',
+      'import { PlanVideo } from "./PlanVideo.js"',
+      "COMPOSITIONS.square === 'PlanSquare'",
+      'export function pageRecorder(cfg)',
+      'globalThis.__retakeRecFlush()',
+      'a demo video of the product',
+      'guardsRecordings: true',
     ])
       expect(oldNameHits(kept, false), kept).toEqual([]);
   });

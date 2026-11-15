@@ -77,14 +77,14 @@ export function looksLikeToken(s: string): boolean {
   return [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter((re) => re.test(s)).length >= 3;
 }
 
-declare const __dsrecHash: typeof secretHash;
-declare const __dsrecToken: typeof looksLikeToken;
+declare const __retakeRecHash: typeof secretHash;
+declare const __retakeRecToken: typeof looksLikeToken;
 
 /** The in-page recorder (see the file comment). Self-contained: serialised with `toString()`. */
-export function demoRecorder(cfg: RecorderConfig): void {
+export function pageRecorder(cfg: RecorderConfig): void {
   const g = globalThis as unknown as Record<string, unknown>;
-  if (g.__dsrecInstalled) return;
-  g.__dsrecInstalled = true;
+  if (g.__retakeRecInstalled) return;
+  g.__retakeRecInstalled = true;
   const send0 = g[cfg.binding] as ((payload: string) => void) | undefined;
   const kit = g.__retake as KitApi | undefined;
   if (typeof send0 !== 'function' || !kit) return;
@@ -153,7 +153,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
   const share = (v: string): void => {
     remember(v);
     if (v.length < cfg.secret_min) return;
-    const h = __dsrecHash(v, cfg.salt);
+    const h = __retakeRecHash(v, cfg.salt);
     if (hashed.get(v.length)?.has(h)) return;
     addHash(v.length, h);
     raw({ k: 'secret', n: v.length, h });
@@ -176,7 +176,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
       let res = '';
       let from = 0;
       for (let i = 0; i + n <= out.length; ) {
-        if (set.has(__dsrecHash(out.slice(i, i + n), cfg.salt))) {
+        if (set.has(__retakeRecHash(out.slice(i, i + n), cfg.salt))) {
           res += out.slice(from, i) + MASK;
           i += n;
           from = i;
@@ -220,7 +220,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     const path = mask(m.path).s;
     raw({ k: 'ev', age: Math.max(0, Math.round(now() - m.at)), path, e, ...(count.n ? { redacted: count.n } : {}) });
   };
-  g.__dsrecVerdict = (url: string, ok: boolean, hashes: SecretHash[]): void => {
+  g.__retakeRecVerdict = (url: string, ok: boolean, hashes: SecretHash[]): void => {
     for (const [n, h] of hashes ?? []) addHash(n, h);
     if (ok) {
       armed = url;
@@ -459,7 +459,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     const f = begin(el);
     f.keyed = now();
     f.pasted = true;
-    if (__dsrecToken(text.trim())) {
+    if (__retakeRecToken(text.trim())) {
       secretOf(el, 'api_key');
       share(text.trim());
     }
@@ -671,12 +671,12 @@ export function demoRecorder(cfg: RecorderConfig): void {
     flushKey();
     flushScroll();
   };
-  g.__dsrecFlush = flushAll;
+  g.__retakeRecFlush = flushAll;
   on('pagehide', flushAll);
   raw({ k: 'hello', url: here(), w: innerWidth, h: innerHeight });
 }
 
 /** The recorder's script, evaluated after the kit in its isolated world. */
 export function recorderSource(cfg: RecorderConfig): string {
-  return `(() => { var __name = (f) => f; var __dsrecHash = (${secretHash.toString()}); var __dsrecToken = (${looksLikeToken.toString()}); (${demoRecorder.toString()})(${JSON.stringify(cfg)}); })();`;
+  return `(() => { var __name = (f) => f; var __retakeRecHash = (${secretHash.toString()}); var __retakeRecToken = (${looksLikeToken.toString()}); (${pageRecorder.toString()})(${JSON.stringify(cfg)}); })();`;
 }

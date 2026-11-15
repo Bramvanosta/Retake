@@ -298,7 +298,7 @@ $ retake render northfield-fixture catalogue
 
 How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
 
-- **Compositions** `DemoVideo` (landscape), `DemoVertical` and `DemoSquare` take `{ plan }` and draw only the plan: the theme
+- **Compositions** `PlanVideo` (landscape), `PlanVertical` and `PlanSquare` take `{ plan }` and draw only the plan: the theme
   background; one `Sequence` per segment with its transition component (rendered around the end of the outgoing
   segment and the start of the incoming one: a crossfade overlaps them, a dip splits its frames) or its plain fade
   envelope; the segment's component with its slots and params; for clips, the layout component whose `screen` is the

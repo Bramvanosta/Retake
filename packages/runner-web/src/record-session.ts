@@ -10,7 +10,7 @@
  *   cannot forge an event (only trusted events are recorded); no Playwright binding is exposed;
  * - each message is checked here too: it must come from the recorder's world in the page's main frame, on an origin of
  *   the environment's pages, and not from a sign-in page (the persona's patterns, else the environment's
- *   `auth.login_url`); the page holds its events until the runner says where it is (`__dsrecVerdict`);
+ *   `auth.login_url`); the page holds its events until the runner says where it is (`__retakeRecVerdict`);
  * - secrets never cross: the page sends no secret-class field's text, masks every remembered secret value in every
  *   string it sends, and tells the runner only salted hashes of the final secret values — this side masks them again
  *   in every string it keeps (write labels and typed URLs included) and passes them to the next documents;
@@ -347,7 +347,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
   const started = Date.now();
   const events: RecordedEvent[] = [];
   const memory = new SecretMemory();
-  const binding = `__dsrec_${randomBytes(8).toString('hex')}`;
+  const binding = `__retakeRec_${randomBytes(8).toString('hex')}`;
   const dropped = { sign_in: 0, frame: 0, invalid: 0, new_page: 0 };
   let redactedTotal = 0;
   let windowSize: { width: number; height: number } | null = null;
@@ -450,7 +450,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
   };
   const verdict = (id: number, url: string): void => {
     const ok = isPageOrigin(url, env.pages) && !isSignIn(url);
-    void evaluateIn(id, `globalThis.__dsrecVerdict && globalThis.__dsrecVerdict(${JSON.stringify(url)}, ${ok}, ${JSON.stringify(memory.list)})`);
+    void evaluateIn(id, `globalThis.__retakeRecVerdict && globalThis.__retakeRecVerdict(${JSON.stringify(url)}, ${ok}, ${JSON.stringify(memory.list)})`);
   };
 
   // An isolated world's context reports no origin ("://"): it is its document's, taken from the frame's main-world
@@ -596,7 +596,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     stopReason = reason;
     void (async () => {
       // Commit what the person was typing (and a pending scroll or key), then close.
-      if (topContext !== null) await evaluateIn(topContext, 'globalThis.__dsrecFlush && globalThis.__dsrecFlush()');
+      if (topContext !== null) await evaluateIn(topContext, 'globalThis.__retakeRecFlush && globalThis.__retakeRecFlush()');
       await new Promise((r) => setTimeout(r, 150));
       await context.close().catch(() => undefined);
     })();

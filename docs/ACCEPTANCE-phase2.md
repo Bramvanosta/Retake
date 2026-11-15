@@ -114,7 +114,7 @@ device, the callout and the notification mapped through the device screen; only 
 Grep of the edit composition (`packages/editor/src/remotion/`) and the render code for colours, text and shapes drawn
 outside components:
 
-- **Fixed — the plain fade envelope.** `DemoVideo.tsx` had an `Envelope` that, for a crossfade / dip without a
+- **Fixed — the plain fade envelope.** `PlanVideo.tsx` had an `Envelope` that, for a crossfade / dip without a
   transition component, faded the segment itself and laid a `#000000` veil over it. Now every fade is a transition
   component: `transitionWindows` gives a fade that carries none the transition stand-in (`standInTransition`, drawn by
   the transition scaffold, like any missing component) and the envelope is gone; the review's transition spans lost

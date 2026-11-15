@@ -144,7 +144,7 @@ describe('generated bundle sources', () => {
 
   it('the composition ids are written once, in the contract: the Node side and the root both take them from it', () => {
     expect(COMPOSITION_IDS).toBe(VIDEO_COMPOSITIONS);
-    expect(COMPOSITION_IDS).toEqual({ landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare' });
+    expect(COMPOSITION_IDS).toEqual({ landscape: 'PlanVideo', vertical: 'PlanVertical', square: 'PlanSquare' });
     expect(PREVIEW_COMPOSITION).toBe('ComponentPreview');
     expect(COMPOSITIONS).toEqual({ ...COMPOSITION_IDS, preview: PREVIEW_COMPOSITION });
     const ids = Object.values(COMPOSITIONS);

@@ -79,7 +79,7 @@ describe('L7.2 the versioned props of a render bundle', () => {
     expect(video.calculateMetadata({ props: videoProps(sized) })).toEqual({ durationInFrames: 3, fps: 30, width: 1920, height: 1080 });
     // The version is checked before the variant: a wrong-version payload never reaches the plan's fields.
     const vertical = comps.find((c) => c.id === COMPOSITIONS.vertical)!;
-    expect(() => vertical.calculateMetadata({ props: videoProps(sized) })).toThrow('DemoVertical renders vertical plans; this plan is landscape (use DemoVideo)');
+    expect(() => vertical.calculateMetadata({ props: videoProps(sized) })).toThrow('PlanVertical renders vertical plans; this plan is landscape (use PlanVideo)');
     expect(() => vertical.calculateMetadata({ props: { v: 0, plan: sized } })).toThrow('render props version 0 does not match this bundle');
     const preview = comps.find((c) => c.id === COMPOSITIONS.preview)!;
     const previewSpec = { durationInFrames: 0, fps: 25, width: 640, height: 360 } as unknown as ComponentPreviewSpec;

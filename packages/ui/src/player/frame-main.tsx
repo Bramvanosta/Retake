@@ -1,5 +1,5 @@
 /**
- * The preview frame (L4.5, DESIGN §4g): DemoVideo in a Remotion Player, inside `<iframe sandbox="allow-scripts">` on the
+ * The preview frame (L4.5, DESIGN §4g): PlanVideo in a Remotion Player, inside `<iframe sandbox="allow-scripts">` on the
  * player origin (an opaque origin: no storage, no cookie, no access to the Studio page), under the frame's strict CSP,
  * after boot.ts removed WebRTC. It displays only: every control lives in the Studio page, which talks to it over the
  * MessageChannel of protocol.ts.
@@ -28,7 +28,7 @@ import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player } from '@remotion/player';
 import type { PlayerRef } from '@remotion/player';
-import { ComponentPreview, DemoVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
+import { ComponentPreview, PlanVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
 import { bundle, defaults, held, loaders, scaffolds } from 'ds:modules';
 import { latest } from './frame-store.js';
 import { LIST_MAX, PROTOCOL_VERSION, clip, isPreviewDisplayText, parseParentMessage } from './protocol.js';
@@ -142,7 +142,7 @@ function loadScaffolds(): Promise<Record<string, Module>> {
           const mod = await s.load();
           if (mod.default) out[kind] = { component: mod.default, defaults: s.defaults };
         } catch {
-          // A scaffold that does not load leaves its kind without a stand-in (DemoVideo says so).
+          // A scaffold that does not load leaves its kind without a stand-in (PlanVideo says so).
         }
       }),
     );
@@ -236,7 +236,7 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
   if (gen !== generation) return;
   missing.sort();
   const modules = { components, scaffolds: scaffoldsLoaded };
-  const Composition = isPreview ? ComponentPreview : DemoVideo;
+  const Composition = isPreview ? ComponentPreview : PlanVideo;
   const Video = (vp: Record<string, unknown>) => h(ModulesContext.Provider, { value: modules }, h(PreviewContext.Provider, { value: previewMode }, h(Composition, vp)));
   const frame = Math.min(m.frame, plan.durationInFrames - 1);
   mounted = { gen, plan, Video, props, loop: isPreview, frame };

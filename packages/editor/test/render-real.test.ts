@@ -239,7 +239,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   );
 
   it(
-    'DemoVertical renders the vertical variant (9:16 crop of the capture)',
+    'PlanVertical renders the vertical variant (9:16 crop of the capture)',
     async () => {
       const timeline = await readJson<Timeline>(join(ws.runDir, 'timeline.json'));
       const registry = await loadComponentRegistry({ root: ws.root });

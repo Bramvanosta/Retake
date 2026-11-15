@@ -485,7 +485,7 @@ export type {
 } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
-export { THEME_USES_STATS, ThemeEditMemos, editTemplate, templateView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';
+export { THEME_USES_STATS, ThemeEditMemos, editTheme, themeEditView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';
 export type { ThemeComponentView, ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView, ThemeEditable, ThemeListItem } from './theme-edit.js';
 export { THEME_COPY_MAX_BYTES, THEME_COPY_MAX_FILES, copyTheme } from './brand/copy.js';
 export type { ThemeCopied } from './brand/copy.js';

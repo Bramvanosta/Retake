@@ -2,7 +2,7 @@
 import { libraryStatesOf, submitPreviewJob } from '../jobs/preview-job.js';
 import { componentCreate, componentGet, componentList, componentValidate } from '../components.js';
 import { templateGet, templateList } from '../templates.js';
-import { editTemplate, templateView, themeEditList } from '../theme-edit.js';
+import { editTheme, themeEditView, themeEditList } from '../theme-edit.js';
 import { buildThemePreview } from '../views/theme-preview.js';
 import { copyTheme } from '../brand/copy.js';
 import { brandFileList } from '../brand/file-list.js';
@@ -26,9 +26,9 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
       return { ...r, ...(worker ? { worker } : {}) };
     },
     site: (siteId, url) => readSite(ws, siteId, url, scope.clock),
-    view: (name) => templateView(ws, name, caches.themeEdit),
+    view: (name) => themeEditView(ws, name, caches.themeEdit),
     editList: (project) => themeEditList(ws, project, caches.themeEdit),
-    edit: (name, req) => editTemplate(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit }),
+    edit: (name, req) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit }),
     copy: (req) => copyTheme(ws, req, { scope }),
     files: (kind) => brandFileList(ws, kind),
     sites: () => siteList(ws),

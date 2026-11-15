@@ -253,7 +253,7 @@ describe('recordSession: the page cannot see or feed the recorder', () => {
       mainWorld = await page.evaluate(() => {
         const w = window as unknown as Record<string, unknown>;
         return {
-          names: Object.getOwnPropertyNames(window).filter((n) => /dsrec|__demo|playwright__binding/i.test(n)),
+          names: Object.getOwnPropertyNames(window).filter((n) => /__retake|playwright__binding/i.test(n)),
           kit: typeof w.__retake,
           cursor: document.querySelectorAll('retake-cursor').length,
           patched: typeof w.__retakeNotifyPatched,
@@ -261,7 +261,7 @@ describe('recordSession: the page cannot see or feed the recorder', () => {
       });
     });
     expect(report).toMatchObject({ kit: 'undefined', verdict: 'undefined', flush: 'undefined', raw: 'undefined', called: 0 });
-    expect((report.found as string[]).filter((n) => /dsrec|binding__|demo/i.test(n))).toEqual([]);
+    expect((report.found as string[]).filter((n) => /__retake|binding__/i.test(n))).toEqual([]);
     expect(report.dispatched).toBeGreaterThan(0);
     expect(mainWorld).toEqual({ names: [], kit: 'undefined', cursor: 0, patched: 'undefined' });
     // The one real press is recorded; nothing the script forged (twice: on load, and by the button).

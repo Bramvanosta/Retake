@@ -75,6 +75,51 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.54)
+- **L7.54 done (2026-11-15; branch `claude/arch-l7`)** — the old name's short forms are gone from code, and a scanner
+  keeps them out; the glossary's template rule, homonyms and missing words are written down; the doc drift is fixed.
+  - Code: editor `remotion/old composition name.tsx` → `remotion/PlanVideo.tsx` (`PlanVideo`, `PlanVideoProps`); composition ids
+    `old composition name` / `old composition name` / `old composition name` → `PlanVideo` / `PlanVertical` / `PlanSquare` (contract.ts; nothing
+    stores them: contract.ts is hashed into every bundle key, so each cached bundle is rebuilt once); the Studio player's
+    `ds:composition` exports `PlanVideo` (bundle-player.ts, frame-main.tsx, virtual.d.ts). runner-web `the old recorder name` →
+    `pageRecorder` (the runner-web entry names the new one; the package is private, no re-export); the recorder's
+    globals `the old in-page prefix Installed / Hash / Token / Flush / Verdict` and its binding `the old in-page prefix _<hex>` → `__retakeRec…`, both
+    sides at once (kit/record-script.ts, record-session.ts) and the fixture's forgery page (RecordLab.jsx). Engine
+    theme-sense names: `editTemplate` → `editTheme`, `templateView` → `themeEditView` (theme-edit.ts, the façade's
+    library-api.ts: renames only), raw-export's `runTemplate` → `runTheme`. Every other `Template*` name is kept and the
+    glossary says why (stored format, published name, or filling in).
+  - Docs: GLOSSARY — the admission line (holds across processes, under the queue lock), the template-in-code rule, the
+    *record* homonym, rows for brand, site extraction, inspection, board, lease, approval · signature (and *sealed*);
+    target-architecture — the port list with Outputs and HostResolver (text and diagram), what `EnginePorts` holds;
+    DESIGN, DESIGN-phase2, ACCEPTANCE-phase2, guide/editing, guide/development, archive/HANDOFF-history follow the
+    renames. Ratchet: the store-new reason rewritten (it was stale: the port exists; the three entries stay, see Not done).
+    Lint baseline: the `old composition name.tsx` entry follows the file (same count).
+  - Tests: old-name.test gains the old name's short forms (the composition, recorder and in-page prefixes, each not after a letter,
+    case-sensitive: `guardsRecordings` is a kept case), planted and kept cases; record-session's page-side filters look for `__retake` (stricter: no `__retake*` name in the main world);
+    two titles renamed (test-guard): export-real "old composition name renders the square variant…" → "PlanSquare renders…",
+    render-real "old composition name renders the vertical variant…" → "PlanVertical renders…" (the composition's name in the
+    title, nothing else changed; R-EXP-06 / R-ED-21 evidence follow in the requirement edits).
+  - Mutations: the short-forms pattern removed → the scanner's planted case red; a `__retakeRec…` function planted in
+    the fixture page's main world → record-session's "the page cannot see or feed the recorder" red. Both restored.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `rules.mjs --check` (105 entries),
+    `test-guard` (2 renamed titles, above), `--check-cites` on a scratch copy with the edits applied: all 0. Tests run
+    alone: render-units, props-contract, theme-edit, glossary, import-rules, raw-export, player-bundle, record-session
+    (real recorder, Chromium), render-real (real render), old-name (green but for the register files below).
+  - Not done: the store-new entries (getScenario's 14 callers, comments `todayText`, index-db `readSmall`) are not moved
+    onto `ports.stores.folder(dir)` — getScenario's file holds the version ledger L7.49b is moving per engine, and the
+    callers are in facade/ and views/ (L7.49b's); the other `ds` short forms (`ds:composition`, `ds-asset:`,
+    `__ds_snapshot`, `ds-<theme>-display`) stay with BACKLOG's line on them (`__ds_snapshot` is a database name in
+    people's sandboxes). The theme-sense `Template*` names in core and the façade's `templates` member stay (the
+    glossary's rule says which, and why).
+
+**The lead must apply, or old-name.test stays red** (the new pattern finds the short forms in the register files):
+- `docs/requirements.json`: `.private/l7/L7.54-requirements-edits.json` (10 items), then `node scripts/requirements.mjs`.
+- `docs/ROADMAP.md` lines 350, 358, 450: `old composition name` → `PlanVideo`, `old composition name` → `PlanVertical`, `old composition name` →
+  `PlanSquare` (`perl -pi -e 's/\bold composition name/PlanVideo/g; s/\bold composition name\b/PlanVertical/g; s/\bold composition name\b/PlanSquare/g' docs/ROADMAP.md`).
+  Checked on a scratch copy: no hit left in ROADMAP, requirements.json or the regenerated REQUIREMENTS.md.
+- A fresh checkout's `packages/editor/dist/remotion/old composition name.{js,d.ts,…}` stays after `pnpm build` (tsc does not
+  clean): harmless (hashed, never imported), gone on a clean build.
+
 ## State (after L7.49b)
 - **L7.49b done (2026-11-15; branch `claude/arch-l7`)** — A-S6 closed: what the engine remembers between calls is one
   engine's, the CLI's commands are handed their ports, the Studio reads a job's files through the JobQueue port, and the

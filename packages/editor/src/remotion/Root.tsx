@@ -1,16 +1,16 @@
 /**
- * The Remotion root of a render bundle: the compositions DemoVideo (landscape), DemoVertical (9:16) and DemoSquare
+ * The Remotion root of a render bundle: the compositions PlanVideo (landscape), PlanVertical (9:16) and PlanSquare
  * (1:1), all taking `{ plan }` and sized by the plan (calculateMetadata). The generated bundle entry calls
  * `registerRoot(createRoot(modules))` with the generated registry module. The ids and the props are ./contract.ts's:
  * each composition's calculateMetadata reads its input through it (a payload of another props version is refused
- * there, when a render selects the composition; the Studio player mounts DemoVideo / ComponentPreview itself).
+ * there, when a render selects the composition; the Studio player mounts PlanVideo / ComponentPreview itself).
  */
 import type { ComponentType } from 'react';
 import { COMPOSITIONS, readPreviewProps, readVideoProps } from './contract.js';
 import { Composition } from './host.js';
 import type { CalculateMetadataFunction } from './host.js';
-import { DemoVideo } from './DemoVideo.js';
-import type { DemoVideoProps } from './DemoVideo.js';
+import { PlanVideo } from './PlanVideo.js';
+import type { PlanVideoProps } from './PlanVideo.js';
 import { ModulesContext } from './modules.js';
 import type { ComponentModules } from './modules.js';
 import { ComponentPreview } from './Preview.js';
@@ -22,7 +22,7 @@ const previewMetadata: CalculateMetadataFunction<ComponentPreviewProps> = ({ pro
   return { durationInFrames: Math.max(1, p.durationInFrames), fps: p.fps, width: p.width, height: p.height };
 };
 
-function metadata(variant: 'landscape' | 'vertical' | 'square'): CalculateMetadataFunction<DemoVideoProps> {
+function metadata(variant: 'landscape' | 'vertical' | 'square'): CalculateMetadataFunction<PlanVideoProps> {
   return ({ props }) => {
     const plan = readVideoProps(props);
     if (!plan) return {};
@@ -34,12 +34,12 @@ function metadata(variant: 'landscape' | 'vertical' | 'square'): CalculateMetada
 }
 
 export function createRoot(modules: ComponentModules): ComponentType {
-  const Video = (props: DemoVideoProps) => (
+  const Video = (props: PlanVideoProps) => (
     <ModulesContext.Provider value={modules}>
-      <DemoVideo {...props} />
+      <PlanVideo {...props} />
     </ModulesContext.Provider>
   );
-  const defaultProps: DemoVideoProps = { plan: null };
+  const defaultProps: PlanVideoProps = { plan: null };
   const Preview = (props: ComponentPreviewProps) => (
     <ModulesContext.Provider value={modules}>
       <ComponentPreview {...props} />

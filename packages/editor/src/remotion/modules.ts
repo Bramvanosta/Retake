@@ -31,7 +31,7 @@ export const ModulesContext = createContext<ComponentModules | null>(null);
 
 export function useModules(): ComponentModules {
   const m = useContext(ModulesContext);
-  if (!m) throw new Error('DemoVideo rendered without its component modules (createRoot(modules) provides them)');
+  if (!m) throw new Error('PlanVideo rendered without its component modules (createRoot(modules) provides them)');
   return m;
 }
 

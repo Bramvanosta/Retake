@@ -12,7 +12,7 @@ import type { EditPlan } from '../plan-types.js';
 import type { ComponentPreviewSpec } from './preview-types.js';
 
 /** Composition ids of the three video variants. */
-export const VIDEO_COMPOSITIONS = { landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare' } as const;
+export const VIDEO_COMPOSITIONS = { landscape: 'PlanVideo', vertical: 'PlanVertical', square: 'PlanSquare' } as const;
 /** Composition id of component previews. */
 export const PREVIEW_COMPOSITION = 'ComponentPreview';
 /** Every composition the root registers. */

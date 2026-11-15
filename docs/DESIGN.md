@@ -1490,7 +1490,7 @@ panel — the same session, nothing forwarded to it.
   at the capture size), Ctrl-C / SIGTERM left to the caller. The environment's access as in a run
   (`resolveRunAccess`, `compileWritePolicy`): a read-only environment arms the write guard (writes stopped / mocked,
   each one a `write` event); a read-write one lists every write request to its pages' origins (`passed`). Ends when the
-  last page closes (`closed`), on `stop` (the pending typing committed through `__dsrecFlush`, then the window closes:
+  last page closes (`closed`), on `stop` (the pending typing committed through `__retakeRecFlush`, then the window closes:
   `stopped`) or after `maxMs` (default `RECORD_MAX_MS` 30 min: `max_duration`); `signal` closes the window, removes the
   events file and throws a CancelledError. `drive` / `headless` play the person in tests (Playwright input is trusted).
 - **isolated world** (no `exposeBinding`): one CDP session on the window's page — `Page.enable`, `Runtime.enable`,
@@ -1500,11 +1500,11 @@ panel — the same session, nothing forwarded to it.
   touch the world's prototypes; only `isTrusted` events count. An isolated context reports origin `://`: its origin is
   the frame's main-world context created just before it. A message is kept only from the recorder's world, on an
   environment page origin; from a sub-frame only a content-free `frame` notice (counted).
-- **in page** (`demoRecorder`, serialised): capture-phase listeners on the window, registered before the page's scripts.
+- **in page** (`pageRecorder`, serialised): capture-phase listeners on the window, registered before the page's scripts.
   `pointerdown` → `pointer` with the element (`kit.suggestFor`, budget `RECORD_BUDGET_MS` 150 ms; else a description
   fallback without a target), `quiet_ms` (since the DOM last changed), `ms` (the in-page cost); Enter / Space on a
   focused control whose `click` has `detail: 0` → `pointer` `via: keyboard`, else a `key`; `dblclick`; typing per field
-  committed at blur, Enter (`enter: true`), the next action elsewhere, `pagehide` or `__dsrecFlush`: the text past what
+  committed at blur, Enter (`enter: true`), the next action elsewhere, `pagehide` or `__retakeRecFlush`: the text past what
   the field held at focus when text was only added at its end — the initial value never crosses on its own; after an
   edit inside the field (a deletion, an insertion before its end) `clear: true` and its whole final value, which holds
   the parts of the initial value that were kept (a replay types the final value: only the changed part would not do);
@@ -1530,7 +1530,7 @@ panel — the same session, nothing forwarded to it.
   to every new document with its verdict. Never written: a secret value, a hash.
 - **sign-in pages** (`signInMatchers`, extracted from the run's guard: the persona's patterns, else the environment's
   `auth.login_url`): the page holds its events until the runner's verdict for its origin + path
-  (`__dsrecVerdict(url, ok, hashes)`, asked once per path); on a sign-in page they are discarded and counted
+  (`__retakeRecVerdict(url, ok, hashes)`, asked once per path); on a sign-in page they are discarded and counted
   (`dropped {reason: sign_in}`); the runner checks each event's path again.
 - **runner side**: navigations of the main frame from CDP (`Page.frameNavigated` + `Page.getNavigationHistory`'s
   transition type → `start` / `typed` / `link` / `form` / `reload` / `other`; `Page.navigatedWithinDocument` → `spa`,
@@ -3852,7 +3852,7 @@ cross-site / same-site, or Origin `null`) — the sandbox test asserts the frame
 
 **Preview bundle** (part B; ui `player/bundle-player.ts`, critiques B3, B11). esbuild in memory, one classic IIFE per
 script (`b.js` from `frame-main.tsx`, `boot.js` from `boot.ts`), minified, the Studio's browser targets. It holds the
-Remotion Player, DemoVideo (the render's own composition, through the generated `ds:composition`) and **every**
+Remotion Player, PlanVideo (the render's own composition, through the generated `ds:composition`) and **every**
 component of the workspace registry plus the scaffolds (`playerComponents`), so a switch never rebuilds it. The
 generated `ds:modules` maps each id to `() => import(entry)` (and each scaffold by kind): esbuild makes each a lazily
 initialised module inside the one IIFE — nothing a component's module does runs before the frame loads it for a plan
@@ -3947,7 +3947,7 @@ take" below. The scrubber is a native range (step 1 frame, `aria-valuetext` "0:0
 hold"), as wide as the lanes plus a thumb so its thumb's centre meets the playhead line. **Keys** (`keyAction`): Space,
 ← / →, Shift+← / →, Home / End, [ / ]; none with Alt / Ctrl / ⌘, while typing (input, select, text area, editable) or in
 a radio group; on the scrubber its own arrows / Home / End (no double step), Space the screen's; on a button or link
-Space is its own. **Preview fidelity:** in preview mode DemoVideo's capture asks for the middle of its source frame
+Space is its own. **Preview fidelity:** in preview mode PlanVideo's capture asks for the middle of its source frame
 (`PREVIEW_FRAME_CENTRE` = 0.5: a browser keeps a frame's timestamp in microseconds, rounded — asking for exactly n / fps
 showed frame n − 1 in Chromium at a 2× span); renders unchanged. Premounting the next clip and
 `acceptableTimeShiftInSeconds` were not needed: in the installed Chrome a real 45 s capture played at 29.6 output
@@ -4056,7 +4056,7 @@ second (a running render's progress: one `scenario_renders` a second; a capture'
 in the test): from the worker's start to the review's verdict on screen 4.0–4.6 s; states seen in the page: queued,
 running; the contact sheet decoded (2 tiles, 1 fps).
 
-**Measured (part B, this Mac).** Go / no-go (critique B17, before the server): the real bundle — Player, DemoVideo, the
+**Measured (part B, this Mac).** Go / no-go (critique B17, before the server): the real bundle — Player, PlanVideo, the
 41 built-ins, 8 scaffolds, Lottie — on the fixture's quote timeline plus a Lottie card (a VP9 copy of a synthetic
 capture), in Playwright's Chromium 141 under the frame CSP in an opaque `sandbox="allow-scripts"` frame: intro, clip,
 Lottie card, card, interstitial and outro drawn; the editorial fonts loaded through FontFace CORS with `Origin: null`;
@@ -4128,7 +4128,7 @@ preview's near-white is the closer to the page's own CSS colour (#f7f3ee = 247 2
   make a child browsing context (iframe, frame, object, embed, fencedframe, portal) or to define custom elements;
   (b) the frame CSP requires Trusted Types with no policy (`require-trusted-types-for 'script'; trusted-types 'none'`):
   innerHTML, insertAdjacentHTML, document.write, DOMParser, createContextualFragment, srcdoc, a script's src and a
-  Worker's URL throw — the Player, DemoVideo, every built-in and Lottie use none of them (the sandbox e2e still draws
+  Worker's URL throw — the Player, PlanVideo, every built-in and Lottie use none of them (the sandbox e2e still draws
   them, 0 errors); (c) **structural**: a workspace component (anything not built in) runs in the preview only after the
   person allowed it in this Studio session — `preview_allow {id, hash}` (the timeline's *Allow in the preview* button,
   naming the component and its folder content hash, editor `componentFolderHash`); the allow-list (ui

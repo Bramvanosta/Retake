@@ -624,7 +624,7 @@ transport; `template_list`'s wording stays true).
 - **Editability by real path** (critique B15): the theme folder a real folder directly in templates_dir (inside the
   workspace, outside the Retake package), its template.yaml a regular file with one name; starters, the
   repository's starters listed as `workspace`, a project's folder theme, links and hard links are read-only with why.
-- **Write** (engine `theme-edit.ts` `editTemplate`): `if_match` (conflict naming the current sha256; a stale `from`
+- **Write** (engine `theme-edit.ts` `editTheme`): `if_match` (conflict naming the current sha256; a stale `from`
   is a conflict with `details.stale`), the splice verified, no hidden character added on a changed line, the theme
   re-parsed, every file it names a regular file of its own folder reached without a symbolic link and with one name
   (images checked, SVGs scanned, fonts sniffed), the registry resolving every kind (kept params validated), then
@@ -782,7 +782,7 @@ listRenders(project): Promise<StoredRender[]>      // L7.6b: the complete record
   `duck_ramp_s` around each clip; each play × an equal-power seam gain (`musicPlayGain`).
 
 ### 2.2 Composition & rendering
-`DemoVideo` / `DemoVertical` / `DemoSquare` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
+`PlanVideo` / `PlanVertical` / `PlanSquare` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
 background, one Sequence per segment with its transition component (every fade is one — a plan whose fade carries no
 component gets the transition stand-in, like any missing component; the composition draws no fade, colour or text of its
 own, test-guarded: no colour literal in `src/remotion/`), the segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera

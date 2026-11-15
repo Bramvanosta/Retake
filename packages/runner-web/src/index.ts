@@ -54,7 +54,7 @@ export type * from './kit/types.js';
 export { checkSavedSession, seedProfilePreferences, signIn } from './login.js';
 export { RECORD_ALT_BUDGET_MS, RECORD_BUDGET_MS, RECORD_MAX_MS, disableAutofill, looksLikeSecretSegment, maskPathSecrets, recordSession } from './record-session.js';
 export type { RecordSessionOptions, RecordSessionResult } from './record-session.js';
-export { SECRET_MASK, SECRET_MIN, demoRecorder, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
+export { SECRET_MASK, SECRET_MIN, pageRecorder, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 export type { RecorderConfig, SecretHash } from './kit/record-script.js';
 export type { SignInOptions, SignInResult } from './login.js';
 export { mergePacing, mergeCapture, mergeBrowser, projectBrowser, resolveAuth } from './config.js';

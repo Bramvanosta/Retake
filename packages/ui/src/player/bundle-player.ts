@@ -1,6 +1,6 @@
 /**
  * The preview bundle (L4.5, DESIGN §4g; critiques B3, B11): esbuild, in memory, one classic IIFE script for the
- * sandboxed preview frame — the Remotion Player, DemoVideo (the render's own composition, src/remotion), L4.7
+ * sandboxed preview frame — the Remotion Player, PlanVideo (the render's own composition, src/remotion), L4.7
  * ComponentPreview (the component previews' composition) and EVERY
  * component of the workspace (built-in and workspace components, plus the per-kind scaffolds), so a switch in the
  * Studio never rebuilds it — and `boot.js`, the frame's first script (boot.ts).
@@ -178,7 +178,7 @@ export function compositionSource(rootFile: string): string {
   const dir = dirname(rootFile).split(sep).join('/');
   const ext = rootFile.endsWith('.tsx') ? { tsx: '.tsx', ts: '.ts' } : { tsx: '.js', ts: '.js' };
   return [
-    `export { DemoVideo } from ${JSON.stringify(`${dir}/DemoVideo${ext.tsx}`)};`,
+    `export { PlanVideo } from ${JSON.stringify(`${dir}/PlanVideo${ext.tsx}`)};`,
     // L4.7: the component previews of the theme editor (a `component-preview` served by publishPreview).
     `export { ComponentPreview } from ${JSON.stringify(`${dir}/Preview${ext.tsx}`)};`,
     `export { ModulesContext } from ${JSON.stringify(`${dir}/modules${ext.ts}`)};`,

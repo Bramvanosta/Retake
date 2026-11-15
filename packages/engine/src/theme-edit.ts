@@ -327,7 +327,7 @@ async function usedBy(ws: OpenedWorkspace, memos: ThemeEditMemos, name: string):
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** One theme as its editor shows it (see the header); remembers the version shown (undo restores only those). */
-export async function templateView(ws: OpenedWorkspace, name: string, memos: ThemeEditMemos): Promise<ThemeEditView> {
+export async function themeEditView(ws: OpenedWorkspace, name: string, memos: ThemeEditMemos): Promise<ThemeEditView> {
   const loc = await locateTheme(ws, name);
   const read = readThemeText(loc);
   const blocker = textBlocker(name, read);
@@ -477,7 +477,7 @@ export interface ThemeEditResult {
 
 /**
  * The theme-edit caller rule (editsThemes): MCP is refused — themes are never edited through it. theme_edit's `callers`
- * (operations/themes.ts: checked after the parse, before the theme is read) and editTemplate's own first check, in the
+ * (operations/themes.ts: checked after the parse, before the theme is read) and editTheme's own first check, in the
  * same words.
  */
 export function themeEditRefused(c: Caller): EngineError | undefined {
@@ -489,7 +489,7 @@ export function themeEditRefused(c: Caller): EngineError | undefined {
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
-export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope; memos: ThemeEditMemos }): Promise<ThemeEditResult> {
+export async function editTheme(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope; memos: ThemeEditMemos }): Promise<ThemeEditResult> {
   const refused = themeEditRefused(callerOf(o.client));
   if (refused) throw refused;
   const loc = await locateTheme(ws, name);

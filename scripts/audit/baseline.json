@@ -61,8 +61,8 @@
    "reason": "The editor renders with the components (their registry, the kit its compositions draw with, a preview's samples), the review loads the component registry itself (the review use case still in the adapter), and the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg).",
    "entries": [
     "packages/editor/src/preview.ts → @retake/components",
-    "packages/editor/src/remotion/DemoVideo.tsx → @retake/components",
-    "packages/editor/src/remotion/DemoVideo.tsx → @retake/components/kit",
+    "packages/editor/src/remotion/PlanVideo.tsx → @retake/components",
+    "packages/editor/src/remotion/PlanVideo.tsx → @retake/components/kit",
     "packages/editor/src/remotion/Preview.tsx → @retake/components",
     "packages/editor/src/remotion/Preview.tsx → @retake/components/kit",
     "packages/editor/src/render/bundle.ts → @retake/components",
@@ -115,7 +115,7 @@
   },
   {
    "rule": "store-new",
-   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a scenario's text (14 callers), a thread view's scenario text, the search index's small files. They move when project reads get a port.",
+   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a scenario's text (getScenario, 14 callers), a thread view's scenario text, the search index's small files. The port exists (ProjectStores.folder, a ProjectFolder); these functions are handed a folder path and no ports, and move once their callers hand them ports.stores.folder(dir) (getScenario with the engine's own version ledger).",
    "entries": [
     "packages/engine/src/comments/views.ts → new LocalStorage",
     "packages/engine/src/index-db/index-db.ts → new LocalStorage",

@@ -249,7 +249,7 @@
    "packages/components/src/kit/notifications.tsx": 1,
    "packages/components/src/kit/panes.tsx": 1,
    "packages/components/src/kit/phone.tsx": 1,
-   "packages/editor/src/remotion/DemoVideo.tsx": 4,
+   "packages/editor/src/remotion/PlanVideo.tsx": 4,
    "packages/editor/src/remotion/Preview.tsx": 1,
    "packages/ui/src/app/edit/EditNotes.tsx": 2,
    "packages/ui/src/app/edit/TimelineScreen.tsx": 1,

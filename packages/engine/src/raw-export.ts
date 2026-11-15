@@ -34,8 +34,8 @@ export interface RawExportWorkOptions {
   onProgress?: (p: RawExportProgress) => void;
 }
 
-/** The template a run was captured with (its cursor look), else the project's; a note when it does not load. */
-async function runTemplate(project: LoadedProject, timeline: Timeline, ws: Pick<OpenedWorkspace, 'reads' | 'policy'>): Promise<{ template?: LoadedTemplate; note?: string }> {
+/** The theme a run was captured with (its cursor look), else the project's; a note when it does not load. */
+async function runTheme(project: LoadedProject, timeline: Timeline, ws: Pick<OpenedWorkspace, 'reads' | 'policy'>): Promise<{ template?: LoadedTemplate; note?: string }> {
   try {
     return { template: await ws.reads.loadProjectTemplate(project, timeline.video?.template, { files: ws.reads.fileFacts(ws.policy) }) };
   } catch (e) {
@@ -47,7 +47,7 @@ async function runTemplate(project: LoadedProject, timeline: Timeline, ws: Pick<
 export async function rawExportWork(o: RawExportWorkOptions): Promise<RawExportResult> {
   // The gate first: a run it refuses is refused in its words, before the theme is looked for.
   const timeline = await o.capture.raw.timeline(o.runDir, o.ws.outputs);
-  const { template, note } = await runTemplate(o.project, timeline, o.ws);
+  const { template, note } = await runTheme(o.project, timeline, o.ws);
   if (note) o.onNote?.(note);
   const editFiles = await editFilesOf(o.project.dir, timeline, template);
   return o.capture.raw.export(

@@ -1,5 +1,5 @@
 /**
- * DemoVideo / DemoVertical: render an EditPlan and nothing else (DESIGN-phase2 §2.2). The theme background, one
+ * PlanVideo / PlanVertical: render an EditPlan and nothing else (DESIGN-phase2 §2.2). The theme background, one
  * Sequence per segment with its transition component (every fade is one: R-CMP-01), the segment component with its
  * slots/params; for clips the layout component with `screen` = the capture (one source frame per output frame, under
  * the camera transform), the caption component with the clip's cues in the layout's caption area, the overlays placed
@@ -41,7 +41,7 @@ import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 import { usePreviewMode } from './preview-mode.js';
 
-export type DemoVideoProps = VideoProps;
+export type PlanVideoProps = VideoProps;
 
 const fill: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -386,9 +386,9 @@ function MusicBed({ plan }: { plan: EditPlan }) {
 
 // ── The composition ───────────────────────────────────────────────────────────
 
-/** Renders `plan` (landscape, vertical or square: the plan says which; DemoVertical / DemoSquare only check it). */
-export function DemoVideo({ plan }: DemoVideoProps) {
-  if (!plan) throw new Error('DemoVideo needs a plan (inputProps: { plan })');
+/** Renders `plan` (landscape, vertical or square: the plan says which; PlanVertical / PlanSquare only check it). */
+export function PlanVideo({ plan }: PlanVideoProps) {
+  if (!plan) throw new Error('PlanVideo needs a plan (inputProps: { plan })');
   const ready = useThemeFonts(plan.brand.tokens.font_faces);
   return (
     <AbsoluteFill style={{ background: backgroundCss(plan.brand.tokens) }}>

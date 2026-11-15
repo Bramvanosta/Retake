@@ -158,6 +158,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.53b | Tests independent: the rest | T-5 rest: the weekly shuffled run of the CI tier (`.github/workflows/shuffled.yml`, schedule only, read-only, the seed printed); scenario-view, prune, index-db, review.test, review-export-jobs, render-jobs and 10 files found by a shuffled CI-tier run pass in any order; record-studio's in-memory cases run alone (`labOnce`); reset-hook-approvals' fingerprint files from the test; captures-first-acceptance on free ports | done (5 CI-tier files and the 4 gated render/worker files still order-dependent) |
 | L7.53c | Tests independent under any order | T-5 end: the CI tier passes shuffled (seeds 20261115 and 7; seed 3's 7 files fixed, each green alone): cli, cli jobs, ui events, ui theme-ops, engine render-snapshot, core ids, cli prune, hooks http and trusted-files, ui desktop-answer, run-ops and update-ops fixed (lazy `demo()` / `mine()`, a workspace per case, each case's own README, job and scenario); the gated render-own-ffmpeg, render-real, worker-process and render-worker-process pass shuffled (seeds 11, 7); the weekly shuffled workflow lands (`.github/workflows/shuffled.yml`, schedule + `workflow_dispatch`, read-only); the index reads a history.jsonl rewritten in place again from the start (its first line's hash); setup-ops pinned on its server describe only | done |
 | L7.49b | Per-engine state (A-S6 rest): EngineCaches in the engine context (timeline, render, theme-edit, theme-preview memos, the registry, both undo ledgers: restore accepts only this engine's versions); CLI commands handed their ports by main() (`cliPorts` gone); the Studio's events.jsonl and live.json read through the JobQueue port (`eventsRange`, `liveRecord`), `Engine.jobFiles` removed; engine_info's started_in handed by the shell; ratchet check `engine-state`, no baseline entry | M | **done** (baseline 105 → 105, lint 456) |
+| L7.54 | Names and docs | CC-S10 (the compositions `PlanVideo` / `PlanVertical` / `PlanSquare`, `pageRecorder` and its `__retakeRec…` globals, engine `editTheme` / `themeEditView` / `runTheme`; old-name.test scans the short forms), A-N3 (glossary: template-in-code rule, *record* homonym, brand / site extraction / inspection / board / lease / approval · signature), A-S13 (admission line, target port list, store-new reason) | done (store-new's 3 entries not moved: L7.49b's files) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -348,7 +349,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   partial (`motion.default_zoom` unused: zooms only from explicit hints).
 
 ### L2.4 — Render pipeline (M)
-- **Scope:** `DemoVideo` composition rendering a plan (segments, fades, Freeze+OffthreadVideo, camera transform,
+- **Scope:** `PlanVideo` composition rendering a plan (segments, fades, Freeze+OffthreadVideo, camera transform,
   captions/overlays/brandmark slots), generated component registry module, bundle cache, local asset server,
   `renderVideo` / `renderStill` / `listRenders`, RenderRecord + versioned names, silent audio, progress/abort/
   concurrency, `retake render` (R-RND-*, R-ED-01/18/19/23/24/25, R-CLI2-01, R-PRJ-01, R-PROJ-10, R-TPL-04).
@@ -356,7 +357,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Done:** placeholder built-in library `packages/components/library/studio/*` (the 18 ids of the starter themes and
   the legacy mapping, theme-driven, tag `placeholder`, params the themes pass, layouts draw exactly their declared
   geometry; validated + rendered in both themes by `packages/components/test/library.test.ts`); compositions
-  `DemoVideo` / `DemoVertical` (`packages/editor/src/remotion/`: segments, transition windows — crossfade overlap, dip
+  `PlanVideo` / `PlanVertical` (`packages/editor/src/remotion/`: segments, transition windows — crossfade overlap, dip
   split ⌊n/2⌋ —, fade envelope fallback, layout with the capture under the camera, captions in the caption area,
   overlays through layout + camera, brand mark drawn by the composition, interstitial backdrop, music bed, FontFace +
   delayRender, scaffold stand-ins for `missing`); the capture frame is an `OffthreadVideo` in a shifted `Sequence`, not
@@ -448,7 +449,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   music bed with ducking, export formats mp4_1080p / mp4_4k / webm / vertical_9x16 / square / gif_preview,
   `retake export`; theme `default_zoom` for balanced/motion styles (R-ED-17/20/21/22, R-EXP-*, R-CLI2-03).
 - **Done:** **square** variant (`geometry_square` manifest key + JSON schema, `variants: [landscape, vertical, square]`,
-  `DemoSquare`, `--square`) next to vertical; every layout + the layout scaffold declare both formats (card / browser as
+  `PlanSquare`, `--square`) next to vertical; every layout + the layout scaffold declare both formats (card / browser as
   tall as the format allows, a wider capture reframed to 4:5 / ≈ 4:3; devices keep their proportions; captions below or
   beside); **real reframing** (`camera.ts reframeTrack`): cursor (+ 0.4 s ahead) and step targets (0.5 s look-ahead),
   hard boxes for every click (widgets: each `data.clicks`) and overlay anchors, dead zone + re-centring, a calm start on
@@ -1333,6 +1334,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.49b — Per-engine state (M; decided 2026-11-15)
 - **Goal:** an engine's memos and version ledgers are its own; the CLI's commands are handed their ports; job files read through the queue
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.49b)". EngineCaches on the engine's context (memos, version ledgers: a restore accepts the versions this engine showed), cliPorts gone (main hands the ports), eventsRange / liveRecord on JobQueue and Engine.jobFiles gone, startedIn handed by the shells, the engine-state check; final audit A-S6 closed
+
+### L7.54 — Names and docs (M; decided 2026-11-13)
+- **Goal:** the compositions, the in-page recorder and the engine's theme functions lose the product's old name; the glossary and the target architecture say what the code does
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.54)". PlanVideo / PlanVertical / PlanSquare, pageRecorder and the __retakeRec globals, editTheme / themeEditView / runTheme, old-name.test catching the short forms, glossary rows (template in code, record, admission across processes), target ports listed; final audits CC-S10, A-N3, A-S13 closed (the internal ds forms with L7.54b)
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

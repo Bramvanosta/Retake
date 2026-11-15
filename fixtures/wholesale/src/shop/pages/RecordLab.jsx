@@ -37,7 +37,7 @@ const HOSTILE_LABEL = `<img src=x onerror=__pwned=1>Hostile ${String.fromCharCod
 /** What a page script can try against a recorder: run once on load and again by the button. */
 function forge() {
   const seen = [];
-  const report = { found: [], called: 0, dispatched: 0, kit: typeof window.__retake, verdict: typeof window.__dsrecVerdict, flush: typeof window.__dsrecFlush, raw: typeof window.__playwright__binding__ };
+  const report = { found: [], called: 0, dispatched: 0, kit: typeof window.__retake, verdict: typeof window.__retakeRecVerdict, flush: typeof window.__retakeRecFlush, raw: typeof window.__playwright__binding__ };
   for (const name of Object.getOwnPropertyNames(window)) {
     let v;
     try {
@@ -45,7 +45,7 @@ function forge() {
     } catch {
       continue;
     }
-    if (typeof v !== 'function' || !/dsrec|binding|playwright|demo|record/i.test(name)) continue;
+    if (typeof v !== 'function' || !/__retake|binding|playwright|record/i.test(name)) continue;
     seen.push(name);
     const forged = { k: 'ev', age: 0, path: '/record-lab', e: { kind: 'pointer', button: 'left', via: 'pointer', el: null, quiet_ms: 0, ms: 0, forged: 'FORGED-CALL' } };
     try {
