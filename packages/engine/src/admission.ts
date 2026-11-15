@@ -31,7 +31,9 @@ import type { AgentChannel } from './caller.js';
 import type { AdmissionRule } from './catalogue.js';
 import { EngineError } from './errors.js';
 import type { JobQueue } from './jobs/job-queue.js';
-import { bestEffort } from '@retake/core/base';
+import { opChain } from './op-chain.js';
+export { opChain } from './op-chain.js';
+export type { OpChain } from './op-chain.js';
 
 /** The exports of the workspace queued or running at once that an admitted export still adds to (any client's count). */
 export const EXPORTS_OPEN_MAX = 2;
@@ -91,23 +93,6 @@ export function confirmWhy(list: SessionToConfirm[]): string {
     );
   }
   return parts.join('. ');
-}
-
-/** Runs `fn` after every earlier call of the same key has settled (its outcome ignored): one at a time per key. */
-export type OpChain = <T>(key: string, fn: () => Promise<T>) => Promise<T>;
-
-/** A chain of calls per key (two tabs, a double click, two calls of a client at once): the second finds the first's result. */
-export function opChain(): OpChain {
-  const chains = new Map<string, Promise<unknown>>();
-  return <T>(key: string, fn: () => Promise<T>): Promise<T> => {
-    const next = bestEffort(chains.get(key) ?? Promise.resolve(), "the previous call's failure is its own caller's: the chain only orders the calls").then(fn);
-    const tail = bestEffort(next, "the chain's tail never rejects: the caller gets the failure from `next`");
-    chains.set(key, tail);
-    void tail.then(() => {
-      if (chains.get(key) === tail) chains.delete(key);
-    });
-    return next;
-  };
 }
 
 /** The scenario a run submit parsed, on the environment its take uses (what `sessions_ack` is checked on). */

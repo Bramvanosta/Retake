@@ -593,7 +593,7 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
     // @retake/core/io only for ffmpegBin (the bundled ffmpeg, L5.16) and startMediaTool (L7.31: the media tools are
     // started there), @retake/core/policy for the policy's type: core never imports the editor or Remotion
     expect(imports.sort()).toEqual(['@retake/core/io', '@retake/core/policy', 'node:stream', 'sharp']);
-    for (const f of ['run-thumbs.ts', 'run-data.ts', 'outputs/run-files.ts', 'scenario-view.ts']) {
+    for (const f of ['run-thumbs.ts', 'run-data.ts', 'outputs/run-files.ts', 'views/scenario-view.ts']) {
       const src = await readFile(join(REPO, 'packages/engine/src', f), 'utf8');
       expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);
     }

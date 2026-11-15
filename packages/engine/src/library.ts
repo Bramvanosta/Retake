@@ -27,7 +27,7 @@
  * sentence ("the disk has N MB free").
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { realPathOf } from '@retake/core/policy';
@@ -552,4 +552,24 @@ export async function libraryStates(ws: Pick<OpenedWorkspace, 'root'>, ctx: Libr
     items.push({ component: id, poster, loop: { key: loopKey, state: le.state, ...(le.state === 'failed' ? { untrusted: { reason: le.failure.reason } } : {}) } });
   }
   return { theme: { name: ctx.template.name, hash: ctx.themeHash, editorial_starter: editorial }, items };
+}
+
+/** The stat signature of one file or folder (no link followed): `link` or its size, its mtime and inode; `-` when absent. */
+export function statSignature(p: string): string {
+  try {
+    const st = lstatSync(p);
+    return `${st.isSymbolicLink() ? 'link' : st.size}:${st.mtimeMs}:${st.ino}`;
+  } catch {
+    return '-';
+  }
+}
+
+/**
+ * A built-in component's committed preview (its folder's `file`): read plain (no link, a regular file, one link count,
+ * at most `max` bytes) and a PNG — else why not (`missing`, `too_large`).
+ */
+export function readBuiltinPreview(dir: string, file: string, max: number): { ok: true; bytes: Buffer } | { ok: false; reason: 'missing' | 'too_large' } {
+  const r = readPlainFile(join(dir, file), max, { verify: (st) => st.nlink === 1 });
+  if (!r.ok || !r.bytes.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) return { ok: false, reason: r.ok || r.reason !== 'too_large' ? 'missing' : 'too_large' };
+  return { ok: true, bytes: r.bytes };
 }

@@ -47,7 +47,7 @@ const SHAPE: Array<string | [string, string[]]> = [
   ['timeline', ['view']],
   ['reviews', ['submit', 'get', 'image']],
   ['exports', ['submit']],
-  ['templates', ['list', 'get', 'create', 'fromSite', 'site', 'view', 'edit', 'copy', 'files', 'sites', 'preview']],
+  ['templates', ['list', 'get', 'create', 'fromSite', 'site', 'view', 'edit', 'copy', 'files', 'sites', 'siteConflicts', 'preview']],
   ['components', ['list', 'get', 'validate', 'create', 'preview', 'library', 'libraryRender']],
   ['inspect', ['submit', 'get']],
   ['record', ['submit', 'get', 'view', 'annotate', 'save', 'discard', 'stop', 'list']],

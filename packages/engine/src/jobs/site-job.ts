@@ -48,6 +48,7 @@ import type { Approver } from '../approvals.js';
 import { components } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
+import type { HostResolver } from '../protected-hosts.js';
 import { openProject } from '../workspace.js';
 import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
@@ -176,7 +177,7 @@ export function checkSiteUrl(url: string, fix?: string): SiteUrl {
  * Where the host is an environment page of a workspace project, or a protected host (production / read-only, read_only
  * host patterns): each as a sentence. A project that does not load contributes nothing.
  */
-export async function siteHostConflicts(ws: OpenedWorkspace, host: string): Promise<string[]> {
+export async function siteHostConflicts(ws: OpenedWorkspace, hosts: HostResolver, host: string): Promise<string[]> {
   const out: string[] = [];
   for (const p of await ws.reads.listProjects(ws.root)) {
     let project: LoadedProject;
@@ -203,7 +204,7 @@ export async function siteHostConflicts(ws: OpenedWorkspace, host: string): Prom
       }
     }
   }
-  const hit = await protectedHostOf(`https://${host}/`, await workspaceProtectedHosts(ws));
+  const hit = await protectedHostOf(`https://${host}/`, await workspaceProtectedHosts(ws), hosts);
   if (hit) out.push(`a protected host of ${hit.production ? 'production' : 'read-only'} environment ${hit.env} of project ${hit.project}`);
   return [...new Set(out)];
 }
@@ -256,7 +257,7 @@ export interface SiteSubmitted {
 export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, approver: Approver | undefined): Promise<SiteSubmitted> {
   const first = checkSiteUrl(req.url);
   const fix = siteCommandLine(ctx.cli, first.href);
-  const conflicts = await siteHostConflicts(ctx.ws, first.host);
+  const conflicts = await siteHostConflicts(ctx.ws, ctx.hosts, first.host);
   if (conflicts.length) {
     throw new EngineError(
       'refused',
@@ -422,7 +423,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
     );
   }
   const url = checkSiteUrl(input.url, siteCommandLine(ctx.cli, input.url));
-  const conflicts = await siteHostConflicts(ctx.ws, url.host);
+  const conflicts = await siteHostConflicts(ctx.ws, ctx.hosts, url.host);
   if (conflicts.length) throw new EngineError('refused', `url: ${url.host} is ${conflicts.join('; ')}: never extracted as a site`);
   const dir = await makeSiteDir(ctx.ws, input.site_id);
   const test = unsafeTestResolve();
@@ -458,10 +459,10 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
 export async function extractSiteForAuthor(
   ws: OpenedWorkspace,
   rawUrl: string,
-  o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; signal?: AbortSignal; onPhase?: (phase: string) => void },
+  o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; hosts: HostResolver; signal?: AbortSignal; onPhase?: (phase: string) => void },
 ): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
-  const conflicts = await siteHostConflicts(ws, url.host);
+  const conflicts = await siteHostConflicts(ws, o.hosts, url.host);
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   const test = unsafeTestResolve();

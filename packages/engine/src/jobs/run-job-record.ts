@@ -4,7 +4,6 @@
  * One writer of job.json at a time: the claimer until the job runs, then whoever runs it. What a kind does is its
  * handler's (job-handlers.ts, one per kind); runJob holds what every kind shares around it.
  */
-import { rm, writeFile } from 'node:fs/promises';
 import { RETAKE_VERSION, bestEffort, errorMessage } from '@retake/core/base';
 import { join } from 'node:path';
 import { runsDirOf } from '../outputs/outputs.js';
@@ -40,8 +39,8 @@ export interface JobRunnerContext extends EnginePorts {
   root: string;
   ws: Workspace;
   queue: JobQueue;
-  /** The queue's paths: a render's browser.json, a run's live channel. */
-  files: Pick<JobFiles, 'browser' | 'live'>;
+  /** The queue's paths: a run's live channel (a render's browser is recorded through the queue). */
+  files: Pick<JobFiles, 'live'>;
   /** How the commands a human is asked to run start ("retake -C <root>"). */
   cli: string;
   build: string;
@@ -298,10 +297,9 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
         chain = chain.then(async () => {
           const t = await bestEffort(processStart(b.pid), 'a process start that cannot be read is recorded without it (recovery then signals nothing)', null);
-          await writeFile(
-            files.browser(id),
-            `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`,
-          ).catch((e: unknown) => log(`job ${id}: its render browser could not be recorded (${errorMessage(e)}): a worker that dies now leaves that browser running`));
+          await queue
+            .recordBrowser(id, { pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })
+            .catch((e: unknown) => log(`job ${id}: its render browser could not be recorded (${errorMessage(e)}): a worker that dies now leaves that browser running`));
         });
       };
       const outcome = await handleJob(job, {
@@ -343,7 +341,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     if (stored.kind === 'render' || stored.kind === 'export' || stored.kind === 'preview') {
       // The render browser is closed: its record must not outlive the job (a reused pid is never killed anyway).
       await chain;
-      await rm(files.browser(id), { force: true }).catch(() => undefined);
+      await queue.recordBrowser(id, null).catch(() => undefined);
     }
     await finish(rec, error);
   };

@@ -111,12 +111,12 @@ describe('job files', () => {
   });
 
   it('a browser.json that is not one: nothing is killed', async () => {
-    const dir = await folder('browser');
-    const file = join(dir, 'browser.json');
-    await writeFile(file, JSON.stringify({ pid: String(process.pid) }));
-    const files = { browser: () => file } as unknown as Parameters<typeof killRecordedBrowser>[0];
+    const q = new FileJobQueue(await folder('browser'));
+    const job = await q.enqueue(RUN_INPUT);
+    await writeFile(q.files.browser(job.id), JSON.stringify({ pid: String(process.pid) }));
+    expect(await q.recordedBrowser(job.id)).toBeUndefined();
     const logs: string[] = [];
-    await expect(killRecordedBrowser(files, { id: 'j_x' } as never, (m) => logs.push(m))).resolves.toBeUndefined();
+    await expect(killRecordedBrowser(q, job, (m) => logs.push(m))).resolves.toBeUndefined();
     expect(logs).toEqual([]);
   });
 });

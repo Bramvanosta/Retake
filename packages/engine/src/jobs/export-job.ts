@@ -27,7 +27,7 @@ import { exportPlanning, planTrustProblems } from '../render/editor-calls.js';
 import { exportWork, planWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import { killRecordedBrowser, removePartials } from './render-job.js';
-import type { JobFiles } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -132,10 +132,10 @@ export async function submitExportJob(
  * files of exports/<render_id>/ are removed, with a manifest left half written (`manifest.json.<hex>.tmp`, its atomic
  * write's temporary file). Files only, through the Outputs port. Best effort.
  */
-export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedExport(ws: OpenedWorkspace, queue: Pick<JobQueue, 'recordedBrowser'>, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'export') return;
   const input = job.input;
-  await killRecordedBrowser(files, job, log);
+  await killRecordedBrowser(queue, job, log);
   try {
     const project = await openProjectBySlug(ws, input.project);
     const exports = ws.outputs.exports;

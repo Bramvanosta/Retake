@@ -23,9 +23,9 @@
  * jobs).
  *
  * The paths are the file part's (`files`, JobFiles): it is handed, apart from the queue, only to the code that reads or
- * writes a job's files itself (the worker: a render's browser.json; the live channel: live.json; the Studio's live run:
- * events.jsonl by byte range; the Project board: job.json's stat); the port (job-queue.ts) has none, and reads a
- * submit's own files (a render's edit snapshot) itself (jobFile).
+ * writes a job's files itself (the live channel: live.json; the Studio's live run: events.jsonl by byte range; the
+ * Project board: job.json's stat); the port (job-queue.ts) has none, and reads a submit's own files (a render's edit
+ * snapshot: jobFile) and writes and reads a render's browser.json (recordBrowser, recordedBrowser) itself.
  */
 import type { EngineEnv } from '../env.js';
 import { createHash, randomBytes } from 'node:crypto';
@@ -34,8 +34,8 @@ import { join } from 'node:path';
 import { JOB_ID_RE } from '@retake/core/ids';
 import type { JobId } from '@retake/core/ids';
 import { readPlainFile } from '@retake/core/io';
-import { opChain } from '../admission.js';
-import type { OpChain } from '../admission.js';
+import { opChain } from '../op-chain.js';
+import type { OpChain } from '../op-chain.js';
 import { systemClock } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
@@ -66,7 +66,7 @@ export class JobFiles implements JobFilePaths {
     return join(this.job(id), 'job.json');
   }
 
-  /** <job>/browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash. */
+  /** <job>/browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash; the port writes and reads it (recordBrowser, recordedBrowser), tests look at the file itself. */
   browser(id: string): string {
     return join(this.job(id), 'browser.json');
   }

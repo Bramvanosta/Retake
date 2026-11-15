@@ -107,7 +107,7 @@ export interface Worker {
   readonly ws: Workspace;
   readonly cli: string;
   readonly queue: JobQueue;
-  /** The queue's paths (a render's browser.json), apart from the queue. */
+  /** The queue's paths, apart from the queue (a render's browser.json goes through the queue: recordBrowser). */
   readonly files: JobFiles;
   readonly dirs: ReturnType<typeof buildDirs>;
   readonly build: string;

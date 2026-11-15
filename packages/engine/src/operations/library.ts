@@ -31,25 +31,23 @@
  *   author's words: name, description, slot descriptions, the params table (names, types, defaults, enums, bounds,
  *   descriptions), tags, tokens and the README as text. No folder, entry or file list; path-free.
  */
-import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
-import { readPlainFile } from '@retake/core/io';
 import { components } from '../components.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';
-import { libraryCacheDir, readLibraryImage } from '../library.js';
+import { libraryCacheDir, readBuiltinPreview, readLibraryImage, statSignature } from '../library.js';
 import type { LibraryStatesView } from '../library.js';
 import { themeSignatures, treeSignature, watchBudget } from '../library-watch.js';
 import { openProjectBySlug } from '../projects.js';
 import { pathFree } from '../renders.js';
 import { themeForWork } from '../templates.js';
 import type { TemplateSummary } from '../templates.js';
-import { memoRegistry } from '../timeline-view.js';
+import { memoRegistry } from '../views/timeline-view.js';
 import { PREVIEW_JOB, READ } from './annotations.js';
 import { defineOperation } from './define.js';
 
@@ -160,16 +158,6 @@ export interface LibraryRenderAnswer {
   worker?: { pid?: number; spawned: boolean };
 }
 
-/** The stat signature of one file or folder (no link followed). */
-const statSig = (p: string): string => {
-  try {
-    const st = lstatSync(p);
-    return `${st.isSymbolicLink() ? 'link' : st.size}:${st.mtimeMs}:${st.ino}`;
-  } catch {
-    return '-';
-  }
-};
-
 /** Keys of library jobs of `project` queued or running now: key → kind. */
 async function queuedKeys(engine: Engine, slug: string): Promise<Map<string, { component: string; kind: 'poster' | 'loop' }>> {
   const out = new Map<string, { component: string; kind: 'poster' | 'loop' }>();
@@ -235,11 +223,11 @@ const viewSignature = async (engine: Engine, slug: string, asked: string | undef
   const budget = watchBudget();
   return [
     `theme ${t.name} ${t.dir} ${treeSignature(t.dir, budget)}`,
-    `project ${statSig(join(p.dir, 'project.yaml'))}`,
-    `templates ${statSig(ws.templatesDir)} ${[...(await themeSignatures(ws.templatesDir, budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
+    `project ${statSignature(join(p.dir, 'project.yaml'))}`,
+    `templates ${statSignature(ws.templatesDir)} ${[...(await themeSignatures(ws.templatesDir, budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
     `builtin ${reg.builtinDir ? treeSignature(reg.builtinDir) : '-'}`,
     `components ${treeSignature(ws.componentsDir, budget)}`,
-    `cache ${statSig(libraryCacheDir(ws))}`,
+    `cache ${statSignature(libraryCacheDir(ws))}`,
   ].join('\n');
 };
 
@@ -364,9 +352,9 @@ export const libraryImages = defineOperation({
           out.missing.push({ component: id, reason: 'not_builtin' });
           continue;
         }
-        const r = readPlainFile(join(info.dir, PREVIEW_FILE), PREVIEW_MAX_BYTES, { verify: (st) => st.nlink === 1 });
-        if (!r.ok || !r.bytes.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
-          out.missing.push({ component: id, reason: r.ok || r.reason !== 'too_large' ? 'missing' : 'too_large' });
+        const r = readBuiltinPreview(info.dir, PREVIEW_FILE, PREVIEW_MAX_BYTES);
+        if (!r.ok) {
+          out.missing.push({ component: id, reason: r.reason });
           continue;
         }
         const data = r.bytes.toString('base64');

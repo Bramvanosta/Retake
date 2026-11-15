@@ -8,6 +8,7 @@
  * what New theme takes). Folders are read only when `.retake/`, `site/` and the extraction's folder are real
  * folders (no link); site.json through readPlainFile (no link, regular, capped). Path-free.
  */
+import { lstatSync } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SITE_ID_RE, ULID_PREFIXES, ulidTime } from '@retake/core/ids';
@@ -15,9 +16,9 @@ import { statePath } from '@retake/core/project';
 import { parseSiteUrl, unsafeTestResolve } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
 import type { PaletteCheck } from '@retake/components/geometry';
-import { components } from './components.js';
-import { SITE_KEEP, siteRoot, siteView } from './jobs/site-job.js';
-import type { OpenedWorkspace } from './workspace.js';
+import { components } from '../components.js';
+import { SITE_KEEP, siteRoot, siteView } from '../jobs/site-job.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 const SITE_JSON_MAX = 1024 * 1024;
 const TEXT_MAX = 300;
@@ -116,4 +117,13 @@ export async function siteList(ws: OpenedWorkspace): Promise<SiteList> {
     });
   }
   return { sites };
+}
+
+/** Whether a file of an extraction is still a plain file (siteView checked it; looked at again right before it is read). */
+export function stillPlainFile(f: string): boolean {
+  try {
+    return lstatSync(f).isFile();
+  } catch {
+    return false;
+  }
 }

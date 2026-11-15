@@ -110,7 +110,7 @@ export async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
             finished_at: now,
           };
   await closeJob(w, final, { cleanup: true });
-  await rm(w.files.browser(h.id), { force: true }).catch(() => undefined);
+  await w.queue.recordBrowser(h.id, null).catch(() => undefined);
 }
 
 /** The filming markers of this user's takes, as the claims and the heavy job's yield read them. */

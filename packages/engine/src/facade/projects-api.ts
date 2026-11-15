@@ -7,7 +7,7 @@ import type { Engine } from './types.js';
 
 /** engine.projects. */
 export function projectsApi(ctx: EngineContext): Engine['projects'] {
-  const { opts, agent, ws, scope, project, studio, queue, boards } = ctx;
+  const { opts, agent, ws, scope, project, studio, queue, boards, ports } = ctx;
   return {
     list: () => listProjectSummaries(ws),
     get: async (slug) => {
@@ -15,7 +15,7 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
       return projectView(p, scope.stores.folder(p.dir));
     },
     create: async (input) => {
-      const p = await createProjectFromRequest(ws, input, scope);
+      const p = await createProjectFromRequest(ws, input, scope, ports.hosts);
       return projectView(p, scope.stores.folder(p.dir));
     },
     updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch, scope),

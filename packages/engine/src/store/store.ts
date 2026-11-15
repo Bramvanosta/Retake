@@ -9,8 +9,18 @@ import { statePath } from '@retake/core/project';
 import type { Caller } from '../caller.js';
 import { EngineError } from '../errors.js';
 import type { Clock } from '../clock.js';
-import type { WriteResult } from '../storage.js';
-import type { JournalWhat } from './journal.js';
+
+/** What kind of authored state a write changed. */
+export type JournalWhat = 'scenario' | 'readme' | 'thread' | 'theme' | 'component' | 'project' | 'workspace' | 'sandbox';
+
+/** A file written: its ref and path, the hex sha256 of the bytes written and their count. */
+export interface WriteResult {
+  ref: string;
+  path: string;
+  /** Hex sha256 of the bytes written. */
+  sha256: string;
+  bytes: number;
+}
 
 /** Who writes (the caller), when (the clock), the workspace whose journal records it, and the stores it writes through. */
 export interface StoreScope {

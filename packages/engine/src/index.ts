@@ -71,8 +71,8 @@ export {
 } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
 export { editScenario, getScenario, knownScenarioVersion, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
-export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './timeline-view.js';
-export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
+export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './views/timeline-view.js';
+export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './views/timeline-view.js';
 export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
 export type { FieldOption } from './field-options.js';
 export type { PreparedScenarioEdit, SaveResult, ScenarioEdit, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
@@ -104,9 +104,9 @@ export { RunData, RunDataCache, errorScreenshotName, frameAt, gridFrame, parseFr
 export type { FrameIndex, PageSource } from './run-data.js';
 export { RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, Semaphore, THUMB_BASE64_MAX, THUMB_CACHE_BYTES } from './run-thumbs.js';
 export type { RunThumb, RunThumbsOptions, RunThumbsView, ThumbMissingReason, ThumbSource } from './run-thumbs.js';
-export { ScenarioViews, VIEW_ISSUES_MAX, VIEW_RUNS_MAX, VIEW_STEPS_MAX } from './scenario-view.js';
-export { BOARD_RUNS_WINDOW, BOARD_SCENARIOS_MAX, BOARD_TITLE_MAX, FILE_FACTS_TTL_MS, ProjectBoards } from './project-board.js';
-export type { BoardRun, BoardScenario, ProjectBoardContext, ProjectBoardView, RunPoster } from './project-board.js';
+export { ScenarioViews, VIEW_ISSUES_MAX, VIEW_RUNS_MAX, VIEW_STEPS_MAX } from './views/scenario-view.js';
+export { BOARD_RUNS_WINDOW, BOARD_SCENARIOS_MAX, BOARD_TITLE_MAX, FILE_FACTS_TTL_MS, ProjectBoards } from './views/project-board.js';
+export type { BoardRun, BoardScenario, ProjectBoardContext, ProjectBoardView, RunPoster } from './views/project-board.js';
 export type {
   EditAbility,
   SceneFacts,
@@ -118,7 +118,7 @@ export type {
   ScenarioViewContext,
   StepBinding,
   ViewRunStatus,
-} from './scenario-view.js';
+} from './views/scenario-view.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
@@ -489,8 +489,8 @@ export { THEME_COPY_MAX_BYTES, THEME_COPY_MAX_FILES, copyTheme } from './brand/c
 export type { ThemeCopied } from './brand/copy.js';
 export { BRAND_LIST_MAX_DEPTH, BRAND_LIST_MAX_ENTRIES, BRAND_LIST_MAX_FILES, brandFileList } from './brand/file-list.js';
 export type { BrandFileList } from './brand/file-list.js';
-export { siteList } from './site-list.js';
-export type { SiteList, SiteListEntry } from './site-list.js';
+export { siteList } from './views/site-list.js';
+export type { SiteList, SiteListEntry } from './views/site-list.js';
 export type { ReviewFindingView, ReviewImageRef, ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
 export type {
   PlanPreviewSegment,
@@ -616,8 +616,8 @@ export { JobsWatch } from './index-db/jobs-watch.js';
 export { entitlements } from './entitlements.js';
 export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, agentChannel, checkAgentTrust, seedApprovalItems } from './approvals.js';
-export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, setProtectedHostResolver, workspaceProtectedHosts } from './protected-hosts.js';
-export type { HostLookup, ProtectedHostHit, WorkspaceProtectedHost } from './protected-hosts.js';
+export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, systemHosts, workspaceProtectedHosts } from './protected-hosts.js';
+export type { HostLookup, HostResolver, ProtectedHostHit, WorkspaceProtectedHost } from './protected-hosts.js';
 export {
   APPROVALS_USED_DIR,
   approvalKeyFile,
@@ -686,5 +686,5 @@ export {
 } from './library-watch.js';
 export type { WatchBudget } from './library-watch.js';
 // theme_preview's spec (L7.17: built by the engine; the Studio serves it on its player origin).
-export { buildThemePreview } from './theme-preview.js';
-export type { ThemePreviewBase, ThemePreviewBuild, ThemePreviewBuilt, ThemePreviewDraft, ThemePreviewRequest, ThemePreviewServe } from './theme-preview.js';
+export { buildThemePreview } from './views/theme-preview.js';
+export type { ThemePreviewBase, ThemePreviewBuild, ThemePreviewBuilt, ThemePreviewDraft, ThemePreviewRequest, ThemePreviewServe } from './views/theme-preview.js';

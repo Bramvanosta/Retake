@@ -22,7 +22,7 @@ import {
   openWorkspace,
   pruneUsedApprovals,
   restoreApprovals,
-  setProtectedHostResolver,
+  systemHosts,
   sha256Hex,
   signApprovals,
   signalInterrupts,
@@ -31,9 +31,23 @@ import {
   diskWorkspaceReads,
   diskOutputs,
 } from '../src/index.js';
-import type { Engine } from '../src/index.js';
+import type { Engine, HostResolver } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 
+/** The MCP engine's host resolver (its ports' `hosts`): the system's, or the one a test puts in with useHosts. */
+let resolver: HostResolver = systemHosts();
+const hosts: HostResolver = {
+  lookup: (name) => resolver.lookup(name),
+  get timeoutMs() {
+    return resolver.timeoutMs;
+  },
+};
+/** Resolve names with `r` from now on; returns the resolver it replaced. */
+function useHosts(r: HostResolver): HostResolver {
+  const before = resolver;
+  resolver = r;
+  return before;
+}
 let ws: string;
 let mcp: Engine;
 let cli: Engine;
@@ -90,7 +104,7 @@ beforeAll(async () => {
     await mkdir(join(ws, 'projects', rel, '..'), { recursive: true });
     await writeFile(join(ws, 'projects', rel), text);
   }
-  mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
+  mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false, ports: { hosts } });
   cli = await createEngine({ root: ws, client: 'cli', autoStartWorker: false });
 });
 
@@ -250,7 +264,7 @@ describe("production across projects: another project's production / read-only h
   /** Resolve names with `table` only (no real DNS); the names asked for are recorded in `asked`. */
   function resolveWith(table: Record<string, readonly string[] | 'never'>, timeoutMs = 2000): { asked: string[]; restore: () => void } {
     const asked: string[] = [];
-    const before = setProtectedHostResolver({
+    const before = useHosts({
       lookup: (name) => {
         asked.push(name);
         const r = table[name];
@@ -259,7 +273,7 @@ describe("production across projects: another project's production / read-only h
       },
       timeoutMs,
     });
-    return { asked, restore: () => void setProtectedHostResolver(before) };
+    return { asked, restore: () => void useHosts(before) };
   }
 
   it('addresses compare canonically: an IPv4-mapped IPv6 address is its IPv4 form, the unspecified address is loopback', async () => {
@@ -358,7 +372,7 @@ describe("production across projects: another project's production / read-only h
     let inFlight = 0;
     let most = 0;
     const waiting: Array<() => void> = [];
-    const before = setProtectedHostResolver({
+    const before = useHosts({
       lookup: (name) => {
         asked.push(name);
         most = Math.max(most, ++inFlight);
@@ -378,7 +392,7 @@ describe("production across projects: another project's production / read-only h
       expect([...asked].sort()).toEqual(['a', 'b', 'c', 'd', 'e'].map((k) => `${k}.slow.example.test`));
       expect(most).toBe(5);
     } finally {
-      setProtectedHostResolver(before);
+      useHosts(before);
     }
   });
 

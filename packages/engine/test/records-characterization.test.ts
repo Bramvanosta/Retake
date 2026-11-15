@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError, RunDataCache, createEngine, diskOutputs, planSignature, renderForWork } from '../src/index.js';
 import { readRenders } from '../src/index-db/index-db.js';
-import { versionMatches } from '../src/timeline-view.js';
+import { versionMatches } from '../src/views/timeline-view.js';
 import { renderIndex } from '../src/comments/views.js';
 import { loadProject } from '@retake/core/io';
 import { finaliseReservedRun } from '../src/jobs/run-job.js';

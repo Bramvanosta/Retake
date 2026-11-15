@@ -331,6 +331,22 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.get(run.id))?.yield).toBeUndefined();
     });
 
+    it("a render browser: recorded by the job's worker and read back checked; cleared, it reads nothing; not a job's id, nothing", async () => {
+      const { queue: q } = await make('browser');
+      const job = await review(q, 1);
+      await running(q, job);
+      expect(await q.recordedBrowser(job.id)).toBeUndefined();
+      await q.recordBrowser(job.id, { pid: 4242, started_at: '2026-11-15T09:00:00.000Z', user_data_dir: '/tmp/profile' });
+      expect(await q.recordedBrowser(job.id)).toEqual({ pid: 4242, started_at: '2026-11-15T09:00:00.000Z', user_data_dir: '/tmp/profile' });
+      await q.recordBrowser(job.id, { pid: 4243 });
+      expect(await q.recordedBrowser(job.id)).toEqual({ pid: 4243 });
+      await q.recordBrowser(job.id, null);
+      expect(await q.recordedBrowser(job.id)).toBeUndefined();
+      await q.recordBrowser(job.id, null);
+      expect(await q.recordedBrowser('../x')).toBeUndefined();
+      await expect(q.recordBrowser('../x', { pid: 1 })).rejects.toThrow(/invalid job id/);
+    });
+
     it('a queue with its own memory reads and writes the same jobs, for the same root; its fix texts start with `retake` unless told', async () => {
       const { queue: q } = await make('reader', 'retake -C /ws');
       const r = q.withOwnMemory();

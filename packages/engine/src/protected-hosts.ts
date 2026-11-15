@@ -11,9 +11,8 @@
  * address (loopback included) and the other a name, the name's resolved addresses are compared with it — a name that
  * does not resolve in time counts as a match (failing closed). The names of one check are resolved together, under one
  * deadline (2 s). Residue: two different names that resolve to one address, and an IP literal behind a `*.domain`
- * pattern, are not compared.
+ * pattern, are not compared. Names are resolved through the engine's HostResolver port (EnginePorts `hosts`).
  */
-import { lookup } from 'node:dns/promises';
 import { environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core/environment';
 import { canonicalAddress, canonicalIp } from '@retake/core/policy';
 import type { LoadedProject } from '@retake/core/model';
@@ -22,6 +21,9 @@ import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
 import type { OpenedWorkspace } from './workspace.js';
 import { confinementOf } from './caller.js';
+import type { HostResolver } from './host-lookup.js';
+export type { HostLookup, HostResolver } from './host-lookup.js';
+export { systemHosts } from './host-lookup.js';
 
 /** A host of a production or read-only environment of a project of the workspace. */
 export interface WorkspaceProtectedHost {
@@ -58,25 +60,10 @@ function origin(url: string): { host: string; port: string; ip: boolean } | null
   return { host, port: a.port, ip: a.ip || host === 'loopback' };
 }
 
-/** Resolves a name to its addresses (the system resolver, /etc/hosts included). */
-export type HostLookup = (name: string) => Promise<readonly string[]>;
-
-const systemLookup: HostLookup = async (name) => (await lookup(name, { all: true, verbatim: true })).map((a) => a.address);
-
-/** How names are resolved next to an IP literal: the system resolver, at most 2 s a name. */
-let resolver: { lookup: HostLookup; timeoutMs: number } = { lookup: systemLookup, timeoutMs: 2000 };
-
-/** Replace the resolver (tests: no real DNS); returns the one it replaced. No argument: the system resolver again. */
-export function setProtectedHostResolver(r?: { lookup?: HostLookup; timeoutMs?: number }): { lookup: HostLookup; timeoutMs: number } {
-  const before = resolver;
-  resolver = { lookup: r?.lookup ?? systemLookup, timeoutMs: r?.timeoutMs ?? 2000 };
-  return before;
-}
-
 /** A name's addresses (canonical, loopback folded), or null when it does not resolve in time; once per name and check. */
 type Lookups = Map<string, Promise<string[] | null>>;
 
-function addressesOf(name: string, lookups: Lookups): Promise<string[] | null> {
+function addressesOf(name: string, lookups: Lookups, resolver: HostResolver): Promise<string[] | null> {
   let p = lookups.get(name);
   if (!p) {
     const { lookup: look, timeoutMs } = resolver;
@@ -138,9 +125,9 @@ export async function workspaceProtectedHosts(ws: OpenedWorkspace, except?: stri
  * The protected host a page URL points at, or null: the same canonical host (and port, for a page's), else — when one
  * side is an address (loopback included) and the other a name — the name's resolved addresses (core canonicalIp), a
  * name that does not resolve in time counting as a match. The names to resolve are looked up together; `lookups`
- * shares the resolutions of one check.
+ * shares the resolutions of one check; `resolver` resolves the names (the engine's HostResolver port).
  */
-export async function protectedHostOf(url: string, hosts: readonly WorkspaceProtectedHost[], lookups: Lookups = new Map()): Promise<ProtectedHostHit | null> {
+export async function protectedHostOf(url: string, hosts: readonly WorkspaceProtectedHost[], resolver: HostResolver, lookups: Lookups = new Map()): Promise<ProtectedHostHit | null> {
   const o = origin(url);
   if (!o) return null;
   const portOk = (h: WorkspaceProtectedHost): boolean => h.port === undefined || h.port === o.port;
@@ -154,7 +141,7 @@ export async function protectedHostOf(url: string, hosts: readonly WorkspaceProt
     pairs.push({ h, name, address });
   }
   // Every lookup starts now: one deadline for them all, not one after the other.
-  const resolved = pairs.map((p) => addressesOf(p.name, lookups));
+  const resolved = pairs.map((p) => addressesOf(p.name, lookups, resolver));
   for (const [i, { h, name, address }] of pairs.entries()) {
     const addresses = await resolved[i];
     const shown = address === 'loopback' ? 'a loopback address' : address;
@@ -165,9 +152,9 @@ export async function protectedHostOf(url: string, hosts: readonly WorkspaceProt
 }
 
 /** The first page of `pages` (in their order) that points at a protected host, its lookups all started together. */
-async function firstProtectedPage<P extends { url: string }>(pages: readonly P[], hosts: readonly WorkspaceProtectedHost[]): Promise<(P & { hit: ProtectedHostHit }) | null> {
+async function firstProtectedPage<P extends { url: string }>(pages: readonly P[], hosts: readonly WorkspaceProtectedHost[], resolver: HostResolver): Promise<(P & { hit: ProtectedHostHit }) | null> {
   const lookups: Lookups = new Map();
-  const hits = await Promise.all(pages.map((p) => protectedHostOf(p.url, hosts, lookups)));
+  const hits = await Promise.all(pages.map((p) => protectedHostOf(p.url, hosts, resolver, lookups)));
   const i = hits.findIndex((h) => h !== null);
   return i < 0 ? null : { ...pages[i], hit: hits[i]! };
 }
@@ -177,11 +164,11 @@ function describe(h: ProtectedHostHit): string {
 }
 
 /** project_create: refuse pages that point at the hosts of another project's production or read-only environment. */
-export async function checkNewProjectHosts(ws: OpenedWorkspace, environments: Record<string, Record<string, string>> | undefined): Promise<void> {
+export async function checkNewProjectHosts(ws: OpenedWorkspace, resolver: HostResolver, environments: Record<string, Record<string, string>> | undefined): Promise<void> {
   if (!environments || !Object.keys(environments).length) return;
   const hosts = await workspaceProtectedHosts(ws);
   const pages = Object.entries(environments).flatMap(([env, list]) => Object.entries(list ?? {}).map(([page, url]) => ({ env, page, url })));
-  const found = await firstProtectedPage(pages, hosts);
+  const found = await firstProtectedPage(pages, hosts, resolver);
   if (found) {
     throw new EngineError(
       'refused',
@@ -195,7 +182,7 @@ export async function checkNewProjectHosts(ws: OpenedWorkspace, environments: Re
  * points at a host of another project's production or read-only environment. A protected environment itself is not
  * concerned (its run is read-only, or refuses what writes).
  */
-export async function checkWorkspaceProtection(ws: OpenedWorkspace, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
+export async function checkWorkspaceProtection(ws: OpenedWorkspace, resolver: HostResolver, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
   const env = resolveEnvironment(project, envName);
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);
@@ -203,6 +190,7 @@ export async function checkWorkspaceProtection(ws: OpenedWorkspace, project: Loa
   const found = await firstProtectedPage(
     Object.entries(env.pages).map(([page, url]) => ({ page, url })),
     hosts,
+    resolver,
   );
   if (found) {
     throw new EngineError(

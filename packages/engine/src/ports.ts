@@ -3,7 +3,7 @@
  * server and the Studio leave out), the jobs worker (`WorkerOptions.ports`), the job process and the CLI
  * (`cli/src/workspace.ts` `cliPorts`). `enginePorts` is the one place their defaults are written: nothing but those
  * roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
- * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs` or `FileJobQueue` (the
+ * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs`, `systemHosts` or `FileJobQueue` (the
  * import-rules ratchet's `clock-read`, `store-new`, `workspace-read`, `loader-use`, `output-read` and `queue` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
@@ -27,6 +27,8 @@ import { diskOutputs } from './outputs/disk-outputs.js';
 import type { Outputs } from './outputs/outputs.js';
 import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
+import { systemHosts } from './host-lookup.js';
+import type { HostResolver } from './host-lookup.js';
 import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 
@@ -55,6 +57,8 @@ export interface EnginePorts {
   secrets: Secrets;
   /** What the engine's generated outputs are read and written through — the run folders (outputs/outputs.ts). */
   outputs: Outputs;
+  /** What resolves a host name next to an IP literal when the workspace's protected hosts are checked (host-lookup.ts). */
+  hosts: HostResolver;
 }
 
 /** The product's queue: the file queue of the workspace's `.retake/jobs` (jobs/queue.ts). */
@@ -86,6 +90,7 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
     env,
     secrets,
     outputs: given.outputs ?? diskOutputs,
+    hosts: given.hosts ?? systemHosts(),
   };
 }
 
@@ -104,5 +109,6 @@ export function portsOf(from: EnginePorts): EnginePorts {
     env: from.env,
     secrets: from.secrets,
     outputs: from.outputs,
+    hosts: from.hosts,
   };
 }

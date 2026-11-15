@@ -22,7 +22,9 @@ import { join } from 'node:path';
 import { INSPECT_ID_RE, newUlidId } from '@retake/core/ids';
 import { resolveEnvironment } from '@retake/core/environment';
 import { projectRef } from '@retake/core/project';
-import { inspectPathProblem, inspectScenario, isPageOrigin, pageOrigins } from '@retake/core/run';
+import { inspectPathProblem, inspectScenario, isPageOrigin } from '@retake/core/run';
+import { pageOfUrl } from '../page-url.js';
+export { pageOfUrl } from '../page-url.js';
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { LoadedProject, LoadedScenario, TargetSpec } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -141,44 +143,6 @@ export type InspectSourceDraft = Extract<InspectSource, { kind: 'page' }> | (Omi
 
 const hasTemplate = (v: unknown) => v !== undefined && JSON.stringify(v).includes('{{');
 
-/**
- * The page key and path of a URL on the exact origin of one of the environment's pages: the page whose base path is the
- * longest prefix of the URL's path. EngineError refused / invalid otherwise.
- */
-export function pageOfUrl(url: string, pages: Record<string, string>, envName: string): { page: string; path: string } {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    throw new EngineError('invalid', `url: not an absolute URL (give a page key and a path, or an http(s) URL of environment ${envName})`);
-  }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new EngineError('refused', `url: only http(s) URLs of environment ${envName}'s pages are inspected (not ${u.protocol})`);
-  if (u.username || u.password) throw new EngineError('refused', 'url: a URL with credentials is never opened through an inspection');
-  if (!isPageOrigin(url, pages)) {
-    throw new EngineError(
-      'refused',
-      `url: its origin is not one of environment ${envName}'s pages (${pageOrigins(pages).join(', ') || 'none'}): an inspection opens only the environment's own origins — another port of localhost is another app`,
-    );
-  }
-  let best: { page: string; base: string } | null = null;
-  for (const [page, base] of Object.entries(pages)) {
-    let b: URL;
-    try {
-      b = new URL(base);
-    } catch {
-      continue;
-    }
-    if (b.origin !== u.origin) continue;
-    const prefix = b.pathname.endsWith('/') ? b.pathname : `${b.pathname}/`;
-    const under = u.pathname === b.pathname || u.pathname.startsWith(prefix);
-    if (under && (!best || b.pathname.length > best.base.length)) best = { page, base: b.pathname.replace(/\/$/, '') };
-  }
-  if (!best) throw new EngineError('refused', `url: its path is under none of environment ${envName}'s pages`);
-  const rest = u.pathname.slice(best.base.length);
-  const path = `${rest.startsWith('/') ? rest : `/${rest}`}${u.search}${u.hash}`;
-  return { page: best.page, path };
-}
-
 /** A submitted request → the job's `source` (sha of a scenario added by prepare). Shape checks only. */
 function sourceOf(req: InspectSubmitRequest, pages: Record<string, string>, envName: string): InspectSourceDraft {
   const given = [req.page !== undefined, req.url !== undefined, req.scenario !== undefined].filter(Boolean).length;
@@ -272,7 +236,7 @@ export async function submitInspectJob(
   const fix = inspectCommandLine(ctx.cli, project.slug, p.source, req.env);
   // What an agent may run (agent-trust) and where (the workspace's protected hosts), as for run_dry.
   checkAgentTrust(project, p.scenario.scenario, fix, ctx.client, p.env === env.name ? env : resolveEnvironment(project, p.env));
-  await checkWorkspaceProtection(ctx.ws, project, p.env, fix, agentChannel(ctx.client));
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, p.env, fix, agentChannel(ctx.client));
   const id = newInspectId();
   const dir = inspectDir(project, id);
   // Made inside the project only (the port refuses a .retake/inspect, or a folder of it, that leads out): before
@@ -438,7 +402,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const project = await openProjectBySlug(ctx.ws, input.project);
   const dir = inspectDir(project, input.inspect_id);
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
-  await checkWorkspaceProtection(ctx.ws, project, prepared.env);
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, prepared.env);
   await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {

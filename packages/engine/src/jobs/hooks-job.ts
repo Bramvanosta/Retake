@@ -87,7 +87,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
     const env = req.env ?? sel.env;
     const resolved = resolveEnvironment(project, env);
     if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client, resolved);
-    await checkWorkspaceProtection(ctx.ws, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
+    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
     if (!dry) {
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
       // A scenario's hooks are the agent's (trust `mcp`); hooks/<name>.yaml and project.yaml's reset are a person's.
@@ -132,7 +132,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
   let approvals: JobApproval[] = [];
   try {
     resolveEnvironment(project, req.env);
-    await checkWorkspaceProtection(ctx.ws, project, req.env, envResetCommandLine(ctx.cli, req), agentChannel(ctx.client));
+    await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, req.env, envResetCommandLine(ctx.cli, req), agentChannel(ctx.client));
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
@@ -235,7 +235,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
           const fix = hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry });
           checkAgentTrust(project, sel.scenario, fix, undefined, resolveEnvironment(project, input.env ?? sel.env));
         }
-        await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
+        await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, input.env ?? sel.env);
       },
     },
   });
@@ -262,7 +262,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     ...(input.env !== undefined ? { env: input.env } : {}),
     dry: input.dry,
     runId: input.journal_id,
-    protection: { check: () => checkWorkspaceProtection(ctx.ws, project, input.env) },
+    protection: { check: () => checkWorkspaceProtection(ctx.ws, ctx.hosts, project, input.env) },
   });
   const rollbacks = out.rollbacks.map((o) => ({
     journal: o.file.replace(/^.*[\\/]runs[\\/]([^\\/]+)[\\/][^\\/]+$/, '$1').replace(/^.*[\\/]([^\\/]+)\.json$/, '$1'),

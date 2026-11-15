@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { pathInside } from '@retake/core/base';
 import { zThemeName } from '@retake/core/ids';
 import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
-import { engineLocation, realpathOr, staleEngine } from '@retake/core/io';
+import { outsideWorkspace, staleThisEngine, workerOfAnotherCopy } from '../engine-copy.js';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
-import { otherCopy } from '../jobs/lock.js';
 import { README_MAX_CHARS } from '../projects.js';
 import { formatBytes } from '../prune.js';
 import { READ, WRITE_FILES } from './annotations.js';
@@ -25,16 +23,16 @@ export const engineInfo = defineOperation({
     const projects = await engine.projects.list();
     const w = await engine.jobs.worker();
     // L5.16c (critique M6): a worker of another copy of Retake (the app and a checkout, two apps) runs this client's jobs.
-    const other = otherCopy(w, { engine: engineLocation(), version: info.version });
+    const other = workerOfAnotherCopy(w, info.version);
     // Its folder is the lock's text (review c A-L4): under `untrusted`; the summary says the version's shape only.
     const worker = w ? { pid: w.pid, since: w.since, build: w.build, ...(w.started_by ? { started_by: w.started_by } : {}), ...(other ? { other_copy: true } : {}) } : null;
     const usage = await engine.usage();
     // L5.14: what a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const startedIn = process.cwd();
-    const elsewhere = !pathInside(startedIn, info.root, { real: (x: string) => realpathOr(x, x), dotDotPrefix: true });
+    const elsewhere = outsideWorkspace(startedIn, info.root);
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
-    const stale = staleEngine(info.version);
+    const stale = staleThisEngine(info.version);
     return {
       summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
       data: {

@@ -10,14 +10,14 @@ import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
 import { isTemplateMediaRef } from '@retake/core/theme';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor/plan';
-import { components } from './components.js';
-import { EngineError } from './errors.js';
-import { previewMaking } from './render/editor-calls.js';
-import { firstErrorLine, openProjectBySlug } from './projects.js';
-import { pathFree } from './renders.js';
-import { themeAssetProblems, themeForWork } from './templates.js';
+import { components } from '../components.js';
+import { EngineError } from '../errors.js';
+import { previewMaking } from '../render/editor-calls.js';
+import { firstErrorLine, openProjectBySlug } from '../projects.js';
+import { pathFree } from '../renders.js';
+import { themeAssetProblems, themeForWork } from '../templates.js';
 import { memoRegistry } from './timeline-view.js';
-import type { OpenedWorkspace } from './workspace.js';
+import type { OpenedWorkspace } from '../workspace.js';
 import { errorMessage } from '@retake/core/base';
 
 /** Colours being changed in the editor (memory only). */

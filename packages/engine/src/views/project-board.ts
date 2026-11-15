@@ -37,23 +37,23 @@ import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioText
 import { orderRenders } from '@retake/core/render';
 import type { LoadedProject, RunStatus } from '@retake/core/model';
 import type { RenderEntry, StoredRenderRecord } from '@retake/core/render';
-import { FINISHED_JOB_STATES } from './jobs/types.js';
-import type { JobRecord } from './jobs/types.js';
-import { jobProject } from './jobs/queue-core.js';
-import type { JobQueueView } from './jobs/job-queue.js';
-import type { JobFiles } from './jobs/queue.js';
-import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
-import { RunFolder, lsig } from './outputs/run-files.js';
-import type { ThumbSource } from './run-thumbs.js';
-import { readListedRecord, renderView, failureWords, scenarioRenderOf } from './renders.js';
-import type { ScenarioRenderView } from './renders.js';
-import { readRecord, runFolderIds, takeVerdict } from './runs.js';
-import { runFolderOf, runsDirOf } from './outputs/outputs.js';
-import type { RunRecordOnDisk } from './runs.js';
+import { FINISHED_JOB_STATES } from '../jobs/types.js';
+import type { JobRecord } from '../jobs/types.js';
+import { jobProject } from '../jobs/queue-core.js';
+import type { JobQueueView } from '../jobs/job-queue.js';
+import type { JobFiles } from '../jobs/queue.js';
+import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from '../run-data.js';
+import { RunFolder, lsig } from '../outputs/run-files.js';
+import type { ThumbSource } from '../run-thumbs.js';
+import { readListedRecord, renderView, failureWords, scenarioRenderOf } from '../renders.js';
+import type { ScenarioRenderView } from '../renders.js';
+import { readRecord, runFolderIds, takeVerdict } from '../runs.js';
+import { runFolderOf, runsDirOf } from '../outputs/outputs.js';
+import type { RunRecordOnDisk } from '../runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
-import { getScenario, validateScenarioText } from './scenarios.js';
-import type { OpenedWorkspace } from './workspace.js';
+import { getScenario, validateScenarioText } from '../scenarios.js';
+import type { OpenedWorkspace } from '../workspace.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */

@@ -16,12 +16,12 @@ import type { WorkerLockRecord } from '../jobs/lock.js';
 import type { JobFiles } from '../jobs/queue.js';
 import type { JobFilter, JobQueueView } from '../jobs/job-queue.js';
 import type { RunThumbsView } from '../run-thumbs.js';
-import type { ProjectBoardView, RunPoster } from '../project-board.js';
-import type { ScenarioActions, ScenarioView } from '../scenario-view.js';
+import type { ProjectBoardView, RunPoster } from '../views/project-board.js';
+import type { ScenarioActions, ScenarioView } from '../views/scenario-view.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from '../jobs/hooks-job.js';
 import type { AuthLoginSubmitRequest } from '../jobs/auth-job.js';
 import type { LatestRunNotice, PassedOverRuns, RenderEditSource, RenderRequest } from '../jobs/render-job.js';
-import type { TimelineViewRequest, TimelineViewResult } from '../timeline-view.js';
+import type { TimelineViewRequest, TimelineViewResult } from '../views/timeline-view.js';
 import type { ReviewRequest } from '../jobs/review-job.js';
 import type { ExportRequest } from '../jobs/export-job.js';
 import type { ReviewImageView, ReviewImagesMode, ReviewView } from '../reviews.js';
@@ -34,7 +34,7 @@ import type { ComponentCreateRequest, ComponentCreated, ComponentListView, Compo
 import type { ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
 import type { ThemeCopied } from '../brand/copy.js';
 import type { BrandFileList } from '../brand/file-list.js';
-import type { SiteList } from '../site-list.js';
+import type { SiteList } from '../views/site-list.js';
 import type { SiteSubmitted } from '../jobs/site-job.js';
 import type { ThemeCreated } from '../brand/create.js';
 import type { TemplateDetail, TemplateListView } from '../templates.js';
@@ -475,6 +475,8 @@ export interface Engine {
     files(kind: 'image' | 'font'): Promise<BrandFileList>;
     /** L4.7: the newest site extractions (hex colours and candidates; URL, host and page text under untrusted). */
     sites(): Promise<SiteList>;
+    /** Why a host is never extracted as a site: a page of an environment of a project, a protected host (none: empty). */
+    siteConflicts(host: string): Promise<string[]>;
   };
   components: {
     list(kind?: string): Promise<ComponentListView>;

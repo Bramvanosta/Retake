@@ -48,7 +48,7 @@ export interface JobRun {
   /** A render browser started: recorded at once (browser.json). */
   browser: (b: { pid: number; user_data_dir?: string }) => void;
   renderer: Renderer;
-  files: Pick<JobFiles, 'browser' | 'live'>;
+  files: Pick<JobFiles, 'live'>;
   self: ProcessIdentity;
   log: (message: string) => void;
   /** A run's pause marker, as the poll reads it (L4.4). */

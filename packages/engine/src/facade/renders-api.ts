@@ -4,7 +4,7 @@
  */
 import { submitRenderJob } from '../jobs/render-job.js';
 import { planPreview, renderStatus, scenarioRenders } from '../renders.js';
-import { timelineView } from '../timeline-view.js';
+import { timelineView } from '../views/timeline-view.js';
 import { submitReviewJob } from '../jobs/review-job.js';
 import { submitExportJob } from '../jobs/export-job.js';
 import { reviewGet, reviewImage } from '../reviews.js';

@@ -32,34 +32,34 @@ import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retak
 import { locateAnchorStep } from '@retake/core/comments';
 import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
 import { readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
-import { runFolderOf } from './outputs/outputs.js';
-import type { RenderOutputs } from './outputs/outputs.js';
+import { runFolderOf } from '../outputs/outputs.js';
+import type { RenderOutputs } from '../outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
 import type { RenderEntry } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor/plan';
-import { listComments, proposalForPreview } from './comments.js';
-import type { ProposalPreview } from './comments.js';
-import { components } from './components.js';
-import { EngineError } from './errors.js';
-import { entryOf, fieldOptions } from './field-options.js';
-import type { FieldOption } from './field-options.js';
-import { openProjectBySlug } from './projects.js';
-import { planSignature } from './renders.js';
-import { checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
-import { planRenderRequest } from './jobs/render-job.js';
+import { listComments, proposalForPreview } from '../comments.js';
+import type { ProposalPreview } from '../comments.js';
+import { components } from '../components.js';
+import { EngineError } from '../errors.js';
+import { entryOf, fieldOptions } from '../field-options.js';
+import type { FieldOption } from '../field-options.js';
+import { openProjectBySlug } from '../projects.js';
+import { planSignature } from '../renders.js';
+import { checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
+import { planRenderRequest } from '../jobs/render-job.js';
 import { placePins, timelineOf } from '@retake/editor/plan';
-import { probeMediaFile } from './render/editor-calls.js';
-import { NODE_THEME_HASHES } from './theme-files.js';
-import type { ThemeHashes } from './theme-files.js';
-import type { RenderEditSource } from './jobs/render-job.js';
-import { getScenario, scenarioEditBlocker } from './scenarios.js';
-import { sha256Hex } from './storage.js';
-import { themeUnusable } from './templates.js';
-import type { OpenedWorkspace } from './workspace.js';
-import type { AgentChannel } from './caller.js';
+import { probeMediaFile } from '../render/editor-calls.js';
+import { NODE_THEME_HASHES } from '../theme-files.js';
+import type { ThemeHashes } from '../theme-files.js';
+import type { RenderEditSource } from '../jobs/render-job.js';
+import { getScenario, scenarioEditBlocker } from '../scenarios.js';
+import { sha256Hex } from '../storage.js';
+import { themeUnusable } from '../templates.js';
+import type { OpenedWorkspace } from '../workspace.js';
+import type { AgentChannel } from '../caller.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -523,7 +523,7 @@ async function buildView(
   const choices = await choicesOf(registry, root, plan, editable, themes);
   const capture = await memoCapture(planned.captureFile, ws.policy);
   // The takes to choose from: the scenario's newest captures of any status, in the one order of runs.
-  const runs = (await (await import('./runs.js')).listRuns(ws.outputs.runs, project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
+  const runs = (await (await import('../runs.js')).listRuns(ws.outputs.runs, project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
   if (defaulted && !runs.includes(planned.run.id)) runs.unshift(planned.run.id);
   const { untrusted, ...shape } = model;
   const view: TimelineView = {
@@ -606,7 +606,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   // runs shares, over every run folder (no window): the take the scenario view names as Render's (`capture`), which
   // asks the same rule the same way (scenario-view.ts captureOf). Its timeline.json's size and mtime are in the key.
   const asked = proposal?.run_id ?? req.run_id;
-  const runId = asked ?? (await (await import('./runs.js')).latestCapture(ws.outputs.runs, project, req.scenario)).take?.run;
+  const runId = asked ?? (await (await import('../runs.js')).latestCapture(ws.outputs.runs, project, req.scenario)).take?.run;
   const timelineStat = runId ? await ws.outputs.runs.signature(join(runFolderOf(project.dir, runId), 'timeline.json'), { follow: true }) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));

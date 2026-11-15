@@ -8,7 +8,7 @@ import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, statePath } from '@retake/core/pro
 import { clientPath, engineLocation } from '@retake/core/io';
 import type { WorkspaceConfig } from '@retake/core/model';
 import { tildePath } from '../auth.js';
-import { stableNodePath } from '../integrations.js';
+import { stableNodePath } from '../integrations/config-snippet.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { lockText } from './app-checks.js';
 import { MIN_NODE_MAJOR, doctorMediaTools } from './machine-checks.js';

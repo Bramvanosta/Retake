@@ -22,7 +22,7 @@ import {
   updateChecksOff,
   UPDATE_DISABLE_ENV,
   zshQuote,
-} from '../integrations.js';
+} from '../integrations/app-setup.js';
 import { readSmallFile } from './machine-probes.js';
 import type { DoctorCheck, DoctorProbes } from './types.js';
 

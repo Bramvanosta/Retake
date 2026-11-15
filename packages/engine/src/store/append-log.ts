@@ -25,7 +25,7 @@
  */
 import { constants, mkdir, open, readFile } from 'node:fs/promises';
 import { STATE_DIR, statePath } from '@retake/core/project';
-import { opChain } from '../admission.js';
+import { opChain } from '../op-chain.js';
 import { EngineError } from '../errors.js';
 import { takeProjectLock } from '../project-lock.js';
 import { errorMessage } from '@retake/core/base';

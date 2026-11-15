@@ -75,6 +75,42 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.49)
+- **L7.49 done (2026-11-15; branch `claude/arch-l7`)** — the engine's own layers are explicit and held by the ratchet:
+  `ENGINE_LAYERS` (scripts/audit/lib.mjs) places every file of packages/engine/src in kernel · ports · adapters ·
+  use-cases · jobs · views · facade · operations · entries, and three new checks hold them with **no baseline entry**:
+  `engine-layer` (an import of a higher layer, types included, or a file no path places), `engine-io` (operations/,
+  facade/, engine.ts: no value import of node:fs, node:fs/promises, node:child_process, @retake/core/io) and `job-files`
+  (a `jobs/<kind>-job.ts` handler names no `JobFiles` / `JobFilePaths`). The host resolver is a port.
+  - Code: the views moved to `views/` (scenario-view, project-board, timeline-view, site-list, theme-preview). Today's
+    18 crossings fixed by moves, not rewrites: `op-chain.ts` (opChain out of admission.ts, re-exported there),
+    `render-request.ts` (the render request's check / plan / latest notice out of jobs/render-job.ts, re-exported
+    there), `page-url.ts` (pageOfUrl out of jobs/inspect-job.ts, re-exported), `engine-copy.ts` (engine_info's machine
+    reads), the store port's `WriteResult` / `JournalWhat` into store/store.ts (re-exported by storage.ts, journal.ts),
+    the doctor on `integrations/*` directly, library.ts `statSignature` / `readBuiltinPreview` and views/site-list.ts
+    `stillPlainFile` (the I/O the operations did). JobQueue port: `recordBrowser` / `recordedBrowser` (browser.json,
+    both adapters through queue-core); the render / export cleanups and `killRecordedBrowser` take the queue.
+    `EnginePorts.hosts` (host-lookup.ts `HostResolver`, `systemHosts`; PORT_ROOTS, loader-use) replaces
+    `setProtectedHostResolver` (removed); the checks take it (`checkWorkspaceProtection(ws, hosts, …)`,
+    `checkNewProjectHosts`, `protectedHostOf`, `siteHostConflicts`, `createProjectFromRequest`, `extractSiteForAuthor`
+    `o.hosts`); façade `templates.siteConflicts(host)` for the template_sites operation. CLI, MCP and Studio outputs and
+    file formats unchanged (browser.json written byte for byte as before).
+  - Boy scout: with a memory queue the worker wrote a render's browser.json on the real disk (JobFiles of the
+    workspace's jobs folder); it is now the queue's, in memory.
+  - Tests: import-rules +5 (the layer table, the three checks, holds today), job-queue contract +1 (a recorded browser,
+    both adapters), agent-safety on the engine's `ports.hosts` (a `useHosts` stand-in instead of the global setter),
+    stored-formats' bad browser.json through a FileJobQueue, review-export-jobs hands a queue; pins updated (ports
+    keys + `hosts`, engine-facade `siteConflicts`, HEAVY_JOB_PORTS `hosts: true`). 17 files run alone, green.
+  - Mutations: engine-layer's comparison, engine-io's core-io match, JOB_FILE_NAMES shortened → each its test red;
+    renders.ts put back on jobs/render-job.js → `rules.mjs --check` red; all restored.
+  - Gates: tsc -b, pnpm typecheck, lint (456, none new; 5 keys renamed to views/), format:check, rules --check (105 →
+    105: 2 clock-read entries renamed to views/, 0 entries in the three new groups, 0 stale), test-guard (no decrease,
+    no title renamed), check-cites on a scratch copy with the edits: exit 0.
+  - Not done (A-S6 rest): EngineCaches — the process-wide memos (views/timeline-view.ts six, renders.ts reportMemo /
+    planSigMemo, theme-edit.ts usesMemo, views/theme-preview.ts samplesMemo) and the two VersionLedger instances
+    (scenarios.ts, theme-edit.ts: one class since earlier, still process-wide); `cliPorts` handed to the commands (still
+    the CLI's module singleton); `Engine.jobFiles` still public (the Studio's live run tails events.jsonl by path).
+
 ## State (after L7.53)
 - **L7.53 done (2026-11-15; branch `claude/arch-l7`)** — the order-dependent files of the audit pass in any order, and
   the slowest incidental waits are gone: −84 s on the three slow files measured alone.

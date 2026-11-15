@@ -55,7 +55,7 @@ import type { HookRunner } from './hook-run/runner.js';
 import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
-import { pageOfUrl } from './jobs/inspect-job.js';
+import { pageOfUrl } from './page-url.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { dateOf, stampOf } from './clock.js';
 import type { Clock } from './clock.js';

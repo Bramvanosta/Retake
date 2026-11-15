@@ -190,7 +190,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       : Promise.resolve(undefined));
   return [
     async () => checkAgentTrust(project, sc, fix, ctx.client, env),
-    async () => checkWorkspaceProtection(ctx.ws, project, env.name, fix, agentChannel(ctx.client)),
+    async () => checkWorkspaceProtection(ctx.ws, ctx.hosts, project, env.name, fix, agentChannel(ctx.client)),
     async () => {
       const p = await preflight();
       if (p?.refused.length) throw refusedError(p, fix);
@@ -431,7 +431,14 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     }).catch((e: unknown) => {
       throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
-    await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
+    await checkWorkspaceProtection(
+      ctx.ws,
+      ctx.hosts,
+      project,
+      resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name,
+      undefined,
+      agentChannel(input.submitted_by),
+    );
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: stampOf(ctx.clock) };
     const update = (patch: Partial<JobProgress>) => {
       Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });

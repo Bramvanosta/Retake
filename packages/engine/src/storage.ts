@@ -31,13 +31,9 @@ export interface StoredRef {
   link?: 'refused';
 }
 
-export interface WriteResult {
-  ref: string;
-  path: string;
-  /** Hex sha256 of the bytes written. */
-  sha256: string;
-  bytes: number;
-}
+/** A file written (the project store port's word, store/store.ts). */
+export type { WriteResult } from './store/store.js';
+import type { WriteResult } from './store/store.js';
 
 export interface Storage {
   readonly scheme: 'local';

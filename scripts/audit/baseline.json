@@ -94,8 +94,8 @@
    "reason": "Memo lifetimes kept in memory only (the board's and the scenario view's caches, the Studio's one-time bootstrap codes): compared with the time they were made, never written.",
    "entries": [
     "packages/engine/src/http/token.ts → 1 wall-clock read",
-    "packages/engine/src/project-board.ts → 2 wall-clock reads",
-    "packages/engine/src/scenario-view.ts → 4 wall-clock reads"
+    "packages/engine/src/views/project-board.ts → 2 wall-clock reads",
+    "packages/engine/src/views/scenario-view.ts → 4 wall-clock reads"
    ]
   },
   {

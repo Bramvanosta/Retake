@@ -5,16 +5,16 @@ import { templateGet, templateList } from '../templates.js';
 import { editTemplate, templateView } from '../theme-edit.js';
 import { copyTheme } from '../brand/copy.js';
 import { brandFileList } from '../brand/file-list.js';
-import { siteList } from '../site-list.js';
+import { siteList } from '../views/site-list.js';
 import { createThemeFromBrand } from '../brand/create.js';
-import { readSite, submitSiteJob } from '../jobs/site-job.js';
+import { readSite, siteHostConflicts, submitSiteJob } from '../jobs/site-job.js';
 import { ENGINE_TRUST } from '../caller.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
 /** engine.templates. */
 export function templatesApi(ctx: EngineContext): Engine['templates'] {
-  const { opts, ws, scope, submitCtx, startWorker } = ctx;
+  const { opts, ws, scope, submitCtx, startWorker, ports } = ctx;
   return {
     list: (o = {}) => templateList(ws, o.project),
     get: (o) => templateGet(ws, o),
@@ -30,6 +30,7 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
     copy: (req) => copyTheme(ws, req, { scope }),
     files: (kind) => brandFileList(ws, kind),
     sites: () => siteList(ws),
+    siteConflicts: (host) => siteHostConflicts(ws, ports.hosts, host),
     preview: async (req) => {
       const r = await submitPreviewJob(submitCtx, { project: req.project, ...(req.template !== undefined ? { template: req.template } : {}), target: { kind: 'theme' } });
       const worker = await startWorker();

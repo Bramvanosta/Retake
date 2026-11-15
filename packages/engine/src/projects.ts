@@ -14,6 +14,7 @@ import { storeOf } from './store/store.js';
 import type { ProjectFolder } from './store/store.js';
 import type { StoreScope } from './store/store.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
+import type { HostResolver } from './protected-hosts.js';
 import type { OpenedWorkspace } from './workspace.js';
 
 export interface ProjectSummary {
@@ -232,13 +233,13 @@ export async function writeNewProject(ws: Pick<OpenedWorkspace, 'root' | 'reads'
 }
 
 /** README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore of a new project; refuses an existing slug. */
-export async function createProjectFromRequest(ws: OpenedWorkspace, input: CreateProjectRequest, scope: StoreScope): Promise<LoadedProject> {
+export async function createProjectFromRequest(ws: OpenedWorkspace, input: CreateProjectRequest, scope: StoreScope, hosts: HostResolver): Promise<LoadedProject> {
   if (input.slug !== undefined) checkProjectSlug(input.slug);
   // Never a page on another project's production or read-only hosts (they would run read-write here).
   const urls = input.environments
     ? Object.fromEntries(Object.entries(input.environments).map(([env, pages]) => [env, Object.fromEntries(Object.entries(pages ?? {}).map(([k, v]) => [k, typeof v === 'string' ? v : v.url]))]))
     : undefined;
-  await checkNewProjectHosts(ws, urls);
+  await checkNewProjectHosts(ws, hosts, urls);
   const created = await writeNewProject(
     ws,
     {

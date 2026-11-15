@@ -32,8 +32,9 @@ export const JOURNAL_VERSION = 1;
 /** Who wrote it: the caller (caller.ts). */
 export type JournalBy = Pick<Caller, 'client' | 'channel' | 'trust'>;
 
-/** What kind of authored state a write changed. */
-export type JournalWhat = 'scenario' | 'readme' | 'thread' | 'theme' | 'component' | 'project' | 'workspace' | 'sandbox';
+/** What kind of authored state a write changed (the port's word, store.ts). */
+export type { JournalWhat } from './store.js';
+import type { JournalWhat } from './store.js';
 
 /** `ok`, or the error kind that stopped it (`conflict`, `refused`, `busy`, `invalid`, `internal`…). */
 export type JournalOutcome = string;

@@ -113,7 +113,7 @@ export async function submitRecordJob(
     });
   }
   // Where it may run (the workspace's protected hosts), as for run_dry.
-  await checkWorkspaceProtection(ctx.ws, project, start.env.name, fix);
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, start.env.name, fix);
   const warnings: string[] = [];
   if (req.scenario !== undefined && project.scenarios.includes(req.scenario))
     warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);
@@ -199,7 +199,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
   const start = recordStart(project, { env: input.env, persona: input.persona, page: input.source.page, path: input.source.path });
-  await checkWorkspaceProtection(ctx.ws, project, start.env.name);
+  await checkWorkspaceProtection(ctx.ws, ctx.hosts, project, start.env.name);
   await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {

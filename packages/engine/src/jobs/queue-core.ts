@@ -25,7 +25,7 @@ import { signApprovals } from './signing.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
-import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
+import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, RecordedBrowser, TakeHold, YieldMark } from './job-queue.js';
 import { bestEffort } from '@retake/core/base';
 import { storedJson } from '../stored-json.js';
 import { z } from 'zod';
@@ -45,6 +45,8 @@ const JobRecordSchema = z.object({
 const ClaimSchema = z.object({ pid: z.number().int(), started_at: z.string().optional(), at: z.string() });
 /** A marker file (cancel, pause, stop, yield.json): a JSON object; each reader takes the members it knows. */
 const MarkerSchema = z.record(z.string(), z.unknown());
+/** A browser.json: the browser's pid and start time (both needed to kill it), and its profile when it has one. */
+const RecordedBrowserSchema = z.object({ pid: z.number().int(), started_at: z.string().optional(), user_data_dir: z.string().optional() });
 /** A line of events.jsonl: its sequence number, time and type. */
 const JobEventSchema = z.object({ seq: z.number().int(), t: z.string(), type: z.string() });
 
@@ -212,6 +214,19 @@ export abstract class StoredJobQueue implements JobQueue {
   async setYield(id: string, mark: YieldMark | null): Promise<void> {
     if (mark) await this.entries.put(checkJobId(id), 'yield.json', `${JSON.stringify({ v: 1, ...mark })}\n`);
     else await this.entries.remove(checkJobId(id), 'yield.json');
+  }
+
+  async recordBrowser(id: string, browser: RecordedBrowser | null): Promise<void> {
+    const job = checkJobId(id);
+    if (!browser) return this.entries.remove(job, 'browser.json');
+    const { pid, started_at, user_data_dir } = browser;
+    await this.entries.put(job, 'browser.json', `${JSON.stringify({ pid, ...(started_at !== undefined ? { started_at } : {}), ...(user_data_dir ? { user_data_dir } : {}) })}\n`);
+  }
+
+  async recordedBrowser(id: string): Promise<RecordedBrowser | undefined> {
+    const job = parseJobId(id);
+    // Not a job's id: no file of it to read (nothing to kill).
+    return job === null ? undefined : ((await this.json(job, 'browser.json', RecordedBrowserSchema)) as RecordedBrowser | undefined);
   }
 
   /**

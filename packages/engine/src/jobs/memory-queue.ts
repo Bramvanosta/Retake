@@ -7,8 +7,8 @@
  * (signing.ts), and the derived states still look at the recorded processes (proc.ts), as the file queue does.
  */
 import type { EngineEnv } from '../env.js';
-import { opChain } from '../admission.js';
-import type { OpChain } from '../admission.js';
+import { opChain } from '../op-chain.js';
+import type { OpChain } from '../op-chain.js';
 import { stampOf, systemClock } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { jobsDir } from '../workspace-state.js';
@@ -142,8 +142,8 @@ export class MemoryJobQueue extends StoredJobQueue {
  * The JobQueues port in memory (ports.ts EnginePorts `queues`): one MemoryJobQueue per workspace root, made on the first
  * call (with that call's clock); every later call for that root is handed the same jobs (withOwnMemory, its `cli`), so
  * an engine and an in-process worker given the same factory share one queue. The file part names the paths of the
- * workspace's jobs folder: nothing is read or written there by the queue (a worker's own files — a render's
- * browser.json, a run's live.json — are written there by the code that is handed them).
+ * workspace's jobs folder: nothing is read or written there by the queue (a run's live.json is written there by the
+ * code that is handed it; a render's browser record is the queue's, in memory).
  */
 export function memoryJobQueues(o: Omit<MemoryJobQueueOptions, 'cli' | 'clock' | 'env'> = {}): JobQueues & { of(root: string): MemoryJobQueue | undefined } {
   const queues = new Map<string, MemoryJobQueue>();

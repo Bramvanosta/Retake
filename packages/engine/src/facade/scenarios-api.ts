@@ -2,7 +2,7 @@
 import { editScenario, getScenario, saveScenarioText, validateScenarioText } from '../scenarios.js';
 import { draftFromScript } from '../authoring.js';
 import { runBlockers } from '../jobs/run-job.js';
-import { memoRegistry } from '../timeline-view.js';
+import { memoRegistry } from '../views/timeline-view.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 

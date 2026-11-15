@@ -24,6 +24,11 @@ import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 /** What holds this workspace's heavy work now: a filming take of this workspace, one elsewhere on this Mac, or nothing. */
 export type TakeHold = 'here' | 'elsewhere' | undefined;
 
+/** A render browser a job's worker started: its process identity (pid AND start time, both needed to kill it) and its temporary profile folder. */
+export interface RecordedBrowser extends ProcessIdentity {
+  user_data_dir?: string;
+}
+
 /** The worker that claimed a job (its process identity) and when. */
 export interface ClaimRecord extends ProcessIdentity {
   at: string;
@@ -164,6 +169,13 @@ export interface JobQueue extends JobQueueView {
   write(rec: JobRecord): Promise<void>;
   /** Set (or clear, null) a running heavy job's yield — the worker that claimed it only. */
   setYield(id: string, mark: YieldMark | null): Promise<void>;
+  /**
+   * Record (or clear, null) the render browser a job's worker started — the worker that claimed it only: a worker killed
+   * mid-render leaves that browser running, and the next one kills it (recordedBrowser).
+   */
+  recordBrowser(id: string, browser: RecordedBrowser | null): Promise<void>;
+  /** The render browser a job's worker recorded, checked (a pid, its start time, its profile folder), or undefined. */
+  recordedBrowser(id: string): Promise<RecordedBrowser | undefined>;
 
   // ── events ──
   /**

@@ -297,6 +297,7 @@ export const PORT_ROOTS = {
   packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
   editorRenderer: ['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts'],
   systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
+  systemHosts: ['packages/engine/src/host-lookup.ts', 'packages/engine/src/ports.ts'],
   diskOutputs: ['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts'],
   MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts', 'packages/engine/src/workspace-reads/memory-reads.ts'],
   FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
@@ -314,6 +315,7 @@ export const PORT_ROOT_RULE = {
   packageSandboxes: 'loader-use',
   editorRenderer: 'loader-use',
   systemSecrets: 'loader-use',
+  systemHosts: 'loader-use',
   diskOutputs: 'output-read',
   MemoryOutputs: 'output-read',
   FileJobQueue: 'queue',
@@ -355,6 +357,139 @@ export const PORT_FILES = [
   'packages/engine/src/workspace-reads/reads.ts',
   'packages/engine/src/outputs/outputs.ts',
 ];
+/**
+ * The engine's own layers (engine-layer), lowest first: a file imports files of its own layer and of the layers below,
+ * never one above. Each layer is a list of paths under packages/engine/src (a file, or a folder ending in `/`); a file
+ * is in the layer of its longest matching path, and a file no path matches is a hit (`no layer`: a new file or folder
+ * gets its layer on purpose).
+ * - kernel: what every layer shares — the errors, the environment, the loader, stored JSON, the caller and the job
+ *   input's vocabulary, the process identity, one-at-a-time chains, the operation catalogue (data: names, kinds,
+ *   admission rules, the shells that serve them);
+ * - ports: the port files (PORT_FILES), which name no adapter (port-types holds them to the adapter packages);
+ * - adapters: each port's folder and the job queue's files beside the port — the file queue, the memory one, the
+ *   filming markers, the worker lock, the approvals' signatures —, the workspace's opening and the media storage, a
+ *   theme's files, the host resolver, the ports bag (ports.ts: the defaults) and the HTTP helpers;
+ * - use-cases: every other file of src/ and the folders of one concern (brand/, comments/, doctor/, index-db/,
+ *   integrations/);
+ * - jobs: the rest of jobs/ (a job's submit and its handler, the worker) and in-process.ts (the same work without a job);
+ * - views: views/ — what a screen reads, put together from the use cases and the jobs' state;
+ * - facade: engine.ts and facade/ (createEngine and its sub-APIs);
+ * - operations: operations/ (the shells' operations, invoke);
+ * - entries: the package entries and the worker's main.
+ */
+const ENGINE_SRC = 'packages/engine/src/';
+export const ENGINE_LAYERS = [
+  {
+    layer: 'kernel',
+    paths: [
+      'errors.ts',
+      'env.ts',
+      'lazy.ts',
+      'format.ts',
+      'stored-json.ts',
+      'workspace-state.ts',
+      'bundle-env.ts',
+      'version-ledger.ts',
+      'project-lock.ts',
+      'refs.ts',
+      'caller.ts',
+      'op-chain.ts',
+      'catalogue.ts',
+      'jobs/proc.ts',
+      'jobs/signal.ts',
+      'jobs/yield.ts',
+      'jobs/ids.ts',
+      'jobs/job-input.ts',
+      'jobs/types.ts',
+    ],
+  },
+  { layer: 'ports', paths: PORT_FILES.map((f) => f.slice(ENGINE_SRC.length)) },
+  {
+    layer: 'adapters',
+    paths: [
+      'capture/',
+      'render/',
+      'review/',
+      'hook-run/',
+      'sandboxes/',
+      'secrets/',
+      'store/',
+      'outputs/',
+      'workspace-reads/',
+      'http/',
+      'jobs/queue.ts',
+      'jobs/queue-core.ts',
+      'jobs/memory-queue.ts',
+      'jobs/interrupted.ts',
+      'jobs/held.ts',
+      'jobs/lock.ts',
+      'jobs/signing.ts',
+      'jobs/captures.ts',
+      'jobs/live-channel.ts',
+      'workspace.ts',
+      'storage.ts',
+      'theme-files.ts',
+      'host-lookup.ts',
+      'ports.ts',
+    ],
+  },
+  { layer: 'use-cases', paths: ['*.ts', 'brand/', 'comments/', 'doctor/', 'index-db/', 'integrations/'] },
+  { layer: 'jobs', paths: ['jobs/', 'in-process.ts'] },
+  { layer: 'views', paths: ['views/'] },
+  { layer: 'facade', paths: ['engine.ts', 'facade/'] },
+  { layer: 'operations', paths: ['operations/'] },
+  { layer: 'entries', paths: ['index.ts', 'contract.ts', 'doctor-entry.ts', 'integrations.ts', 'worker-main.ts'] },
+];
+/** The layer of an engine source (`rel` from the repository root): its index in ENGINE_LAYERS and name, or undefined. */
+export function engineLayerOf(rel) {
+  if (!rel.startsWith(ENGINE_SRC)) return undefined;
+  const p = rel.slice(ENGINE_SRC.length);
+  let best;
+  ENGINE_LAYERS.forEach((l, i) => {
+    for (const m of l.paths) {
+      // `*.ts`: a file of src/ itself; `x/`: a folder; else one file. The longest path wins (a file over its folder).
+      const hit = m === '*.ts' ? !p.includes('/') && p.endsWith('.ts') : m.endsWith('/') ? p.startsWith(m) : p === m;
+      const weight = m === '*.ts' ? 0 : m.length;
+      if (hit && (!best || weight > best.weight)) best = { index: i, layer: l.layer, weight };
+    }
+  });
+  return best && { index: best.index, layer: best.layer };
+}
+/** The engine file a relative specifier of `rel` names (`./x.js` → its .ts), or undefined (another package, a missing file). */
+function engineTarget(rel, spec, fileImports) {
+  if (!spec.startsWith('.')) return undefined;
+  const t = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)).replace(/\.js$/, '');
+  for (const ext of ['.ts', '.tsx', '/index.ts']) if (fileImports[t + ext] !== undefined) return t + ext;
+  return undefined;
+}
+/** engine-layer: each import of an engine file by a file of a lower layer (`<file> → <specifier> (<from> → <to>)`), and each file of no layer. */
+export function engineLayerHits(fileImports) {
+  const hits = [];
+  for (const [f, specs] of Object.entries(fileImports)) {
+    if (!f.startsWith(ENGINE_SRC)) continue;
+    const from = engineLayerOf(f);
+    if (!from) {
+      hits.push({ rule: 'engine-layer', file: f, spec: 'no layer' });
+      continue;
+    }
+    for (const s of new Set(specs)) {
+      const t = engineTarget(f, s, fileImports);
+      const to = t && engineLayerOf(t);
+      if (to && to.index > from.index) hits.push({ rule: 'engine-layer', file: f, spec: `${s} (${from.layer} → ${to.layer})` });
+    }
+  }
+  return hits;
+}
+/** The engine's presentation layers (engine-io): its operations, its façade and the engine's composition of it. */
+export const ENGINE_NO_IO = ['packages/engine/src/operations/', 'packages/engine/src/facade/', 'packages/engine/src/engine.ts'];
+/**
+ * The job handlers (job-files): jobs/<kind>-job.ts. They read and write a job's own files (its browser record, its
+ * submit's files) through the JobQueue port, never by a path of the file queue's (JobFiles, JobFilePaths).
+ */
+export const JOB_HANDLER = /^packages\/engine\/src\/jobs\/[a-z-]+-job\.ts$/;
+/** The file queue's path part: what a handler never names. */
+export const JOB_FILE_NAMES = ['JobFiles', 'JobFilePaths'];
+
 /**
  * The editor's render entries: its functions that render (a plan's video, stills, an export's formats, component previews)
  * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
@@ -549,6 +684,13 @@ export const RULES = [
       return !!p && ADAPTERS.includes(p) && p !== pkgOf(f) && !DOMAIN_ENTRIES.includes(s);
     },
   },
+  {
+    id: 'engine-io',
+    title: `the engine's operations and façade (ENGINE_NO_IO: operations/, facade/, engine.ts) do no I/O themselves: a value import, re-export or import() of node:fs, node:fs/promises, node:child_process or @retake/core/io there is a hit (its types are free) — the use cases below them read and write, through the ports`,
+    files: (f) => ENGINE_NO_IO.some((d) => f.startsWith(d)),
+    bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) || s === '@retake/core/io',
+    typeOnlyCheck: true,
+  },
 ];
 
 export const CHECKS = [
@@ -567,6 +709,16 @@ export const CHECKS = [
     id: 'R10',
     title:
       "the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library's name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps",
+  },
+  {
+    id: 'engine-layer',
+    title:
+      "the engine's own layers (ENGINE_LAYERS: kernel, ports, adapters, use-cases, jobs, views, facade, operations, entries — lowest first) import downwards only: in packages/engine/src a relative import, re-export, import() or `import('…')` type of an engine file of a higher layer is a hit (entries: the file, the specifier and the two layers), types included, and so is a file no path of the table places (`no layer`). Not seen: what another package reaches through an entry (the shells' rules), a specifier computed at run time",
+  },
+  {
+    id: 'job-files',
+    title:
+      "a job handler (JOB_HANDLER: packages/engine/src/jobs/<kind>-job.ts) reads and writes its job's files through the JobQueue port (its submit's files: JobQueue.file; the render browser it records: recordBrowser / recordedBrowser), never by a path of the file queue: an import of JOB_FILE_NAMES (JobFiles, JobFilePaths) there — a type import too, under an alias — is a hit (entries: the file and the name). Not seen: a path reached through another module, `typeof import('…')`, a member of a namespace import (`import type * as Q` then `Q.JobFiles`), the paths handed in a value of another type",
   },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   {
@@ -588,7 +740,7 @@ export const CHECKS = [
   },
   {
     id: 'loader-use',
-    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer and of the secrets, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\` and \`systemSecrets\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer, of the secrets and of the host resolver, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\`, \`systemSecrets\` and \`systemHosts\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
   },
   {
     id: 'port-types',
@@ -631,7 +783,7 @@ export const CHECKS = [
   {
     id: 'queue-call',
     title:
-      "outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append|exclusive(…)`, also `x.queue.…`): the engine's operations submit after their checks (under the queue's lock: `exclusive`), the worker writes",
+      "outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|recordBrowser|append|exclusive(…)`, also `x.queue.…`): the engine's operations submit after their checks (under the queue's lock: `exclusive`), the worker writes",
   },
   {
     id: 'render-call',
@@ -902,7 +1054,7 @@ const QUEUE_ROOTS = PORT_ROOTS[QUEUE_CLASS];
 const QUEUE_ADAPTER = 'packages/engine/src/jobs/queue.ts';
 const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
 /** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
-const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append', 'exclusive']);
+const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'recordBrowser', 'append', 'exclusive']);
 const queueCallsAllowed = (rel) => rel.startsWith('packages/engine/src/');
 /** Where the render-call check looks: the engine outside its render folder, and the shells. */
 const renderCallsChecked = (rel) => (rel.startsWith('packages/engine/src/') && !rel.startsWith(RENDER_HOME)) || SHELLS.some((s) => rel.startsWith(`packages/${s}/src/`));
@@ -1799,6 +1951,25 @@ export function coreRootHits(root, files) {
   return hits;
 }
 
+/** job-files: each name of JOB_FILE_NAMES a job handler imports (`<file> → <name> named`), read from its import declarations. */
+export function jobFileHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!JOB_HANDLER.test(rel)) continue;
+    const sf = parse(ts, rel, text);
+    for (const st of sf.statements) {
+      const named = ts.isImportDeclaration(st) ? st.importClause?.namedBindings : ts.isExportDeclaration(st) ? st.exportClause : undefined;
+      const els = named && (ts.isNamedImports(named) || ts.isNamedExports(named)) ? named.elements : [];
+      for (const e of els) {
+        const name = (e.propertyName ?? e.name).text;
+        if (JOB_FILE_NAMES.includes(name)) hits.push({ rule: 'job-files', file: rel, spec: `${name} named` });
+      }
+    }
+  }
+  return hits;
+}
+
 /** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
 export function portTypeHits(fileImports) {
   const hits = [];
@@ -2025,7 +2196,7 @@ export const FORMAT_READ_HOMES = {
   Provenance: 'packages/engine/src/brand/create.ts',
   StudioTokenRecord: 'packages/engine/src/http/discovery.ts',
   WorkerLockRecord: 'packages/engine/src/jobs/lock.ts',
-  RecordedBrowser: 'packages/engine/src/jobs/render-job.ts',
+  RecordedBrowser: 'packages/engine/src/jobs/queue-core.ts',
   MarkerRecord: 'packages/engine/src/jobs/captures.ts',
   JobRecord: 'packages/engine/src/jobs/queue-core.ts',
   ClaimRecord: 'packages/engine/src/jobs/queue-core.ts',
@@ -2411,6 +2582,8 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...coreContextHits(root, scanned.files),
     ...coreRootHits(root, scanned.files),
     ...doctorExecHits(root, scanned.files),
+    ...engineLayerHits(scanned.fileImports),
+    ...jobFileHits(root, scanned.files),
   ])
     set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);

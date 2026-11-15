@@ -90,6 +90,20 @@ script, fixture or app. This fixes where the library is *named*, not an interfac
 one loader, the library's API is still called in the editor's `render/{render,preview,policy,bundle}.ts`, and the
 Studio player's frame also reads a global the library sets.
 
+Inside the application, the engine's own files are layered too (`ENGINE_LAYERS` in `scripts/audit/lib.mjs`, lowest
+first): **kernel** (errors, environment, loader, stored JSON, the caller's and the job input's vocabulary, the process
+identity, the operation catalogue as data) · **ports** (the port files) · **adapters** (each port's folder, the job
+queue's files beside its port, the workspace's opening and the media storage, the host resolver, the ports bag) ·
+**use cases** (the other files of `src/` and the folders of one concern: `brand/`, `comments/`, `doctor/`, `index-db/`,
+`integrations/`) · **jobs** (a job's submit and handler, the worker, `in-process.ts`) · **views** (`views/`: what a
+screen reads) · **façade** (`engine.ts`, `facade/`) · **operations** (`operations/`) · **entries** (the package entries,
+the worker's main). A file imports its own layer and the ones below, never one above, types included, and a file no path
+places is a hit (`engine-layer`, no entry). The operations and the façade do no I/O themselves — no value import of
+node:fs, node:child_process or `@retake/core/io` (`engine-io`, no entry) — and a job handler (`jobs/<kind>-job.ts`)
+reads and writes its job's files through the JobQueue port (a submit's files, the render browser it records), never by
+the file queue's paths (`job-files`, no entry). The protected-hosts check resolves names through the ports bag's
+`hosts` (a HostResolver: the system's for the product, a test's own), never a process-wide setter.
+
 The ids of the domain — run, render, the ULID ids, theme names — have one grammar each in core (`id-grammar.ts`,
 `ids.ts`; the Studio front end keeps one pinned mirror), and the ratchet's `id-grammar` check counts a pattern written
 by hand anywhere else in `packages/*/src`: a date stamp, a version suffix, the ULID class or alphabet, a template that

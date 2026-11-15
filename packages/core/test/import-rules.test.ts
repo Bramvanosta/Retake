@@ -2543,7 +2543,7 @@ describe('the import-rules ratchet', () => {
       // The timeline: it parses nothing itself (ffprobe's output is core's reader's, L7.31); the record of a pin is read
       // under a listing's rules (the port's renders.listed: no link, the listing's cap) and judged by core's rules; renders/
       // is never named by hand.
-      const timeline = src('packages/engine/src/timeline-view.ts');
+      const timeline = src('packages/engine/src/views/timeline-view.ts');
       expect(parsesIn(timeline)).toEqual([]);
       expect(timeline).toMatch(/ffprobePackets\(readFfprobeJson\(text\)\)/);
       expect(timeline).toMatch(/renders\.listed\(renders\.dirOf\(projectDir\), a\.id\)/);
@@ -2681,6 +2681,107 @@ describe('the import-rules ratchet', () => {
         { rule: 'R1', reason: '', entries: ['packages/core/src/new.ts → node:os'] },
         { rule: 'queue', reason: '', entries: ['packages/ui/src/a.ts → new FileJobQueue'] },
       ],
+    });
+  });
+
+  describe("engine-layer, engine-io and job-files: the engine's own layers", () => {
+    const E = 'packages/engine/src/';
+    const layered = (fileImports: Record<string, readonly string[]>): string[] => (lib.engineLayerHits(fileImports) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+
+    it('places every engine file in one layer, a file over its folder, the port files in the ports', () => {
+      const of = (p: string): string | undefined => lib.engineLayerOf(E + p)?.layer;
+      expect((lib.ENGINE_LAYERS as { layer: string }[]).map((l) => l.layer)).toEqual(['kernel', 'ports', 'adapters', 'use-cases', 'jobs', 'views', 'facade', 'operations', 'entries']);
+      expect([of('errors.ts'), of('catalogue.ts'), of('jobs/job-input.ts')]).toEqual(['kernel', 'kernel', 'kernel']);
+      expect([of('clock.ts'), of('jobs/job-queue.ts'), of('outputs/outputs.ts')]).toEqual(['ports', 'ports', 'ports']);
+      expect([of('outputs/disk-outputs.ts'), of('jobs/queue.ts'), of('ports.ts'), of('host-lookup.ts')]).toEqual(['adapters', 'adapters', 'adapters', 'adapters']);
+      expect([of('renders.ts'), of('a-new-file.ts'), of('doctor/doctor.ts')]).toEqual(['use-cases', 'use-cases', 'use-cases']);
+      expect([of('jobs/render-job.ts'), of('in-process.ts'), of('views/timeline-view.ts'), of('facade/context.ts'), of('engine.ts'), of('operations/invoke.ts'), of('index.ts')]).toEqual([
+        'jobs',
+        'jobs',
+        'views',
+        'facade',
+        'facade',
+        'operations',
+        'entries',
+      ]);
+      expect(of('a-new-folder/x.ts')).toBeUndefined();
+      expect(lib.engineLayerOf('packages/core/src/a.ts')).toBeUndefined();
+    });
+
+    it('flags an import of a higher layer, types included, and a file of no layer; downwards and sideways are free', () => {
+      const files = {
+        [`${E}renders.ts`]: ['./jobs/render-job.js', './storage.js', './errors.js', 'node:fs', '@retake/core/io'],
+        [`${E}jobs/queue.ts`]: ['../op-chain.js', '../admission.js'],
+        [`${E}clock.ts`]: ['./outputs/disk-outputs.js'],
+        [`${E}views/site-list.ts`]: ['../jobs/site-job.js', './timeline-view.js'],
+        [`${E}operations/themes.ts`]: ['../engine.js', '../views/site-list.js'],
+        [`${E}facade/context.ts`]: ['../operations/invoke.js'],
+        [`${E}odd/x.ts`]: ['../errors.js'],
+        [`${E}jobs/render-job.ts`]: [],
+        [`${E}storage.ts`]: [],
+        [`${E}errors.ts`]: [],
+        [`${E}op-chain.ts`]: [],
+        [`${E}admission.ts`]: [],
+        [`${E}outputs/disk-outputs.ts`]: [],
+        [`${E}jobs/site-job.ts`]: [],
+        [`${E}views/timeline-view.ts`]: [],
+        [`${E}engine.ts`]: [],
+        [`${E}operations/invoke.ts`]: [],
+      };
+      expect(layered(files).sort()).toEqual(
+        [
+          `${E}renders.ts → ./jobs/render-job.js (use-cases → jobs)`,
+          `${E}jobs/queue.ts → ../admission.js (adapters → use-cases)`,
+          `${E}clock.ts → ./outputs/disk-outputs.js (ports → adapters)`,
+          `${E}facade/context.ts → ../operations/invoke.js (facade → operations)`,
+          `${E}odd/x.ts → no layer`,
+        ].sort(),
+      );
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'engine-layer')!.title;
+      for (const words of ['ENGINE_LAYERS', 'types included', 'no layer']) expect(title, words).toContain(words);
+    });
+
+    it("flags a value import of the file system, child processes or core's io side in the operations and the façade, not a type", () => {
+      const at = (rel: string, text: string, spec: string) => [rel, { text, specs: [spec] }] as const;
+      const files = Object.fromEntries([
+        at(`${E}operations/a.ts`, "import { lstatSync } from 'node:fs';\n", 'node:fs'),
+        at(`${E}operations/b.ts`, "import { readPlainFile } from '@retake/core/io';\n", '@retake/core/io'),
+        at(`${E}operations/c.ts`, "import type { PlainFileProblem } from '@retake/core/io';\n", '@retake/core/io'),
+        at(`${E}facade/d.ts`, "import { execFile } from 'node:child_process';\n", 'node:child_process'),
+        at(`${E}engine.ts`, "export { rm } from 'node:fs/promises';\n", 'node:fs/promises'),
+        at(`${E}operations/e.ts`, "import { join } from 'node:path';\n", 'node:path'),
+        at(`${E}library.ts`, "import { lstatSync } from 'node:fs';\n", 'node:fs'),
+      ]);
+      expect(
+        hitsOf(files)
+          .filter((h) => h.startsWith('engine-io '))
+          .sort(),
+      ).toEqual(
+        [
+          `engine-io ${E}operations/a.ts → node:fs`,
+          `engine-io ${E}operations/b.ts → @retake/core/io`,
+          `engine-io ${E}facade/d.ts → node:child_process`,
+          `engine-io ${E}engine.ts → node:fs/promises`,
+        ].sort(),
+      );
+    });
+
+    it('flags a job handler that names the file queue’s paths, under an alias or as a type; the worker and the queue are free', () => {
+      const at = (rel: string, text: string): string[] => (lib.jobFileHits(ROOT, [{ rel, text }]) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+      const job = `${E}jobs/render-job.ts`;
+      expect(at(job, "import type { JobFiles } from './queue.js';")).toEqual([`${job} → JobFiles named`]);
+      expect(at(job, "import { JobFiles as F } from './queue.js';")).toEqual([`${job} → JobFiles named`]);
+      expect(at(job, "import type { JobFilePaths } from './job-queue.js';")).toEqual([`${job} → JobFilePaths named`]);
+      expect(at(job, "export type { JobFiles } from './queue.js';")).toEqual([`${job} → JobFiles named`]);
+      expect(at(job, "import type { JobQueue } from './job-queue.js';\n// JobFiles: never here")).toEqual([]);
+      expect(at(`${E}jobs/worker-record.ts`, "import type { JobFiles } from './queue.js';")).toEqual([]);
+      expect(at(`${E}jobs/queue.ts`, 'export class JobFiles {}')).toEqual([]);
+    });
+
+    it('holds today: no crossing, no I/O in the operations and the façade, no handler on the queue’s paths', () => {
+      expect(ratchetOfRepo().filter((e) => /^(engine-layer|engine-io|job-files) /.test(e))).toEqual([]);
+      // The render browser a job records goes through the port, both adapters.
+      for (const f of ['jobs/job-queue.ts', 'jobs/queue-core.ts']) expect(readFileSync(join(ROOT, E, f), 'utf8'), f).toContain('recordedBrowser(id: string)');
     });
   });
 });

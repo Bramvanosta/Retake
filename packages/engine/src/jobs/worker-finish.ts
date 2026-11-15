@@ -47,15 +47,15 @@ export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: bo
 export async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
   if (final.input.kind === 'render') {
     const { cleanupInterruptedRender } = await import('./render-job.js');
-    await cleanupInterruptedRender(w.ws, w.files, final, w.log, w.reviewer);
+    await cleanupInterruptedRender(w.ws, w.queue, final, w.log, w.reviewer);
   } else if (final.input.kind === 'export') {
     // An export's re-render leaves the same: its browser and partial files.
     const { cleanupInterruptedExport } = await import('./export-job.js');
-    await cleanupInterruptedExport(w.ws, w.files, final, w.log);
+    await cleanupInterruptedExport(w.ws, w.queue, final, w.log);
   } else if (final.input.kind === 'preview') {
     // A preview's browser, started detached like a render's.
     const { killRecordedBrowser } = await import('./render-job.js');
-    await killRecordedBrowser(w.files, final, w.log);
+    await killRecordedBrowser(w.queue, final, w.log);
   } else if (final.input.kind === 'review') {
     // A review killed between its two renames leaves the previous review set aside.
     const { cleanupInterruptedReview } = await import('./review-job.js');
