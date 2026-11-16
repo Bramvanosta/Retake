@@ -41,7 +41,7 @@ container, the earlier heads of this file — under their original headings, so 
    the notes — a `## [0.3.0]` section of CHANGELOG.md whose top paragraph is written for the person about to click
    Install and Restart (the [Unreleased] section is long: the top paragraph says what a person sees).
 2. **The two open Homebrew pull requests** (4 and 7) do the same job: one should land, the other be closed.
-3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §20 and the L8 notes' "left for the
+3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §18 – §20 and the L8 notes' "left for the
    person"), then the older live runs under "Pending for the person".
 4. **Then the ROADMAP's L5.3 / L5.4 question** (L5.3 the iOS Simulator runner, L5.4 the phase-5 acceptance:
    "L5.3 – L5.4, L6"), when the person asks. Also open, when the person asks: the 2026-11-04 plan's T15 rest and T16
@@ -54,7 +54,8 @@ container, the earlier heads of this file — under their original headings, so 
 - The L8 chain's hand checks: the menus (MACOS-CHECKLIST 14h), one real font fetch from the npm registry (§20: the
   fontsource package layout is an unverified assumption), a real variable font at two weights and a real wide logo in a
   full render (L8.1), a real design-token export through `retake theme from-tokens` (L8.1b), one live take on a real
-  Firebase Auth emulator after a reset (L8.2: none was run).
+  Firebase Auth emulator after a reset and `packages/cli/test/sandbox-docker.test.ts` with a `node:22-alpine` image
+  (L8.2, §18: neither was run), `retake env` and a real single-page app's route that loads (L8.2b, §19).
 - The live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c – 12j, 13a; 13d: the field project with a sandbox, a hook step and
   compact results through Claude Code) and the open questions, gathered in one test document outside the repository.
 - R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first
@@ -92,23 +93,73 @@ inserts it above the first such heading). When this part holds more than a few l
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
 
 ## State (after L8.2b)
-<!-- lead: complete at merge -->
 - **L8.2b done (2026-11-16; branch `claude/l8-feedback2`)** — a project's environments by tool (field feedback 2,
-  point 1): `project_env_set` / `project_env_remove` over MCP and `retake env add|set|remove`, project.yaml edited in
-  place and checked by a re-parse, an agent's change that reaches a new address, lowers a production or read-only mark
-  or moves the default asked to the person; after a press that changes the route client-side, the take holds the
-  picture until the new route has painted (at most 3 s, then a warning), so no loading skeleton is filmed (point 27).
-  Notes, tests, gates and what is left: to be completed at the merge.
+  point 1) and no loading state filmed after a client-side route change (point 27).
+  - Environments: core `project-env-edit.ts` edits one environment of project.yaml by splicing its own lines (comments
+    and the other settings stay; an environment written on one line is rewritten in block form; aliases and anchors on
+    it refused), then re-parses and compares the result with the expected data, else refuses ("edit it by hand").
+    Engine `project-env.ts` (`engine.projects.setEnvironment / removeEnvironment`); ops `project_env_set` (write,
+    upsert) and `project_env_remove` (destructive), MCP and `retake env add | set | remove`. An agent's change that
+    reaches a new origin, lowers a production or read-only mark, moves the default onto a protected environment or
+    carries sign-in details in a URL is asked in a form (`Approver.approveProjectChange`, the prune pattern) with the
+    `retake env …` command a person runs instead; a read-write environment on a protected host is refused through MCP,
+    a warning in the CLI (the command is the person's own act: the CLI asks nothing). The file is re-read after the
+    question (a change meanwhile is a conflict) and written with the store's `ifMatch`. `read_only` (hosts, allow,
+    mocks) is never written by these tools (BL-189); no Studio screen edits environments (BL-188).
+  - Route holds: runner-web `route-hold.ts` — a route change in the same document (another path or a `#/` route,
+    never a query-only change) within 1 s of a step's own click, key or Enter holds the frames from the route change
+    until the indicators it brought are gone and the network is quiet (3 s at most, then a run warning naming the
+    indicator); the press's picture stays 0.1 s, then the ready route; the edit cuts the span like a page load
+    (`timeline.loading` gains `until: ready`, `same_document: true`, `indicator`). Indicators already in view before
+    the press never count; a marked wait right after the step is filmed on purpose (not held); a route the app changes
+    after the step returned is filmed as before. The wide selectors (`animate-pulse`, `data-slot="skeleton"`,
+    `data-loading="true"`) count only for the route watcher and only for elements with no text and nothing to click.
+  - Counts (after L8.2 → after L8.2b, on its own branch): catalogue 125 → 127, MCP tools 46 → 48, CLI commands
+    46 → 49; merged with L8.1, L8.1b and L8.2: catalogue 130, MCP tools 51, CLI commands 51 (see the merge below).
+    Requirements R-ENV-06, R-ENV-07, R-ISS-14 (lot `L8.2b`); BACKLOG BL-188, BL-189. Mutations: 18 + 20 (review
+    fixes), all caught (the query in the route key first only by the unit test, since by a real browser).
+  - **For the record:** it repaired L8.2's red `engine-entries.test.ts` (the `@retake/engine/shell` value cap: L8.2's
+    three sandbox words), raising the cap with the reason written in the test.
+  - Left for the person: MACOS-CHECKLIST §19 (`retake env` on a copy of a real project, the approval form through
+    Claude, a real single-page app's route that loads). Known limits (R-ISS-14's gap): recordings keep their own
+    trimming (no route hold), an indicator outside the probe's selectors or drawn on a canvas is filmed as it is, the
+    press's ripple is frozen for the 0.1 s it stays.
+- **The merge of the L8 chain (2026-11-16)**: L8.2 and L8.2b cherry-picked on top of L8.1, L8.1b and L8.3, then one
+  commit for the counts, the goldens and the instruction sentence. Counts after all five lots: 130 operations
+  (57 read, 60 write, 13 destructive), 51 MCP tools, 78 Studio ops, 60 CLI operations served by 51 commands; the
+  engine's entries 146 types and 156 shell values.
 
 ## State (after L8.2)
-<!-- lead: complete at merge -->
-- **L8.2 done (2026-11-16; branch `claude/l8-feedback2`)** — sandboxes (field feedback 2, points 9, 28, 29): a base
-  template of the database taken before the first seed, so an outdated snapshot (sandbox.yaml's seed or auth reset
-  changed) starts again from it instead of seeding over the last take's data, and `sandbox_status` says when the
-  snapshot is outdated; a persona whose accounts a reset put back starts from a fresh profile and signs in again off
-  camera at the next take (without login steps the take refuses it, saying so); `sandbox_init` over MCP and the recipes
-  in the guide. Not run: a live take on a real Firebase Auth emulator (left to the person). Notes, tests, gates: to be
-  completed at the merge.
+- **L8.2 done (2026-11-16; branch `claude/l8-feedback2`)** — sandboxes (field feedback 2, points 9, 28, 29).
+  - An outdated snapshot (the seed changed, an image rebuilt, `reset.firebase_auth` added) never seeds on a take's
+    data: `packages/sandbox/src/reset-plan.ts` (pure) decides restore | first-seed | from-base | from-snapshot |
+    refuse. A base template `<db>__retake_base` is taken before a database's first seed and kept; a sandbox snapshotted
+    before has none and starts again from its outdated snapshot, with a hint (`retake sandbox down … --volumes`, then
+    `up`: a base). With neither, an empty database gets its first seed and a base; one holding data is refused before
+    anything changes. The services of `reset.restart` restart after a restore and again after the snapshot is taken;
+    copies go through `<db>__retake_next` (a failed copy leaves the old one).
+  - `retake sandbox status` and `sandbox_status` say what the next reset does with the snapshot (current, outdated
+    and why, base kept or not), read only.
+  - Sessions: after a reset puts a Firebase Auth emulator's accounts back (`accounts_at` in the sandbox state), a
+    persona's session saved before is signed out: each take signs it in again with its login steps, off camera; a
+    persona without login steps is refused naming sandbox.yaml; a hook's `auth: {persona}` outside a take refuses
+    instead of sending its request without a token.
+  - `sandbox_init` over MCP (write): Retake's docker-compose scaffold and the `sandboxes.<env>` line of project.yaml,
+    never over a file and never `--force`; the user fills compose.yaml and sandbox.yaml (Claude proposes the text),
+    and the tools say `sandbox_up` pulls missing images (ask first: no form does, BL-185). Three recipes in
+    docs/guide/sandbox.md: a monorepo without app images, a hybrid (apps on the host, infra in Docker — the variant
+    whose health reads the database: a probe showed a TCP check passes before Postgres is ready), an external sign-in.
+  - Decisions: one-shot compose services are not re-run (a compose sandbox cannot hold one: `up` refuses an exited
+    container); a database already used is told by its state as well as by its tables (`unseeded_at` for
+    `up --no-seed`), so an app that migrates at boot still gets its first seed.
+  - Counts (on its own branch): MCP tools 45 → 46; catalogue unchanged (`sandbox_init` was already an operation, now
+    served over MCP). Requirements R-SBX-08 – R-SBX-12 (R-SBX-02 and R-SBX-05 extended); BACKLOG BL-185 – BL-187.
+    Mutations: 11, all caught (the reset ladder, the sessions after a reset, `sandbox_init` never forcing).
+  - **For the record:** the lot was first committed on its work branch with `engine-entries.test.ts` red (three
+    sandbox words over the `@retake/engine/shell` value cap); L8.2b repaired it before anything reached `main`.
+  - Not run: a live take on a real Firebase Auth emulator (none on this Mac: MACOS-CHECKLIST §18 item 3), and
+    `packages/cli/test/sandbox-docker.test.ts` (no local `node:22-alpine` image; it would pull) — `compose.test.ts`
+    ran in full with Docker (9/9). Left for the person: MACOS-CHECKLIST §18.
 
 ## State (after L8.1b)
 - **L8.1b done (2026-11-16; branch `claude/l8-feedback2`)** — open-licence fonts by reference and a draft theme from a
