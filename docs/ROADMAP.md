@@ -174,8 +174,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.58 | Physical inversion (A-N11) | done | `@retake/compose`: the six package adapters, their default ports (`productPorts`) and the worker entry out of the engine; shells build from it; the engine loads no adapter package (`engine-load`, `engine-deps`, `compose-use`); baseline 63 → 63 |
 | L8.1 | Themes (field feedback 2, points 3, 4, 5, 8): a logo's kind (a wide logo drawn once, sized by its width), component params, a cursor and up to eight body files in a brand theme, variable fonts, `template_update` (a partial update of a theme made through MCP) | M | **done** (2026-11-15; first committed on its work branch with red tests, repaired by L8.1b before main; a real variable font and a real wide logo in a render left to the person) |
 | L8.1b | Themes (field feedback 2, points 6, 7): open-licence fonts by reference (`fontsource:<id>@<version>:<weight>`, `font_fetch` behind an approval, a font store in the workspace), a draft theme from a design-token file (`template_from_tokens`, `retake theme from-tokens`) | M | **done** (2026-11-16; no real fetch from the npm registry: the package layout is an assumption, MACOS-CHECKLIST §20) |
-| L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** <!-- lead: confirm at merge --> |
-| L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** <!-- lead: confirm at merge --> |
+| L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** (2026-11-16; first committed on its work branch with `engine-entries.test.ts` red, repaired by L8.2b before main; no live Firebase Auth emulator take, `sandbox-docker.test.ts` not run: MACOS-CHECKLIST §18) |
+| L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** (2026-11-16; `retake env` on a real project and a real app's route by hand: MACOS-CHECKLIST §19) |
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
@@ -1419,17 +1419,24 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   `retake theme from-tokens` (a list format and DTCG, a role proposal, nothing written). Requirements R-FLD-45 –
   R-FLD-48, R-SEC-42.
 
-### L8.2 — Sandboxes: an outdated snapshot, sessions after a reset, `sandbox_init` over MCP (M; decided 2026-11-15) <!-- lead: confirm at merge -->
+### L8.2 — Sandboxes: an outdated snapshot, sessions after a reset, `sandbox_init` over MCP (M; decided 2026-11-15)
 - **Goal:** a reset after sandbox.yaml changed starts from a clean base instead of freezing a take's data into the
   snapshot, personas signed out by accounts put back are signed in again (or said to be), and an agent can scaffold a
   sandbox (`docs/FIELD-FEEDBACK-2.md` points 9, 28, 29).
-- **Done:** see HANDOFF "State (after L8.2)".
+- **Done (2026-11-16):** see HANDOFF "State (after L8.2)". A base template taken before the first seed, an outdated
+  snapshot restarted from it (or from the old snapshot, with the way to a base) and a database holding data with
+  neither refused; `sandbox status` / `sandbox_status` say what the next reset does; sandbox personas signed in again
+  after `reset.firebase_auth` puts accounts back; `sandbox_init` over MCP and three recipes. Requirements R-SBX-08 –
+  R-SBX-12; by hand: MACOS-CHECKLIST §18.
 
-### L8.2b — A project's environments by tool; no loading state filmed after a route change (M; decided 2026-11-15) <!-- lead: confirm at merge -->
+### L8.2b — A project's environments by tool; no loading state filmed after a route change (M; decided 2026-11-15)
 - **Goal:** environments added, changed and removed through MCP and `retake env` (lowering a production or read-only
   mark stays a person's), and a step that changes the page client-side ends on the painted page, not its loading
   skeleton (`docs/FIELD-FEEDBACK-2.md` points 1, 27).
-- **Done:** see HANDOFF "State (after L8.2b)".
+- **Done (2026-11-16):** see HANDOFF "State (after L8.2b)". `project_env_set` / `project_env_remove` and
+  `retake env add | set | remove` (project.yaml spliced in place and checked; an agent's new origin, lowered mark or
+  protected default asked in a form); a route change after a step's own press held until its indicators are gone
+  (3 s at most), the edit cutting it. Requirements R-ENV-06, R-ENV-07, R-ISS-14; by hand: MACOS-CHECKLIST §19.
 
 ### L8.3 — The app's native menus, the rest (M; decided 2026-11-15)
 - **Goal:** what BL-166 left after the native menu review: no freeze from two quick menu keys, the shell's own items

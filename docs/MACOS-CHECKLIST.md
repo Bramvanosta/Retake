@@ -1979,7 +1979,7 @@ Firebase Auth emulator in `reset.firebase_auth`.
    it added to project.yaml, proposes compose.yaml / sandbox.yaml text without writing them, and asks before
    `sandbox_up` pulls images.
 
-## 19. Environments by tool and client-side routes (L8.2)
+## 19. Environments by tool and client-side routes (L8.2b)
 
 1. **`retake env`.** On a copy of one of your projects: `retake env add <project> stg --page app=<a staging URL>
    --read-only`, then `retake env set <project> stg --production --default`, then `retake env remove <project> stg`.
