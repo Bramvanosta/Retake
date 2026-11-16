@@ -6,6 +6,13 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-16
+
+The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,
+and the app's menu bar follows what you are doing. Themes draw a wide logo once, take open-licence fonts by name and
+start from a design-token file. Sandboxes reset from a clean base, a project's environments are edited by a command,
+and a single-page app's loading skeleton is no longer filmed after a click.
+
 ### Added
 - `template_update`: Claude changes a theme it made by naming only what changes (`{name, components: {outro: {params:
   {logo_size: 72}}}}`, a colour, `wordmark: null`…) — the rest stays as made and the files it does not name are the
