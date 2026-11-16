@@ -1,6 +1,6 @@
 {
   "name": "@retake/test-support",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "private": true,
   "description": "The helpers the tests of several packages share (no build: read from its sources by vitest's aliases and tsconfig.test.json's paths; never a dependency of a package, never in the app).",
   "type": "module",
