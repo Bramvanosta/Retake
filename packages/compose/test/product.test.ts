@@ -34,7 +34,7 @@ console.log(JSON.stringify(out));`;
     const out = JSON.parse(r.stdout) as { ports: string[]; handed: number; editor: string };
     expect(out.ports[0]).toBe('EngineError');
     expect(out.ports[2]).toMatch(/no product is bound .*@retake\/compose/);
-    expect(out.handed).toBe(14);
+    expect(out.handed).toBe(15);
     expect(out.editor).toMatch(/no adapter modules are bound.*@retake\/compose/);
   });
 
@@ -49,8 +49,8 @@ console.log(JSON.stringify({ ports: Object.keys(p).sort(), same: Object.keys(e.e
     const r = run(script);
     expect(r.status, r.stderr).toBe(0);
     const out = JSON.parse(r.stdout) as { ports: string[]; same: number; planRun: string; worker: string[] };
-    expect(out.ports).toEqual(['capture', 'clock', 'env', 'hooks', 'hosts', 'outputs', 'queues', 'reads', 'registries', 'renderer', 'reviewer', 'sandboxes', 'secrets', 'stores']);
-    expect(out.same).toBe(14);
+    expect(out.ports).toEqual(['capture', 'clock', 'env', 'fontRegistry', 'hooks', 'hosts', 'outputs', 'queues', 'reads', 'registries', 'renderer', 'reviewer', 'sandboxes', 'secrets', 'stores']);
+    expect(out.same).toBe(15);
     expect(out.planRun).toBe('function');
     expect(out.worker).toContain(join(REPO, 'packages', 'compose', 'dist', 'worker-main.js'));
   });
@@ -71,7 +71,7 @@ console.log(JSON.stringify({ ports: Object.keys(p).sort(), same: Object.keys(e.e
     expect(() => bindEngineProduct(other)).toThrow(/another product is bound in this process already/);
     // The bound product is still the composition package's.
     expect(productBound()).toBe(true);
-    expect(Object.keys(productPorts()).length).toBe(14);
+    expect(Object.keys(productPorts()).length).toBe(15);
   });
 
   it('productPorts binds only when no product is bound: a product bound first stays, and the composition package then refuses to bind its own', () => {
