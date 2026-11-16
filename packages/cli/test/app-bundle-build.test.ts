@@ -216,7 +216,7 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
     'bundle.json',
     JSON.stringify({
       v: 1,
-      app: '0.2.6',
+      app: '0.3.0',
       ffmpeg: null,
       paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
       sha256: { node: 'stale' },
