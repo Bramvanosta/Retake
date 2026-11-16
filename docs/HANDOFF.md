@@ -2,7 +2,7 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-16, the **L8 chain** (lots L8.1 – L8.3, branch `claude/l8-feedback2` until it lands on `main`;
+Last updated: 2026-11-16, **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
 v0.2.1 – v0.2.6, the lot log, the evidence per lot, the notes per lot and the trust rules in them, the cloud
@@ -16,16 +16,14 @@ container, the earlier heads of this file — under their original headings, so 
   (L6.1 – L6.13, L7.1 – L7.58) is on `main` since 2026-11-15; the **L8 chain** answers the second field feedback
   ([FIELD-FEEDBACK-2.md](FIELD-FEEDBACK-2.md): L8.1, L8.1b, L8.2, L8.2b) and finishes the app's native menus (L8.3).
   The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`.
-- **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, then the
-  hotfixes v0.2.1 – v0.2.6 (the last one on 2026-11-11, field feedback and a demo retro; their notes are in the
-  archive). `main` is about 125 commits ahead of v0.2.6, unreleased (CHANGELOG [Unreleased]: the architecture series'
-  few visible changes, the Studio's large-screen pass, the native menu bar), and the L8 chain adds its lots. Playwright
-  is still 1.56.1: RELEASING step 1 was skipped for the hotfixes — do it for the next version.
+- **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, the
+  hotfixes v0.2.1 – v0.2.6 (their notes are in the archive), then v0.3.0 on 2026-11-16: the architecture series,
+  the Studio's large-screen pass, the native menu bar and the L8 chain. Playwright is still 1.56.1: RELEASING step 1
+  was deferred again for v0.3.0 (BACKLOG BL-192).
 - **Branches.** `main`: the releases, the architecture series (fast-forwarded on 2026-11-15: pull request 8 merged,
   pull request 9 closed with nothing left to merge), the Studio's large-screen pass (`0131be7d`) and the native menu
-  bar (`053baebc`), both 2026-11-15. Their local branches (`claude/arch-l6`, `claude/arch-l7`, `claude/studio-design`,
-  `claude/native-menu`) are deleted; copies stay on `origin`. `claude/l8-feedback2`: the L8 chain on top of
-  `053baebc`, one commit per lot.
+  bar (`053baebc`), both 2026-11-15. Then the L8 chain, one commit per lot (pull request 20, 2026-11-16).
+  The branches of merged pull requests are deleted, locally and on `origin`.
 - **Guards** (each in the CI's `checks` job, `.github/workflows/ci.yml`): `pnpm build`, the test files' type check
   (`tsconfig.test.json`), `node scripts/audit/rules.mjs . --check` (the import-rules ratchet),
   `node scripts/audit/size-limits.mjs --check` (the size ratchet), `node scripts/requirements.mjs --untested 1` and
@@ -36,10 +34,8 @@ container, the earlier heads of this file — under their original headings, so 
   the Mac).
 
 ## Next steps
-1. **The release v0.3.0** once the L8 chain is on `main`: RELEASING step 1 first (bump Playwright and re-record
-   `apps/desktop/bundle/browsers.json`: skipped since v0.2.0), the version, the full suite and the gated tests, then
-   the notes — a `## [0.3.0]` section of CHANGELOG.md whose top paragraph is written for the person about to click
-   Install and Restart (the [Unreleased] section is long: the top paragraph says what a person sees).
+1. **The app's browser** (BACKLOG BL-192): Playwright 1.56.1 → current, its own lot — v0.3.0 was released without
+   RELEASING step 1 (the new Chrome for Testing layout breaks the stage and the signer; a licence question first).
 2. **The two open Homebrew pull requests** (4 and 7) do the same job: one should land, the other be closed.
 3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §18 – §20 and the L8 notes' "left for the
    person"), then the older live runs under "Pending for the person".

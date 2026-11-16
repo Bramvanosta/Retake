@@ -2897,3 +2897,15 @@ command bus's registry and availability, a live recording's owner, the quit ques
 same server would need that state per window. Tauri turns automatic window tabbing off when no `tabbing_identifier`
 is given, so macOS shows no tab items and ⌘T does nothing (desktop-config.test.ts pins one builder and no tabbing
 identifier). Reopen only with a reason a second window gives that a second workspace or a browser tab does not.
+
+### BL-192 — The app's browser: Playwright 1.56.1 → current
+*M–L · from the v0.3.0 release (2026-11-16) · builds on: RELEASING step 1, DESIGN §4p (e)*
+
+v0.3.0 shipped on playwright-core 1.56.1 (Chromium 1194, October 2025), like v0.2.0 – v0.2.6: RELEASING step 1 was
+deferred again, by decision. The bump is not a version change. From Playwright 1.57 the browser is Google Chrome for
+Testing in `chrome-mac-arm64/` (`Google Chrome for Testing.app`) and the render shell is
+`chrome-headless-shell-mac-arm64/chrome-headless-shell`, where `apps/desktop/scripts/bundle.mjs` (the prune list, the
+browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium.app`) and their tests assume
+`chrome-mac/Chromium.app` and `headless_shell`. Its own lot: the new layout in the stage and the signer, the digests
+re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
+Testing's terms allow shipping it in a public DMG (with BL-138).
