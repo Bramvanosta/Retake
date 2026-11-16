@@ -119,7 +119,7 @@ beforeAll(async () => {
   ctx = machine();
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false, setup: () => ctx });
   // The menu's state lines (desktop_menu: the page's state, sent as it loads and changes) are not a click: left out.
-  studio.desktop.attach((l) => (l.startsWith('{"type":"menu",') || lines.push(l), true));
+  studio.desktop.attach((l) => ((l.startsWith('{"type":"menu",') || l.startsWith('{"type":"cli",')) || lines.push(l), true));
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
