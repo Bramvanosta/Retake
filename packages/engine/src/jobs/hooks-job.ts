@@ -12,7 +12,7 @@
 import { newRunId } from '@retake/core/ids';
 import { resolveEnvironment } from '@retake/core/environment';
 import { projectRef } from '@retake/core/project';
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js';
+import { HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js';
 import type { HookStep } from '@retake/core/hooks';
 import type { HookResult } from '@retake/core/hooks';
 import type { EnvResetJobInput, HooksJobInput, JobApproval } from './job-input.js';
@@ -26,7 +26,7 @@ import { envResetWork, hooksRunWork } from '../hooks-work.js';
 import type { HookWorkOptions } from '../hooks-work.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
-import { checkProjectSlug } from '../refs.js';
+import { checkEnvName, checkProjectSlug } from '../refs.js';
 import type { SubmitContext } from './run-job.js';
 import { preflightJournal } from './run-job.js';
 import type { EnvResetJobResult, HookResultView, HooksJobResult, JobEventBody, JobRecord } from './types.js';
@@ -62,11 +62,7 @@ export function envResetCommandLine(cli: string, r: EnvResetSubmitRequest): stri
   return [cli, 'env', 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.dry ? ['--dry'] : [])].join(' ');
 }
 
-export function checkEnvName(env: string | undefined): void {
-  if (env !== undefined && (!ENV_NAME_RE.test(env) || env.length > 100)) {
-    throw new EngineError('invalid', `invalid environment "${env}": an environment name of project.yaml, never a path`);
-  }
-}
+export { checkEnvName };
 
 /** Check, take the approvals of a real run, and queue a `hooks` job. */
 export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; journal_id: string }> {

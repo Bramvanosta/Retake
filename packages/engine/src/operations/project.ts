@@ -4,12 +4,14 @@ import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
 import { outsideWorkspace, staleThisEngine, workerOfAnotherCopy } from '../engine-copy.js';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
 import { README_MAX_CHARS } from '../projects.js';
+import type { EnvironmentChangeView } from '../project-env.js';
 import { formatBytes } from '../prune.js';
 import { READ, WRITE_FILES } from './annotations.js';
 import { defineOperation } from './define.js';
 import type { ToolAnnotations } from './define.js';
 import { envName, ifMatch, projectSlug } from './schema.js';
 import { plural } from './words.js';
+import { showHiddenCharsLine } from '@retake/core/base';
 
 export const engineInfo = defineOperation({
   name: 'engine_info',
@@ -163,6 +165,72 @@ export const projectCreate = defineOperation({
       summary: `Created project ${p.slug} in ${p.dir}. Next: fill README.md (project_update_readme with if_match ${p.readme_hash}), then write scenarios (scenario_validate, scenario_save).`,
       data: p,
     };
+  },
+});
+
+/** What an environment change says: what it wrote, the default before and after, the warnings and what to offer next. */
+function envChangeSummary(r: EnvironmentChangeView): string {
+  const verb = r.action === 'unchanged' ? 'unchanged (nothing to write)' : r.action === 'removed' ? 'removed from project.yaml' : `${r.action === 'added' ? 'added to' : 'changed in'} project.yaml`;
+  const e = r.environment;
+  return [
+    `Environment ${r.env} of ${r.project} ${verb}${r.approved ? ', as the user approved' : ''}.`,
+    ...r.lines.map((l) => `- ${l}`),
+    // Page URLs and display URLs as the user wrote them: every hidden character written out.
+    ...(e
+      ? [
+          `now: ${e.production ? 'production, ' : ''}${e.access}; pages ${Object.entries(e.pages)
+            .map(([k, u]) => `${k} ${showHiddenCharsLine(u)}${e.display?.[k] ? ` (shown as ${showHiddenCharsLine(e.display[k])})` : ''}`)
+            .join(', ')}${e.credentials ? ` (sign-in details in ${e.credentials.join(', ')}: not shown)` : ''}`,
+        ]
+      : []),
+    `default environment (scenarios without env:): ${r.default_env.after ?? 'none'}${r.default_env.before !== r.default_env.after ? ` (was ${r.default_env.before ?? 'none'})` : ''}`,
+    ...r.warnings.map((w) => `warning: ${w}`),
+    ...(r.removed?.scenarios.length ? [`${plural(r.removed.scenarios.length, 'scenario')} still name ${r.env} in env: (${r.removed.scenarios.join(', ')}): they no longer run until changed — offer to change them (scenario_get, scenario_save)`] : []),
+    // Persona names read from the Retake home's folders: under untrusted.sessions, a count here.
+    ...(r.removed?.sessions
+      ? [
+          `${plural(r.removed.sessions, 'saved session')} of ${r.env} stay${r.removed.sessions === 1 ? 's' : ''} in the Retake home (untrusted.sessions names the personas): nothing uses them now — a person removes them with: ${r.removed.remove_sessions}`,
+        ]
+      : []),
+    ...(r.readme_environments ? ['README.md › "Environments & links" no longer matches the environments: offer to update that section (project_update_readme).'] : []),
+  ].join('\n');
+}
+
+/** Annotations of `project_env_remove`: it removes an environment of project.yaml. */
+const ENV_REMOVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+
+const ENV_RULES =
+  'Only when the user asks. Free: pages on origins the project already has (another display, another path), marking an environment production or read-only, display URLs. Asked to the user in an approval form (a client that cannot ask gets needs_approval, a decline is refused — with the `retake env …` command a human runs; do not retry on your own): a page on an origin new to the project (where its captures and hooks may go), removing production or read-only (or a page of such an environment), making a production or read-only environment the one scenarios without env: use, sign-in details (user:password@) in a page URL. Also asked: a production environment that allows writes (access: read-write). Refused: a sandbox environment (its sandbox.yaml), a page of a read-write environment on a production or read-only host of any project, an environment left without pages, a result project.yaml with errors (each issue named). Only environments.<env> and default_env change: every other setting of project.yaml (read_only, auth…) stays the user\'s, and so do the comments outside that environment — an environment written on one line ({…}) is rewritten in block form.';
+
+export const projectEnvSet = defineOperation({
+  name: 'project_env_set',
+  title: 'Add or change an environment',
+  description: `Add an environment to project.yaml or change one: pages (a page given replaces that page whole; without display it has none), remove_pages, production, access, default (default_env names it; false: no longer). ${ENV_RULES} Returns the environment as written (no user:password@), the default before and after, and when README.md's "Environments & links" no longer matches.`,
+  input: z.strictObject({
+    project: projectSlug,
+    env: envName,
+    pages: pageMap.optional(),
+    remove_pages: z.array(z.string().min(1).max(100)).max(50).optional().describe('Page keys to remove.'),
+    production: z.boolean().optional().describe('true: a production environment (read-only unless access says otherwise; MCP never writes to it).'),
+    access: z.enum(['read-only', 'read-write']).optional().describe('read-only stops every write of a run to its hosts.'),
+    default: z.boolean().optional().describe('true: the environment scenarios without env: use (default_env).'),
+  }),
+  annotations: WRITE_FILES,
+  async run({ project, env, ...change }, { engine, approver }) {
+    const r = await engine.projects.setEnvironment(project, env, change, approver ? { approver } : {});
+    return { summary: envChangeSummary(r), data: r };
+  },
+});
+
+export const projectEnvRemove = defineOperation({
+  name: 'project_env_remove',
+  title: 'Remove an environment',
+  description: `Remove an environment from project.yaml (and default_env when it named it). ${ENV_RULES} Names the scenarios whose env: still names it and counts the saved sessions left in the Retake home (with the command a person runs to remove them): neither is deleted.`,
+  input: z.strictObject({ project: projectSlug, env: envName }),
+  annotations: ENV_REMOVE,
+  async run({ project, env }, { engine, approver }) {
+    const r = await engine.projects.removeEnvironment(project, env, approver ? { approver } : {});
+    return { summary: envChangeSummary(r), data: r };
   },
 });
 

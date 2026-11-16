@@ -199,7 +199,12 @@ export function analyzeActivity(input: ActivityInput): ActivityResult {
   const busy: TimelineBusy[] = [];
   const quiet = Math.round(QUIET_S * fps);
   const late_ = Math.round(LATE_S * fps);
-  const loads = (input.loading ?? []).map((l) => [Math.floor(l.t_start * fps), Math.ceil(l.t_end * fps)] as const);
+  // A route hold (R-ISS-14) is a transition going on only where a loading indicator showed: a route ready at once (its
+  // frames held a moment) is no slow transition.
+  const loads = (input.loading ?? []).flatMap((l) => {
+    const span = l.same_document ? l.indicator : l;
+    return span ? [[Math.floor(span.t_start * fps), Math.ceil(span.t_end * fps)] as const] : [];
+  });
   const held = (k: number) => loads.some(([a, b]) => k >= a && k < b);
   for (let i = 0; i < clicks.length; i++) {
     const click = clicks[i];

@@ -101,8 +101,8 @@ const COMMENTS_STUDIO = [
   'thread_reopen',
   'thread_apply',
 ];
-/** The authoring, recording and project writes (MCP's six — sandbox_init among them — and job_status; the Studio's scenario_edit and its seven record_* ops). */
-const AUTHORING_MCP = ['project_create', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'sandbox_init', 'job_status'];
+/** The authoring, recording and project writes (MCP's eight — sandbox_init and the environment tools among them — and job_status; the Studio's scenario_edit and its seven record_* ops). */
+const AUTHORING_MCP = ['project_create', 'project_env_set', 'project_env_remove', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'sandbox_init', 'job_status'];
 const AUTHORING_STUDIO = ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {

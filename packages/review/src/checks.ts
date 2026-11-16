@@ -311,7 +311,8 @@ export const LOADING_FILMED_MIN_S = 0.3;
 /**
  * `loading-filmed`: a skeleton, a shimmer, a spinner or an `aria-busy` region the take recorded in the filmed page
  * (`timeline.loading_ui`) that the video shows for LOADING_FILMED_MIN_S or more — beyond the empty screens the pixel
- * checks see. A navigation or a reload belongs in an `offscreen` scene that waits for `network_idle`.
+ * checks see. Page loads and a click's client-side route changes are held until ready (R-ISS-08, R-ISS-14): what still
+ * shows is a loading state the take could not wait out — in the page, or a route still loading after its limit.
  */
 export function checkLoadingFilmed(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
@@ -341,7 +342,7 @@ export function checkLoadingFilmed(ctx: CheckContext): Finding[] {
         finding(
           'warning',
           'loading-filmed',
-          `scene "${s.scene}" shows the page still loading for ${fmtS(seconds)} (${span.what}): film it once loaded — a navigation or a reload goes in an offscreen scene that waits for network_idle`,
+          `scene "${s.scene}" shows the page still loading for ${fmtS(seconds)} (${span.what}) — a loading state the take could not wait out (in the page, or a route still loading after 3 s): wait for its content (wait_for) or film it offscreen`,
           locate(ctx, s.from + first),
         ),
       );

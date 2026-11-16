@@ -19,7 +19,9 @@ Retake server's instructions; when those instructions or a tool's description sa
    added to read it — is not a different workspace.
 2. `project_list`, then `project_get {project}`: read the README (product, audience, goals, tone), the environments
    with their page keys (production and read-only ones are filmed read-only), the personas and the scenarios that
-   already exist. No project yet: offer `project_create` with what the user tells you.
+   already exist. No project yet: offer `project_create` with what the user tells you. An environment to add, change
+   or remove, when the user asks: `project_env_set` / `project_env_remove` (a new origin or a protection lowered is
+   asked in a form; do not retry a refusal). The rest of project.yaml is the user's.
 3. Agree on the video in a sentence or two: the one flow it shows, who watches it, about how long (1 to 2 minutes).
 4. **The environment between takes.** Every take must start from the same data. When `project_get` says the project
    films a local copy of the product with a database or a mailbox and has no sandbox, propose one to the user before

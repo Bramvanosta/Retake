@@ -149,6 +149,11 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   said: a person can review it in a terminal), and each signed rollback once (`~/.retake/rollbacks-done/`). A terminal
   lists what it replays first and asks about an unsigned entry, shown in full, only with `--replay-unsigned` — never a
   sql or js one, one with secrets or a shell one on a sandbox.
+- **Environments are widened or loosened only with you.** Through MCP, a change of project.yaml's environments that
+  adds an origin the project does not have, takes production or read-only off, makes a protected environment the
+  default or puts sign-in details in a page URL is asked in an approval form, with the `retake env …` command you can
+  run instead ([Sign-ins and environments](environments.md)); a read-write page on a production or read-only host of
+  any project is refused. `retake env` in your terminal is your own act: it asks nothing.
 - **What you approve is shown in full.** The approval form of work submitted through MCP or the Studio shows each
   hook as it will run, every field on its own line (a shell hook's command, working folder and each environment
   variable; a sql hook's statement or file and database; a js hook's code or file and page; an http hook's method, URL,

@@ -6,6 +6,12 @@
  * painted at or after the new document's first contentful paint (Chromium's lifecycle event `firstContentfulPaint`).
  * Pure: the recorder wires it to its CDP session (recorder.ts), tests drive it with a fake clock.
  *
+ * Client-side route changes (R-ISS-14): a path change of the same document (pushState, a `#/` hash route) while the
+ * step that pressed (a click, a key, an Enter) still runs, within ROUTE_ARM_MS of its press, holds too (`route`) from
+ * the route change until the runner says the route is ready (`ready`, route-hold.ts), at most ROUTE_HOLD_MAX_MS; its
+ * record — what the edit cuts — starts ROUTE_PRESS_KEEP_MS after the press at the earliest. A document commit during a
+ * route hold makes it a `navigation` hold (the document's rule wins).
+ *
  * Measured on a Mac (headless Chromium, playwright-core 1.56): a document's first blank frame arrives 8–20 ms after
  * its commit event; the frame of the first contentful paint arrives 13–17 ms BEFORE its lifecycle event and is stamped
  * within 3 ms of the paint time; frames of a navigation can be dropped by the recorder's size check (a cropped view),
@@ -37,14 +43,32 @@ export const HOLD_IDLE_GRACE_MS = 3000;
 export const HOLD_PLUGIN_GRACE_MS = 500;
 /** Longest hold: the page is shown as it is (with a run warning). */
 export const HOLD_MAX_MS = 10_000;
+/** A same-document path change this long after a step's press (or before it, by up to ROUTE_EARLY_MS) is a route change of that press. */
+export const ROUTE_ARM_MS = 1000;
+export const ROUTE_EARLY_MS = 50;
+/**
+ * A route hold's record (the edit's cut) starts this long after the press at the earliest: the picture of the press
+ * stays on screen that long, as a page load's commit does (its frames are held from the route change).
+ */
+export const ROUTE_PRESS_KEEP_MS = 100;
+/** Longest route hold: the route is shown as it is (with a run warning). */
+export const ROUTE_HOLD_MAX_MS = 3000;
+/** The route's network counts as quiet after this long without a request starting or ending. */
+export const ROUTE_QUIET_MS = 300;
+/** After the route's loading indicator went, the network-quiet wait lasts this long at most (a page that polls). */
+export const ROUTE_QUIET_CAP_MS = 1000;
 
 /**
  * `navigation`: a commit (or a page still loading at attach); `blank`: a fresh tab's about:blank — never released on its
- * own load, and the runner does not wait for it (nothing comes until a step or the scene opens a page there).
+ * own load, and the runner does not wait for it (nothing comes until a step or the scene opens a page there); `route`:
+ * a client-side route change of a step's press (R-ISS-14).
  */
-export type HoldKind = 'navigation' | 'blank';
-/** What ended a hold: the first contentful paint, a load without one, the time limit, the recorder leaving the page (switch, pause), the end of the run. */
-export type HoldEnd = 'paint' | 'load' | 'limit' | 'left' | 'end';
+export type HoldKind = 'navigation' | 'blank' | 'route';
+/**
+ * What ended a hold: the first contentful paint, a load without one, the route ready (`route` holds), the time limit,
+ * the recorder leaving the page (switch, pause), the end of the run.
+ */
+export type HoldEnd = 'paint' | 'load' | 'ready' | 'limit' | 'left' | 'end';
 
 export interface HoldRecord {
   /** Wall ms (epoch) the hold started. */
@@ -57,6 +81,12 @@ export interface HoldRecord {
   kind: HoldKind;
   /** The page it was on (as given to `begin`). */
   page?: string;
+  /** A route hold: the route's path, the step that pressed, the loading indicator last seen (`note`). */
+  route?: string;
+  label?: string;
+  what?: string;
+  /** A route hold: when a loading indicator that came with the route showed (wall ms; absent: none ever did). */
+  seen?: { from: number; until: number };
 }
 
 export interface HoldEnv<F> {
@@ -85,6 +115,14 @@ interface Active<F> {
   /** Arrival of the paint signal (wall ms), null before it. */
   signalAt: number | null;
   refreshed: boolean;
+  route?: string;
+  label?: string;
+  what?: string;
+  /** A route hold: its record starts here at the earliest (the press's feedback stays on screen until then). */
+  keepUntil?: number;
+  /** A route hold: when a loading indicator that came with the route was first and last seen (wall ms). */
+  seenFrom?: number;
+  seenUntil?: number;
   cancelMax: () => void;
   cancelFlush: (() => void) | null;
   cancelIdle: (() => void) | null;
@@ -128,7 +166,20 @@ export class LoadHold<F extends { wall: number }> {
    */
   begin(loaderId: string, kind: HoldKind = 'navigation', page?: string, web = true): void {
     const c = this.cur;
+    // A route change while a document loads: the document's hold goes on.
+    if (c && kind === 'route') return;
     if (c) {
+      if (c.kind === 'route') {
+        // A document commit during a route hold: a navigation hold from now on, with the document's limit.
+        c.cancelMax();
+        c.cancelMax = this.env.setTimer(Math.max(0, c.since + HOLD_MAX_MS - this.env.now()), () => this.release('limit'));
+        delete c.route;
+        delete c.label;
+        delete c.what;
+        delete c.keepUntil;
+        delete c.seenFrom;
+        delete c.seenUntil;
+      }
       c.loaderId = loaderId;
       c.web = web;
       if (kind === 'navigation') c.kind = 'navigation';
@@ -156,7 +207,7 @@ export class LoadHold<F extends { wall: number }> {
       idle: false,
       signalAt: null,
       refreshed: false,
-      cancelMax: this.env.setTimer(HOLD_MAX_MS, () => this.release('limit')),
+      cancelMax: this.env.setTimer(kind === 'route' ? ROUTE_HOLD_MAX_MS : HOLD_MAX_MS, () => this.release('limit')),
       cancelFlush: null,
       cancelIdle: null,
     };
@@ -191,6 +242,43 @@ export class LoadHold<F extends { wall: number }> {
     c.cancelIdle?.();
     c.cancelIdle = null;
     c.cancelFlush = this.env.setTimer(HOLD_FLUSH_MS, () => this.flush());
+  }
+
+  /**
+   * A route hold's route and the step that pressed (records and warnings), and `keepUntil` (wall ms): its record starts
+   * there at the earliest — the frozen picture of the press shows until then, the edit cuts from there.
+   */
+  routeOf(route: string, label?: string, keepUntil?: number): void {
+    const c = this.cur;
+    if (c?.kind !== 'route') return;
+    c.route = route;
+    if (label !== undefined) c.label = label;
+    if (keepUntil !== undefined) c.keepUntil = keepUntil;
+  }
+
+  /** What the route watcher saw at wall time `at`: a loading indicator that came with the route, or null. */
+  note(what: string | null, at?: number): void {
+    const c = this.cur;
+    if (c?.kind !== 'route') return;
+    if (!what) {
+      delete c.what;
+      return;
+    }
+    c.what = what;
+    if (at !== undefined) {
+      c.seenFrom ??= at;
+      c.seenUntil = at;
+    }
+  }
+
+  /**
+   * The route of a `route` hold is ready (the runner's watcher), as of wall time `at`: like a paint — frames painted at
+   * or after it are written (HOLD_AFTER_PAINT_MS later), the hold ends `ready`.
+   */
+  ready(at: number): void {
+    const c = this.cur;
+    if (c?.kind !== 'route') return;
+    this.painted(c.loaderId, at);
   }
 
   /** Lifecycle `load` of document `loaderId`. */
@@ -299,7 +387,19 @@ export class LoadHold<F extends { wall: number }> {
     c.cancelMax();
     c.cancelFlush?.();
     c.cancelIdle?.();
-    this.records.push({ since: c.since, until: Math.max(c.since, until), how, held: c.held, kind: c.kind, ...(c.page !== undefined ? { page: c.page } : {}) });
+    const end = Math.max(c.since, until);
+    this.records.push({
+      since: Math.min(end, Math.max(c.since, c.keepUntil ?? c.since)),
+      until: end,
+      how: c.kind === 'route' && how === 'paint' ? 'ready' : how,
+      held: c.held,
+      kind: c.kind,
+      ...(c.page !== undefined ? { page: c.page } : {}),
+      ...(c.route !== undefined ? { route: c.route } : {}),
+      ...(c.label !== undefined ? { label: c.label } : {}),
+      ...(c.what !== undefined ? { what: c.what } : {}),
+      ...(c.seenFrom !== undefined ? { seen: { from: c.seenFrom, until: Math.max(c.seenFrom, Math.min(c.seenUntil ?? c.seenFrom, end)) } } : {}),
+    });
     this.ends++;
     for (const w of this.waiters.splice(0)) w();
   }

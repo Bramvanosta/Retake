@@ -5,11 +5,13 @@ import { join } from 'node:path';
 import type { CDPSession, Page } from 'playwright-core';
 import type { TimelineLoading } from '@retake/core/run';
 import { LoadHold } from './hold.js';
+import { RouteHolds, watchRoute } from './route-hold.js';
+import { routeSnapshot } from './loading-watch.js';
 import { STREAM_LAG_S } from './stream.js';
 import type { StreamFrame } from './stream.js';
 import type { HoldKind } from './hold.js';
 import type { CaptureClock } from './timeline.js';
-import { pad, round3 } from './util.js';
+import { pad, round3, sleep } from './util.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** One captured frame: file name inside frames/ and capture time in seconds. */
@@ -110,6 +112,8 @@ export class ScreencastRecorder {
   private commits = 0;
   /** Full-page loads held (R-ISS-08). */
   private readonly hold: LoadHold<Shot>;
+  /** Client-side route changes of a step's press held until the route is ready (R-ISS-14). */
+  private readonly routes: RouteHolds;
   /**
    * Wall ms minus Chromium's monotonic clock (lifecycle event time stamps), estimated as the smallest difference
    * between an event's arrival and its stamp: the paint time on the frames' clock.
@@ -137,6 +141,30 @@ export class ScreencastRecorder {
       keep: (f) => this.keep(f),
       refresh: () => this.refresh(),
     });
+    this.routes = new RouteHolds(this.hold, {
+      now: () => Date.now(),
+      watch: (id, page) => watchRoute(this.hold, id, page, { now: () => Date.now(), sleep: (ms) => sleep(ms) }),
+    });
+  }
+
+  /**
+   * A step pressed on `page` (its click, its key, its Enter) at wall time `wall` (epoch ms): a client-side route change
+   * of that press is held until the route is ready (R-ISS-14). `label` names the step in a warning.
+   */
+  routePressed(page: Page, wall: number, label?: string): void {
+    if (this.stopped || this.page !== page || this.opts.holdLoads === false) return;
+    this.routes.arm(wall, page, label, this.idOf(page));
+  }
+
+  /** Right before a press on `page`: the indicators in view, which a route of that press never counts (R-ISS-14). */
+  async routeSnapshot(page: Page): Promise<void> {
+    if (this.stopped || this.page !== page || this.opts.holdLoads === false) return;
+    await routeSnapshot(page).catch(() => undefined);
+  }
+
+  /** The step that pressed returned: no press is armed any more (a hold already begun goes on). */
+  routeDisarm(): void {
+    this.routes.cancel();
   }
 
   /**
@@ -251,7 +279,8 @@ export class ScreencastRecorder {
     let lastFull = 0;
     let healTimer: ReturnType<typeof setTimeout> | null = null;
     let healRefreshes = 0;
-    let mainFrameId: string | null = null;
+    /** The main frame's id (set by its first commit, else by the frame tree at attach). */
+    const frame: { main: string | null } = { main: null };
     /** Lifecycle events (and their time stamps) of the main frame's documents since the attach (a hold begun at attach replays them). */
     const seen = new Map<string, Map<string, number | undefined>>();
     session.on('Page.screencastFrame', (f: ScreencastFrame) => {
@@ -308,15 +337,20 @@ export class ScreencastRecorder {
       // restores (painted already) are not held.
       session.on('Page.frameNavigated', (e: { frame: CdpFrame; type?: string }) => {
         if (this.session !== session || this.stopped || e.frame.parentId) return;
-        mainFrameId = e.frame.id;
+        frame.main = e.frame.id;
         this.commits++;
+        this.routes.reset(e.frame.url);
         if (e.type === 'BackForwardCacheRestore') return;
         this.hold.begin(e.frame.loaderId, e.frame.url === 'about:blank' ? 'blank' : 'navigation', this.idOf(page), isWebDocument(e.frame.mimeType));
+      });
+      // A route change of the same document (R-ISS-14): held only when a step's press armed it (route-hold.ts).
+      session.on('Page.navigatedWithinDocument', (e: { frameId: string; url: string }) => {
+        if (this.session === session && !this.stopped && e.frameId === frame.main) this.routes.within(e.url, page, this.idOf(page));
       });
       session.on('Page.lifecycleEvent', (e: { frameId: string; loaderId: string; name: string; timestamp?: number }) => {
         if (this.session !== session || this.stopped) return;
         if (typeof e.timestamp === 'number') this.monoOffset = Math.min(this.monoOffset, Date.now() - e.timestamp * 1000);
-        if (e.frameId !== mainFrameId) return;
+        if (e.frameId !== frame.main) return;
         let names = seen.get(e.loaderId);
         if (!names) seen.set(e.loaderId, (names = new Map()));
         names.set(e.name, e.timestamp);
@@ -326,27 +360,34 @@ export class ScreencastRecorder {
     this.session = session;
     this.page = page;
     await this.emulate(session);
-    if (holdLoads) {
-      try {
-        const commits = this.commits;
-        await session.send('Page.enable');
-        const tree = (await session.send('Page.getFrameTree')) as { frameTree: { frame: CdpFrame } };
-        const main = tree.frameTree.frame;
-        mainFrameId ??= main.id;
-        // Replays the lifecycle of the current document (commit, DOMContentLoaded, load, network idle — never its
-        // paints): recorded in `seen`, ignored while nothing is held.
-        await session.send('Page.setLifecycleEventsEnabled', { enabled: true });
-        const state = await this.attachState(session, main.url);
-        // A commit meanwhile began its own hold (with the right document).
-        if (this.session === session && this.commits === commits && state !== 'painted') {
-          this.hold.begin(main.loaderId, state, this.idOf(page), isWebDocument(main.mimeType));
-          for (const [name, ts] of seen.get(main.loaderId) ?? []) this.lifecycle(name, main.loaderId, ts);
-        }
-      } catch {
-        /* no hold: never break a capture */
-      }
-    }
+    if (holdLoads) await this.holdAtAttach(session, page, frame, seen);
     await session.send('Page.startScreencast', this.screencastParams());
+  }
+
+  /**
+   * At attach (R-ISS-08): the current document's lifecycle replayed, and a hold begun when it has not painted yet; the
+   * route compared with from now on (R-ISS-14). A commit meanwhile began its own hold.
+   */
+  private async holdAtAttach(session: CDPSession, page: Page, frame: { main: string | null }, seen: Map<string, Map<string, number | undefined>>): Promise<void> {
+    try {
+      const commits = this.commits;
+      await session.send('Page.enable');
+      const tree = (await session.send('Page.getFrameTree')) as { frameTree: { frame: CdpFrame } };
+      const main = tree.frameTree.frame;
+      frame.main ??= main.id;
+      if (this.commits === commits) this.routes.reset(main.url);
+      // Replays the lifecycle of the current document (commit, DOMContentLoaded, load, network idle — never its
+      // paints): recorded in `seen`, ignored while nothing is held.
+      await session.send('Page.setLifecycleEventsEnabled', { enabled: true });
+      const state = await this.attachState(session, main.url);
+      // A commit meanwhile began its own hold (with the right document).
+      if (this.session === session && this.commits === commits && state !== 'painted') {
+        this.hold.begin(main.loaderId, state, this.idOf(page), isWebDocument(main.mimeType));
+        for (const [name, ts] of seen.get(main.loaderId) ?? []) this.lifecycle(name, main.loaderId, ts);
+      }
+    } catch {
+      /* no hold: never break a capture */
+    }
   }
 
   /** A lifecycle event of the main frame's document `loaderId` (time stamp: Chromium's monotonic seconds). */
@@ -426,6 +467,7 @@ export class ScreencastRecorder {
   private async detach(): Promise<void> {
     if (this.kickTimer) clearTimeout(this.kickTimer);
     this.kickTimer = null;
+    this.routes.cancel();
     this.hold.leave('left', this.keptAny);
     for (const w of this.waiters.splice(0)) w.done(false);
     const s = this.session;
@@ -498,18 +540,30 @@ export class ScreencastRecorder {
         ...(r.page !== undefined ? { page: r.page } : {}),
         until: r.how,
         held_frames: r.held,
+        ...(r.kind === 'route' ? { same_document: true as const } : {}),
+        ...(r.seen ? { indicator: { t_start: round3(this.opts.clock.at(r.seen.from)), t_end: round3(this.opts.clock.at(r.seen.until)) } } : {}),
       }));
   }
 
-  /** Holds that ran into the time limit (HOLD_MAX_MS): capture time, page and what was held. */
-  limitedLoads(): Array<{ t: number; page?: string; kind: HoldKind }> {
-    return this.hold.records.filter((r) => r.how === 'limit').map((r) => ({ t: round3(this.opts.clock.at(r.since)), ...(r.page !== undefined ? { page: r.page } : {}), kind: r.kind }));
+  /** Holds that ran into their time limit (HOLD_MAX_MS, ROUTE_HOLD_MAX_MS): capture time, page and what was held. */
+  limitedLoads(): Array<{ t: number; page?: string; kind: HoldKind; route?: string; label?: string; what?: string }> {
+    return this.hold.records
+      .filter((r) => r.how === 'limit')
+      .map((r) => ({
+        t: round3(this.opts.clock.at(r.since)),
+        ...(r.page !== undefined ? { page: r.page } : {}),
+        kind: r.kind,
+        ...(r.route !== undefined ? { route: r.route } : {}),
+        ...(r.label !== undefined ? { label: r.label } : {}),
+        ...(r.what !== undefined ? { what: r.what } : {}),
+      }));
   }
 
   /** Stop capturing and wait for every pending frame write. Returns the frames sorted by time. */
   async stop(): Promise<FrameIndexEntry[]> {
     if (!this.stopped) {
       // The hold open at the end of the run ends as `end` (detach would call it `left`).
+      this.routes.cancel();
       this.hold.leave('end', this.keptAny);
       this.stopped = true;
       await this.detach();

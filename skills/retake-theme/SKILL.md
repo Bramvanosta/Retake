@@ -6,9 +6,11 @@ description: Make a new Retake theme (the brand's logo, colours and fonts over a
 # Retake: themes
 
 A theme is a folder `templates/<name>/` of the workspace: `template.yaml` over a base theme, the logo, the fonts and
-their licences. Through MCP you create **new** themes only; existing themes and project.yaml are the user's (they edit a
-theme in the Studio's theme editor or by hand). This skill is the long form of the Retake server's instructions;
-when those instructions or a tool's description say something else, they win.
+their licences. Through MCP you create **new** themes and adjust one made through MCP that nobody edited since
+(`template_update`); themes a person made or changed and project.yaml (but its environments: `project_env_set` /
+`project_env_remove`) are the user's (they edit a theme in the Studio's theme editor or by hand). This skill is the
+long form of the Retake server's instructions; when those instructions or a tool's description say something else,
+they win.
 
 ## Before you start
 

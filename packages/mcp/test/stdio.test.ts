@@ -97,6 +97,8 @@ describe('retake mcp over stdio', () => {
       'project_get',
       'project_create',
       'project_update_readme',
+      'project_env_set',
+      'project_env_remove',
       'project_prune',
       'scenario_get',
       'scenario_validate',
@@ -150,6 +152,8 @@ describe('retake mcp over stdio', () => {
         ![
           'project_create',
           'project_update_readme',
+          'project_env_set',
+          'project_env_remove',
           'project_prune',
           'scenario_save',
           'page_inspect',
@@ -180,7 +184,7 @@ describe('retake mcp over stdio', () => {
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site', 'font_fetch'].includes(t.name));
       expect(t.annotations?.destructiveHint, t.name).toBe(
-        ['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'template_update', 'project_prune', 'job_cancel'].includes(t.name),
+        ['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'template_update', 'project_env_remove', 'project_prune', 'job_cancel'].includes(t.name),
       );
       // No tool takes a credential (template_from_tokens's "tokens" are design tokens — colours in a file: only its
       // property named exactly `tokens` and the word in description strings are set aside, nothing else).
@@ -480,7 +484,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(49);
+    expect(TOOLS).toHaveLength(51);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

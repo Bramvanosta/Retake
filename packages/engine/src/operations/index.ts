@@ -15,7 +15,7 @@ import { envReset, hooksRun } from './hooks.js';
 import { pageInspect } from './inspect.js';
 import { jobCancel, jobList, jobStatus } from './jobs.js';
 import { libraryComponent, libraryImages, libraryRender, libraryView } from './library.js';
-import { engineInfo, projectCreate, projectGet, projectList, projectPrune, projectUpdateReadme } from './project.js';
+import { engineInfo, projectCreate, projectEnvRemove, projectEnvSet, projectGet, projectList, projectPrune, projectUpdateReadme } from './project.js';
 import { recordAnnotate, recordDiscard, recordOptionsOp, recordSave, recordStartOp, recordStop, recordView } from './record.js';
 import { scenarioGet, scenarioValidate } from './reads.js';
 import { renderReview, reviewImage, scenarioRenders } from './render-screen.js';
@@ -41,6 +41,8 @@ export const OPERATIONS = [
   projectGet,
   projectCreate,
   projectUpdateReadme,
+  projectEnvSet,
+  projectEnvRemove,
   projectPrune,
   scenarioGet,
   scenarioValidate,

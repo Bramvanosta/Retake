@@ -1,5 +1,5 @@
 /**
- * MCP over HTTP (R-MCP-02): `retake mcp --http` serves the same 49 tools as stdio — same engine client (`mcp`),
+ * MCP over HTTP (R-MCP-02): `retake mcp --http` serves the same 51 tools as stdio — same engine client (`mcp`),
  * same instructions, same approvals (elicitation over the session) — as Streamable HTTP at
  * `http://127.0.0.1:<port>/mcp`, for an MCP client that registers a URL (Claude Code: `--transport http`).
  *

@@ -2851,6 +2851,18 @@ seeds an outdated snapshot on the current data when there is neither base nor sn
 is the way).
 - The Studio's location page of a sandbox does not show its snapshot's state (current, outdated, no base, refused) that
   `retake sandbox status` and `sandbox_status` give.
+
+### BL-188 — A Studio screen for environments
+*From:* L8.2 (point 1). `project_env_set` / `project_env_remove` (MCP) and `retake env add | set | remove` (CLI) edit
+project.yaml's environments; the Studio's Settings and location pages only show them. A screen would need the same
+approval rule as MCP (a new origin, a protection lowered, a protected default, sign-in details in a URL).
+
+### BL-189 — `read_only` and route holds beyond a press
+*From:* L8.2 (points 1 and 27). `read_only` (hosts, allow, mocks) is never written by the environment tools: loosening
+rules stays in a person's editor. Route holds: recordings (`scenario_record`) keep their own trimming and never hold a
+client-side route; a route changed by an app on its own (a timer, a redirect after a save that took longer than 1 s)
+is not held either; the press's picture stays frozen 0.3 s after the route change (its ripple does not play on).
+
 ### BL-190 — The app's menus: what L8.3 left
 *S–M each · from L8.3 (BL-142, BL-143, BL-166) · builds on: L8.3*
 

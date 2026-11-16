@@ -2,7 +2,7 @@
  * R-ISS-08 for real: full-page navigations never show a blank or loading frame in the capture. A grey home page links
  * to a page that paints only a yellow skeleton for 1 s (no text, image or SVG: no first contentful paint) on the same
  * site and on another site (localhost vs 127.0.0.1: another renderer), to a page that never paints content (blue
- * blocks) and to a client-side route. Captured with the debug cursor (a magenta dot) and its frames kept: no yellow or
+ * blocks) and to a client-side route (ready at once: R-ISS-14 holds it at most until the route is ready, nothing to cut). Captured with the debug cursor (a magenta dot) and its frames kept: no yellow or
  * white picture in capture.mp4 — a fresh tab's about:blank included —, `timeline.loading` lists each held load, no
  * frame lies inside one, the stills start after them, the first frame after each shows the cursor, and a click that
  * navigated keeps after_navigation_ms of the new page after the held load. A control records the same navigation
@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline, TimelineEvent, TimelineLoading } from '@retake/core';
+import { LOADING_CUT_MIN_S } from '@retake/core';
 import { CaptureClock } from '../src/timeline.js';
 import { ScreencastRecorder } from '../src/recorder.js';
 import { kitConfigFor, openSession, runScenario } from '../src/index.js';
@@ -111,7 +112,7 @@ const sceneOf = (t: number) => tl.scenes.find((s) => s.kind === 'scene' && t < s
 const loadsIn = (scene: string) => (tl.loading ?? []).filter((l) => sceneOf(l.t_start)?.id === scene);
 
 describe('full-page loads in the capture (R-ISS-08)', () => {
-  it('lists every held load in timeline.loading: until the paint, a load without one, never a client-side route', () => {
+  it('lists every held load in timeline.loading: until the paint, a load without one; a client-side route ready at once leaves nothing to cut', () => {
     expect(TimelineSchema.safeParse(tl).success).toBe(true);
     const click = (scene: string) => tl.events.find((e) => e.scene === scene && e.step === 0)!;
     const after = (scene: string): TimelineLoading => loadsIn(scene).find((l) => l.t_start >= click(scene).t_click! - 1e-3)!;
@@ -133,8 +134,10 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
       loadsIn('plain').some((l) => l.page === 'app' && l.until === 'load'),
       JSON.stringify(loadsIn('plain')),
     ).toBe(true);
-    // A client-side route (pushState) is no page load.
-    expect(loadsIn('spa').filter((l) => l.t_start >= click('spa').t_click! - 1e-3)).toEqual([]);
+    // A client-side route (pushState) ready at once (R-ISS-14): only a route hold, ended `ready` before the press's
+    // feedback did (its record would start ROUTE_PRESS_KEEP_MS after the press): nothing the edit cuts.
+    const spa = loadsIn('spa').filter((l) => l.t_start >= click('spa').t_click! - 1e-3);
+    expect(spa.filter((l) => !(l.same_document === true && l.until === 'ready') || l.t_end - l.t_start >= LOADING_CUT_MIN_S)).toEqual([]);
     expect(tl.warnings.filter((w) => /painted nothing|froze/.test(w))).toEqual([]);
   });
 

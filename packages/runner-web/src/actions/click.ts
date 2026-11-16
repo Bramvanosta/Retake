@@ -43,6 +43,8 @@ export interface ClickRunOptions extends ClickOptions {
   click_role?: ClickRole;
   /** Watch what the click causes from its press (dead clicks, R-FLD-12): ClickRun.effects. */
   watch_effects?: boolean;
+  /** false: a click that focuses a field to type in — a path the typing pushes is no route of this press (R-ISS-14). */
+  route_hold?: false;
 }
 
 /** URL without its hash: a hash change is an in-page jump, not a new page. */
@@ -185,6 +187,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
   let popupMs: number | undefined;
   let clickWall = 0;
   const effects = opts.watch_effects ? await watchEffects(ctx) : undefined;
+  if (opts.route_hold !== false) await rt.stepPressing(ctx, page);
   try {
     clickWall = wallNow();
     if (requested === 'dom' || requested === 'pointer') {
@@ -198,6 +201,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       clickWall = wallNow() - (rt.now() - t_click) * 1000;
       strategy = 'real';
     }
+    if (opts.route_hold !== false) rt.stepPressed(ctx, clickWall, page);
     if (effects) effects.wall = clickWall;
     const afterStart = wallNow();
     if (expected && !nav.started()) {
@@ -221,8 +225,8 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       await rt.sleep(afterStart + total - wallNow());
     }
     await nav.settle(ctx);
-    // The new document painted (R-ISS-08): until then the capture holds the previous frame.
-    if (nav.started()) await rt.awaitLoaded(page);
+    // The new document painted (R-ISS-08), the new route ready (R-ISS-14): until then the capture holds the previous frame.
+    await rt.awaitLoaded(page);
   } catch (e) {
     effects?.stop();
     throw e;

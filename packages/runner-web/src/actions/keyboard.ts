@@ -168,7 +168,7 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
     // Found without scrolling, then brought into view and clicked once it stopped moving (R-FLD-11).
     const r = await resolveTarget(ctx, args.into, { scroll: false });
     await fieldIntoView(ctx, r);
-    run = await clickResolved(ctx, r, { expect_popup: false, after_ms: FOCUS_PAUSE_MS });
+    run = await clickResolved(ctx, r, { expect_popup: false, after_ms: FOCUS_PAUSE_MS, route_hold: false });
     field = await checkFocus(ctx, run.resolved);
   } else if (!(await rt.kit.isTextInput(null))) {
     rt.warn(`${ctx.scene.id}.${ctx.step.index}: type without \`into\` and the focused element is not a text field`);
@@ -204,10 +204,14 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
     await rt.sleep(ctx.jitter.ms(250));
     const nav = watchNavigation(rt.page);
     try {
+      await rt.stepPressing(ctx);
       t_enter = rt.now();
+      const wall = wallNow();
       await kb.press('Enter');
+      rt.stepPressed(ctx, wall);
       await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
       await nav.settle(ctx);
+      await rt.awaitLoaded(rt.page);
     } finally {
       nav.stop();
     }
@@ -235,11 +239,15 @@ export async function press(ctx: StepContext, args: PressArgs): Promise<ActionRe
   const t_click = rt.now();
   try {
     for (let i = 0; i < times; i++) {
+      await rt.stepPressing(ctx);
+      const wall = wallNow();
       await rt.page.keyboard.press(args.key);
+      rt.stepPressed(ctx, wall);
       if (i < times - 1) await rt.sleep(ctx.jitter.ms(KEY_REPEAT_MS));
     }
     await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
     await nav.settle(ctx);
+    await rt.awaitLoaded(rt.page);
   } finally {
     nav.stop();
   }

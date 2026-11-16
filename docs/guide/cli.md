@@ -17,6 +17,9 @@ retake inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona
 retake hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
 retake hooks trust <project> <scenario> [--env E] [--yes]   # after reading them: an agent's shell hooks become yours (runs stop asking)
 retake hooks rollback <project> [run-id] [--env E] [--allow-writes] [--replay-unsigned] [--dry]
+retake env add <project> <env> --page key=url[,display=host]… [--production] [--read-only|--read-write] [--default] [--json]
+retake env set <project> <env> [--page key=url[,display=host]]… [--remove-page key]… [--[no-]production] [--read-only|--read-write] [--[no-]default] [--json]
+retake env remove <project> <env> [--json]            # an environment of project.yaml: only its lines (and default_env) change
 retake env reset <project> [--env E] [--yes] [--allow-writes] [--replay-unsigned] [--dry]
 retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
 retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)

@@ -1,9 +1,10 @@
 /**
- * R-ISS-08: the hold of a page load (pure LoadHold, fake clock) — which frames are written, when a hold ends and what
+ * R-ISS-08, R-ISS-14: the hold of a page load or a client-side route change (pure LoadHold, RouteHolds; fake clock) — which frames are written, when a hold ends and what
  * its record says.
  */
 import { describe, expect, it } from 'vitest';
-import { HOLD_AFTER_PAINT_MS, HOLD_FLUSH_MS, HOLD_IDLE_GRACE_MS, HOLD_MAX_MS, HOLD_PLUGIN_GRACE_MS, LoadHold, PAINT_SLACK_MS } from '../src/hold.js';
+import { HOLD_AFTER_PAINT_MS, HOLD_FLUSH_MS, HOLD_IDLE_GRACE_MS, HOLD_MAX_MS, HOLD_PLUGIN_GRACE_MS, LoadHold, PAINT_SLACK_MS, ROUTE_ARM_MS, ROUTE_HOLD_MAX_MS } from '../src/hold.js';
+import { RouteHolds, routeKey, routePath } from '../src/route-hold.js';
 
 interface F {
   wall: number;
@@ -314,5 +315,124 @@ describe('LoadHold (R-ISS-08)', () => {
     expect(hold.heldSince(0, 50)).toBe(600);
     expect(hold.heldSince(2200, 150)).toBe(300);
     expect(hold.heldSince(2600, 0)).toBe(0);
+  });
+});
+
+describe('route holds (R-ISS-14)', () => {
+  it('a route hold keeps the previous frame until ready, then writes the newest frame; its record starts after the press', () => {
+    const { hold, at, frame, kept } = setup();
+    expect(frame('press')).toBe(true);
+    hold.begin('route-1', 'route', 'console');
+    hold.routeOf('/quotes', 'list.1', 1300);
+    at(1050);
+    expect(frame('skeleton')).toBe(false);
+    hold.note('skeleton ×3', 1100);
+    hold.note('skeleton ×3', 1700);
+    hold.note(null, 1800);
+    at(1900);
+    hold.ready(1900);
+    at(1920);
+    expect(frame('loaded')).toBe(false);
+    at(1900 + HOLD_AFTER_PAINT_MS + 5);
+    expect(frame('loaded-2')).toBe(true);
+    expect(kept.map((f) => f.id)).toEqual(['press', 'loaded-2']);
+    // `seen`: when the route's indicator showed (what slow-transition counts).
+    expect(hold.records).toEqual([{ since: 1300, until: hold.records[0].until, how: 'ready', held: 2, kind: 'route', page: 'console', route: '/quotes', label: 'list.1', seen: { from: 1100, until: 1700 } }]);
+  });
+
+  it('a route hold ends at its limit (ROUTE_HOLD_MAX_MS) as `limit`, with what was still loading', () => {
+    const { hold, at, frame } = setup();
+    hold.begin('route-1', 'route');
+    hold.routeOf('/quotes', 'list.1');
+    hold.note('skeleton ×3');
+    at(1100);
+    frame('skeleton');
+    at(1000 + ROUTE_HOLD_MAX_MS);
+    expect(hold.holding).toBe(false);
+    expect(hold.records[0]).toMatchObject({ since: 1000, until: 1000 + ROUTE_HOLD_MAX_MS, how: 'limit', kind: 'route', what: 'skeleton ×3' });
+  });
+
+  it('a document commit during a route hold becomes a navigation hold (its own limit); a route change during a load is no route hold', () => {
+    const { hold, at } = setup();
+    hold.begin('route-1', 'route');
+    at(1500);
+    hold.begin('L2', 'navigation');
+    expect(hold.kind).toBe('navigation');
+    at(1000 + ROUTE_HOLD_MAX_MS + 10);
+    expect(hold.holding).toBe(true);
+    hold.ready(now0());
+    expect(hold.holding).toBe(true);
+    hold.painted('L2', 1000 + ROUTE_HOLD_MAX_MS);
+    at(1000 + ROUTE_HOLD_MAX_MS + HOLD_FLUSH_MS + 20);
+    expect(hold.records[0]).toMatchObject({ kind: 'navigation', since: 1000 });
+    hold.begin('L3', 'navigation');
+    hold.begin('route-2', 'route');
+    expect(hold.kind).toBe('navigation');
+    function now0(): number {
+      return 1000 + ROUTE_HOLD_MAX_MS + 10;
+    }
+  });
+});
+
+describe('RouteHolds: what arms a route hold (R-ISS-14)', () => {
+  function routes() {
+    let now = 10_000;
+    const begun: string[] = [];
+    const hold = { holding: false, begin: (id: string) => begun.push(id), routeOf: () => undefined } as unknown as LoadHold<{ wall: number }>;
+    const r = new RouteHolds(hold, { now: () => now, watch: async () => undefined });
+    const page = {} as never;
+    return { r, begun, page, at: (t: number) => (now = t) };
+  }
+
+  it('a path change within ROUTE_ARM_MS of a press holds — whether it arrives before or after the press is reported', () => {
+    const a = routes();
+    a.r.reset('http://localhost:4401/products');
+    a.r.arm(10_000, a.page, 'list.1');
+    a.at(10_090);
+    a.r.within('http://localhost:4401/quotes', a.page);
+    expect(a.begun).toHaveLength(1);
+    const b = routes();
+    b.r.reset('http://localhost:4401/products');
+    b.at(10_020);
+    b.r.within('http://localhost:4401/quotes', b.page);
+    expect(b.begun).toHaveLength(0);
+    b.r.arm(10_000, b.page, 'list.1');
+    expect(b.begun).toHaveLength(1);
+  });
+
+  it('never holds without a press, after ROUTE_ARM_MS, for a query-only change or an in-page anchor; a `#/` hash route holds', () => {
+    const a = routes();
+    a.r.reset('http://localhost:4401/docs/intro');
+    a.at(9_000);
+    // Scrolling or typing rewrites the path: nobody pressed.
+    a.r.within('http://localhost:4401/docs/setup', a.page);
+    a.r.within('http://localhost:4401/search/abc', a.page);
+    expect(a.begun).toEqual([]);
+    a.r.arm(10_000, a.page);
+    a.at(10_000 + ROUTE_ARM_MS + 1);
+    a.r.within('http://localhost:4401/late', a.page);
+    expect(a.begun).toEqual([]);
+    a.at(12_500);
+    a.r.arm(12_500, a.page);
+    a.r.within('http://localhost:4401/late?page=2', a.page);
+    a.r.within('http://localhost:4401/late#section', a.page);
+    expect(a.begun).toEqual([]);
+    a.r.within('http://localhost:4401/late#/quotes?x=1', a.page);
+    expect(a.begun).toHaveLength(1);
+    expect(routeKey('http://localhost:4401/a#!/b?c')).toBe('http://localhost:4401/a#/b');
+    expect(routePath('http://localhost:4401/#/quotes')).toBe('/#/quotes');
+  });
+
+  it('one hold per press; a document commit forgets a route change', () => {
+    const a = routes();
+    a.r.reset('http://localhost:4401/a');
+    a.r.arm(10_000, a.page);
+    a.r.within('http://localhost:4401/b', a.page);
+    a.r.within('http://localhost:4401/c', a.page);
+    expect(a.begun).toHaveLength(1);
+    a.r.within('http://localhost:4401/d', a.page);
+    a.r.reset('http://localhost:4401/e');
+    a.r.arm(10_000, a.page);
+    expect(a.begun).toHaveLength(1);
   });
 });

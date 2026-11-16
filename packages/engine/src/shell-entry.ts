@@ -7,7 +7,7 @@ export { rollbackActionLines } from '@retake/hooks/describe';
 export { environmentLine, findingLine, summaryLine } from '@retake/review/checks';
 export { confirmWhy, opChain, sessionsToConfirm } from './admission.js';
 export { hooksTrustView, trustScenarioHooks, listedAuthor, listingContext, reserveListedRun, scenarioHooksCheck } from './agent-written.js';
-export { approvalFormText, pruneApprovalFormText } from './approvals.js';
+export { approvalFormText, projectChangeApprovalFormText, pruneApprovalFormText } from './approvals.js';
 export { ago, checkedText, loginCommandAt, recheckSessions, personaState, projectPersonaStates, tildePath } from './auth.js';
 export { createThemeFromBrand } from './brand/create.js';
 export { fetchFonts } from './brand/fontsource-fetch.js';

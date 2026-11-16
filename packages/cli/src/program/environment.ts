@@ -2,7 +2,11 @@ import { envResetCommand, hooksRollbackCommand, hooksRunCommand, hooksTrustComma
 import type { HookCommandOptions, HooksTrustOptions } from '../commands/hooks.js';
 import { sandboxDownCommand, sandboxInitCommand, sandboxLogsCommand, sandboxResetCommand, sandboxStatusCommand, sandboxUpCommand } from '../commands/sandbox.js';
 import type { SandboxCommandOptions } from '../commands/sandbox.js';
+import { envAddCommand, envRemoveCommand, envSetCommand } from '../commands/env.js';
+import type { EnvEditOptions } from '../commands/env.js';
+import { collect } from './context.js';
 import type { ProgramContext } from './context.js';
+import type { Command } from 'commander';
 
 /** The product's state around a take: hooks, env, sandbox. */
 export function registerEnvironmentCommands({ program, action }: ProgramContext): void {
@@ -39,7 +43,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .option('--yes', 'mark them without asking (they are listed first)')
     .action(action((u, g, p: string, s: string, o: HooksTrustOptions) => hooksTrustCommand(u, g, p, s, o)));
 
-  const env = program.command('env').description('environment maintenance');
+  const env = program.command('env').description('the environments of project.yaml: add, change, remove; reset one');
   env
     .command('reset')
     .description('replay pending rollback journals, then run the project `reset` hooks')
@@ -53,6 +57,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     )
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
+  registerEnvEdits(env, action);
 
   const sandbox = program.command('sandbox').description('start, seed, reset and stop the sandboxes of a project (sandbox.yaml: a disposable, local copy of the product)');
   const sandboxEnvHelp = 'sandbox environment (default: the first of project.yaml sandboxes)';
@@ -102,4 +107,43 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .option('--lines <n>', 'lines per service (default 50)')
     .option('--follow', 'docker-compose: keep reading until Ctrl-C')
     .action(action((u, g, p: string, svc: string | undefined, o: SandboxCommandOptions) => sandboxLogsCommand(u, g, p, svc, o)));
+}
+
+/** `retake env add | set | remove`: the environments of project.yaml (R-ENV-06). */
+function registerEnvEdits(env: Command, action: ProgramContext['action']): void {
+  const pageHelp = 'a page: key=url, or key=url,display=host (the URL the video shows instead); repeatable';
+  env
+    .command('add')
+    .description("add an environment to project.yaml (only its lines are written: the file's comments and layout stay)")
+    .argument('<project>', 'project slug or directory')
+    .argument('<env>', 'the new environment name')
+    .option('--page <key=url[,display=host]>', pageHelp, collect)
+    .option('--production', 'a production environment (read-only unless --read-write)')
+    .option('--read-only', 'stop every write of a run to its hosts')
+    .option('--read-write', 'let runs write (a production environment then only with --allow-writes)')
+    .option('--default', 'the environment scenarios without env: use (default_env)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, e: string, o: EnvEditOptions) => envAddCommand(u, g, p, e, o)));
+  env
+    .command('set')
+    .description('change an environment of project.yaml: pages, production, access, default (only what changes is written)')
+    .argument('<project>', 'project slug or directory')
+    .argument('<env>', 'an environment of project.yaml (never a sandbox)')
+    .option('--page <key=url[,display=host]>', `${pageHelp} (replaces that page whole)`, collect)
+    .option('--remove-page <key>', 'remove a page (repeatable)', collect)
+    .option('--production', 'mark it production')
+    .option('--no-production', 'no longer production')
+    .option('--read-only', 'stop every write of a run to its hosts')
+    .option('--read-write', 'let runs write (a production environment then only with --allow-writes)')
+    .option('--default', 'the environment scenarios without env: use (default_env)')
+    .option('--no-default', 'default_env no longer names it')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, e: string, o: EnvEditOptions) => envSetCommand(u, g, p, e, o)));
+  env
+    .command('remove')
+    .description("remove an environment from project.yaml (and default_env when it names it); its scenarios and saved sessions stay")
+    .argument('<project>', 'project slug or directory')
+    .argument('<env>', 'an environment of project.yaml (never a sandbox)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, e: string, o: EnvEditOptions) => envRemoveCommand(u, g, p, e, o)));
 }

@@ -402,6 +402,36 @@ export class Runtime {
     }
   }
 
+  /**
+   * A step pressed on `page` at wall time `wall` (its click, its key, its Enter; `label`: its scene.step): a client-side
+   * route change of that press is held by the capture until the route is ready (R-ISS-14). Nothing in a dry run.
+   */
+  routePressed(page: Page, wall: number, label: string): void {
+    this.recorderFor(page)?.routePressed(page, wall, label);
+  }
+
+  /**
+   * Right before a step presses on `page`: the loading indicators already in view, which a route of that press never
+   * counts (a header's spinner). Nothing in a dry run, nor when the step's route is not held (`ctx.filmsWait`).
+   */
+  async stepPressing(ctx: Pick<StepContext, 'filmsWait'>, page: Page = this.page): Promise<void> {
+    if (!ctx.filmsWait) await this.recorderFor(page)?.routeSnapshot(page);
+  }
+
+  /**
+   * routePressed for a step (`ctx`) on the acting page — unless the waits right after it include a marked one: the
+   * scenario films that wait on purpose (an import's progress it then reveals).
+   */
+  stepPressed(ctx: Pick<StepContext, 'scene' | 'step' | 'filmsWait'>, wall: number, page: Page = this.page): void {
+    if (!ctx.filmsWait) this.routePressed(page, wall, `${ctx.scene.id}.${ctx.step.index}`);
+  }
+
+  /** The step returned: a route that changes from now on is no route of its press (every recorder of the take). */
+  stepDone(): void {
+    this.recorder?.routeDisarm();
+    for (const t of this.tracks.values()) t.recorder?.routeDisarm();
+  }
+
   /** Ms of page loads the capture of `page` held since wall time `sinceWall` (only those the edit cuts: ≥ LOADING_CUT_MIN_S). */
   heldMs(page: Page, sinceWall: number): number {
     return this.recorderFor(page)?.heldSince(sinceWall, LOADING_CUT_MIN_S * 1000) ?? 0;
@@ -748,4 +778,6 @@ export interface StepContext {
   jitter: Jitter;
   /** Pointer interactions performed by the step, in order. */
   clicks: ClickRecord[];
+  /** The waits right after the step include a marked one: the scenario films that wait (no route hold). */
+  filmsWait?: true;
 }

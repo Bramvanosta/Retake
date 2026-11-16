@@ -1132,6 +1132,7 @@
             "enum": [
               "paint",
               "load",
+              "ready",
               "limit",
               "left",
               "end"
@@ -1140,6 +1141,32 @@
           "held_frames": {
             "type": "integer",
             "minimum": 0
+          },
+          "same_document": {
+            "type": "boolean",
+            "const": true,
+            "description": "A client-side route change of a step's click, press or Enter, held until the route was ready (until: ready) or 3 s."
+          },
+          "indicator": {
+            "type": "object",
+            "properties": {
+              "t_start": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "t_end": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              }
+            },
+            "required": [
+              "t_start",
+              "t_end"
+            ],
+            "additionalProperties": false,
+            "description": "A route hold: when a loading indicator the route brought showed (absent: none did)."
           }
         },
         "required": [
@@ -1149,7 +1176,7 @@
           "held_frames"
         ],
         "additionalProperties": false,
-        "description": "A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+        "description": "A page load the capture did not show — a full-page load, or a client-side route change (same_document): the previous frame stayed on screen from the commit (the press's feedback, for a route) until the new page painted (the route was ready); no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
       },
       "description": "Page loads `capture` did not show (the previous frame held until the new page painted)."
     },
@@ -1830,6 +1857,7 @@
                   "enum": [
                     "paint",
                     "load",
+                    "ready",
                     "limit",
                     "left",
                     "end"
@@ -1838,6 +1866,32 @@
                 "held_frames": {
                   "type": "integer",
                   "minimum": 0
+                },
+                "same_document": {
+                  "type": "boolean",
+                  "const": true,
+                  "description": "A client-side route change of a step's click, press or Enter, held until the route was ready (until: ready) or 3 s."
+                },
+                "indicator": {
+                  "type": "object",
+                  "properties": {
+                    "t_start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Capture time in seconds."
+                    },
+                    "t_end": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Capture time in seconds."
+                    }
+                  },
+                  "required": [
+                    "t_start",
+                    "t_end"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A route hold: when a loading indicator the route brought showed (absent: none did)."
                 }
               },
               "required": [
@@ -1847,7 +1901,7 @@
                 "held_frames"
               ],
               "additionalProperties": false,
-              "description": "A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+              "description": "A page load the capture did not show — a full-page load, or a client-side route change (same_document): the previous frame stayed on screen from the commit (the press's feedback, for a route) until the new page painted (the route was ready); no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
             },
             "description": "Page loads this track did not show."
           }

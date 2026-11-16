@@ -42,6 +42,8 @@ export const RUN_ID_MAX = 200;
  * with a letter or a digit): one path segment, never a path. No length here: `isRunId`.
  */
 export const RUN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** An environment name a client gives (MCP, the Studio, `retake env`): a name of project.yaml, never a path — it names folders of the Retake home. */
+export const ENV_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** Whether `v` is a run id: the folder grammar, at most RUN_ID_MAX characters. */
 export function isRunId(v: unknown): v is RunId {

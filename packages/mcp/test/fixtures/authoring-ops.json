@@ -1851,7 +1851,7 @@
     }
    },
    "answer": {
-    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"scenario_edit\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"scenario_edit\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
    }
   },
   {
@@ -1860,7 +1860,7 @@
     "project": "northfield-fixture"
    },
    "answer": {
-    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"record_start\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"record_start\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
    }
   },
   {
@@ -1870,7 +1870,7 @@
     "rec_id": "<rec-7>"
    },
    "answer": {
-    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"record_view\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"record_view\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
    }
   },
   {

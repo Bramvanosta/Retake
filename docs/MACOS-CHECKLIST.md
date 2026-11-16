@@ -1979,6 +1979,18 @@ Firebase Auth emulator in `reset.firebase_auth`.
    it added to project.yaml, proposes compose.yaml / sandbox.yaml text without writing them, and asks before
    `sandbox_up` pulls images.
 
+## 19. Environments by tool and client-side routes (L8.2)
+
+1. **`retake env`.** On a copy of one of your projects: `retake env add <project> stg --page app=<a staging URL>
+   --read-only`, then `retake env set <project> stg --production --default`, then `retake env remove <project> stg`.
+   `git diff project.yaml` after each: only the environment's lines and `default_env` moved; your comments stay.
+2. **Through Claude.** Ask Claude to add a staging environment on a host the project does not have yet: an approval
+   form lists the change, why it asks and the `retake env …` command; decline → nothing written. Ask it to mark an
+   environment production: no form. Ask it to remove a production environment: a form.
+3. **A route that loads.** Film a click in your single-page app that opens a page whose data takes a while (a list
+   with a skeleton): the render shows the click, then the loaded page — no skeleton; the run says no warning. A page
+   still loading 3 s after the click: shown as it is, with a run warning naming the step.
+
 ## 20. Open-licence fonts by reference: one real fetch, on purpose (L8.1b)
 
 The tests never reach the npm registry (a fake registry in process, a loopback one for the child processes). What a

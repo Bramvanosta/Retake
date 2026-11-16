@@ -140,11 +140,10 @@
   },
   {
    "rule": "id-grammar",
-   "reason": "Other names with a grammar of the same shape, each written at its definition and out of the id module: a scenario name (SLUG_RE), a project slug (PROJECT_SLUG_RE), an environment name, a run-folder segment, a review file id.",
+   "reason": "Other names with a grammar of the same shape, each written at its definition and out of the id module: a scenario name (SLUG_RE), a project slug (PROJECT_SLUG_RE), a run-folder segment, a review file id.",
    "entries": [
     "packages/core/src/project.ts → 1 hand-written id pattern",
     "packages/core/src/schemas/primitives.ts → 1 hand-written id pattern",
-    "packages/engine/src/jobs/job-input.ts → 1 hand-written id pattern",
     "packages/engine/src/outputs/run-files.ts → 1 hand-written id pattern",
     "packages/engine/src/reviews.ts → 1 hand-written id pattern"
    ]

@@ -703,6 +703,8 @@ describe('client demo retro checks (hotfix v0.2.6)', () => {
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({ severity: 'warning', code: 'loading-filmed' });
     expect(found[0].message).toContain('(skeleton ×4)');
+    // Routes and page loads are held until ready (R-ISS-14): what still shows is a state the take could not wait out.
+    expect(found[0].message).toMatch(/could not wait out \(in the page, or a route still loading after 3 s\): wait for its content \(wait_for\) or film it offscreen$/);
     ctx.timeline.loading_ui = [{ t_start: 99_999, t_end: 100_000, what: 'spinner' }];
     expect(checkLoadingFilmed(ctx)).toEqual([]);
     // A timeline edited by hand: the reader checks the lists every timeline has, not this optional one — nothing throws.
