@@ -22,6 +22,9 @@ import { SessionEnded } from '../session.js';
 import { ChipList } from './ThreadPanel.js';
 import { Button, Callout, NumberField, TextArea, pageKeys } from '../ui-kit/index.js';
 
+/** How a comment is posted and under which name (the key from the registry). */
+const HOW_TO_POST = `${pageKeys('send').join('')} posts. Written as the channel Studio, under the name this Studio was started with.`;
+
 const FIELDS: Array<[keyof RegionFields, string]> = [
   ['x', 'Left %'],
   ['y', 'Top %'],
@@ -169,11 +172,7 @@ export function Composer(p: {
           {posting ? 'Posting…' : 'Post the comment'}
         </Button>
         <span id={how} className="cm-quiet" role="status" data-testid="comment-how">
-          <Txt
-            text={
-              posting ? 'Posting… the thread is written, then its still is made.' : `${pageKeys('send').join('')} posts. Written as the channel Studio, under the name this Studio was started with.`
-            }
-          />
+          <Txt text={posting ? 'Posting… the thread is written, then its still is made.' : HOW_TO_POST} />
         </span>
       </div>
       {error && (
