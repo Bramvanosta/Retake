@@ -688,7 +688,7 @@ describe.skipIf(!ENABLED)(
         await checkPhase(
           'theme',
           ['template_list', 'template_create_from_brand', 'template_list', 'template_preview'],
-          [['retake-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for both entries']]],
+          [['retake-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for every entry']]],
         );
       },
       STEP,
@@ -799,7 +799,7 @@ describe.skipIf(!ENABLED)(
           [
             ['retake-scenario', ['The loop']],
             ['retake-component', ['Create one']],
-            ['retake-theme', ['Then, for both entries']],
+            ['retake-theme', ['Then, for every entry']],
           ],
         );
       },
