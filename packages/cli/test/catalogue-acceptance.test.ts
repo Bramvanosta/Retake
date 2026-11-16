@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import { loadProject, loadScenario, fileFacts, reserveRunId } from '@retake/core/io';
 import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
+import { packageHookRunner } from '@retake/compose';
 import { runScenario } from '@retake/runner-web';
 import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '@retake/test-support/capture';
 import { scratchHome } from '@retake/test-support/home';
@@ -109,6 +110,7 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
       env: 'local',
       template: debugTemplate(),
       mode: 'capture',
+      hookRunner: packageHookRunner(),
       runsDir: join(tmp, 'runs'),
       runId,
       onProgress: (e) => events.push(e),
