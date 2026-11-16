@@ -84,8 +84,9 @@ describe("the engine's entries", () => {
     const unused = types.filter((n) => !reached.includes(n) && namedOutside([...SRC, ...TESTS], 'engine', '@retake/engine', n).length === 0);
     expect(unused).toEqual([]);
     for (const n of reached) expect(types, n).toContain(n);
-    // 145: FontFetched, TokensDraft (the CLI's fetch-font and from-tokens print them) and FontsApprovalRequest (the MCP form).
-    expect(types.length).toBeLessThanOrEqual(145);
+    // 145: FontFetched, TokensDraft (the CLI's fetch-font and from-tokens print them) and FontsApprovalRequest (the MCP form);
+    // 146: ProjectChangeApprovalRequest (the MCP form of an environment change).
+    expect(types.length).toBeLessThanOrEqual(146);
   });
 
   it('@retake/engine/shell holds values a shell source imports from it, and nothing else', () => {
@@ -98,8 +99,11 @@ describe("the engine's entries", () => {
     // The count only goes down: a shell's new in-process value is a reason to look for an operation first (151: the
     // Studio's player making — its bundler and its file server are the shell's own machinery, no operation hands them;
     // 152: fetchFonts and tokensDraft, which `retake theme fetch-font` / `from-tokens` run in process as `theme create`
-    // runs createThemeFromBrand — the person's own act, without a form).
-    expect(values.length).toBeLessThanOrEqual(152);
+    // runs createThemeFromBrand — the person's own act, without a form;
+    // 156: the three sandbox words `retake sandbox` prints for the work it runs in its own process — firebaseAuthText,
+    // resetLadderText, snapshotStatusText, the same sentences sandbox_status and the job summaries say — and the MCP
+    // server's approval form of an environment change, projectChangeApprovalFormText, built where the engine limits it).
+    expect(values.length).toBeLessThanOrEqual(156);
   });
 
   it('@retake/engine/testing holds values other packages’ tests import from it, and no product source imports a testing entry', () => {

@@ -21,6 +21,8 @@ interface InFlight {
   navigating: Map<Frame, Request>;
   /** Wall time each request in flight got its response headers (UNREAD_BODY_MS). */
   responded: WeakMap<Request, number>;
+  /** Wall time each request in flight started (networkQuiet: a long poll stops counting). */
+  started: WeakMap<Request, number>;
 }
 
 const tracked = new WeakMap<Page, InFlight>();
@@ -57,7 +59,7 @@ function frameOf(req: Request): Frame | undefined {
  */
 export function trackRequests(page: Page): void {
   if (tracked.has(page)) return;
-  const st: InFlight = { requests: new Set(), changed: wallNow(), navigating: new Map(), responded: new WeakMap() };
+  const st: InFlight = { requests: new Set(), changed: wallNow(), navigating: new Map(), responded: new WeakMap(), started: new WeakMap() };
   tracked.set(page, st);
   const done = (req: Request) => {
     if (st.requests.delete(req)) st.changed = wallNow();
@@ -71,6 +73,7 @@ export function trackRequests(page: Page): void {
     if (ignored(req)) return;
     st.requests.add(req);
     st.changed = wallNow();
+    st.started.set(req, st.changed);
   });
   page.on('requestfinished', done);
   page.on('requestfailed', (req) => {
@@ -129,6 +132,29 @@ export async function networkIdle(page: Page, opts: { timeoutMs: number; idleMs?
     }
     await sleep(Math.min(POLL_MS, deadline - now), opts.signal);
   }
+}
+
+/** A request open this long is a long poll for networkQuiet: it does not count. */
+export const LONG_REQUEST_MS = 2000;
+
+/**
+ * Whether `page` has been quiet for `quietMs` now (R-ISS-14's route watcher, polled): no request in flight — a
+ * request open LONG_REQUEST_MS or more (a long poll) and one whose body nobody reads (UNREAD_BODY_MS) apart — and none
+ * started or ended within `quietMs`. WebSockets are no requests; event streams never count (trackRequests).
+ */
+export function networkQuiet(page: Page, quietMs: number): boolean {
+  trackRequests(page);
+  const st = tracked.get(page)!;
+  const now = wallNow();
+  let quietSince = st.changed;
+  for (const req of st.requests) {
+    const started = st.started.get(req) ?? st.changed;
+    if (now - started >= LONG_REQUEST_MS) continue;
+    const at = st.responded.get(req);
+    if (at !== undefined && now - at >= UNREAD_BODY_MS) quietSince = Math.max(quietSince, at + UNREAD_BODY_MS);
+    else return false;
+  }
+  return now - quietSince >= quietMs;
 }
 
 /** Why the network was not idle: "still loading: a, b", or requests that kept starting and ending. */

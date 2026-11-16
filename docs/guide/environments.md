@@ -187,6 +187,36 @@ environments:
 key named `access` with a URL stays a page). Every consumer still sees each page's real URL: `{{shop}}` in a step or
 a hook is `http://localhost:4402`.
 
+**Adding, changing, removing one.** Edit project.yaml by hand, or with `retake env` (a person in a terminal) and the
+MCP tools `project_env_set` / `project_env_remove` (Claude, when you ask):
+
+```sh
+retake env add <project> stg --page console=https://console.stg.example.com,display=console.example.com --read-only
+retake env set <project> local --page shop=http://localhost:4402 --remove-page old --production --default
+retake env set <project> prd --no-production --read-write --no-default
+retake env remove <project> stg
+```
+
+Only the environment's own lines and `default_env` change: every other setting of project.yaml — `read_only` (never
+written by these commands), `auth`… — and every comment outside that environment stay, in the file's indentation and
+the line endings of the lines around the edit. An environment written on one line (`local: {app: …}`, or
+`environments: {…}` when one is added) is written again in block form: its inner comments go. A page given again is
+replaced whole (without `,display=` it has none). A short-form environment marked production or given an access
+moves to the long form. `--no-production` changes only that: an environment that was read-only through production
+stays read-only (`access: read-only` is written; `--read-write` says otherwise). Refused: a sandbox environment (edit
+its sandbox.yaml, or `sandboxes.<env>`), an environment left without pages (remove it instead), a new environment
+named by a number (it would come first and become the default), a page URL containing `,display=`, an edit that would
+land on a YAML alias, anchor or merge key, a result project.yaml with errors (removing an environment `auth.<env>` or
+a persona still names: change those first), `env add` of an existing name, `env set` of a missing one. After a change,
+project.yaml's own warnings are shown, and README.md's "Environments & links" when its lines of this environment no
+longer match. After a removal, the scenarios whose `env:` still names it are listed, and the saved sessions left in the
+Retake home are counted with the command that removes them (neither is deleted). Through MCP, a page on an origin none of the project's environments has, production or read-only taken off
+(or a page of such an environment removed or moved), a production or read-only environment becoming the default, and
+a page URL with sign-in details (`user:password@`, never shown), and a production environment that allows writes
+(`access: read-write`) are asked to you in an approval form (see
+[Security](security.md)); a page of a read-write environment on a production or read-only host of any project is
+refused there — `retake env` writes it with a warning.
+
 **Display URLs.** `display` is a public host (`shop.example.com`, https implied: the address bar shows the lock), a
 `host/path` or an `http(s)://` URL — no query, fragment or `{{…}}`: it is shown as written; a local host or a port out
 of range is refused. The runner navigates the real URL; `timeline.json` keeps both (`environment.display`) and what the

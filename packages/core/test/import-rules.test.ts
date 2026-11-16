@@ -2429,7 +2429,6 @@ describe('the import-rules ratchet', () => {
       expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual([
         'packages/core/src/project.ts',
         'packages/core/src/schemas/primitives.ts',
-        'packages/engine/src/jobs/job-input.ts',
         'packages/engine/src/outputs/run-files.ts',
         'packages/engine/src/reviews.ts',
       ]);

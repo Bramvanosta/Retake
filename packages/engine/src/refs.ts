@@ -3,7 +3,7 @@
  * before anything reaches core — core's loaders also accept absolute and cwd-relative paths, which only the CLI may use.
  */
 import { SLUG_RE } from '@retake/core/model';
-import { parseRunId, renderIdOf } from '@retake/core/ids';
+import { ENV_NAME_RE, parseRunId, renderIdOf } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import type { RunId } from '@retake/core/ids';
 import { EngineError } from './errors.js';
@@ -41,4 +41,11 @@ export function checkRunId(id: string): RunId {
  */
 export function isRenderOfItsScenario(r: { id: unknown; scenario: unknown }): boolean {
   return typeof r.scenario === 'string' && renderIdOf(r.id, r.scenario) !== null;
+}
+
+/** An environment name a client gave: one of project.yaml, never a path (it names folders of the Retake home). */
+export function checkEnvName(env: string | undefined): void {
+  if (env !== undefined && (!ENV_NAME_RE.test(env) || env.length > 100)) {
+    throw new EngineError('invalid', `invalid environment "${env}": an environment name of project.yaml, never a path`);
+  }
 }

@@ -44,7 +44,9 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   actions are never cut. `overrides.trim_idle: false` keeps them. The waiting after such a load counts from its end
   (the painted page).
   Since L1.2 the time a page took to paint is in the step that navigated (held, then cut), no longer in the
-  `wait_for` after it: that wait is sped up only for what the page shows once painted.
+  `wait_for` after it: that wait is sped up only for what the page shows once painted. A client-side route change of
+  a click, a `press` or an Enter is held and cut the same way (`timeline.loading` with `same_document: true`), from
+  0.1 s after the press (the press stays on screen) until the route was ready.
 - **Idle trims**: the part of a `timeline.idle` gap outside those protected spans and held page loads, when longer
   than 1.2 s (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on
   screen).
@@ -52,7 +54,7 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   (`timeline.stalls`: the dialog-close freeze of the frame-rate limiter, a loaded machine) is cut whole but its first
   frame, like a held load; a wait the screen showed after a click (`timeline.busy`: near-identical frames — a
   skeleton, a spinner, a blank panel — until the content appeared) keeps its first 0.3 s and the 0.1 s before the
-  content, outside protected spans. The plan notes each one; `overrides.trim_idle: false` keeps them.
+  content, outside protected spans — for a wait in the page; a click's client-side route is held until ready instead. The plan notes each one; `overrides.trim_idle: false` keeps them.
 - **Camera**: static unless a step has a `camera` hint, or the theme has a **default zoom** (below). The zoom is clamped to the theme `max_zoom` (noted), focused on
   the target box measured at the end of the step (else the hint's point, else the cursor), eased with the hint's
   `ease` (else the theme `zoom_ease`) over `max(0.8 s, duration)` of output time — `duration` defaults to the step's

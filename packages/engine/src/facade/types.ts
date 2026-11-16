@@ -10,6 +10,8 @@ import type { RecordAnnotationChange, RunViewStatus, UnknownRunStatus } from '@r
 import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
+import type { EnvironmentChangeView } from '../project-env.js';
+import type { EnvironmentChange, EnvironmentEditMode } from '@retake/core/project';
 import type { RunStatusView, RunSummary } from '../runs.js';
 import type { SandboxInitResultView, SandboxStatusView } from '../sandbox.js';
 import type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from '../scenarios.js';
@@ -251,6 +253,16 @@ export interface Engine {
      * still go at that moment, each with the paths it had when listed.
      */
     prune(project: string, req?: Pick<PruneRequest, 'keep_renders' | 'dry_run'>, o?: { approver?: Approver }): Promise<PruneResult>;
+    /**
+     * Add or change one environment of project.yaml (R-ENV-06; project-env.ts `changeProjectEnvironment`): only its
+     * node's text changes. Under agent trust a protected host reached read-write is refused and what needs a person
+     * (a new origin, a protection lowered, the default moved onto a protected environment, sign-in details in a URL)
+     * is asked through `approver` (no approver → `needs_approval`, declined → `refused`, nothing written). `mode`:
+     * `add` refuses an existing environment, `set` a missing one; default `upsert` (MCP).
+     */
+    setEnvironment(project: string, env: string, change: EnvironmentChange, o?: { approver?: Approver; mode?: EnvironmentEditMode }): Promise<EnvironmentChangeView>;
+    /** Remove one environment of project.yaml (the same rules; a protected one, or a protected new default, is asked). */
+    removeEnvironment(project: string, env: string, o?: { approver?: Approver }): Promise<EnvironmentChangeView>;
     /**
      * The Studio's Project screen in one read (project-board.ts): every scenario's file facts, running / last
      * take, capture (current or not), dry run, newest render and its review, render job, length and poster — one pass

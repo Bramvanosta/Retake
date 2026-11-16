@@ -21,8 +21,9 @@ previews themes and components (stills come back as images), checks components a
 new theme from the brand files the user put in the workspace, or from a draft read off a public site whose URL the
 user approves (`template_from_site`) or a design-token file (`template_from_tokens`), fetches open-licence fonts the
 user approves into the workspace's font store (`font_fetch`), and adjusts a theme it made that nobody changed (`template_update`) — component
-code, themes a person made or changed and project.yaml are never written through the server (but the `sandboxes.<env>`
-line of `sandbox_init`, which scaffolds a sandbox the user then fills). People comment frames of a render (`retake comment add`); Claude lists the comments
+code, themes a person made or changed and project.yaml are never written through the server (but its environments —
+`project_env_set` / `project_env_remove`, when the user asks — and the `sandboxes.<env>` line of `sandbox_init`, which
+scaffolds a sandbox the user then fills). People comment frames of a render (`retake comment add`); Claude lists the comments
 with their anchor and still, adapts the video, replies and resolves them with the new render (see
 [Frame comments](review.md#frame-comments)).
 
@@ -121,6 +122,8 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults; `readme_environments` when the README's "Environments & links" section no longer matches them (a line names an environment, then its pages: `- **stg** (note) · shop: <url> · console: <url> : a description`; bold, code, a note in parentheses, several pages and a description are fine) | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); `environments` pages are a URL or `{url, display}`, `default_env` names the default one; refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
+| `project_env_set` | adds or changes one environment of project.yaml: `pages` (a URL or `{url, display}`, each replacing that page whole), `remove_pages`, `production`, `access`, `default`; only its lines and `default_env` change; a new origin, a protection lowered, a protected default or sign-in details in a URL are asked to the user (see Safety); answers the environment as written (no `user:password@`), the default before and after and `readme_environments` | project.yaml (that environment) |
+| `project_env_remove` | removes one environment (and `default_env` when it named it), annotated destructive; a production or read-only one, or a protected new default, is asked to the user; names the scenarios whose `env:` still names it and counts the saved sessions left, with the command that removes them (persona names under `untrusted.sessions`; neither deleted) | project.yaml (that environment) |
 | `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety); when comment threads cannot be read, the renders and takes they may name stay and the result says so (`threads_unread`); a file of `renders/` that is no render of its own name (renamed, copied, a link, a newer format, a status Retake never writes, a record that lacks a member, a file that does not read) is left alone with the render and the take it names, counted in the text (and apart from the renders in its `kept:` line: `3 renders and 1 other file of renders/`; `kept.renders` counts every record file that stays) and named under `untrusted.renders_alone` (`[{file, why}]`), and a file too big to read keeps everything (`renders_unread`); the last capture of a scenario that can be edited, the last complete one beside a capture stopped by `--until`, a linked run folder and a take of a newer Retake stay too, and the text says each reason with a count (`kept_takes` names the takes) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
@@ -528,9 +531,23 @@ a terminal run in their own process and are not held to these rules.
   `mcp`, threads are never created or reopened, and a resolution needs the thread's `if_match`. Anyone who can run
   `retake comment` or write comments/ (Claude Code's own shell and file tools included) writes as `cli`: the channel
   says how an entry was written, not who wrote it.
-- No tool deletes anything; overwriting an authored file needs `if_match`. Environments `project_create` declares are
-  neither production nor read-only: a human marks production environments in project.yaml (there is no tool that
-  changes project.yaml).
+- Environments `project_create` declares are neither production nor read-only; `project_env_set` marks one (a
+  tightening asks nobody).
+- **Environments change only as the user approves what widens or loosens them.** `project_env_set` /
+  `project_env_remove` write without a form only pages on origins the project already has (scheme, host and port
+  compared normalised), production / read-only marks, display URLs and the removal of an environment that is neither
+  protected nor the default's successor onto a protected one. A page on an origin new to the project (where its
+  captures and its hooks — with their secrets — may go), production or read-only taken off (or a page of such an
+  environment removed or moved), a production or read-only environment becoming the one scenarios without `env:` use,
+  sign-in details in a page URL and a production environment that allows writes (`access: read-write`, a new one
+  included) are asked in an approval form: the change line by line (URLs without their
+  `user:password@`, hidden characters written out), why it needs the user and the `retake env …` command instead.
+  Declined, not answered or a client without forms: nothing is written (`refused` / `needs_approval`). project.yaml is
+  read again after the answer: a byte changed meanwhile is a `conflict`. Refused before anyone is asked: a page of a
+  read-write environment on a production or read-only host of any project (this one's other environments included), a
+  sandbox environment, an environment left without pages, a result that does not validate. `read_only`, `auth` and the
+  rest of project.yaml are never written; an environment written on one line is rewritten in block form (its inner
+  comments go).
 - **What reaches the model.** Whatever a tool returns — README, scenarios, run summaries, page text under
   `untrusted`, file paths — becomes part of the Claude conversation, i.e. goes to the model provider. Files a tool
   only names (captures, screenshots, DOM snapshots) stay on this machine until Claude reads one: a screenshot or DOM

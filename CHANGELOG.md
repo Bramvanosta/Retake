@@ -30,6 +30,10 @@ release — for the person about to click Install and Restart.
   the `sandboxes:` line of project.yaml, never over a file. compose.yaml and sandbox.yaml stay yours to fill in —
   Claude proposes their text — and it asks before `sandbox_up` downloads images. The sandbox guide has new recipes: a
   monorepo without app images, apps on your Mac with the infrastructure in Docker, and an external sign-in.
+- Environments of an existing project can be added, changed and removed: `retake env add | set | remove` in a
+  terminal, and Claude's `project_env_set` / `project_env_remove`. Only that environment's lines and `default_env`
+  change — your comments and layout stay. Through Claude, a new origin, production or read-only taken off, a
+  production default or sign-in details in a URL are asked to you first.
 
 ### Changed
 - A wide logo (3:1 or wider) is drawn once: the intro, the outro and the brand mark show it alone, sized by its width
@@ -56,6 +60,12 @@ release — for the person about to click Install and Restart.
 - A reset that puts a Firebase Auth emulator's accounts back signs the sandbox's personas out: each take signs them in
   again with their login steps, off camera (a persona without them is refused, naming sandbox.yaml), and a hook's
   `auth: {persona}` outside a take refuses instead of sending its request without a token.
+- A click (a key, an Enter) that changes a single-page app's route no longer films its skeleton: the capture keeps the
+  picture of the press until the route is ready — no loading indicator it brought, the network quiet —, 3 s at most
+  (then a run warning naming the indicator), and the edit cuts the wait. A route that shows no indicator is filmed at
+  once. A wait the scenario films on purpose (a marked `wait_for` right after), a route an app changes after the step,
+  a query-only change and a path rewritten while scrolling or typing are filmed as before. `timeline.loading` gains `until: ready` and
+  `same_document: true` (older Retake versions read these timelines too: they do not check that list).
 - The Studio uses a large screen: no screen is held to a 1200 px column any more, the browser and the inspector grow
   with the window (up to 300 and 480 px), a wide storyboard shows more frames a row, and Edit's preview takes the
   height the tracks leave (it shrank to a strip when no note sat above it). Welcome is rebuilt: a greeting and the

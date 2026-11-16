@@ -88,11 +88,16 @@ const LoadingSchema = z
     t_start: t(),
     t_end: t(),
     page: z.string().optional(),
-    until: z.enum(['paint', 'load', 'limit', 'left', 'end']),
+    until: z.enum(['paint', 'load', 'ready', 'limit', 'left', 'end']),
     held_frames: z.number().int().min(0),
+    same_document: z.literal(true).describe('A client-side route change of a step\'s click, press or Enter, held until the route was ready (until: ready) or 3 s.').optional(),
+    indicator: z
+      .strictObject({ t_start: t(), t_end: t() })
+      .describe('A route hold: when a loading indicator the route brought showed (absent: none did).')
+      .optional(),
   })
   .describe(
-    'A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
+    'A page load the capture did not show — a full-page load, or a client-side route change (same_document): the previous frame stayed on screen from the commit (the press\'s feedback, for a route) until the new page painted (the route was ready); no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
   );
 
 const StallSchema = z

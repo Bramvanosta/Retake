@@ -1,13 +1,13 @@
 /**
  * Human approval of hooks through MCP elicitation (R-MCP-35). The engine's preflight lists the hooks of the work
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
- * user once, in form mode, with an explicit timeout — and so are a site extraction's URL, an agent's prune and an agent's font fetch. Only `accept` with `approve: true` approves. A decline, a dismissed
+ * user once, in form mode, with an explicit timeout — and so are a site extraction's URL, an agent's prune, an agent's font fetch and an agent's change of project.yaml's environments. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import { approvalFormText, pruneApprovalFormText } from '@retake/engine/shell';
+import { approvalFormText, projectChangeApprovalFormText, pruneApprovalFormText } from '@retake/engine/shell';
 import { FONTSOURCE_LICENCES } from '@retake/core/theme';
-import type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
+import type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, ProjectChangeApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 import { errorMessage } from '@retake/core/base';
@@ -115,6 +115,20 @@ export function fontsApprovalForm(req: FontsApprovalRequest): ElicitForm {
   };
 }
 
+/** The question of an agent's environment change (engine projectChangeApprovalFormText: the text whose length the engine limits). */
+export function projectChangeApprovalForm(req: ProjectChangeApprovalRequest): ElicitForm {
+  return {
+    message: projectChangeApprovalFormText(req),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: { type: 'boolean', title: 'Write this change to project.yaml', description: 'Check to write the change listed above, once.', default: false },
+      },
+      required: ['approve'],
+    },
+  };
+}
+
 async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm, timeoutMs: number): Promise<ApprovalOutcome> {
   try {
     const answer = await elicit(form, { timeoutMs });
@@ -134,5 +148,6 @@ export function elicitationApprover(elicit: CallContext['elicit'], timeoutMs = a
     approveSite: (req: SiteApprovalRequest) => ask(elicit, siteApprovalForm(req), timeoutMs),
     approvePrune: (req: PruneApprovalRequest) => ask(elicit, pruneApprovalForm(req), timeoutMs),
     approveFonts: (req: FontsApprovalRequest) => ask(elicit, fontsApprovalForm(req), timeoutMs),
+    approveProjectChange: (req: ProjectChangeApprovalRequest) => ask(elicit, projectChangeApprovalForm(req), timeoutMs),
   };
 }

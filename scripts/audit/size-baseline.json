@@ -18,13 +18,6 @@
    }
   },
   {
-   "measure": "body",
-   "reason": "CDP event handlers that share one attach's mutable state (the main frame id, the heal timer and its refreshes, the frames seen): a split would thread a state object through every handler and read worse.",
-   "entries": {
-    "packages/runner-web/src/recorder.ts › ScreencastRecorder › attach": 105
-   }
-  },
-  {
    "measure": "params",
    "reason": "Public API, exported from a package entry (or the mirror of one): the signature stays.",
    "entries": {

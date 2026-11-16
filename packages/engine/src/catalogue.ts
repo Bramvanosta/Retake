@@ -179,6 +179,8 @@ const ENTRIES = [
   { name: 'project_get', ...R, cli: no('a person reads README.md and project.yaml'), mcp: true, studio: STUDIO },
   { name: 'project_create', ...W, cli: ['new'], mcp: true, studio: no('no Studio screen creates a project: `retake new` in a terminal') },
   { name: 'project_update_readme', ...W, cli: no('a person edits README.md'), mcp: true, studio: STUDIO },
+  { name: 'project_env_set', ...W, cli: ['env add', 'env set'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
+  { name: 'project_env_remove', ...D('an environment of project.yaml'), cli: ['env remove'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
   { name: 'project_prune', ...D('the runs, renders and reviews nothing needs any more'), cli: ['prune'], mcp: true, studio: no('no Studio screen frees disk space: `retake prune` in a terminal') },
   { name: 'scenario_get', useCase: 'scenario.read', ...R, cli: no('a person opens scenarios/<name>.yaml'), mcp: true, studio: no('the scenario screen reads the file through scenario_blocks') },
   { name: 'scenario_validate', ...R, cli: ['validate'], mcp: true, studio: STUDIO },

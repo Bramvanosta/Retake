@@ -114,9 +114,10 @@ A plain string is visible text, or a CSS selector when it looks like one (`#id`,
 
 What reviews of client videos kept asking for, written once:
 
-- **Never a load on screen.** Every navigation or reload (an `open`, a submit that changes page) goes in an
-  `offscreen` scene that ends with `wait_for: {network_idle: true}`: no blank screen, no skeleton. The review says
-  `loading-filmed` when a skeleton or a spinner still shows.
+- **Never a load on screen.** Full page loads and a click's client-side route change (pushState, `#/` routes) are
+  held until painted / ready (3 s at most for a route): a click then a `hold` is enough. A long wait in the page (an
+  import, a report) goes in an `offscreen` scene that ends with `wait_for`, or after a `wait_for` the edit shortens.
+  The review says `loading-filmed` when a skeleton or a spinner still shows.
 - **Show the state, not the path.** A filter already set (`open: /catalogue?available=true`), an account already
   approved (a hook off camera), a page already loaded: never the intermediate state.
 - **Overlays never on the last step of a scene**: the scene ends under them (`overlay-lost`, `overlay-cut`). Put

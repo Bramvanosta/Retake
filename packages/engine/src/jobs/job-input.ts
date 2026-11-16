@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import { COMPONENT_ID_RE, ComponentRefSchema, KEY_RE, SLUG_RE } from '@retake/core/model';
 import { FrameSpecSchema, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from '@retake/core/language';
-import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE, zRenderId, zRunId, zThemeName } from '@retake/core/ids';
+import { ENV_NAME_RE, INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE, zRenderId, zRunId, zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { INSPECT_PATH_MAX, inspectPathProblem } from '@retake/core/run';
 import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
@@ -68,8 +68,8 @@ export function isFilming(input: unknown): boolean {
 export const JOB_CLIENTS = ['mcp', 'cli', 'test', 'ui'] as const;
 export type JobClient = (typeof JOB_CLIENTS)[number];
 
-/** An environment name of project.yaml: a name, never a path. */
-export const ENV_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** An environment name of project.yaml: a name, never a path (core's). */
+export { ENV_NAME_RE };
 
 /**
  * A hooks source a job may name (never a path outside the project): `reset` (project.yaml), `<scenario>:setup` /

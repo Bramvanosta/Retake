@@ -252,15 +252,15 @@ describe('the operation catalogue', () => {
     ]);
   });
 
-  it('counts 128 operations: 49 MCP tools, 78 Studio ops, 58 served by 48 CLI commands; 57 read, 59 write, 12 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    expect(CATALOGUE).toHaveLength(128);
-    expect(servedNames('mcp')).toHaveLength(49);
+  it('counts 130 operations: 51 MCP tools, 78 Studio ops, 60 served by 51 CLI commands; 57 read, 60 write, 13 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    expect(CATALOGUE).toHaveLength(130);
+    expect(servedNames('mcp')).toHaveLength(51);
     expect(servedNames('studio')).toHaveLength(78);
-    expect(servedNames('cli')).toHaveLength(58);
-    expect(cliCommandsOf()).toHaveLength(48);
+    expect(servedNames('cli')).toHaveLength(60);
+    expect(cliCommandsOf()).toHaveLength(51);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 57, write: 59, destructive: 12 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 111, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 57, write: 60, destructive: 13 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 113, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect',
       'scenario_record',
@@ -295,6 +295,7 @@ describe('the operation catalogue', () => {
       'sandbox_down',
     ]);
     expect(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => o.name)).toEqual([
+      'project_env_remove',
       'project_prune',
       'template_create_from_brand',
       'template_update',
@@ -311,7 +312,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([6, 45, 77]);
+    expect([by(3), by(2), by(1)]).toEqual([6, 47, 77]);
   });
 
   it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {

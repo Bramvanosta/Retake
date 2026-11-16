@@ -1,6 +1,8 @@
 /** The façade's `projects` (createEngine): list, read, create, the README, prune (an agent's deletion asked first), the board. */
 import { createProjectFromRequest, listProjectSummaries, projectView, updateProjectReadme } from '../projects.js';
 import { pruneApprovalRequest, takePruneApproval } from '../approvals.js';
+import { changeProjectEnvironment } from '../project-env.js';
+import type { EnvironmentChangeContext } from '../project-env.js';
 import { DEFAULT_KEEP_RENDERS, pruneKey, pruneProject } from '../prune.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
@@ -8,6 +10,15 @@ import type { Engine } from './types.js';
 /** engine.projects. */
 export function projectsApi(ctx: EngineContext): Engine['projects'] {
   const { opts, agent, ws, scope, project, studio, queue, boards, ports } = ctx;
+  const envContext = (approver: EnvironmentChangeContext['approver']): EnvironmentChangeContext => ({
+    ws,
+    scope,
+    hosts: ports.hosts,
+    agent,
+    cli: studio,
+    ...(approver ? { approver } : {}),
+    ...(opts.client ? { client: opts.client } : {}),
+  });
   return {
     list: () => listProjectSummaries(ws),
     get: async (slug) => {
@@ -37,6 +48,8 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
       await takePruneApproval(pruneApprovalRequest(listed, `${studio} prune ${p.slug}${keep} --yes`), o.approver, opts.client);
       return pruneProject({ outputs: ws.outputs, stores: scope.stores }, p, { ...base, dry_run: false, busy: await busy(), only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
     },
+    setEnvironment: async (slug, env, change, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'set', mode: o.mode ?? 'upsert', env, change }),
+    removeEnvironment: async (slug, env, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'remove', env }),
     board: (slug) => boards.board(slug),
   };
 }

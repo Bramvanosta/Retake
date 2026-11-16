@@ -97,6 +97,23 @@ Ctrl-C does not wait for a held load. Each held load is in `timeline.loading`; t
 page keeps its previous picture meanwhile). What the app shows once it has painted — a spinner with a label, a table
 filling in — is the product: wait for its result with `wait_for`.
 
+**Client-side navigations.** A single-page app changes its route without a new document (`history.pushState`, a
+`#/…` hash route): its shell is painted at once, the route's content comes later. A path change of the same document
+within about 1 s of a step's own click, `press` or Enter, while that step runs, is held the same way: the capture keeps
+the picture of the moment the route changed (the press stays on screen 0.1 s after it, so the click is seen) until the
+route is ready, at most 3 s. Ready means: no loading indicator the route brought in view (a skeleton, a shimmer, a
+spinner, an `aria-busy` region, textless `animate-pulse` / `data-slot="skeleton"` placeholders — never one already in
+view before the press, such as a header's spinner); when one showed, also the page's network quiet for 0.3 s after it
+went (a request open for 2 s or more, a WebSocket or an event stream does not count), 1 s at most (a page that polls).
+A route that shows no indicator is ready at once: an animation it plays is filmed. A route still showing an indicator
+after 3 s is shown as it is, with a run warning naming it. The step ends on the ready route; the held span is in
+`timeline.loading` (`same_document: true`, `until: ready`, `indicator`: when the indicator showed) and the edit cuts
+it. Never held: a query-only change (a filter, a search box that syncs the URL), a path rewritten while scrolling or
+typing (nobody pressed; the click that focuses a field to type in arms nothing), a route that changes after the step
+returned (an app that saves first, then opens the page), and a route whose wait the scenario films on purpose — the
+waits right after the step include one with a `mark` (an import's progress it then reveals). A plain `wait_for` after
+the click, or one with a `hold`, does not stop the hold: it finds the route ready.
+
 ### Actions
 
 Every step has exactly one action; shorthand forms are shown first.

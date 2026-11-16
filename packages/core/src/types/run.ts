@@ -117,11 +117,16 @@ export interface TimelineLoading {
    * What ended it: the page's first contentful paint (`paint`); its load without one — no text, image or SVG, a PDF
    * viewer — once its network was idle, plus a grace (`load`: shown from then); the 10 s limit (`limit`: the page is
    * filmed as it is from then, with a run warning — also a fresh tab left blank); the recorder leaving the page — a page
-   * switch, a multi-page scene's pause — (`left`); the end of the run (`end`).
+   * switch, a multi-page scene's pause — (`left`); the end of the run (`end`); a client-side route change ready —
+   * no loading indicator in view, its network quiet — (`ready`, with `same_document`; its limit is 3 s).
    */
-  until: 'paint' | 'load' | 'limit' | 'left' | 'end';
+  until: 'paint' | 'load' | 'ready' | 'limit' | 'left' | 'end';
   /** Screencast frames not written. */
   held_frames: number;
+  /** A client-side route change of a step's click, press or Enter (R-ISS-14): the same document, another path. */
+  same_document?: true;
+  /** A route hold: when a loading indicator the route brought showed (absent: none did — nothing waited on screen). */
+  indicator?: { t_start: number; t_end: number };
 }
 
 /** A freeze of the capture: no new frame from `t_start` (the last frame before the gap) to `t_end`. */

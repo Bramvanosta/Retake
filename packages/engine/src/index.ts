@@ -58,7 +58,7 @@ export type { ProcessIdentity } from './jobs/proc.js';
 export type { LiveChannel, LiveFeedFrame } from './jobs/live-channel.js';
 export type { HookWorkOptions, HooksRunOutcome } from './hooks-work.js';
 export type { AgentWrittenShellHooks, RenderedText, ScenarioShellHook } from './agent-written.js';
-export type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
+export type { ApprovalOutcome, ApprovalRequest, Approver, FontsApprovalRequest, ProjectChangeApprovalRequest, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker } from './jobs/run-job.js';
 export type { WorkerSpawnFn } from './jobs/spawn.js';
 export type { FilmingState } from './jobs/captures.js';

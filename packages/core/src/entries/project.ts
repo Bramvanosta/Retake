@@ -14,3 +14,4 @@ export * from '../layout.js';
 export { RESERVED_PAGE_KEYS } from '../checks/project.js';
 export { ProjectConfigSchema, ProjectFileSchema, WorkspaceFileSchema } from '../schemas/project.js';
 export { AuthConfigSchema, BrowserConfigSchema, CapturePartialSchema, CaptureSettingsSchema, PacingPartialSchema, PacingSchema } from '../schemas/settings.js';
+export * from '../project-env-edit.js';

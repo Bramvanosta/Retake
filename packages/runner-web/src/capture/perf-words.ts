@@ -5,7 +5,7 @@
 import { readdir, stat, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RunPerf, RunPerfCpu } from '@retake/core/run';
-import { HOLD_MAX_MS } from '../hold.js';
+import { HOLD_MAX_MS, ROUTE_HOLD_MAX_MS } from '../hold.js';
 import type { ScreencastRecorder } from '../recorder.js';
 import type { LogLevel } from '../runtime.js';
 import type { GpuInfo } from '../session.js';
@@ -14,16 +14,19 @@ import { bestEffort } from '@retake/core/base';
 
 /**
  * A hold the recorder ended at its time limit (R-ISS-08): a page load that painted nothing within HOLD_MAX_MS, or a
- * fresh tab left blank that long — from then on the page is filmed as it is. Names the page and the capture time,
- * never the URL.
+ * fresh tab left blank that long, or a client-side route still loading ROUTE_HOLD_MAX_MS after a step's press
+ * (R-ISS-14) — from then on the page is filmed as it is. Names the page (the step, for a route), the capture time and
+ * the loading indicator's fixed words, never the URL.
  */
 export function warnLimitedLoads(rec: ScreencastRecorder, timeline: TimelineBuilder, log: (level: LogLevel, message: string) => void): void {
   const limit = HOLD_MAX_MS / 1000;
   for (const l of rec.limitedLoads()) {
     const message =
-      l.kind === 'blank'
-        ? `page ${l.page ?? '?'}: a new page stayed blank from ${l.t.toFixed(1)} s for ${limit} s (nothing opened in it) — it is filmed blank from then on: give it \`open\``
-        : `page ${l.page ?? '?'}: a page load at ${l.t.toFixed(1)} s painted nothing within ${limit} s — its blank or loading frames are in the capture from then on`;
+      l.kind === 'route'
+        ? `${l.label ?? `page ${l.page ?? '?'}`}: the route its press opened at ${l.t.toFixed(1)} s ${l.what ? `still showed a loading indicator (${l.what})` : 'could not be checked (its loading indicators did not read)'} ${ROUTE_HOLD_MAX_MS / 1000} s after it changed: shown as it is — wait for its content (wait_for) or film it offscreen`
+        : l.kind === 'blank'
+          ? `page ${l.page ?? '?'}: a new page stayed blank from ${l.t.toFixed(1)} s for ${limit} s (nothing opened in it) — it is filmed blank from then on: give it \`open\``
+          : `page ${l.page ?? '?'}: a page load at ${l.t.toFixed(1)} s painted nothing within ${limit} s — its blank or loading frames are in the capture from then on`;
     timeline.warn(message);
     log('warn', message);
   }

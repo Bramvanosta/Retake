@@ -88,7 +88,7 @@ async function typeSearch(ctx: StepContext, text: string): Promise<void> {
   if (!(await rt.kit.isTextInput(null))) {
     const input = await bestEffort(resolveTarget(ctx, SEARCH_FIELD, { timeoutMs: 2000 }), 'a search field that cannot be resolved reads as none: the step fails below, naming it', null);
     if (!input) throw new StepError(`${ctx.step.action}: no search field in the open popover to type "${text}"`);
-    await clickResolved(ctx, input, { expect_popup: false, after_ms: 200, click_role: 'search' });
+    await clickResolved(ctx, input, { expect_popup: false, after_ms: 200, click_role: 'search', route_hold: false });
   }
   const a = ctx.step.args as { search_cps?: number; search_instant?: boolean };
   if (a.search_instant) await rt.page.keyboard.insertText(text);

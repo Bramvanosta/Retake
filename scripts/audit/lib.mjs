@@ -614,7 +614,7 @@ export const CORE_CONTEXTS = [
       'schemas/hooks',
     ],
   },
-  { name: 'project', files: ['types/project', 'workspace', 'project', 'layout', 'checks/project', 'schemas/project', 'schemas/settings'] },
+  { name: 'project', files: ['types/project', 'workspace', 'project', 'layout', 'checks/project', 'schemas/project', 'schemas/settings', 'project-env-edit'] },
   { name: 'sandbox', files: ['types/sandbox', 'sandbox', 'sandbox-error', 'checks/sandbox', 'checks/sandbox-files', 'checks/sandbox-accounts', 'checks/sandbox-steps', 'schemas/sandbox'] },
   {
     name: 'scenario',

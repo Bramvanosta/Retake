@@ -2,7 +2,8 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { overlayUseOf } from '@retake/core/language';
-import { describeTarget, isPoint, normalizeTarget } from '@retake/core/language';
+import { describeTarget, isPoint, normalizeStep, normalizeTarget } from '@retake/core/language';
+import { RAW_WAIT_ACTIONS } from './raw/plan.js';
 import type { CameraHint, MenuArgs, NormalizedStep, OverlaySpec, Scene, TargetSpec } from '@retake/core/language';
 import type { TimelineEvent } from '@retake/core/run';
 import type { Scenario } from '@retake/core/scenario';
@@ -177,7 +178,13 @@ async function actStep(ctx: StepContext, opts: SceneLoopOptions, scene: Scene, e
   // A click before this step may still be watched for its effect (R-FLD-12): its check ends before this step acts.
   if (ACTING_ACTIONS.has(step.action)) await settleEffectChecks(ctx);
   const handler = ACTIONS[step.action] as (c: StepContext, a: unknown) => Promise<ActionResult>;
-  const res = await handler(ctx, step.args);
+  let res: ActionResult;
+  try {
+    res = await handler(ctx, step.args);
+  } finally {
+    // A route that changes once the step returned is no route of its press (R-ISS-14).
+    rt.stepDone();
+  }
   // A navigation the step started (an `open` up to its commit, an Enter, a new tab, a click) ends with the new page
   // painted (R-ISS-08): its park, hold and overlays never fall inside the held load the edit cuts.
   await rt.awaitShownLoaded();
@@ -266,6 +273,22 @@ async function stepFailed({
   });
 }
 
+/**
+ * The scene films the wait after step `index` on purpose (R-ISS-14: no route hold for that step): the waits right
+ * after it (wait_for, wait_for_email) include one with a `mark` — the moment it waits for is kept, and what the page
+ * shows until then is the scenario's (an import's progress it reveals). A wait's `hold` (seconds still after it) is
+ * no such sign.
+ */
+function filmsNextWait(scene: Scene, index: number): boolean {
+  const steps = scene.steps ?? [];
+  for (let i = index + 1; i < steps.length; i++) {
+    const next = normalizeStep(steps[i], i);
+    if (!RAW_WAIT_ACTIONS.has(next.action)) return false;
+    if (next.mark !== undefined) return true;
+  }
+  return false;
+}
+
 export async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneIndex: number, step: NormalizedStep): Promise<StepOutcome> {
   // Never act on a page whose load the capture holds (R-ISS-08): one the app started itself, or — in a multi-page scene —
   // another page's (cut from every page of the scene). Not part of the step's time.
@@ -285,6 +308,7 @@ export async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene,
     timeoutMs: (step.timeout ?? rt.defaultTimeoutS ?? DEFAULT_STEP_TIMEOUT_S) * 1000,
     jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${step.index}`, rt.pacing.jitter),
     clicks: [],
+    ...(filmsNextWait(scene, step.index) ? { filmsWait: true as const } : {}),
   };
   // Described from a fully redacted copy (describeStep cuts long arguments: no prefix of a secret may survive the cut).
   const desc = describeStep(rt.secrets.redactDeep(step));

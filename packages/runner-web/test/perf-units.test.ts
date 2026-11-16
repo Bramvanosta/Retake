@@ -251,6 +251,18 @@ describe('what the screen did after each click (activity.ts)', () => {
     expect(r.transitions[0].ms).toBe(1900);
     expect(r.busy).toEqual([]);
   });
+
+  it('a route hold counts as the transition only where a loading indicator showed (R-ISS-14): none, no slow transition', () => {
+    const fps = 10;
+    const changes: number[][] = Array.from({ length: 50 }, () => []);
+    changes[12] = [16, 17, 18, 32, 33, 34];
+    const masks = masksOf(changes.slice(1));
+    const route = { t_start: 1.1, t_end: 2.9, until: 'ready' as const, held_frames: 40, same_document: true as const };
+    const none = analyzeActivity({ masks, fps, width: 1920, height: 1080, cursor: [], events: [click(1.0, 0)], loading: [route] });
+    expect(none.transitions[0].ms).toBe(200);
+    const shown = analyzeActivity({ masks, fps, width: 1920, height: 1080, cursor: [], events: [click(1.0, 0)], loading: [{ ...route, indicator: { t_start: 1.2, t_end: 2.0 } }] });
+    expect(shown.transitions[0].ms).toBe(900);
+  });
 });
 
 describe('fresh frames while a click ripple plays (R-FLD-20, recorder.ts)', () => {

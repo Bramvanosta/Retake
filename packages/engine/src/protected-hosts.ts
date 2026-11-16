@@ -91,6 +91,28 @@ function isProtected(env: Parameters<typeof environmentAccess>[0]): boolean {
   return env.production === true || environmentAccess(env) === 'read-only';
 }
 
+/** The protected hosts of one project (its production and read-only environments), but those of environment `exceptEnv`. */
+export function projectProtectedHosts(project: Pick<LoadedProject, 'config'>, slug: string, exceptEnv?: string): WorkspaceProtectedHost[] {
+  const out: WorkspaceProtectedHost[] = [];
+  for (const name of Object.keys(project.config.environments ?? {})) {
+    if (name === exceptEnv) continue;
+    const env = resolveEnvironment(project, name);
+    if (!isProtected(env)) continue;
+    const production = env.production === true;
+    for (const url of Object.values(env.pages)) {
+      const o = origin(url);
+      if (o) out.push({ project: slug, env: name, host: o.host, port: o.port, ip: o.ip, production });
+    }
+    for (const entry of env.read_only?.hosts ?? []) {
+      if (entry.trim() === '*') continue;
+      const pattern = normalizeAllowEntry(entry);
+      const ip = pattern.startsWith('*.') ? null : canonicalIp(pattern);
+      out.push({ project: slug, env: name, host: ip ?? pattern, ip: ip !== null, production });
+    }
+  }
+  return out;
+}
+
 /** The protected hosts of every project of the workspace but `except` (a project that does not load protects nothing). */
 export async function workspaceProtectedHosts(ws: OpenedWorkspace, except?: string): Promise<WorkspaceProtectedHost[]> {
   const out: WorkspaceProtectedHost[] = [];
@@ -102,21 +124,7 @@ export async function workspaceProtectedHosts(ws: OpenedWorkspace, except?: stri
     } catch {
       continue;
     }
-    for (const name of Object.keys(project.config.environments ?? {})) {
-      const env = resolveEnvironment(project, name);
-      if (!isProtected(env)) continue;
-      const production = env.production === true;
-      for (const url of Object.values(env.pages)) {
-        const o = origin(url);
-        if (o) out.push({ project: p.slug, env: name, host: o.host, port: o.port, ip: o.ip, production });
-      }
-      for (const entry of env.read_only?.hosts ?? []) {
-        if (entry.trim() === '*') continue;
-        const pattern = normalizeAllowEntry(entry);
-        const ip = pattern.startsWith('*.') ? null : canonicalIp(pattern);
-        out.push({ project: p.slug, env: name, host: ip ?? pattern, ip: ip !== null, production });
-      }
-    }
+    out.push(...projectProtectedHosts(project, p.slug));
   }
   return out;
 }
@@ -152,14 +160,14 @@ export async function protectedHostOf(url: string, hosts: readonly WorkspaceProt
 }
 
 /** The first page of `pages` (in their order) that points at a protected host, its lookups all started together. */
-async function firstProtectedPage<P extends { url: string }>(pages: readonly P[], hosts: readonly WorkspaceProtectedHost[], resolver: HostResolver): Promise<(P & { hit: ProtectedHostHit }) | null> {
+export async function firstProtectedPage<P extends { url: string }>(pages: readonly P[], hosts: readonly WorkspaceProtectedHost[], resolver: HostResolver): Promise<(P & { hit: ProtectedHostHit }) | null> {
   const lookups: Lookups = new Map();
   const hits = await Promise.all(pages.map((p) => protectedHostOf(p.url, hosts, resolver, lookups)));
   const i = hits.findIndex((h) => h !== null);
   return i < 0 ? null : { ...pages[i], hit: hits[i]! };
 }
 
-function describe(h: ProtectedHostHit): string {
+export function describeProtectedHit(h: ProtectedHostHit): string {
   return `${h.production ? 'production' : 'read-only'} environment ${h.env} of project ${h.project}${h.reason ? ` (${h.reason})` : ''}`;
 }
 
@@ -172,7 +180,7 @@ export async function checkNewProjectHosts(ws: OpenedWorkspace, resolver: HostRe
   if (found) {
     throw new EngineError(
       'refused',
-      `environment ${found.env}, page ${found.page} (${found.url}) points at a host of ${describe(found.hit)}: a project created through MCP may not reach production or read-only hosts read-write — a human adds such an environment to project.yaml (marked production)`,
+      `environment ${found.env}, page ${found.page} (${found.url}) points at a host of ${describeProtectedHit(found.hit)}: a project created through MCP may not reach production or read-only hosts read-write — a human adds such an environment to project.yaml (marked production)`,
     );
   }
 }
@@ -202,7 +210,7 @@ export async function checkWorkspaceProtection(
   if (found) {
     throw new EngineError(
       'refused',
-      `environment ${env.name} of project ${project.slug} is read-write and its page ${found.page} (${found.url}) points at a host of ${describe(found.hit)}: ${confinementOf(via ?? 'mcp').words} nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
+      `environment ${env.name} of project ${project.slug} is read-write and its page ${found.page} (${found.url}) points at a host of ${describeProtectedHit(found.hit)}: ${confinementOf(via ?? 'mcp').words} nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
       fix ? { fix } : undefined,
     );
   }

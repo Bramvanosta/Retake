@@ -188,6 +188,25 @@ export interface Approver {
   approvePrune?(req: PruneApprovalRequest): Promise<ApprovalOutcome>;
   /** An agent's font fetch (absent: this client cannot ask about one — refused like no approver). */
   approveFonts?(req: FontsApprovalRequest): Promise<ApprovalOutcome>;
+  /** An agent's change of project.yaml's environments (absent: this client cannot ask about one — refused like no approver). */
+  approveProjectChange?(req: ProjectChangeApprovalRequest): Promise<ApprovalOutcome>;
+}
+
+/**
+ * The question of an agent's environment change that needs a person (R-ENV-07): the change as lines, why it needs
+ * them, and the `retake env …` command a human runs instead. Every line is built from checked names and URLs, never
+ * with a page URL's `user:password@`.
+ */
+export interface ProjectChangeApprovalRequest {
+  what: 'environment change';
+  project: string;
+  env: string;
+  /** The change (core environmentEditLines). */
+  lines: string[];
+  /** Why it needs the user (core environmentEditAsks). */
+  asks: string[];
+  /** The `retake env …` command a human runs for the same change. */
+  fix: string;
 }
 
 export interface Preflight {
@@ -518,6 +537,56 @@ export async function takePruneApproval(req: PruneApprovalRequest, approver: App
   }
   if (!outcome.approved) {
     throw new EngineError('refused', `nothing was deleted: ${outcomeText(outcome)} — ${what}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
+      fix: req.fix,
+      details: { ...details, outcome: outcome.reason },
+    });
+  }
+}
+
+/** The question a person reads before an agent's environment change (the MCP form's message; its length is limited). */
+export function projectChangeApprovalFormText(req: ProjectChangeApprovalRequest): string {
+  return [
+    `Retake: the agent asks to change project.yaml of project ${req.project} (environment ${req.env}):`,
+    ...req.lines.map((l) => `- ${l}`),
+    'It needs you because:',
+    ...req.asks.map((l) => `- ${l}`),
+    "New origins are where the project's captures and hooks (with their secrets) may go; production and read-only keep runs from writing. Every other setting of project.yaml stays (an environment written on one line is rewritten in block form).",
+    'Approve to write exactly this change, once, if project.yaml has not changed by then. Decline to refuse: nothing is written.',
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+/**
+ * Ask the client's human to approve an agent's environment change. Returns when they approved; throws
+ * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or
+ * the question failed (or the form would be too long) — each with the `retake env …` command. Nothing is written
+ * before it returns.
+ */
+export async function takeProjectChangeApproval(req: ProjectChangeApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<void> {
+  const what = `changing environment ${req.env} of ${req.project} (${req.asks.join('; ')})`;
+  const details = { env: req.env, asks: req.asks };
+  const size = projectChangeApprovalFormText(req).length;
+  if (size > APPROVAL_FORM_MAX_CHARS) {
+    throw new EngineError('refused', `nothing was written: the change makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — run it in a terminal`, {
+      fix: req.fix,
+      details: { ...details, too_long: true },
+    });
+  }
+  if (!approver?.approveProjectChange) {
+    throw new EngineError(
+      'needs_approval',
+      `${what} needs the user's approval, and ${agentChannel(client) === 'studio' ? 'the Studio cannot approve it: run it in a terminal' : 'this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal'}. Nothing was written`,
+      { fix: req.fix, details },
+    );
+  }
+  let outcome: ApprovalOutcome;
+  try {
+    outcome = await approver.approveProjectChange(req);
+  } catch (e) {
+    outcome = { approved: false, reason: 'error', message: errorMessage(e) };
+  }
+  if (!outcome.approved) {
+    throw new EngineError('refused', `nothing was written: ${outcomeText(outcome)} — ${what}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
       fix: req.fix,
       details: { ...details, outcome: outcome.reason },
     });
