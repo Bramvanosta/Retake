@@ -59,6 +59,8 @@ function seedingCheck(o: { trust: string; seedTrust?: SeedTrust }, work: string)
 
 export interface SandboxDownWorkOptions extends SandboxHeldOptions {
   volumes?: boolean;
+  /** Forget the seed, reset and snapshot records (nothing deleted): the person says the data is gone or disposable. */
+  forget?: boolean;
 }
 
 /** What the first interrupt of a lock-holding call says. */

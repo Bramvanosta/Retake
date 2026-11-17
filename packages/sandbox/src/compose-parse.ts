@@ -54,20 +54,64 @@ export function parseComposeConfig(text: string, projectName: string): ComposeCo
   return { services, ports, images, depends };
 }
 
-/** Where a database container keeps its data, from `docker inspect --format '{{json .Mounts}}'` (the volume's compose project read by the caller). */
-export function dataMount(mountsJson: string): { type: 'bind' | 'volume'; name: string } | null {
-  let mounts: Array<{ Type?: string; Name?: string; Source?: string; Destination?: string }>;
+/** Where a Postgres container keeps its data (dataLocation). */
+export type DataLocation = { type: 'bind' | 'volume'; name: string } | { type: 'tmpfs'; dir: string } | { type: 'container'; dir: string };
+
+/** The official image's data folder when the container says none (no PGDATA). */
+const DEFAULT_PGDATA = '/var/lib/postgresql/data';
+
+/**
+ * Where a database container keeps its data, from `docker inspect <id>` (its JSON array; the volume's compose project
+ * read by the caller): what is mounted over its data folder (PGDATA, else the official image's), the deepest mount
+ * winning — a volume, a folder of this machine, or a tmpfs (`tmpfs:` of compose, listed in `HostConfig.Tmpfs`, or a
+ * `type: tmpfs` mount): in memory, gone with the container. Nothing over a PGDATA the container declares: its own
+ * layer, gone when the container is removed (every down). Without PGDATA (a custom image), only a mount under
+ * /var/lib/postgresql is read, and nothing there is not known (null).
+ */
+export function dataLocation(inspectJson: string): DataLocation | null {
+  let doc: unknown;
   try {
-    mounts = JSON.parse(mountsJson) as typeof mounts;
+    doc = JSON.parse(inspectJson);
   } catch {
     return null;
   }
-  if (!Array.isArray(mounts)) return null;
-  const m = mounts.find((x) => typeof x.Destination === 'string' && /^\/var\/lib\/postgresql(\/|$)/.test(x.Destination));
-  if (!m) return null;
-  if (m.Type === 'bind') return { type: 'bind', name: String(m.Source ?? '') };
-  if (m.Type === 'volume') return { type: 'volume', name: String(m.Name ?? '') };
-  return null;
+  const c = (Array.isArray(doc) ? doc[0] : doc) as
+    | { Mounts?: Array<{ Type?: string; Name?: string; Source?: string; Destination?: string }>; HostConfig?: { Tmpfs?: Record<string, string> | null }; Config?: { Env?: string[] | null } }
+    | undefined;
+  if (!c || typeof c !== 'object') return null;
+  const env = Array.isArray(c.Config?.Env) ? c.Config.Env : [];
+  const pgdata =
+    env
+      .find((e) => typeof e === 'string' && e.startsWith('PGDATA='))
+      ?.slice('PGDATA='.length)
+      .replace(/\/+$/, '') || null;
+  const over: Array<{ dest: string; at: () => DataLocation | null }> = [];
+  for (const m of Array.isArray(c.Mounts) ? c.Mounts : []) {
+    if (typeof m?.Destination !== 'string') continue;
+    const dest = m.Destination.replace(/\/+$/, '') || '/';
+    over.push({
+      dest,
+      at: () =>
+        m.Type === 'bind'
+          ? { type: 'bind', name: String(m.Source ?? '') }
+          : m.Type === 'volume'
+            ? { type: 'volume', name: String(m.Name ?? '') }
+            : m.Type === 'tmpfs'
+              ? { type: 'tmpfs', dir: dest }
+              : null,
+    });
+  }
+  const tmpfs = c.HostConfig?.Tmpfs;
+  if (tmpfs && typeof tmpfs === 'object') for (const d of Object.keys(tmpfs)) over.push({ dest: d.replace(/\/+$/, '') || '/', at: () => ({ type: 'tmpfs', dir: d }) });
+  const covers = (dest: string, dir: string) => dir === dest || dest === '/' || dir.startsWith(`${dest}/`);
+  const dir = pgdata ?? DEFAULT_PGDATA;
+  // The deepest wins; at the same depth a tmpfs (it hides what is under it).
+  const tmpfsFirst = (o: (typeof over)[number]) => (o.at()?.type === 'tmpfs' ? 0 : 1);
+  const hit = over.filter((o) => covers(o.dest, dir)).sort((a, b) => b.dest.length - a.dest.length || tmpfsFirst(a) - tmpfsFirst(b))[0];
+  if (hit) return hit.at();
+  if (pgdata) return { type: 'container', dir: pgdata };
+  const under = over.find((o) => /^\/var\/lib\/postgresql(\/|$)/.test(o.dest));
+  return under ? under.at() : null;
 }
 
 /** A container `docker ps --filter publish=<port>` lists: its compose project and folder, the TCP ports it publishes. */

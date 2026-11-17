@@ -55,7 +55,7 @@ import type {
   UpOptions,
   UpResult,
 } from './provider.js';
-import { COMPOSE_HEALTH_TIMEOUT_S, STARTING_LINE, containerProblem, dataMount, foreignListeners, indent, serviceProblems, waitTimeoutS } from './compose-parse.js';
+import { COMPOSE_HEALTH_TIMEOUT_S, STARTING_LINE, containerProblem, dataLocation, foreignListeners, indent, serviceProblems, waitTimeoutS } from './compose-parse.js';
 import type { PsEntry } from './compose-parse.js';
 import { composeArgs, startedProgram } from './compose-project.js';
 import type { ComposeProjectRef, ComposeRecord } from './compose-project.js';
@@ -68,7 +68,7 @@ export {
   STARTING_LINE,
   connectAddress,
   containerProblem,
-  dataMount,
+  dataLocation,
   foreignListeners,
   parseComposeConfig,
   parseDockerPs,
@@ -77,7 +77,7 @@ export {
   serviceProblems,
   waitTimeoutS,
 } from './compose-parse.js';
-export type { ComposeConfig, PortContainer, PsEntry, PublishedPort } from './compose-parse.js';
+export type { ComposeConfig, DataLocation, PortContainer, PsEntry, PublishedPort } from './compose-parse.js';
 export { composeArgs, composeProject, composeProjectName, composeRecord, startedProgram } from './compose-project.js';
 export type { ComposeProjectRef, ComposeRecord } from './compose-project.js';
 export { EXEC_MARK, EXEC_TIMEOUT_S, KILL_EXEC_SCRIPT } from './compose-runner.js';
@@ -455,7 +455,8 @@ export class ComposeProvider extends ComposeRunner implements Provider {
   /**
    * The running services (compose files' order), their `depends_on`, and where `database`'s container keeps its data:
    * a named volume of this compose project or an anonymous one (`down --volumes` removes both), a bind mount or an
-   * external volume (it does not).
+   * external volume (it does not), a tmpfs or the container's own layer (every down removes them: compose-parse
+   * dataLocation).
    */
   async servicesAround(ctx: ProviderContext, database: string): Promise<ServicesAround> {
     await this.docker(ctx);
@@ -465,9 +466,10 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     const db = ps.find((e) => e.service === database && e.state === 'running');
     let storage: DataStorage = { kind: 'unknown' };
     if (db) {
-      const r = await this.run(['inspect', '--format', '{{json .Mounts}}', db.id], { timeoutMs: 30_000 });
-      const m = r.code === 0 ? dataMount(r.stdout.trim()) : null;
+      const r = await this.run(['inspect', db.id], { timeoutMs: 30_000 });
+      const m = r.code === 0 ? dataLocation(r.stdout.trim()) : null;
       if (m?.type === 'bind') storage = { kind: 'bind', where: m.name };
+      else if (m?.type === 'tmpfs' || m?.type === 'container') storage = { kind: m.type, where: m.dir };
       else if (m?.type === 'volume') {
         if (/^[0-9a-f]{64}$/.test(m.name)) storage = { kind: 'volume' };
         else {

@@ -227,15 +227,15 @@ class MemorySandbox implements SandboxHandle {
     }
   }
 
-  async down(o: SandboxCallOptions & { volumes?: boolean } = {}): Promise<DownResult> {
+  async down(o: SandboxCallOptions & { volumes?: boolean; forget?: boolean } = {}): Promise<DownResult> {
     this.call('down', o);
     const release = this.lock('sandbox down');
     try {
       const stopped = this.services.filter((s) => this.#state.running.has(s)).reverse();
       this.#state.running.clear();
-      const dataGone = this.kind === 'process' || o.volumes === true;
+      const dataGone = this.kind === 'process' || o.volumes === true || o.forget === true;
       if (dataGone) delete this.#state.seed;
-      return { stopped, dataGone };
+      return { stopped, dataGone, ...(o.forget ? { forgotten: 'asked' as const } : {}) };
     } finally {
       release();
     }

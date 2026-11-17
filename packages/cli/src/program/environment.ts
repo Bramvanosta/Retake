@@ -83,6 +83,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .argument('<project>', 'project slug or directory')
     .option('--env <name>', sandboxEnvHelp)
     .option('--volumes', 'docker-compose: remove the volumes too (the database and its snapshot: the next up seeds again)')
+    .option('--forget', "forget Retake's records of the seed, reset and snapshot (nothing deleted): the next up takes whatever data is left as fresh — use it once that data is gone")
     .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxDownCommand(u, g, p, o)));
   sandbox
     .command('reset')
@@ -141,7 +142,7 @@ function registerEnvEdits(env: Command, action: ProgramContext['action']): void 
     .action(action((u, g, p: string, e: string, o: EnvEditOptions) => envSetCommand(u, g, p, e, o)));
   env
     .command('remove')
-    .description("remove an environment from project.yaml (and default_env when it names it); its scenarios and saved sessions stay")
+    .description('remove an environment from project.yaml (and default_env when it names it); its scenarios and saved sessions stay')
     .argument('<project>', 'project slug or directory')
     .argument('<env>', 'an environment of project.yaml (never a sandbox)')
     .option('--json', 'machine-readable output')

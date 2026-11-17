@@ -24,7 +24,9 @@ export function sandboxUpText(up: Pick<UpResult, 'started' | 'kept'>): string {
 export function firebaseAuthText(f: { accounts: number; personas?: { login: string[]; no_login: string[] } }): string {
   const p = f.personas;
   const again = p?.login.length ? ` — ${p.login.join(', ')} sign${p.login.length === 1 ? 's' : ''} in again at the next take, off camera` : '';
-  const none = p?.no_login.length ? ` (${p.no_login.join(', ')}: no login steps — give ${p.no_login.map((n) => `accounts.${n}`).join(', ')} login steps in sandbox.yaml, or the next take refuses ${p.no_login.length === 1 ? 'it' : 'them'})` : '';
+  const none = p?.no_login.length
+    ? ` (${p.no_login.join(', ')}: no login steps — give ${p.no_login.map((n) => `accounts.${n}`).join(', ')} login steps in sandbox.yaml, or the next take refuses ${p.no_login.length === 1 ? 'it' : 'them'})`
+    : '';
   return `${f.accounts} Firebase Auth account${f.accounts === 1 ? '' : 's'} put back${again}${none}`;
 }
 
@@ -40,21 +42,47 @@ export function resetLadderText(r: { outdated?: { reason: string; from: 'base' |
   return undefined;
 }
 
-/** What the next reset does with a sandbox's snapshot (R-SBX-12): `retake sandbox status`'s `snapshot` line and sandbox_status's. */
-export function snapshotStatusText(slug: string, env: string, s: { base: boolean; next?: string; reason?: string; detail?: string }): string {
+/**
+ * What the next reset does with a sandbox's snapshot (R-SBX-12): `retake sandbox status`'s `snapshot` line and
+ * sandbox_status's. The command to a fresh database follows where the data lives (FB-31): `down --volumes` for a
+ * volume, `down` for a tmpfs or the container's own layer (every down takes it), `down --forget` when not known.
+ */
+export function snapshotStatusText(
+  slug: string,
+  env: string,
+  s: { base: boolean; next?: string; reason?: string; detail?: string; new_cluster?: boolean; storage?: { kind: string; where?: string } },
+): string {
   const base = s.base ? 'base kept' : 'no base';
-  const fresh = `retake sandbox down ${slug} --env ${env} --volumes (every volume of the sandbox), then retake sandbox up ${slug} --env ${env}`;
+  const down = `retake sandbox down ${slug} --env ${env}`;
+  const up = `retake sandbox up ${slug} --env ${env}`;
+  const kind = s.storage?.kind;
+  const ephemeral = kind === 'tmpfs' || kind === 'container';
+  const fresh = ephemeral
+    ? `${down}, then ${up}`
+    : kind === 'volume'
+      ? `${down} --volumes (every volume of the sandbox), then ${up}`
+      : kind === 'bind' || kind === 'external'
+        ? `${down} --volumes, then ${up}, once ${kind === 'bind' ? `the folder ${s.storage?.where} is emptied (a bind mount: --volumes leaves it)` : `the external volume ${s.storage?.where} is removed (--volumes leaves it)`}`
+        : `${down} --volumes --forget (every volume of the sandbox, and the records forgotten), then ${up}`;
+  const anonymous = kind === 'volume' && !s.storage?.where;
+  const where = ephemeral
+    ? ` · data ${kind === 'tmpfs' ? 'in memory (tmpfs)' : "in the container's own layer"}: every down takes it`
+    : anonymous
+      ? ' · data in an anonymous volume: every down leaves it behind (the next up starts a new one)'
+      : '';
   switch (s.next) {
     case 'restore':
-      return `current · ${base}`;
+      return `current · ${base}${where}`;
     case 'first-seed':
-      return 'none yet — the first seed keeps a base (the database before it), then takes the snapshot';
+      return s.new_cluster
+        ? `none — its Postgres is a new cluster (the data went with the old one): the next reset forgets the old seed and snapshot, keeps a base and seeds it${where}`
+        : `none yet — the first seed keeps a base (the database before it), then takes the snapshot${where}`;
     case 'from-base':
-      return `outdated (${s.reason}) — the next reset restores the base, restarts the services, seeds and takes a new snapshot`;
+      return `outdated (${s.reason}) — the next reset restores the base, restarts the services, seeds and takes a new snapshot${where}`;
     case 'from-snapshot':
-      return `outdated (${s.reason}), no base — the next reset restores the outdated snapshot and seeds on it (seeds reset what they create); ${fresh} gives it a base`;
+      return `outdated (${s.reason}), no base — the next reset restores the outdated snapshot and seeds on it (seeds reset what they create); ${fresh} gives it a base${where}`;
     case 'refuse':
-      return `no base nor snapshot, and the database already holds data — the next reset refuses: start from a fresh database in a terminal, ${fresh}`;
+      return `no base nor snapshot, and the database already holds data — the next reset refuses: start from a fresh database in a terminal, ${fresh}${where}`;
     default:
       return `unknown (${s.detail ?? 'not read'})`;
   }

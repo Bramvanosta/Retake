@@ -108,6 +108,12 @@ export interface DownResult {
   stopped: string[];
   /** The sandbox's data is gone with them (in-memory, or volumes removed): the next up seeds again. */
   dataGone: boolean;
+  /**
+   * Sandbox.down: its seed, reset and snapshot records were forgotten although no volume went — the database's data
+   * was in memory (`tmpfs`), in its container's own layer (`container`) or in an anonymous volume (`volume`), or the
+   * person asked (`asked`, `--forget`).
+   */
+  forgotten?: 'tmpfs' | 'container' | 'volume' | 'asked';
 }
 
 export interface ServiceStatus {
@@ -140,13 +146,27 @@ export interface OwnerUse {
 
 /**
  * Where a database service keeps its data: a volume `down --volumes` removes (named by the compose project, or
- * anonymous), a folder of this machine (a bind mount) or an external volume — both left by `down --volumes` —, or not
- * known (no mount under /var/lib/postgresql).
+ * anonymous), a folder of this machine (a bind mount) or an external volume — both left by `down --volumes` —, memory
+ * (a tmpfs) or the container's own layer — both gone with every down —, or not known (nothing read over its data
+ * folder, or the service not running).
  */
 export interface DataStorage {
-  kind: 'volume' | 'bind' | 'external' | 'unknown';
-  /** The folder or the volume's name (bind, external). */
+  kind: 'volume' | 'bind' | 'external' | 'tmpfs' | 'container' | 'unknown';
+  /** The folder or the volume's name (bind, external, a named volume), the data folder (tmpfs, container). */
   where?: string;
+}
+
+/** The data goes with the container itself (a tmpfs, its own layer): every down takes it, with or without --volumes. */
+export function goesWithContainer(s: DataStorage | null | undefined): boolean {
+  return s?.kind === 'tmpfs' || s?.kind === 'container';
+}
+
+/**
+ * Every down loses the data, `--volumes` or not: a tmpfs, the container's own layer, or an anonymous volume (compose
+ * leaves it behind when it removes the container, and the next up makes a new one).
+ */
+export function goesWithDown(s: DataStorage | null | undefined): boolean {
+  return goesWithContainer(s) || (s?.kind === 'volume' && !s.where);
 }
 
 /** The services around a sandbox's database (capability `snapshots`): what a restore restarts, and where the data lives. */
