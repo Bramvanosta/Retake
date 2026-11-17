@@ -78,8 +78,10 @@ export default function LayoutPhone({ theme, params, unit, variant, screen, rect
   const t = deviceTones(theme, params.finish);
   const dr = r.radius;
   const islandW = display.w * 0.32;
-  const islandH = display.w * 0.094;
-  const islandTop = display.w * 0.028;
+  // Without the status bar the island floats over the capture's own top, where a device's capture shows the device's
+  // own island (an iPhone 17 Pro's: 14–50.7 pt down, 125 pt wide, of 402): drawn a little lower and taller, it covers it.
+  const islandH = display.w * (params.status_bar ? 0.094 : 0.096);
+  const islandTop = display.w * (params.status_bar ? 0.028 : 0.033);
   const lens = islandH * 0.42;
   const ink = readableOn(backgroundSample(theme), theme.colors.text, darkLight(theme).dark, 4.5);
   const glyph = display.w * 0.031;

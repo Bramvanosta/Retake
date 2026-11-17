@@ -72,6 +72,7 @@ export default defineConfig({
       // Before '@retake/runner-web', as for the kit: the capture's vocabulary as types only (a domain entry).
       '@retake/runner-web/types': fileURLToPath(new URL('./packages/runner-web/src/types-entry.ts', import.meta.url)),
       '@retake/runner-web': pkg('runner-web'),
+      '@retake/runner-ios': pkg('runner-ios'),
       '@retake/components': pkg('components'),
       // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).
       '@retake/editor/plan': fileURLToPath(new URL('./packages/editor/src/plan-entry.ts', import.meta.url)),

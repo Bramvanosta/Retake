@@ -49,7 +49,7 @@ import { StreamEncoder, encoderLabel, resolveEncoder } from '../stream.js';
 import type { StreamEncoderOptions } from '../stream.js';
 import { motionCapture } from '../timeline.js';
 import type { MotionCapture } from '../timeline.js';
-import { diagnoseSession, foreignSignIn, formatIssuePath, hookLanding, hookPersonaAuth, personaOf, personaOfKey, readOnlyGuard, signInGuard } from './browser-guards.js';
+import { diagnoseSession, foreignSignIn, refuseIosEnvironment, formatIssuePath, hookLanding, hookPersonaAuth, personaOf, personaOfKey, readOnlyGuard, signInGuard } from './browser-guards.js';
 import type { CaptureDriver, CaptureRun, DriverTake } from './driver.js';
 import type { DriverHooks } from './hooks.js';
 import type { FilmingReport } from './options.js';
@@ -153,6 +153,7 @@ class BrowserDriver implements CaptureDriver {
 
   async prepare(): Promise<void> {
     const { project, env, sc, access, secrets, timeline, clock, log, signal } = this.run;
+    refuseIosEnvironment(env);
     // Sign-in details written in the environment's page URLs: the browser's HTTP credentials for that origin, masked
     // like a secret wherever the run writes (resolveEnvironment already took them out of the URLs).
     const httpCredentials = (this.httpCredentials = launchCredentials(project, env.name));

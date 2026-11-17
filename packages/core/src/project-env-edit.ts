@@ -18,7 +18,7 @@ import type { Document, Node, Pair, YAMLMap } from 'yaml';
 import { canonicalJson } from './canonical-json.js';
 import { showHiddenCharsLine } from './printable.js';
 import { canonicalAddress } from './navigation-policy.js';
-import { withoutCredentials } from './env.js';
+import { isIosEnvironment, withoutCredentials } from './env.js';
 
 /** A page as an edit gives it: its URL, or {url, display}. */
 export type EnvironmentPageInput = string | { url: string; display?: string };
@@ -526,6 +526,14 @@ function result(text: string, edited: string, e: Pick<EnvironmentEdit, 'env' | '
   };
 }
 
+/** An iOS environment (`ios:`) has no pages to set: it is edited by hand in project.yaml, never here. */
+function refuseIos(file: Json, env: string): void {
+  const envs = isObj(file.environments) ? file.environments : {};
+  if (Object.hasOwn(envs, env) && isIosEnvironment(envs[env])) {
+    throw new EnvironmentEditError('refused', `environment ${env} is an iOS environment (\`ios:\`): it has no pages — edit it in project.yaml by hand`);
+  }
+}
+
 function checkChange(change: EnvironmentChange): void {
   const set = Object.keys(change.pages ?? {});
   const both = (change.remove_pages ?? []).filter((k) => set.includes(k));
@@ -544,6 +552,7 @@ function checkChange(change: EnvironmentChange): void {
 export function editEnvironment(text: string, env: string, change: EnvironmentChange, mode: EnvironmentEditMode): EnvironmentEdit {
   checkChange(change);
   const file = fileOf(text);
+  refuseIos(file, env);
   const before = environmentState(file, env);
   if (before === null && mode === 'set') throw new EnvironmentEditError('not_found', `environment ${env} is not in project.yaml (environments: ${Object.keys(isObj(file.environments) ? file.environments : {}).join(', ') || 'none'})`);
   if (before !== null && mode === 'add') throw new EnvironmentEditError('conflict', `environment ${env} is already in project.yaml: change it with set`);
@@ -587,6 +596,7 @@ export function editEnvironment(text: string, env: string, change: EnvironmentCh
 /** project.yaml's text without environment `env` (and without `default_env` when it named it). */
 export function removeEnvironment(text: string, env: string): EnvironmentEdit {
   const file = fileOf(text);
+  refuseIos(file, env);
   const before = environmentState(file, env);
   if (before === null) throw new EnvironmentEditError('not_found', `environment ${env} is not in project.yaml (environments: ${Object.keys(isObj(file.environments) ? file.environments : {}).join(', ') || 'none'})`);
   const { eol, step } = layoutOf(text, topPair(readDoc(text), 'environments')?.value);

@@ -75,7 +75,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
 | L5.2 | Tauri desktop shell (macOS) | M | **done** (live checks: MACOS-CHECKLIST 14a) |
 | L5.2b | Desktop app: job notifications and a quit confirmation (asked after L5.2) | S | **done** (live checks: MACOS-CHECKLIST 14a steps 10–11) |
-| L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
+| L5.3 | iOS Simulator runner (simctl, XCUITest driver, touch overlay burnt in; decided 2026-11-17) | L | done |
 | L5.4 | Phase 5 acceptance | S | todo |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
@@ -1468,7 +1468,33 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   `retake doctor` lists what such jobs would refuse. Requirements R-SEC-29 – R-SEC-37. Cut: BL-162 (a check per
   connection, clients that verify the server). Next: the first release v0.2.0 (the person tags).
 
-### L5.3 – L5.4, L6
+### L5.3 — iOS Simulator runner (L; decided 2026-11-17)
+- **Goal:** film an iOS app in the Simulator from the same scenario language, and hand the editor, the review and the
+  raw export the same `timeline.json` + `capture.mp4` contract as the web runner (R-GOAL-02, R-IOS-01 – R-IOS-05), the
+  last package of the MVP (R-ARCH-03).
+- **Decisions (the person, 2026-11-17):** input through an XCUITest driver built from the repository with xcodebuild
+  (no idb, nothing downloaded); an iOS app is named by a project environment, `ios: {app, device, runtime?, …}`, which
+  a scenario picks with `env:`; steps reuse the existing actions (`click` = tap, `type`, `press`, `scroll` = swipe,
+  `open` = a deep link, `wait`, `wait_for`, `hold`, `assert`, `screenshot`, `hook`), the others refused at validation
+  with their line; the touch overlay (the in-page cursor's equivalent) is burnt into `capture.mp4` by the runner.
+- **Scope:** `packages/runner-ios` — a dedicated simulator per device type and runtime (never the person's own),
+  booted headless with `xcrun simctl`, the app installed and launched, the status bar overridden; capture with
+  `simctl io recordVideo --codec h264`, converted to the CFR film with the touch dots burnt in; the XCUITest driver (a
+  UI-test bundle serving one local, token-guarded channel; built once per Xcode version and cached in the Retake home);
+  the iOS environment and step checks in core; the run dispatched by the composition (the web runner's capture
+  lifecycle drives an iOS driver: hooks, secrets, run record and timeline stay one path); `retake doctor`'s iOS line;
+  the phone frame for device captures. An invented SwiftUI fixture app (`fixtures/ios-wholesale`, the Northfield
+  buyer side) and its project.
+- **Cut (BACKLOG):** a live picture and pause of an iOS take, inspection and recording of iOS apps, gestures beyond
+  tap / type / swipe, multi-device scenes, the raw export's cursor layer for iOS runs, physical devices and iPad /
+  tvOS layouts, a Studio screen of its own.
+- **Acceptance:** unit tests in the CI tier (no simulator); a gated real-Simulator test (`RETAKE_TEST_IOS=1`): the
+  driver and the fixture built, a real take of the fixture's scenario, its timeline valid and its film CFR, the touch
+  aligned with the tap within a frame, rendered with `frame: phone` and reviewed — frames looked at.
+- **Packages:** core, runner-web (the driver seam), runner-ios (new), compose, engine (doctor), editor (phone frame
+  default), docs.
+
+### L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

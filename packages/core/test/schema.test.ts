@@ -54,12 +54,15 @@ describe('JSON Schemas', () => {
   it('project, template and timeline schemas', () => {
     const p = projectJsonSchema() as Json;
     expect(p.required).toEqual(['name']);
-    // An environment is the long form {production, access, pages, read_only} or the page map (short form);
-    // a page is a URL or {url, display}.
+    // An environment is the long form {production, access, pages, read_only}, an iOS environment {ios} or the page
+    // map (short form); a page is a URL or {url, display}.
     expect(p.properties.environments.additionalProperties).toEqual({ $ref: '#/$defs/Environment' });
-    const [long, short] = p.$defs.Environment.anyOf;
+    const [long, ios, short] = p.$defs.Environment.anyOf;
     expect(long.required).toEqual(['pages']);
     expect(Object.keys(long.properties)).toEqual(['production', 'access', 'pages', 'read_only']);
+    expect(ios.required).toEqual(['ios']);
+    expect(ios.properties.ios.required).toEqual(['app', 'device']);
+    expect(Object.keys(ios.properties.ios.properties)).toEqual(['app', 'device', 'schemes', 'runtime', 'appearance', 'reset']);
     expect(short.additionalProperties.anyOf[0]).toMatchObject({ type: 'string', format: 'uri' });
     expect(short.additionalProperties.anyOf[1].required).toEqual(['url']);
     expect(Object.keys(p.properties.clock.anyOf[1].properties)).toEqual(['at', 'freeze']);

@@ -38,7 +38,7 @@ import type { Outputs, RunOutputs } from '../outputs/outputs.js';
 
 /**
  * A run of a scenario (capture, dry run, or a dry replay with `inspect`): the runner's options without its test seam
- * (`browser`), the hook runner its setup, teardown and hook steps run through and the resolver of its secrets (both
+ * (`browser`; its driver is not in them either: the composition chooses it from the environment), the hook runner its setup, teardown and hook steps run through and the resolver of its secrets (both
  * required: every run the engine starts hands its composition root's).
  */
 export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hookRunner' | 'runId' | 'runsDir'> & {

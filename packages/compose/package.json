@@ -23,6 +23,7 @@
     "@retake/engine": "workspace:*",
     "@retake/hooks": "workspace:*",
     "@retake/review": "workspace:*",
+    "@retake/runner-ios": "workspace:*",
     "@retake/runner-web": "workspace:*",
     "@retake/sandbox": "workspace:*"
   }

@@ -38,7 +38,7 @@ export interface ReplanEditInput {
   now: Scenario;
   /** The run's snapshot (parsed). */
   then: Scenario;
-  project: Pick<ProjectConfig, 'frame' | 'template'>;
+  project: Pick<ProjectConfig, 'frame' | 'template' | 'frame_defaulted'>;
   /** The template context of the text the video shows (display URLs, vars, run). */
   ctx: TemplateContext;
 }
@@ -108,6 +108,9 @@ function replanVideo({ now, then, project, src, changes, tpl }: Replan): Timelin
   if (!same(now.frame, then.frame)) {
     changes.push('frame');
     video.frame = vNow.frame;
+    // A device's take: a frame written today is no default any more (and one removed is the project's again).
+    if (now.frame === undefined && src.capture.device && project.frame_defaulted) video.frame_default = true;
+    else delete video.frame_default;
   }
   if (!same(now.template, then.template)) {
     changes.push('template');

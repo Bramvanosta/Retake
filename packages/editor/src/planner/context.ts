@@ -50,7 +50,9 @@ export function planFormat(timeline: Timeline, ov: EditOverrides, warnings: Mess
     if (ov.fps > 0 && ov.fps <= 120) outFps = ov.fps;
     else warnings.add(`overrides.fps ${ov.fps} ignored: use 1–120 (keeping the capture's ${srcFps} fps)`);
   }
-  let scale = cap.scale > 0 ? cap.scale : 1;
+  // A device's capture (an iOS simulator's: 402×874 pt at 3) keeps its own pixels per point; the output stays at the
+  // design size unless the render asks for more.
+  let scale = cap.device ? 1 : cap.scale > 0 ? cap.scale : 1;
   if (ov.scale !== undefined) {
     if (ov.scale > 0 && ov.scale <= 4) scale = ov.scale;
     else warnings.add(`overrides.scale ${ov.scale} ignored: use a factor in (0, 4]`);
@@ -80,6 +82,7 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   if (timeline.video) video = timeline.video;
   else {
     video = input.scenario ? timelineVideo(input.scenario, project.config) : { frame: project.config.frame };
+    if (timeline.capture.device && input.scenario?.frame === undefined && project.config.frame_defaulted) video.frame_default = true;
     notes.add(`timeline.json has no "video" block (an older run format): edit info taken from ${input.scenario ? 'the scenario' : 'the project'}`);
   }
   if (ov.theme !== undefined && ov.theme !== template.name && ov.theme !== t.name) {

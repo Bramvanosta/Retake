@@ -8,7 +8,7 @@ import type { BoardRun, BoardScenario, RenderReviewSummary } from '@retake/engin
 import { MARK_STATES } from '../src/app/ui-kit/marks.js';
 import { boardEventAction } from '../src/app/project-data.js';
 import { onlyRunProgress } from '../src/app/events.js';
-import { contentWords, envFlagWords, filterSort, groupCounts, lastTakeWords, lengthWords, productionState, reviewState, runningWords } from '../src/app/words/board-words.js';
+import { contentWords, envFlagWords, envWhatWords, filterSort, groupCounts, lastTakeWords, lengthWords, productionState, reviewState, runningWords } from '../src/app/words/board-words.js';
 
 const H = 'a'.repeat(64);
 const base = (o: Partial<BoardScenario> = {}): BoardScenario => ({
@@ -257,5 +257,13 @@ describe('envFlagWords', () => {
     expect(envFlagWords(prod, false, 'production')).toBe('read-only');
     expect(envFlagWords(prod, true, 'live')).toBe('default · production · read-only');
     expect(envFlagWords({ production: false, access: 'read-write', sandbox: true }, false, 'sandbox')).toBe('');
+  });
+});
+
+describe('envWhatWords', () => {
+  it('an iOS environment says its simulator, not "0 pages"; a web one counts its pages', () => {
+    expect(envWhatWords({ pages: {}, ios: { device: 'iPhone 17 Pro' } })).toBe('iOS · iPhone 17 Pro');
+    expect(envWhatWords({ pages: { app: 'https://a.example.com' } })).toBe('1 page');
+    expect(envWhatWords({ pages: { app: 'https://a.example.com', shop: 'https://s.example.com' } })).toBe('2 pages');
   });
 });

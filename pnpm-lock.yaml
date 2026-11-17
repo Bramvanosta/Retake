@@ -167,6 +167,9 @@ importers:
       '@retake/review':
         specifier: workspace:*
         version: link:../review
+      '@retake/runner-ios':
+        specifier: workspace:*
+        version: link:../runner-ios
       '@retake/runner-web':
         specifier: workspace:*
         version: link:../runner-web
@@ -289,6 +292,15 @@ importers:
       sharp:
         specifier: ^0.34.4
         version: 0.34.5
+
+  packages/runner-ios:
+    dependencies:
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
+      '@retake/runner-web':
+        specifier: workspace:*
+        version: link:../runner-web
 
   packages/runner-web:
     dependencies:

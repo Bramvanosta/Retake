@@ -347,6 +347,14 @@ function StreamNotices({ conn }: { conn: string }) {
   );
 }
 
+/** The live screen's note of an iOS take. */
+export const DEVICE_PICTURE_NOTE = 'No live picture of an iOS take: the simulator is filmed, not streamed.';
+
+/** Whether the run's environment (`env`, from its start) is an iOS one of the project. Pure. */
+export function deviceRun(envs: ReadonlyArray<{ name: string; ios?: unknown }> | null, env: string | undefined): boolean {
+  return env !== undefined && (envs ?? []).some((e) => e.name === env && e.ios !== undefined);
+}
+
 export function ShootLive({ slug, name, runId }: { slug: string; name: string; runId: string }) {
   const view = useRef<LiveViewHandle>(null);
   // Prepare's "Live picture during a capture": on from the start; else the mode's default (a rehearsal on, a capture off).
@@ -362,9 +370,11 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
   const pauseWaiting = useRef(false);
   if (!st.finished) pauseWaiting.current = Boolean(s.job?.pause_requested) && s.paused === null;
   const mode = s.start?.mode ?? s.hello?.mode ?? fallback?.mode;
-  const pictureShown = frames ?? mode === 'dry';
+  // An iOS take: no pause, no live picture (the simulator's screen is not streamed).
+  const device = deviceRun(p?.environments ?? null, s.start?.env);
+  const pictureShown = !device && (frames ?? mode === 'dry');
   const terminal = s.hello !== null && s.hello.job === null;
-  const canToggle = conn !== 'busy' && !terminal && !st.finished && mode !== undefined;
+  const canToggle = conn !== 'busy' && !terminal && !st.finished && mode !== undefined && !device;
   const pauseLate = st.finished && pauseWaiting.current;
   const toggle = () => {
     if (pictureShown) view.current?.clear();
@@ -418,7 +428,13 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
         shown={pictureShown}
         capture={mode === 'capture'}
         onToggle={canToggle ? toggle : null}
-        {...(conn === 'busy' ? { note: 'No live picture in this tab (another live screen holds the stream).' } : conn === 'hidden' ? { note: 'The picture stops while this tab is hidden.' } : {})}
+        {...(device
+          ? { note: DEVICE_PICTURE_NOTE }
+          : conn === 'busy'
+            ? { note: 'No live picture in this tab (another live screen holds the stream).' }
+            : conn === 'hidden'
+              ? { note: 'The picture stops while this tab is hidden.' }
+              : {})}
       />
       {total > 0 && (
         <div className="sp-progress">
@@ -429,7 +445,7 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
         </div>
       )}
       {!st.finished && mode && <p className="sc-quiet">{mode === 'dry' ? 'A rehearsal takes a screenshot per step and runs no hooks.' : 'A capture runs its hooks and films the video.'}</p>}
-      <Controls slug={slug} name={name} runId={runId} s={s} fb={fallback} mode={mode} finished={st.finished} />
+      <Controls slug={slug} name={name} runId={runId} s={s} fb={fallback} mode={mode} finished={st.finished} device={device} />
       {/* The run ended but the scenario's actions, read before, still say it runs until their reload lands: the bar
           stays claimed (empty) meanwhile, so the status bar never offers Pause or Stop for an ended run. */}
       {st.finished && actions.state === 'ready' && actions.data.running?.id === runId && <ShellSlot name="actions">{null}</ShellSlot>}

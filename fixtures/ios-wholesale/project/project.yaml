@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../packages/core/schema/project.schema.json
+# Retake project filming the iOS fixture app (fixtures/ios-wholesale: Northfield Buyer) in the iOS Simulator.
+# Build the app first (node fixtures/ios-wholesale/build.mjs --out <dir>) and point `app` at the .app it prints —
+# the tests copy this project into a workspace of their own and write the path there. The run makes its own
+# simulator ("Retake - iPhone 17 Pro - <runtime>"), never one of yours.
+version: 1
+name: Northfield Buyer (iOS fixture)
+environments:
+  simulator:
+    ios:
+      app: build/NorthfieldBuyer.app
+      device: iPhone 17 Pro
+      schemes: [northfield]
+default_env: simulator
+capture: {fps: 30}
+# The device's own screen in a phone frame (its status bar is the simulator's: the frame draws none).
+frame: phone
+template: default
+locale: en

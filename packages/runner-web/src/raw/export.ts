@@ -84,8 +84,16 @@ function recordOf(facts: RunFolderFacts): { status?: string; env?: string } | un
   return r.ok ? r.value : r.problem === 'unknown-status' ? r.record : undefined;
 }
 
-/** A cursor mode the run's pictures cannot give is refused: baked needs the cursor in them, none needs it absent. */
+/**
+ * A cursor mode the run's pictures cannot give is refused: baked needs the cursor in them, none needs it absent, layer
+ * a browser's cursor (a device's run has none).
+ */
 function checkCursorMode(opts: ExportCaptureOptions, timeline: Timeline, s: ReturnType<typeof rawSettings>): void {
+  // A device's touches are drawn by its runner into the film (or not at all): the in-page kit's cursor layer has no
+  // pointer of it to draw.
+  if (timeline.capture.device && s.cursor === 'layer') {
+    throw new RawExportError(`run ${timeline.run_id} was filmed on a device (${timeline.capture.device.name}): its touches have no cursor layer — export it with --cursor baked (or --cursor none, for a run captured with --raw --cursor none)`);
+  }
   if (s.hidden && s.cursor === 'baked') {
     throw new RawExportError(`run ${timeline.run_id} was captured without its cursor (run --raw --cursor none|layer): export it with --cursor none or --cursor layer`);
   }

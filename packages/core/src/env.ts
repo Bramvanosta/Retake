@@ -1,5 +1,5 @@
 import { normalizeDisplay } from './display.js';
-import type { EnvironmentAccess, EnvironmentSettings, ResolvedEnvironment } from './types/environment.js';
+import type { EnvironmentAccess, EnvironmentSettings, IosSettings, ResolvedEnvironment } from './types/environment.js';
 import type { LoadedProject } from './types/project.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
@@ -24,6 +24,45 @@ export class EnvironmentError extends Error {
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
+ * Whether an environment value of project.yaml is an iOS environment (`{ios: {app, …}}`): `ios` is read as the iOS
+ * form only when it is a mapping with an `app` — a short-form environment may have a page named `ios`.
+ */
+export function isIosEnvironment(value: unknown): value is Record<string, unknown> & { ios: Record<string, unknown> & { app: unknown } } {
+  return isObj(value) && Object.hasOwn(value, 'ios') && isObj(value.ios) && Object.hasOwn(value.ios, 'app');
+}
+
+/**
+ * A bundle id (`com.example.app`): letters, digits and "-" in two dot-separated parts or more, each starting with a
+ * letter or a digit (never "-": it reaches simctl's and the driver's arguments).
+ */
+export const IOS_BUNDLE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$/;
+
+/**
+ * What an iOS environment's `app` names: the path of a simulator build (it ends in `.app`) or the bundle id of an app
+ * already installed on the device; null when it is neither.
+ */
+export function iosAppKind(app: string): 'path' | 'bundle' | null {
+  const a = app.trim();
+  if (/\.app\/?$/i.test(a)) return 'path';
+  return IOS_BUNDLE_ID_RE.test(a) ? 'bundle' : null;
+}
+
+/** Why `app` is no iOS environment app (null when it is one): iosAppKind. */
+export function iosAppError(app: string): string | null {
+  return iosAppKind(app) ? null : 'expected the path of a simulator build ending in .app (relative to the project), e.g. "build/MyApp.app", or a bundle id such as "com.example.app"';
+}
+
+/** Schemes that never open the app: the web's and the browser's own (`open:` on iOS opens deep links only). */
+const NOT_A_DEEP_LINK = /^(?:https?|file|about|data|javascript|blob|ftp|ws|wss)$/;
+
+/** Why `scheme` cannot be an iOS environment's deep-link scheme (null when it can): lower case, as a URL scheme, no web scheme. */
+export function iosSchemeError(scheme: string): string | null {
+  if (!/^[a-z][a-z0-9+.-]*$/.test(scheme)) return `"${scheme}" is not a URL scheme: lower-case letters, digits, "+", "." or "-", starting with a letter (write it without "://")`;
+  if (NOT_A_DEEP_LINK.test(scheme)) return `"${scheme}" is not a deep-link scheme: an iOS environment opens its app's own links (\`<scheme>://…\`), never a web page`;
+  return null;
+}
+
+/**
  * Whether an environment value of project.yaml is the long form (`{production?, access?, pages: {…}, read_only?}`);
  * otherwise it is the short form, the page map itself.
  */
@@ -46,7 +85,8 @@ export function rawEnvironments(environments: unknown): Record<string, { pages: 
   if (!isObj(environments)) return out;
   for (const [name, value] of Object.entries(environments)) {
     const long = isLongFormEnvironment(value);
-    const pagesValue = long ? value.pages : isObj(value) ? value : {};
+    // An iOS environment has no pages (its `ios` is no page).
+    const pagesValue = long ? value.pages : isObj(value) && !isIosEnvironment(value) ? value : {};
     const pages: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(pagesValue)) pages[k] = pageUrlOf(v);
     out[name] = { pages, long, pagesPath: long ? ['pages'] : [] };
@@ -70,6 +110,12 @@ export function normalizeEnvironments(environments: Record<string, unknown> | un
   const pagesOut: Record<string, Record<string, string>> = {};
   const settings: Record<string, EnvironmentSettings> = {};
   for (const [name, value] of Object.entries(environments ?? {})) {
+    if (isIosEnvironment(value)) {
+      // An iOS environment: no pages, its settings as written (the schema took them).
+      pagesOut[name] = {};
+      settings[name] = { ios: iosSettingsOf(value.ios) };
+      continue;
+    }
     const long = isLongFormEnvironment(value);
     const written = (long ? value.pages : isObj(value) ? value : {}) as Record<string, unknown>;
     const pages: Record<string, string> = {};
@@ -88,6 +134,15 @@ export function normalizeEnvironments(environments: Record<string, unknown> | un
     if (Object.keys(s).length) settings[name] = s;
   }
   return Object.keys(settings).length ? { environments: pagesOut, settings } : { environments: pagesOut };
+}
+
+/** An iOS environment's `ios:` as the settings keep it: app, device and schemes (what this version reads). */
+function iosSettingsOf(ios: Record<string, unknown>): IosSettings {
+  return {
+    app: String(ios.app),
+    device: typeof ios.device === 'string' ? ios.device : '',
+    ...(Array.isArray(ios.schemes) ? { schemes: ios.schemes.filter((x): x is string => typeof x === 'string') } : {}),
+  };
 }
 
 /** The access an environment is configured with: `access`, else read-only in production, else read-write. */
@@ -115,6 +170,7 @@ export function resolveEnvironment(project: Pick<LoadedProject, 'config'>, env?:
     ...(s?.access ? { access: s.access } : {}),
     ...(s?.read_only ? { read_only: s.read_only } : {}),
     ...(s?.sandbox ? { sandbox: { ...s.sandbox } } : {}),
+    ...(s?.ios ? { ios: { ...s.ios, ...(s.ios.schemes ? { schemes: [...s.ios.schemes] } : {}) } } : {}),
   };
 }
 

@@ -24,6 +24,7 @@ import {
   unsafeTestResolveCheck,
   npmTestRegistryCheck,
 } from './machine-checks.js';
+import { iosEnvironmentChecks, iosNeedOf, iosSimulatorCheck } from './ios-check.js';
 import { composeSandboxOf, projectChecks } from './project-checks.js';
 import type { DoctorCheck, DoctorProbes } from './types.js';
 import { capturesCheck, mcpCheck, workspaceChecks } from './workspace-checks.js';
@@ -67,6 +68,11 @@ export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, po
   // Docker: a failure only when the --project's default sandbox is a docker-compose one.
   const need = req.project ? await composeSandboxOf(ws, req.project) : null;
   out.push(await dockerCheck(probes, (home) => ports.sandboxes.dockerPlaces(home), need));
+  // The iOS Simulator: a failure only when the --project's default environment is an iOS one.
+  const ios = req.project ? await iosNeedOf(ws, req.project) : null;
+  const simulator = await iosSimulatorCheck(probes, ios);
+  if (simulator) out.push(simulator.line);
+  if (ios && simulator?.line.status === 'ok') out.push(...(await iosEnvironmentChecks(probes, ios, simulator.runtime)));
   out.push(...(await workspaceChecks(probes, ws)));
   const jobs = agentJobsCheck(probes.env, ws, ws.browser);
   if (jobs) out.push(jobs);

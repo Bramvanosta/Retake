@@ -50,3 +50,14 @@ elements (logo, wordmark, colours, fonts) always come from the template — noth
 - Dragged file: a white "file chip" (file-type badge + file name + detail line) tilted −3° following the cursor into
   the drop zone.
 - Popovers and menus are visible in the capture; the cursor stays above them.
+
+## Touches
+An iOS take has no cursor: each touch draws a fingertip on the film (packages/runner-ios `touch-look.ts`, L5.3).
+- A translucent mid-grey disc of 38 pt (rgb 128, alpha .42 — like iOS's own touch indicator: it reads on a white
+  list and on a blue button alike) with a 1.5 pt white ring (alpha .60) and a soft shadow; it appears
+  150 ms before the touch-down (120 ms, scale 1.12 → 1), presses to .88 in 80 ms, comes back at the lift and fades in
+  180 ms.
+- The click ripple at the touch-down, as the web cursor's (12 pt disc, scale .4 → 5.5), in the theme's ripple colour.
+- The touch-down is timed from the screen's own response to the tap (the first changed frame around it), so the
+  ripple meets the app's highlight.
+
