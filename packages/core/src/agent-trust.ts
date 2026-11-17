@@ -185,6 +185,8 @@ export function renderFileProblems(projectDir: string, refs: readonly RenderFile
 export interface AgentTrustEnvironment {
   name: string;
   pages: Readonly<Record<string, string>>;
+  /** An iOS environment (its deep-link schemes): what it opens are deep links with one of them (core iosNavigationProblem). */
+  ios?: { schemes?: readonly string[] };
 }
 
 /** What agentTrustProblems(At) is given besides the scenario. */
@@ -214,7 +216,8 @@ export function navigationTrustProblems(sc: Scenario, o: Omit<AgentTrustOptions,
         .filter((x): x is string => x !== null),
     ),
   ];
-  return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({
+  const ios = o.env.ios ? { ios: { ...(o.env.ios.schemes ? { schemes: o.env.ios.schemes } : {}) } } : {};
+  return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}), ...ios }).map((p) => ({
     path: p.path,
     message: `${formatPath(p.path)}: ${p.message}`,
   }));

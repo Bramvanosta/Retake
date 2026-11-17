@@ -9,8 +9,9 @@
 import type { TemplateContext } from '@retake/core/base';
 import type { CaptureSettings, LoadedProject, Pacing } from '@retake/core/project';
 import type { LoadedScenario, Scenario } from '@retake/core/scenario';
+import type { CaptionSpec, NormalizedStep, SceneEntry } from '@retake/core/language';
 import type { MailboxConfig, ResolvedClock, ResolvedEnvironment } from '@retake/core/environment';
-import type { RunMode } from '@retake/core/run';
+import type { CaptureDevice, MissingTarget, RunMode } from '@retake/core/run';
 import type { RunAccess } from '@retake/core/environment';
 import type { RunProgress, RunningRun } from '@retake/core/run';
 import type { HookStepOutcome, LogLevel } from '../runtime.js';
@@ -77,8 +78,51 @@ export interface CaptureRun {
 export interface DriverTake {
   /** Nothing of the take is kept (a sign-in landing, a failed preflight): no timeline either. */
   discard: boolean;
-  capture: { file: string; frames: number; frameTimes: number[]; idleFrameTimes?: number[]; size?: { width: number; height: number } };
+  capture: {
+    file: string;
+    frames: number;
+    frameTimes: number[];
+    idleFrameTimes?: number[];
+    /**
+     * The picture's size in points and, when it is not the project's `capture.scale`, its pixels per point (a device's
+     * screen: an iOS simulator's 402×874 pt at 3). Absent: the project's capture size and scale.
+     */
+    size?: { width: number; height: number; scale?: number };
+    /** The device it was filmed on, when it is no browser page (timeline `capture.device`). */
+    device?: CaptureDevice;
+  };
 }
+
+/**
+ * The lifecycle's own tools a driver outside this package plays its steps with (a driver of another package imports
+ * nothing of the runner but its types: `@retake/runner-web/types`). A failure made by `stepFailure` is read by the run's
+ * end as a failed step (its scene, step, action, screenshot and snippet in run.json).
+ */
+export interface CaptureTools {
+  /** A failed step: the error the run aborts with (StepFailure). */
+  stepFailure(message: string, o: { scene: string; step: number; action: string; screenshot?: string; dom?: string; missing?: MissingTarget[] }): Error;
+  /** A refusal or failure of the run, said as it is (RunnerError). */
+  runnerError(message: string): Error;
+  /** Whether `e` is the run's cancel. */
+  isCancelled(e: unknown): boolean;
+  /** An error's message (any thrown value). */
+  errorMessage(e: unknown): string;
+  /** A step as progress events and the outline describe it. */
+  describeStep(step: NormalizedStep): string;
+  /** A scene's or a step's caption as the timeline records it. */
+  caption(c: CaptionSpec | undefined): { kicker?: string; text: string } | undefined;
+  /** A part of the scenario templated: a TemplateError fails the run in its words. */
+  templated<T>(fn: () => T, record: RunningRun): T;
+  /** A scene entry as far as the run goes (`--until`). */
+  untilSteps<T extends SceneEntry>(entry: T, si: number, until: StepRef | null): T;
+  /** Throws the run's cancel (or failure) when `signal` is aborted. */
+  throwIfAborted(signal?: AbortSignal): void;
+  /** An abortable sleep. */
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
+}
+
+/** What makes the driver of a run: the browser's (browserDriver), or another package's (RunOptions.driver). */
+export type DriverFactory = (run: CaptureRun, tools: CaptureTools) => CaptureDriver;
 
 /** What drives the product and films it, phase by phase (the module comment says the order). */
 export interface CaptureDriver {

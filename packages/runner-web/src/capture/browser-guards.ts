@@ -25,6 +25,16 @@ import type { WriteGuardOptions } from '../write-guard.js';
 import { bestEffort } from '@retake/core/base';
 
 /**
+ * The browser films web pages: an iOS environment (`ios:`, no pages) is the iOS driver's, which the composition hands
+ * to the run (RunOptions.driver) — refused here before anything opens.
+ */
+export function refuseIosEnvironment(env: { name: string; ios?: unknown }): void {
+  if (env.ios !== undefined) {
+    throw new RunnerError(`environment ${env.name} is an iOS environment: the browser films web pages only (its runs are the iOS runner's)`);
+  }
+}
+
+/**
  * The write guard of a run: each write it sees goes to `timeline.environment.writes` (capture time from capture
  * time 0 on); a stopped write warns once per request (`POST shop:/api/x`), a write to a host it does not watch once per
  * host, a WebSocket to a guarded host once per host; mocked / allowed writes and the sign-in's exempt ones are logged.

@@ -148,6 +148,7 @@ const TimelineVideoSchema = z
     intro: z.union([z.literal(false), z.strictObject(IntroOutroBase)]).optional(),
     outro: z.union([z.literal(false), z.strictObject({ ...IntroOutroBase, tagline: z.string().optional(), url: z.string().optional() })]).optional(),
     frame: FrameSpecSchema.optional(),
+    frame_default: z.literal(true).describe("A device's take whose scenario and project write no frame: the edit frames it as a phone.").optional(),
     template: z.string().optional(),
     music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional(), loop: z.boolean().optional() }).optional(),
     tutorial: TutorialSwitchSchema.optional(),
@@ -339,6 +340,10 @@ export const TimelineSchema = z
       t0_wall: z.number().describe('Wall-clock epoch ms of capture time 0 (a later wall time converts with `pauses` applied: less the ms of every earlier pause).'),
       frames: z.number().int().min(0),
       cursor: z.literal('hidden').describe('Captured without the in-page cursor (raw export for editors).').optional(),
+      device: z
+        .strictObject({ kind: z.literal('ios'), name: nonEmpty(), runtime: nonEmpty(), xcode: nonEmpty().optional() })
+        .describe('The device the take was filmed on (an iOS Simulator): width and height are its screen in points, scale its pixels per point.')
+        .optional(),
     }),
     video: TimelineVideoSchema.optional(),
     scenes: z.array(TimelineSceneSchema),

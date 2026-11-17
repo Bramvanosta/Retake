@@ -81,7 +81,9 @@ export const ENGINE_NEEDS = {
   // `colorspace`: a render's frames encoded by our ffmpeg (editor render/encode-tools.ts OWN_FRAME_FILTER). Its
   // probe (`probeFrameEncode`) makes three JPEG frames from `color` and runs the frame encode on them: `mjpeg`,
   // `image2pipe` and `null` above.
-  filters: ['scale', 'format', 'split', 'select', 'fps', 'palettegen', 'paletteuse', 'color', 'anullsrc', 'aevalsrc', 'null', 'anull', 'colorspace'],
+  // `overlay`, `setpts`, `setparams`, `crop`: an iOS take's conversion (runner-ios convert.ts: the recording over a base held
+  // to the end of the take, the touch overlay over it, the colour tags on the frames; the touch-down search's crops).
+  filters: ['scale', 'format', 'split', 'select', 'fps', 'palettegen', 'paletteuse', 'color', 'anullsrc', 'aevalsrc', 'null', 'anull', 'colorspace', 'overlay', 'setpts', 'setparams', 'crop'],
   protocols: ['file', 'pipe', 'fd'],
 };
 

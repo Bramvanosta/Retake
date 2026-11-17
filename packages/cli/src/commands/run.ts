@@ -1,11 +1,12 @@
 import { join } from 'node:path';
 import { formatIssues } from '@retake/core/base';
-import { isAccessError } from '@retake/core/environment';
+import { isAccessError, resolveEnvironment } from '@retake/core/environment';
 import { perfSummary } from '@retake/core/run';
 import { readTimeline } from '@retake/core/io';
 import type { TrustedHookFiles } from '@retake/core/hooks';
 import type { Timeline } from '@retake/core/run';
 import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { RawCursorMode } from '@retake/core/project';
 import {
   FilmingMarker,
   RunOptionError,
@@ -211,6 +212,26 @@ async function rawExportAfterRun(
   return undefined;
 }
 
+/**
+ * The cursor of a `run --raw` (none|layer capture without the in-page cursor: its track and effects are still
+ * recorded), and why it cannot film the run's environment (null: it can): `layer` on an iOS one — a device's touches
+ * are drawn by its runner (or not at all), there is no cursor layer to export —, refused before the take. An unknown
+ * environment: no problem here (the run says so).
+ */
+function rawCursorOfRun(rawFlags: ReturnType<typeof rawFlagsOf>, prepared: PreparedRun, opts: RunCommandOptions): { rawCursor: RawCursorMode | undefined; problem: string | null } {
+  const rawCursor = rawFlags ? (rawFlags.cursor ?? prepared.project.config.raw?.cursor ?? 'baked') : undefined;
+  if (rawCursor !== 'layer') return { rawCursor, problem: null };
+  let env: ReturnType<typeof resolveEnvironment>;
+  try {
+    env = resolveEnvironment(prepared.project, prepared.sandboxEnv ?? opts.env ?? prepared.scenario.scenario.env);
+  } catch {
+    return { rawCursor, problem: null };
+  }
+  if (env.ios === undefined) return { rawCursor, problem: null };
+  const problem = `--raw --cursor layer: environment ${env.name} films the iOS Simulator, whose touches have no cursor layer — use --cursor baked (the touches in the film) or --cursor none (the film without them)`;
+  return { rawCursor, problem };
+}
+
 /** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
 export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions): Promise<ExitCode> {
   const json = opts.json === true;
@@ -231,10 +252,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
     if (e instanceof RunOptionError) throw new UsageError(e.message);
     return fail(errorMessage(e));
   }
-  const { ws, project } = prepared;
+  const { ws } = prepared;
   if (opts.allowWrites) checkWritesAllowed(prepared, opts);
-  // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
-  const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
+  const { rawCursor, problem: layerProblem } = rawCursorOfRun(rawFlags, prepared, opts);
+  if (layerProblem) return fail(layerProblem);
 
   // --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
   // it is, and must be up. A failure there creates no run folder.

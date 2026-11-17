@@ -5,6 +5,7 @@
     { "path": "packages/hooks" },
     { "path": "packages/sandbox" },
     { "path": "packages/runner-web" },
+    { "path": "packages/runner-ios" },
     { "path": "packages/review" },
     { "path": "packages/engine" },
     { "path": "packages/compose" },

@@ -14,10 +14,28 @@ import { SHOOT_STATES, modeWord } from '../words/shoot-words.js';
 import { Button, StatusMark } from '../ui-kit/index.js';
 import { STATE_MARK, runState, stateWord } from './live-state.js';
 
-type ControlsProps = { slug: string; name: string; runId: string; s: RunLiveState; fb: RunStatusLite | null; mode: string | undefined; finished: boolean };
+type ControlsProps = {
+  slug: string;
+  name: string;
+  runId: string;
+  s: RunLiveState;
+  fb: RunStatusLite | null;
+  mode: string | undefined;
+  finished: boolean;
+  /** The run films an iOS environment: it cannot pause (its take runs to its end). */
+  device?: boolean;
+};
+
+/** Why Pause cannot be pressed now (null: it can): a terminal's run, a queued job, a stop asked, an iOS take. Pure. */
+export function pauseBlocker(o: { terminal: boolean; jobState: string | undefined; stopping: boolean; device: boolean }): string | null {
+  if (o.terminal) return 'Started in a terminal: press Ctrl-C there to stop it.';
+  if (o.jobState === 'queued') return 'It can pause once it runs.';
+  if (o.stopping) return 'It is stopping.';
+  return o.device ? 'An iOS take cannot pause: it runs to its end. Stop stops it.' : null;
+}
 
 /** The run's controls: its state, Pause / Resume and Stop (one request at a time), and ⌘. while it goes. */
-function useRunControls({ slug, name, runId, s, fb, mode, finished }: ControlsProps) {
+function useRunControls({ slug, name, runId, s, fb, mode, finished, device }: ControlsProps) {
   const [busy, setBusyState] = useState<'pause' | 'resume' | 'stop' | null>(null);
   // Held in a ref too: two ⌘. in one tick see the first one's request (one call, the second said).
   const inFlight = useRef<'pause' | 'resume' | 'stop' | null>(null);
@@ -35,7 +53,7 @@ function useRunControls({ slug, name, runId, s, fb, mode, finished }: ControlsPr
   const stopping = stopAsked || Boolean(s.job?.cancel_requested ?? fb?.job?.cancel_requested_at);
   // A terminal's run: the stream's hello names no job — or, the stream refused, run_status shows none (Stop cannot reach it).
   const terminal = jobId === null && (s.hello !== null || (fb !== null && !fb.finished));
-  const why = terminal ? 'Started in a terminal: press Ctrl-C there to stop it.' : jobState === 'queued' ? 'It can pause once it runs.' : stopping ? 'It is stopping.' : null;
+  const why = pauseBlocker({ terminal, jobState, stopping, device: device === true });
   const pause = (on: boolean) => {
     if (inFlight.current) return;
     setBusy(on ? 'pause' : 'resume');

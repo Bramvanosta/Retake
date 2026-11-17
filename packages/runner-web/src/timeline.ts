@@ -1,5 +1,6 @@
 import type { CaptureSettings } from '@retake/core/project';
 import type {
+  CaptureDevice,
   CursorEffect,
   CursorSample,
   TimelineTrack,
@@ -424,7 +425,15 @@ export class TimelineBuilder {
    * `frameTimes`: the frames of the main capture (single-page scenes); `idleFrameTimes` (default: the same) the frames
    * of every recorded page — the screen is idle only when none of them changed.
    */
-  build(capture: { file: string; duration: number; frames: number; frameTimes: number[]; idleFrameTimes?: number[]; size?: { width: number; height: number } }): Timeline {
+  build(capture: {
+    file: string;
+    duration: number;
+    frames: number;
+    frameTimes: number[];
+    idleFrameTimes?: number[];
+    size?: { width: number; height: number; scale?: number };
+    device?: CaptureDevice;
+  }): Timeline {
     const end = round3(capture.duration);
     const last = this.pages[this.pages.length - 1];
     if (last) last.t_end = Math.max(last.t_end, end);
@@ -439,12 +448,14 @@ export class TimelineBuilder {
         file: capture.file,
         width: capture.size?.width ?? this.meta.capture.width,
         height: capture.size?.height ?? this.meta.capture.height,
-        scale: this.meta.capture.scale,
+        // A device's own pixels per point (an iOS simulator's), else the project's capture scale.
+        scale: capture.size?.scale ?? this.meta.capture.scale,
         fps: this.meta.capture.fps,
         duration: end,
         t0_wall: Math.round(this.clock.t0Wall),
         frames: capture.frames,
         ...(this.meta.cursor ? { cursor: this.meta.cursor } : {}),
+        ...(capture.device ? { device: { ...capture.device } } : {}),
       },
       ...(this.meta.video ? { video: this.meta.video } : {}),
       scenes: this.scenes,

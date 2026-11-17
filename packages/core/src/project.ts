@@ -67,6 +67,7 @@ export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
     ...(settings ? { environment_settings: settings } : {}),
     capture: { ...DEFAULT_CAPTURE, ...file.capture },
     frame: file.frame ?? DEFAULT_FRAME,
+    ...(file.frame === undefined ? { frame_defaulted: true as const } : {}),
     template: file.template ?? DEFAULT_TEMPLATE_NAME,
   };
 }

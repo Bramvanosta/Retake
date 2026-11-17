@@ -106,6 +106,7 @@ describe('projects', () => {
       environments: {},
       capture: DEFAULT_CAPTURE,
       frame: 'card',
+      frame_defaulted: true,
       template: 'default',
     });
     expect(p.readme).toBeNull();
