@@ -6,6 +6,12 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Fixed
+- The mail card (`studio/mail-view`) writes a captured mail's date the way the filmed pages write dates — in the
+  take's browser time zone and locale ("Nov 17, 2026, 7:56 PM" for `en-US`), and on the product clock when the
+  scenario sets `clock:` — instead of the mailbox's UTC time, which could sit an hour away from the page shown just
+  before. The card's `date` slot still wins; takes recorded before keep the date as it was shown.
+
 ## [0.3.0] — 2026-11-16
 
 The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,

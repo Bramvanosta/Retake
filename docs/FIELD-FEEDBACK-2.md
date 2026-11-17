@@ -14,6 +14,9 @@ client, product, font or address) and where each point went. The numbers are the
 the lots **L8.1, L8.1b, L8.2 and L8.2b** for the rest (themes, fonts, sandboxes, environments, painted pages); L8.3
 (the app's native menus, BACKLOG BL-166) runs in the same chain but does not come from this feedback.
 
+Point 33 came later (added to the notes after v0.3.0); the person chose on 2026-11-17 to date the mail in the take's
+zone and locale and on the product clock, in lot **L8.5**.
+
 ## The points
 
 | # | What the field showed (and the proposal) | Where it went |
@@ -47,3 +50,4 @@ the lots **L8.1, L8.1b, L8.2 and L8.2b** for the rest (themes, fonts, sandboxes,
 | 27 | A grey loading skeleton was filmed for half a second after a click that changed the page client-side (the app's header had text, so the page counted as painted), and the review said nothing. Proposal: judge the main region, wait after a client-side route change. | **L8.2b** |
 | 28 | After sandbox.yaml changed, a reset ran the seed on the dirty database and froze the take's data into the new snapshot. Proposal: start again from a clean base, or refuse and say so in `sandbox_status`. | **L8.2** |
 | 29 | `reset.firebase_auth` put the accounts back and invalidated the personas' saved sessions (an `auth: {persona}` hook got 401). Proposal: sign the personas in again, or say so in the reset's result. | **L8.2** |
+| 33 | A mail card dated the confirmation mail in UTC while the filmed page, one screen before, showed the payment's time in the browser's zone: an hour apart for the same payment. Workaround: the card's `date` slot, rewritten after every take. Proposal: the mail's date in the take's browser zone, or a setting shared by the capture and the cards, or at least a `timezone` param on the card. | **L8.5** (the take's zone and locale, and the product clock) |

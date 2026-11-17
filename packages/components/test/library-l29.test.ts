@@ -269,3 +269,46 @@ describe('mail-view mailbox label (R-FLD-15)', () => {
     expect(plain).not.toContain('Inbox ·');
   });
 });
+
+describe('mail-view date (R-MAIL-05)', () => {
+  type Dates = (e: { date: string; timezone?: string; locale?: string } | undefined, slot?: string) => { full: string; time: string };
+  const dates = () => (modules['studio/mail-view'] as { mailDates: Dates }).mailDates;
+  const PAID = '2026-11-17T18:56:00.000Z';
+
+  it("a captured mail is written in the take's browser zone and locale, as the filmed pages write dates", () => {
+    expect(dates()({ date: PAID, timezone: 'Europe/Paris', locale: 'en-US' })).toEqual({ full: 'Nov 17, 2026, 7:56 PM', time: '7:56 PM' });
+    expect(dates()({ date: PAID, timezone: 'Europe/Paris', locale: 'fr-FR' })).toEqual({ full: '17 nov. 2026, 19:56', time: '19:56' });
+    expect(dates()({ date: PAID, timezone: 'America/New_York' })).toEqual({ full: '17 Nov 2026, 13:56', time: '13:56' });
+    // A zone other than any test machine's: the next day in Tokyo.
+    expect(dates()({ date: PAID, timezone: 'Asia/Tokyo', locale: 'en-US' })).toEqual({ full: 'Nov 18, 2026, 3:56 AM', time: '3:56 AM' });
+    const html = render('studio/mail-view', { media: { email: { ...EMAIL, date: PAID, timezone: 'Europe/Paris', locale: 'en-US' } }, at: 40 });
+    expect(html).toContain('Nov 17, 2026, 7:56 PM');
+    expect(html).toContain('>7:56 PM<');
+    expect(html).not.toContain('18:56');
+  });
+
+  it("without a zone (an older take, a sample) the date's own digits; the slot is shown as written", () => {
+    expect(dates()({ date: PAID })).toEqual({ full: '17 Nov 2026, 18:56', time: '18:56' });
+    expect(dates()({ date: '2026-11-17T19:56:00+01:00' })).toEqual({ full: '17 Nov 2026, 19:56', time: '19:56' });
+    expect(dates()({ date: PAID, timezone: 'Europe/Paris', locale: 'en-US' }, 'Yesterday, 9:12')).toEqual({ full: 'Yesterday, 9:12', time: '9:12' });
+    expect(dates()(undefined)).toEqual({ full: '', time: '' });
+  });
+
+  it("a locale Intl does not know keeps the card's words, in the zone; a zone it does not know, or a date without a time, the digits", () => {
+    expect(dates()({ date: PAID, timezone: 'Europe/Paris', locale: 'not a locale!' })).toEqual({ full: '17 Nov 2026, 19:56', time: '19:56' });
+    expect(dates()({ date: PAID, timezone: 'Mars/Olympus', locale: 'en-US' })).toEqual({ full: '17 Nov 2026, 18:56', time: '18:56' });
+    expect(dates()({ date: 'last Tuesday', timezone: 'Europe/Paris' })).toEqual({ full: 'last Tuesday', time: 'last Tuesday' });
+    // A well-formed tag Intl does not know would become the host's default locale: the card's own words instead.
+    expect(dates()({ date: PAID, timezone: 'Europe/Paris', locale: 'qq' })).toEqual({ full: '17 Nov 2026, 19:56', time: '19:56' });
+    // A date without a time is not moved to another day by a zone west of UTC.
+    expect(dates()({ date: '2026-11-17', timezone: 'America/New_York', locale: 'en-US' })).toEqual({ full: '17 Nov 2026', time: '17 Nov 2026' });
+  });
+
+  it('what Intl writes is drawn by every theme font: no narrow or no-break spaces, no direction marks', () => {
+    for (const locale of ['en-US', 'fr-FR', 'ar-EG', 'he-IL']) {
+      const d = dates()({ date: PAID, timezone: 'Europe/Paris', locale });
+      expect(d.full, locale).not.toMatch(/[\u202f\u00a0\u200e\u200f\u061c]/);
+      expect(d.full.length, locale).toBeGreaterThan(d.time.length);
+    }
+  });
+});

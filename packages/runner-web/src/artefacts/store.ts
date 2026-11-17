@@ -21,6 +21,15 @@ import type { MailboxClient, MailMessage } from './mailbox.js';
 import { formatAddress, inlineCids } from './mailbox.js';
 import { ArtefactRenderer } from './render.js';
 
+/** What dates a captured mail besides its own date (R-MAIL-05): see `addEmail`. */
+export interface EmailDating {
+  /** The persona whose mailbox it was waited for in. */
+  persona?: string;
+  timezone?: string;
+  locale?: string;
+  productTime?: (epochMs: number) => number | undefined;
+}
+
 /** Characters of an email's text kept on the timeline (`preview`). */
 export const EMAIL_PREVIEW_CHARS = 280;
 
@@ -152,12 +161,17 @@ export class ArtefactStore {
     return d;
   }
 
-  /** A captured email: artefacts/emails/<name>.json now, its image at finalize(). */
-  async addEmail(name: string, m: MailMessage, t: number, where: Where, persona?: string): Promise<EmailArtefact> {
+  /**
+   * A captured email: artefacts/emails/<name>.json now, its image at finalize(). `dating`: the filmed page's time zone
+   * and locale, and the product's clock (`productTime`: its reading of a real instant; absent without a clock).
+   */
+  async addEmail(name: string, m: MailMessage, t: number, where: Where, dating: EmailDating = {}): Promise<EmailArtefact> {
     const dir = await this.ensure('emails');
     const file = join(dir, `${artefactSlug(name)}.json`);
     const html = inlineCids(m.html, m.inline);
     const text = m.text.trim() ? m.text : htmlText(html);
+    const sent = Date.parse(m.date);
+    const productDate = Number.isNaN(sent) ? undefined : dating.productTime?.(sent);
     await writeJson(file, {
       id: m.id,
       from: formatAddress(m.from),
@@ -178,9 +192,12 @@ export class ArtefactStore {
       ...(m.from.name ? { from_name: m.from.name } : {}),
       to: m.to.map((x) => x.address),
       subject: m.subject,
-      date: new Date(m.date).toString() === 'Invalid Date' ? m.date : new Date(m.date).toISOString(),
+      date: Number.isNaN(sent) ? m.date : new Date(sent).toISOString(),
+      ...(productDate !== undefined ? { product_date: new Date(productDate).toISOString() } : {}),
+      ...(dating.timezone ? { timezone: dating.timezone } : {}),
+      ...(dating.locale ? { locale: dating.locale } : {}),
       preview: previewText(text),
-      ...(persona ? { persona } : {}),
+      ...(dating.persona ? { persona: dating.persona } : {}),
     };
     this.items.push(a);
     if (html.trim()) this.emails.push({ artefact: a, html });

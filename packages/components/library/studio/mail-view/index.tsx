@@ -24,12 +24,63 @@ type Params = { width: number; sidebar: boolean; scroll: 'auto' | 'none'; shadow
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "2026-10-12T09:41:00Z" → "12 Oct 2026, 09:41" (deterministic: no locale, no time zone). */
+/** "2026-10-12T09:41:00Z" → "12 Oct 2026, 09:41": the date's own digits, without a locale or a time zone. */
 export function mailDate(iso: string | undefined): string {
   if (!iso) return '';
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(iso);
   if (!m) return iso;
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1] ?? m[2]} ${m[1]}${m[4] ? `, ${m[4]}:${m[5]}` : ''}`;
+}
+
+/** Intl's narrow and no-break spaces as plain ones, its direction marks dropped (a Latin theme font has neither). */
+const plainText = (s: string) => s.replace(/[\u202f\u00a0]/g, ' ').replace(/[\u200e\u200f\u061c]/g, '');
+
+/** `locale` when this Intl knows it (a tag it does not know would quietly become the host's default: not deterministic). */
+function knownLocale(locale: string | undefined): string | undefined {
+  if (!locale) return undefined;
+  try {
+    return Intl.DateTimeFormat.supportedLocalesOf([locale])[0];
+  } catch {
+    return undefined;
+  }
+}
+
+/** The wall time of `at` in `timeZone` as `mailDate` writes one ("17 Nov 2026, 19:56"); null for a zone Intl does not know. */
+function digitsIn(at: number, timeZone: string): string | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at);
+    const v = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return mailDate(`${v('year')}-${v('month')}-${v('day')}T${v('hour')}:${v('minute')}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the card shows of a mail's date: `full` in the header, `time` in the inbox column. The slot `date` is shown as
+ * written. A captured mail carries the zone and locale of the take's browser (and its date on the product's clock when
+ * the run had one): its date is written as the filmed pages write dates — in that zone, in that locale's medium date and
+ * short time; a locale this Intl does not know (or none) keeps `mailDate`'s words, in that zone. Without a zone (a take
+ * before they were recorded, a sample), a zone Intl does not know or a date without a time: the date's own digits.
+ */
+export function mailDates(email: Pick<EmailMedia, 'date' | 'timezone' | 'locale'> | undefined, slot?: string): { full: string; time: string } {
+  const split = (full: string) => ({ full, time: full.split(',').pop()?.trim() ?? full });
+  if (slot !== undefined) return split(slot);
+  const own = split(mailDate(email?.date));
+  const at = email?.date && /T\d{2}:\d{2}/.test(email.date) ? Date.parse(email.date) : Number.NaN;
+  if (!email?.timezone || Number.isNaN(at)) return own;
+  const locale = knownLocale(email.locale);
+  if (!locale) {
+    const digits = digitsIn(at, email.timezone);
+    return digits ? split(digits) : own;
+  }
+  try {
+    const full = new Intl.DateTimeFormat(locale, { timeZone: email.timezone, dateStyle: 'medium', timeStyle: 'short' }).format(at);
+    const time = new Intl.DateTimeFormat(locale, { timeZone: email.timezone, timeStyle: 'short' }).format(at);
+    return { full: plainText(full), time: plainText(time) };
+  } catch {
+    return own;
+  }
 }
 
 /** The toolbar's mailbox: "Inbox", or the inbox of the persona the mail was waited for in ("buyer" → "Inbox · Buyer"). */
@@ -58,7 +109,7 @@ export default function MailView({ theme, slots, params, unit, width, height, fp
   const from = slots.from ?? e?.from_name ?? e?.from ?? '';
   const address = slots.address ?? (e && e.from !== from ? e.from : undefined);
   const subject = slots.subject ?? e?.subject ?? '';
-  const date = slots.date ?? mailDate(e?.date);
+  const date = mailDates(e, slots.date);
   const { dark, light } = darkLight(theme);
   const ink = readableOn(light, theme.colors.text, dark, 4.5);
   const muted = readableOn(light, theme.colors.muted, ink, 3);
@@ -150,7 +201,7 @@ export default function MailView({ theme, slots, params, unit, width, height, fp
                   {sel ? (
                     <>
                       <div style={{ position: 'absolute', left: 16 * u, top: 12 * u, right: 64 * u, fontSize: 15 * u, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{from}</div>
-                      <div style={{ position: 'absolute', right: 14 * u, top: 13 * u, fontSize: 12.5 * u, color: muted }}>{date.split(',').pop()?.trim()}</div>
+                      <div style={{ position: 'absolute', right: 14 * u, top: 13 * u, fontSize: 12.5 * u, color: muted }}>{date.time}</div>
                       <div style={{ position: 'absolute', left: 16 * u, top: 34 * u, right: 14 * u, fontSize: 14 * u, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject}</div>
                       <div style={{ position: 'absolute', left: 16 * u, top: 55 * u, right: 14 * u, fontSize: 13 * u, color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e?.preview ?? slots.body ?? ''}</div>
                       <div style={{ position: 'absolute', left: 4 * u, top: 16 * u, width: 6 * u, height: 6 * u, borderRadius: 3 * u, background: accent }} />
@@ -180,7 +231,7 @@ export default function MailView({ theme, slots, params, unit, width, height, fp
           <div style={{ position: 'absolute', left: pad + avatar + 14 * u, top: senderTop + 25 * u, fontSize: 14 * u, color: muted }}>
             {e?.to?.length ? `To: ${e.to.join(', ')}` : 'To: me'}
           </div>
-          <div style={{ position: 'absolute', right: pad, top: senderTop + 2 * u, fontSize: 14 * u, color: muted }}>{date}</div>
+          <div style={{ position: 'absolute', right: pad, top: senderTop + 2 * u, fontSize: 14 * u, color: muted }}>{date.full}</div>
           <div style={{ position: 'absolute', left: pad, right: pad, top: viewTop - 1 * u, height: Math.max(1, unit), background: line }} />
           {/* Body viewport. */}
           <div style={{ position: 'absolute', left: 0, top: viewTop, width: paneW, height: viewH, overflow: 'hidden', background: img ? SYSTEM_COLORS.page : light }}>

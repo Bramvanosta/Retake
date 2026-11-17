@@ -253,7 +253,7 @@ instead of 700 ms.
 | `screenshots/` | dry-run screenshots (a capture's with `capture.step_shots`), `screenshot` steps, error screenshots and DOM snippets, `dead-click-<scene>-<step>.png` |
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `retake render` / `plan` warn when the filmed part differs) |
-| `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
+| `artefacts/` | captured emails (`emails/<as>.json` + `.png`; on the timeline also the zone and locale the pages wrote dates in, and `product_date`: the mail's date on the product clock), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
 
 **Disk** (L5.7): a capture weighs tens of MB (capture.mp4, ≈ 20 MB for a minute of the fixture), renders and reviews a
 few more. `retake prune <project>` lists what `runs/`, `renders/` and `review/` hold that nothing needs any more —
