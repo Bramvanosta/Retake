@@ -1820,7 +1820,7 @@ retake hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [-
 retake hooks rollback <project> [id] [--allow-writes] [--replay-unsigned] [--dry]   # replay pending rollback journals (run id or journal id); lists them first (unsigned ones in full)
 retake env reset <project> [--allow-writes] [--replay-unsigned] [--dry]   # project.reset hooks + pending journals (listed first); --replay-unsigned: a terminal only, y/N per entry
 retake sandbox init <project> [--env E] [--force] [--json]                                  # §3.8b scaffold
-retake sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
+retake sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--forget] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
 retake schema [scenario|project|template|timeline|sandbox]  # print JSON Schema
 retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
 retake auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error

@@ -11,6 +11,20 @@ release — for the person about to click Install and Restart.
   take's browser time zone and locale ("Nov 17, 2026, 7:56 PM" for `en-US`), and on the product clock when the
   scenario sets `clock:` — instead of the mailbox's UTC time, which could sit an hour away from the page shown just
   before. The card's `date` slot still wins; takes recorded before keep the date as it was shown.
+- A sandbox whose database keeps its data in memory (`tmpfs:` on Postgres's data folder), in its container's own
+  layer or in an anonymous volume (no volume named in the compose file): its seed is now forgotten with the data, so
+  the next `up` seeds it — even when the product loads data during its own start-up. Before, `up` refused ("the database already holds data…") and proposed
+  `down --volumes`, which changed nothing.
+- A sandbox's Postgres that starts over under a running sandbox (Docker restarted, a volume removed by hand) is
+  recognised by its cluster identity: the next reset seeds it as a fresh database instead of refusing (in a named
+  volume, only when it is empty: a database restored from a dump is still refused rather than frozen into the base).
+- A refused reset proposes the command that works for where the database keeps its data: `--volumes` for a volume,
+  a plain `down` for memory or the container's own layer, `--volumes --forget` when Retake cannot tell.
+
+### Added
+- `retake sandbox down --forget`: forget the sandbox's seed, reset and snapshot records (nothing is deleted), for data
+  you know is gone or disposable. `retake sandbox status` says where the database keeps its data when it is memory or
+  the container's own layer.
 
 ## [0.3.0] — 2026-11-16
 

@@ -16,7 +16,18 @@ export interface SandboxStatusView {
   seed?: { hash: string; at: string; ms: number; current: boolean };
   last_reset?: { strategy: string; at: string; ms: number; by: string };
   /** Strategy snapshot: the snapshot now and what the next reset does with it (unknown when down). */
-  snapshot?: { state: 'current' | 'outdated' | 'none' | 'unknown'; why?: string; reason?: string; base: boolean; next?: string; detail?: string };
+  snapshot?: {
+    state: 'current' | 'outdated' | 'none' | 'unknown';
+    why?: string;
+    reason?: string;
+    base: boolean;
+    next?: string;
+    detail?: string;
+    /** Its Postgres is not the cluster the snapshot was made in: the next reset forgets the old records. */
+    new_cluster?: boolean;
+    /** Where its database keeps its data (docker-compose), when it could be read. */
+    storage?: { kind: 'volume' | 'bind' | 'external' | 'tmpfs' | 'container' | 'unknown'; where?: string };
+  };
   /** When the Firebase Auth emulator's accounts were last put back (personas saved before sign in again at a take). */
   accounts_at?: string;
   /** The take lock, when a live command holds it. */
