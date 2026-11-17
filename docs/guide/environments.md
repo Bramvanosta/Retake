@@ -362,7 +362,10 @@ header says it (`clock 2026-11-02T10:24:00 Europe/Paris (frozen)`).
   pages opened before and after capture time 0, in any persona's browser, agree. **Not covered**: a dedicated worker
   gets the clock as soon as it starts (its very first lines may still read the real date), shared workers (absent on
   read-only runs) and service workers keep the real date, and so do `performance.timeOrigin`, `document.lastModified`,
-  cookie expiry and what the server makes (`created_at`, emails, PDFs: L1.8 seeds). A clock far from now can make
+  cookie expiry and what the server makes (`created_at`, emails, PDFs: L1.8 seeds). A captured mail's date is read
+  on the product clock for the mail card (R-MAIL-05): the pages' clock at the instant the server sent it (the clock's
+  time when frozen); a mail sent before capture time 0 (a setup hook) reads a time the pages may never have shown, and
+  a server date has a second's precision. A date the server wrote into a page (a payment's time) stays the real one. A clock far from now can make
   client-side token checks (a JWT's `exp`) refresh or sign out: choose a recent date, and allow the refresh endpoint on
   read-only environments.
 - **`freeze: true`** keeps `Date` at the clock's time the whole run. Timers and animation frames still run, but code

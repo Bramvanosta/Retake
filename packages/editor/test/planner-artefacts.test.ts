@@ -57,6 +57,23 @@ describe('artefact slots → media', () => {
     expect((card(await plan(load('signup')), 'inbox').component.media!.email as EmailMedia).persona).toBeUndefined();
   });
 
+  it("a mail card is handed the take's zone and locale, and the mail's date on the product's clock when the run had one (R-MAIL-05)", async () => {
+    const tl = load('signup');
+    const own = (tl.artefacts ?? []).find((a) => a.kind === 'email')!.date;
+    for (const a of tl.artefacts ?? []) {
+      if (a.kind !== 'email') continue;
+      a.product_date = '2026-11-02T10:24:30.000Z';
+      a.timezone = 'Europe/Paris';
+      a.locale = 'en-US';
+    }
+    const e = card(await plan(tl), 'inbox').component.media?.email as EmailMedia;
+    expect(e).toMatchObject({ date: '2026-11-02T10:24:30.000Z', timezone: 'Europe/Paris', locale: 'en-US' });
+    const before = card(await plan(load('signup')), 'inbox').component.media!.email as EmailMedia;
+    expect(before.date).toBe(own);
+    expect(before).not.toHaveProperty('timezone');
+    expect(before).not.toHaveProperty('locale');
+  });
+
   it('a downloaded PDF feeds the document card page by page', async () => {
     const p = await plan(load('quote-artefacts'));
     const d = card(p, 'quote-pdf').component.media?.document as DocumentMedia;

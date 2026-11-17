@@ -314,8 +314,17 @@ export interface EmailArtefact extends ArtefactBase {
   from_name?: string;
   to: string[];
   subject: string;
-  /** ISO 8601. */
+  /** ISO 8601 (UTC): the mail's own date, as the mailbox gave it. */
   date: string;
+  /**
+   * ISO 8601 (UTC): `date` read on the product's clock (a run with `clock:`) — what the filmed pages' `new Date()` read at
+   * that instant: the clock's time when frozen. Absent without a clock or for a date that names no instant.
+   */
+  product_date?: string;
+  /** The IANA time zone the filmed page's browser wrote dates in when the mail was captured. */
+  timezone?: string;
+  /** The locale the filmed page's browser wrote dates in (BCP 47) when the mail was captured. */
+  locale?: string;
   /** The first characters of the text part (whitespace collapsed), for components. */
   preview: string;
   /** The HTML rendered at 600 px width, full height (absent when the message has no HTML part or rendering failed). */

@@ -88,6 +88,33 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
 
+## State (after L8.5)
+- **L8.5 done (2026-11-17; branch `claude/fb-33-mail-timezone-82c1d3`)** — the mail card dated like the filmed pages
+  (field feedback 2, point 33: the card showed the mailbox's UTC date, the page before it the browser's zone).
+  - Runner: `BrowserSession.dating()` — read once when the session opens, from the first realm's blank page before
+    anything loads (`page-dating.ts`, 2 s at most): its Intl default zone and locale, canonical, extensions dropped
+    (`-u-ca-…` would change the calendar), at most 35 characters; else `browser.timezone` / `browser.locale` (the
+    project `locale` folded in by `projectBrowser`), else the machine's zone (`machineZone`, now exported by core's
+    clock). No product page is asked: a busy page cannot slow a `wait_for_email`, every mail of a take gets the same
+    values (both reviews' point, after a first design that read the active page at each mail). `productTime(ms)`: the product clock's reading of a real instant
+    (`epoch + (ms − since)`, `epoch` when frozen). `addEmail` takes a `dating` object (persona, zone, locale,
+    productTime) and records `timezone`, `locale` and `product_date` on the email artefact (timeline schema, optional:
+    old timelines read as before; a timeline written now has fields an older Retake refuses).
+  - Planner: `EmailMedia.date` is now the date the pages would show (`product_date ?? date`), with `timezone` and
+    `locale`. Card: `mailDates()` in `studio/mail-view` — Intl with the zone, medium date and short time, a
+    locale checked with `supportedLocalesOf` (an unknown tag keeps the card's own words, in the zone: deterministic
+    across Node, the render's Chromium and the Studio's web view), narrow / no-break spaces and direction marks removed;
+    no zone, a date without a time or an unknown zone: the old digits. The `date` slot still wins. Preview regenerated
+    (the same picture, re-encoded: the sample has no zone); the version stays 1.0.0, like every built-in component (`library.test.ts`).
+  - Acceptance: the fixture's signup scenario copied to a scratch workspace with `browser: {timezone: Asia/Tokyo,
+    locale: en-US}`, `clock: 2026-11-17T19:55:00` and its `date` slot removed: the mail sent at 20:52 UTC reads
+    "Nov 17, 2026, 7:55 PM" in the rendered card (frame inspected).
+  - Mutations: 12, 11 caught; the survivor (in the first design, the configured locale replaced by the page's read)
+    was equivalent — the page reports the locale it was launched with. Tests: a frozen clock's run, `page-dating.test.ts`
+    (new, in the CI tier).
+  - Known limits (R-MAIL-05's gap): dates the server writes into its pages stay real under a product clock; a mail
+    sent before capture time 0 reads a time the pages never showed.
+
 ## State (after L8.2b)
 - **L8.2b done (2026-11-16; branch `claude/l8-feedback2`)** — a project's environments by tool (field feedback 2,
   point 1) and no loading state filmed after a client-side route change (point 27).

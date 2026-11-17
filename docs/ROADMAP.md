@@ -1447,6 +1447,13 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   File › Show Workspace in Finder; context menus on the Productions posters behind a real secondary click.
   Requirements R-DSK-05 – R-DSK-07 (R-DSK-03's gap); by hand: MACOS-CHECKLIST 14h.
 
+### L8.5 — The mail card dated like the filmed pages (M; decided 2026-11-17)
+- **Goal:** a captured mail's date written the way the filmed pages write dates — the take's browser zone and locale,
+  and the product clock when the run has one — instead of the mailbox's UTC (`docs/FIELD-FEEDBACK-2.md` point 33).
+- **Done (2026-11-17):** see HANDOFF "State (after L8.5)". The email artefact records `timezone`, `locale` and
+  `product_date`; the planner hands them to the card; `studio/mail-view` writes the date with Intl in that zone
+  and locale. Requirement R-MAIL-05.
+
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.
 - **Done (2026-11-10, branch `claude/arch-l6`; pull request 8, merged on main 2026-11-15):** see HANDOFF "State (after the architecture series)" and `docs/audit/target-architecture.md`. Import-rules ratchet 99 → 59 entries (R1 at 0), no import cycle. Open: T15's rest, T16.

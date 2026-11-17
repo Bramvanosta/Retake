@@ -601,6 +601,16 @@ warning names them and the oldest is taken: narrow the filter. The message is wr
 inline images as data: URLs) and, after the capture, its HTML is rendered in a clean browser — JavaScript off,
 offline, a CSP blocking scripts and remote loads — at 600 px layout width, full height, 2× (`<as>.png`).
 
+**The mail's date is written like the filmed pages write dates.** A server dates its mails in its own zone (often UTC),
+while the filmed pages show times in the browser's: the captured mail records the time zone and locale the pages write
+dates in (`browser.timezone`, else the machine's zone; `browser.locale`, else the project `locale`, else what the
+page's browser says) and, on a run with a product clock (`clock:`), its date on that clock — what the pages'
+`new Date()` read at the instant the mail was sent. `studio/mail-view` writes the date in that zone, in that locale's
+medium date and short time ("Nov 17, 2026, 7:56 PM" for `en-US`, "17 nov. 2026, 19:56" for `fr-FR`); its `date` slot
+still wins. A take recorded before this shows the date as the mailbox gave it. With a product clock, a time the server
+wrote into a page (a payment's `created_at`) stays the real one while the card follows the clock: when a page shows
+such a time next to the mail, leave the clock out or set the card's `date` slot.
+
 **`download: {click, as, timeout?}`** clicks the target for real (the cursor travels and clicks) and captures what the
 click produces: the browser's download event, or a document opened in a new tab — fetched with the page's request
 context (the session's cookies), the tab then closed so the recording stays on the page. The file lands in
@@ -655,7 +665,7 @@ stays on screen to the last frame (no exit animation), so a **tap-open** transit
 |---|---|---|
 | `studio/notification` | overlay | a system notification — `style: macos \| windows \| ios-banner \| android \| in-app` (the last in the theme's own look) — with icon, app, title, body, time; macOS / Windows in the frame corner, the others over the capture (`place: auto \| frame \| screen`), `appearance: auto \| light \| dark`; slides / rises / drops in like the real one. Slots `notification` (captured), `app`, `title`, `body`, `time`, `icon` |
 | `studio/mail-notification` | overlay | the same styles fed by an email: sender, subject, first line, a mail glyph on the accent. Slots `email`, `from`, `subject`, `preview`, `app`, `time`, `icon` |
-| `studio/mail-view` | card | a mail client window (toolbar, inbox column with the message selected, header with the sender's initials, date) over the rendered email, shown from its top (`scroll: none`, the default since L5.5; `auto` scrolls a tall one slowly), `width`, `sidebar`). Slots `email`, `from`, `address`, `subject`, `date`, `body`, `mailbox` |
+| `studio/mail-view` | card | a mail client window (toolbar, inbox column with the message selected, header with the sender's initials, date in the take's zone and locale) over the rendered email, shown from its top (`scroll: none`, the default since L5.5; `auto` scrolls a tall one slowly), `width`, `sidebar`). Slots `email`, `from`, `address`, `subject`, `date`, `body`, `mailbox` |
 | `studio/document-pdf` | card | A4 page(s) with a paper shadow on the theme background — `motion: zoom` (slow push-in to `focus`), `scroll` (pages scroll by) or `static` (a page, or two side by side); `pages: auto \| 2 \| 1-3 \| 1,3 \| all`. Slots `document`, `kicker`, `title` (a column beside the page) |
 | `studio/phone-lockscreen` | card | a phone (wallpaper from the theme), date and big time, notifications arriving one by one — newest on top, grouped by app; `notifications: [{app, title, body, time?, icon?}]`, `time`, `date`, `start`, `interval`, `layout: center \| left`. Slots `email`, `notification` (arrive last), `kicker`, `title` |
 | `studio/phone-home-badge` | card | a phone home screen whose app icon gets a badge counting up (`from`, `to`, `interval`, `row`, `col`, `badge: system \| accent`). Slots `app`, `icon`, `kicker`, `title` |

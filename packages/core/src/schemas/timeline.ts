@@ -90,14 +90,11 @@ const LoadingSchema = z
     page: z.string().optional(),
     until: z.enum(['paint', 'load', 'ready', 'limit', 'left', 'end']),
     held_frames: z.number().int().min(0),
-    same_document: z.literal(true).describe('A client-side route change of a step\'s click, press or Enter, held until the route was ready (until: ready) or 3 s.').optional(),
-    indicator: z
-      .strictObject({ t_start: t(), t_end: t() })
-      .describe('A route hold: when a loading indicator the route brought showed (absent: none did).')
-      .optional(),
+    same_document: z.literal(true).describe("A client-side route change of a step's click, press or Enter, held until the route was ready (until: ready) or 3 s.").optional(),
+    indicator: z.strictObject({ t_start: t(), t_end: t() }).describe('A route hold: when a loading indicator the route brought showed (absent: none did).').optional(),
   })
   .describe(
-    'A page load the capture did not show — a full-page load, or a client-side route change (same_document): the previous frame stayed on screen from the commit (the press\'s feedback, for a route) until the new page painted (the route was ready); no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
+    "A page load the capture did not show — a full-page load, or a client-side route change (same_document): the previous frame stayed on screen from the commit (the press's feedback, for a route) until the new page painted (the route was ready); no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).",
   );
 
 const StallSchema = z
@@ -232,7 +229,10 @@ const TimelineArtefactSchema = z
       from_name: z.string().optional(),
       to: z.array(z.string()),
       subject: z.string(),
-      date: z.string(),
+      date: z.string().describe("The mail's own date (ISO 8601, UTC), as the mailbox gave it."),
+      product_date: z.string().describe("The mail's date on the product's clock (a run with clock:): what the filmed pages read at that instant.").optional(),
+      timezone: z.string().max(64).describe("The IANA time zone the filmed page's browser wrote dates in when the mail was captured.").optional(),
+      locale: z.string().max(35).describe("The locale the filmed page's browser wrote dates in (BCP 47) when the mail was captured.").optional(),
       preview: z.string(),
       image: ArtefactImageSchema.optional(),
       persona: z.string().describe('The persona whose mailbox it was waited for in (to: persona:<name>).').optional(),
