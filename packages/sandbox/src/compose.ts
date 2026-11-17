@@ -26,13 +26,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { interpolateDeep } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { prefetchSecrets } from '@retake/core/io';
 import type { ExecStepSpec } from '@retake/core/sandbox';
-import { dockerEnv, firstErrorLine } from './docker.js';
+import { dockerEnv, failedBuildStep, firstErrorLine } from './docker.js';
+import { buildSecrets } from './build-secrets.js';
+import type { BuildSecrets } from './build-secrets.js';
 import type { DockerResult } from './docker.js';
 import { checkExecHosts, masker, sandboxSecrets } from './seed.js';
 import { SandboxError, interrupted } from './errors.js';
@@ -56,7 +58,7 @@ import type {
   UpResult,
 } from './provider.js';
 import { COMPOSE_HEALTH_TIMEOUT_S, STARTING_LINE, containerProblem, dataLocation, foreignListeners, indent, serviceProblems, waitTimeoutS } from './compose-parse.js';
-import type { PsEntry } from './compose-parse.js';
+import type { ComposeConfig, PsEntry } from './compose-parse.js';
 import { composeArgs, startedProgram } from './compose-project.js';
 import type { ComposeProjectRef, ComposeRecord } from './compose-project.js';
 import { EXEC_MARK, EXEC_TIMEOUT_S, KILL_EXEC_SCRIPT, ComposeRunner } from './compose-runner.js';
@@ -93,6 +95,29 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     await this.docker(ctx);
     const ref = this.ref(ctx);
     const cfg = await this.config(ctx, ref);
+    // The build secrets checked (and the ones this up needs resolved) before anything starts.
+    const secrets = await buildSecrets(ctx, ref, cfg, opts.build === true, {
+      hasImage: async (image) => (await this.run(['image', 'inspect', '--format', '{{.Id}}', image], { timeoutMs: 30_000, signal: ctx.signal })).code === 0,
+      configWith: async (env) => {
+        const r = await this.compose(ref, ['config', '--format', 'json'], { timeoutMs: 30_000, signal: ctx.signal, env });
+        if (r.aborted) throw interrupted(this.where(ctx));
+        if (r.code !== 0) throw new SandboxError(`${this.where(ctx)}: docker compose cannot read the compose files with compose.secrets: ${firstErrorLine(r)}`);
+        return r.stdout;
+      },
+      inherited: dockerEnv(this.policy, process.env, ref.envKeys, ref.pass),
+      agent: this.policy.agentFolders !== null,
+    });
+    try {
+      return await this.upChecked(ctx, opts, { t0, ref, cfg, secrets });
+    } catch (e) {
+      throw maskedError(e, secrets.mask);
+    }
+  }
+
+  /** up, once the compose files are read and the build secrets checked: every line and message masked with their values. */
+  private async upChecked(ctx: ProviderContext, opts: UpOptions, at: { t0: number; ref: ComposeProjectRef; cfg: ComposeConfig; secrets: BuildSecrets }): Promise<UpResult> {
+    const { t0, ref, cfg, secrets } = at;
+    const mask = secrets.mask;
     const before = await this.ps(ctx, ref);
     this.checkDeclaredPorts(ctx, cfg);
     // A name an earlier up used (compose.project changed since) still running: its containers hold the ports and data.
@@ -121,6 +146,8 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     const timeoutS = waitTimeoutS(ctx.sandbox);
     mkdirSync(ctx.paths.logs, { recursive: true });
     const upLog = join(ctx.paths.logs, 'compose-up.log');
+    // The previous up's log stays one more up (a failed build's output survives the next try).
+    if (existsSync(upLog)) renameSync(upLog, `${upLog}.1`);
     const args = ['up', '-d', '--wait', '--wait-timeout', String(timeoutS), '--remove-orphans', ...(opts.build ? ['--build'] : [])];
     writeFileSync(upLog, `── ${new Date().toISOString()} · retake sandbox ${ctx.sandbox.env} · docker ${composeArgs(ref).join(' ')} ${args.join(' ')}\n`);
     // One docker command builds, then starts and waits: its output says which it is doing (an image line, then the
@@ -128,9 +155,13 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     const waiting = `every service running and healthy, up to ${timeoutS} s`;
     let building = opts.build === true;
     ctx.progress?.step(building ? 'build' : 'start', building ? 'docker compose build' : waiting);
+    // A build's output in BuildKit's plain form (whatever BUILDKIT_PROGRESS the person set): the failing step is found in it.
+    const buildEnv: Record<string, string> = opts.build || secrets.built.length ? { BUILDKIT_PROGRESS: 'plain' } : {};
     const r = await this.compose(ref, args, {
       signal: ctx.signal,
-      onLine: (line) => {
+      env: { ...secrets.env, ...buildEnv },
+      onLine: (raw) => {
+        const line = mask(raw);
         appendFileSync(upLog, `${line}\n`);
         ctx.log('debug', line);
         if (building && STARTING_LINE.test(line)) {
@@ -147,9 +178,10 @@ export class ComposeProvider extends ComposeRunner implements Provider {
     const problems = serviceProblems(cfg.services, after);
     if (problems.length) {
       const why = r.code === 0 ? `not every service is running and healthy after ${timeoutS} s` : `docker compose up failed (${firstErrorLine(r)})`;
-      throw new SandboxError(await this.failure(ctx, ref, `${this.where(ctx)}: ${why}`, problems), 'unhealthy');
+      // The failed build step after the services' list (its "head:" line stays one line).
+      throw new SandboxError(`${await this.failure(ctx, ref, `${this.where(ctx)}: ${why}`, problems)}${r.code === 0 ? '' : buildStepText(r)}`, 'unhealthy');
     }
-    if (r.code !== 0) throw new SandboxError(`${this.where(ctx)}: docker compose up failed: ${firstErrorLine(r)} (log: ${shownPath(upLog)})`);
+    if (r.code !== 0) throw new SandboxError(`${this.where(ctx)}: docker compose up failed: ${firstErrorLine(r)} (log: ${shownPath(upLog)})${buildStepText(r)}`);
     const started = cfg.services.filter((s) => !after.some((e) => e.service === s && e.id === runningBefore.get(s)));
     this.started = started;
     await this.checkOwned(ctx, ref, after);
@@ -518,3 +550,21 @@ const SNAPSHOT_USE: OwnerUse = {
   what: "the snapshot's database",
   why: "a snapshot reset drops and recreates that database, so it must be the sandbox's own: publish the database's port in the compose file, or use strategy reseed",
 };
+
+/** the last lines of the BuildKit step that failed, indented after an error's first line ('' when no step failed). */
+function buildStepText(r: Pick<DockerResult, 'stdout' | 'stderr'>): string {
+  const step = failedBuildStep(`${r.stderr}\n${r.stdout}`);
+  return step?.length ? `\n— the build step that failed, its last lines:\n${indent(step.join('\n'))}` : '';
+}
+
+/** An error of an up, its message masked with the build secrets' values (a SandboxError keeps its code). */
+function maskedError(e: unknown, mask: (text: string) => string): unknown {
+  if (!(e instanceof Error)) return e;
+  const message = mask(e.message);
+  if (message === e.message) return e;
+  if (e instanceof SandboxError) return new SandboxError(message, e.code);
+  // The class's name is kept; the cause is dropped on purpose (it may hold the value unmasked).
+  const out = new Error(message);
+  out.name = e.name;
+  return out;
+}

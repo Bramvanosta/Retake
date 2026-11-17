@@ -12,7 +12,7 @@ import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { programProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
-import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
+import { cleanWorkerEnv, workerKeptNames } from '../src/jobs/worker-env.js';
 import { createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -65,6 +65,26 @@ describe('cleanWorkerEnv', () => {
     for (const k of Object.keys(dropped)) expect(env[k], k).toBeUndefined();
     expect([env.NORTHFIELD_SUPPLIER_PASSWORD, env.HOME, env.LANG]).toEqual(['kept', '/h', 'en_US.UTF-8']);
     expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
+  });
+
+  it("the names the person lists in RETAKE_WORKER_KEEP_ENV are kept — never a loader variable nor the MCP server's token", () => {
+    const env = cleanWorkerEnv(
+      {
+        RETAKE_WORKER_KEEP_ENV: 'NPM_TOKEN, GITHUB_TOKEN npm_config__authToken,RETAKE_MCP_TOKEN bad-name',
+        NPM_TOKEN: 'npm-token-1',
+        GITHUB_TOKEN: 'gh-token-1',
+        NODE_AUTH_TOKEN: 'not-listed',
+        npm_config__authToken: 'loader',
+        RETAKE_MCP_TOKEN: 'mcp',
+        PATH: '/usr/bin',
+      },
+      ws,
+      { node: '/n/bin/node', exists: () => false },
+    );
+    expect([env.NPM_TOKEN, env.GITHUB_TOKEN]).toEqual(['npm-token-1', 'gh-token-1']);
+    expect([env.NODE_AUTH_TOKEN, env.npm_config__authToken, env.RETAKE_MCP_TOKEN]).toEqual([undefined, undefined, undefined]);
+    expect(workerKeptNames(' NPM_TOKEN,,NPM_TOKEN  PNPM_HOME NODE_OPTIONS 1X ')).toEqual(['NPM_TOKEN']);
+    expect(workerKeptNames(undefined)).toEqual([]);
   });
 
   it('nothing that loads code from the workspace: NODE_OPTIONS files, NODE_PATH / DYLD_* / LD_* entries inside it or relative', () => {

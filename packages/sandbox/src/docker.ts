@@ -214,6 +214,30 @@ export function firstErrorLine(r: Pick<DockerResult, 'stderr' | 'stdout' | 'erro
   return r.error ?? lines.find((l) => /error|cannot|denied|not found|no such|invalid|failed/i.test(l)) ?? lines[lines.length - 1] ?? 'no output';
 }
 
+/** Lines of a failed build step quoted in an error. */
+export const BUILD_STEP_TAIL = 15;
+
+/**
+ * The last lines of the BuildKit step that failed in a `docker compose up --build` / `build` output: BuildKit's
+ * plain progress (no TTY, `--ansi never`) numbers each step (`#6 [api 3/9] RUN …`, `#6 2.41 <output>`,
+ * `#6 ERROR: …`). The step is the first one with an `ERROR:` line; its own lines are returned without the `#N` and
+ * timing prefix, at most `max`, ending with the error — the install's own message (a 401 of a registry) rather than
+ * only `failed to solve … exit code: 1`. Null when no step failed (the output is not a build's).
+ */
+export function failedBuildStep(output: string, max: number = BUILD_STEP_TAIL): string[] | null {
+  const lines = output.split(/\r?\n/);
+  const failed = lines.map((l) => /^#(\d+) ERROR: /.exec(l.trim())).find((m) => m !== null);
+  if (!failed) return null;
+  const id = failed[1];
+  const own = new RegExp(`^#${id} (?:\\d+(?:\\.\\d+)? )?(.*)$`);
+  const body: string[] = [];
+  for (const l of lines) {
+    const m = own.exec(l.trim());
+    if (m?.[1].trim() && !/^(?:DONE|CACHED|CANCELED)\b/.test(m[1])) body.push(m[1]);
+  }
+  return body.slice(-max);
+}
+
 export interface DockerInfo {
   bin: string;
   /** `docker compose version --short`. */

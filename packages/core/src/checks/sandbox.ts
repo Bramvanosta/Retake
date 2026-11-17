@@ -18,7 +18,7 @@ import { suggestion } from '../validation/suggest.js';
 import { CheckContext, isObj } from './context.js';
 import { RESERVED_PAGE_KEYS, clearTextPassword } from './project.js';
 import { checkAccounts, unmaskedPasswordReason, weakPasswordReason } from './sandbox-accounts.js';
-import { DEFAULT_COMPOSE_FILES, DIR_LABEL, checkEnvFile, checkRelative, composeServices } from './sandbox-files.js';
+import { DEFAULT_COMPOSE_FILES, DIR_LABEL, checkComposeSecrets, checkEnvFile, checkRelative, composeServices } from './sandbox-files.js';
 import { checkSteps } from './sandbox-steps.js';
 import type { Provider, SandboxPage, StepsContext } from './sandbox-steps.js';
 import { checkTokens } from './tokens.js';
@@ -191,8 +191,9 @@ function checkComposeFiles(value: Record<string, unknown>, provider: Provider, c
     const c = isObj(value.compose) ? value.compose : {};
     const written = Array.isArray(c.files);
     const files = written ? (c.files as unknown[]).filter((f): f is string => typeof f === 'string') : [...DEFAULT_COMPOSE_FILES];
-    composeNames = composeServices(files, written ? ['compose', 'files'] : ['provider'], written, ctx, profiled);
-    checkEnvFile(c, files, ctx);
+    const secretVars = new Set<string>();
+    composeNames = composeServices(files, written ? ['compose', 'files'] : ['provider'], written, ctx, { profiled, secretVars });
+    checkComposeSecrets(c, checkEnvFile(c, files, ctx), composeNames ? secretVars : undefined, ctx);
   }
   return { composeNames, profiled };
 }
