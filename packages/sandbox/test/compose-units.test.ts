@@ -30,7 +30,7 @@ import {
   KILL_EXEC_SCRIPT,
   connectAddress,
   foreignListeners,
-  dataMount,
+  dataLocation,
   parseComposeConfig,
   parseLabels,
   parseDockerPs,
@@ -226,17 +226,51 @@ describe('compose project, argv and output parsing', () => {
     expect(cfg.images).toEqual({ app: 'proj-app', db: 'postgres:17-alpine' });
   });
 
-  it("reads depends_on (list and map forms) and where a database container keeps its data", () => {
+  it('reads depends_on (list and map forms) and where a database container keeps its data', () => {
     const cfg = parseComposeConfig(
       JSON.stringify({ services: { app: { depends_on: { db: { condition: 'service_healthy' }, cache: {} } }, worker: { depends_on: ['app'] }, db: {}, cache: {} } }),
       'proj',
     );
     expect(cfg.depends).toEqual({ app: ['db', 'cache'], worker: ['app'] });
-    const mounts = (m: object[]) => JSON.stringify(m);
-    expect(dataMount(mounts([{ Type: 'volume', Name: 'proj_pgdata', Destination: '/var/lib/postgresql/data' }]))).toEqual({ type: 'volume', name: 'proj_pgdata' });
-    expect(dataMount(mounts([{ Type: 'bind', Source: '/srv/pg', Destination: '/var/lib/postgresql' }]))).toEqual({ type: 'bind', name: '/srv/pg' });
-    expect(dataMount(mounts([{ Type: 'bind', Source: '/srv/seed', Destination: '/docker-entrypoint-initdb.d' }]))).toBeNull();
-    expect(dataMount('not json')).toBeNull();
+    const mounts = (m: object[], o: { tmpfs?: Record<string, string>; env?: string[] } = {}) => JSON.stringify([{ Mounts: m, HostConfig: { Tmpfs: o.tmpfs ?? null }, Config: { Env: o.env ?? [] } }]);
+    expect(dataLocation(mounts([{ Type: 'volume', Name: 'proj_pgdata', Destination: '/var/lib/postgresql/data' }]))).toEqual({ type: 'volume', name: 'proj_pgdata' });
+    expect(dataLocation(mounts([{ Type: 'bind', Source: '/srv/pg', Destination: '/var/lib/postgresql' }]))).toEqual({ type: 'bind', name: '/srv/pg' });
+    expect(dataLocation(mounts([{ Type: 'bind', Source: '/srv/seed', Destination: '/docker-entrypoint-initdb.d' }]))).toBeNull();
+    expect(dataLocation('not json')).toBeNull();
+  });
+
+  it("FB-31: a tmpfs or the container's own layer is where the data goes with the container; PGDATA decides which mount holds it", () => {
+    const inspect = (m: object[], o: { tmpfs?: Record<string, string>; env?: string[] } = {}) => JSON.stringify([{ Mounts: m, HostConfig: { Tmpfs: o.tmpfs ?? null }, Config: { Env: o.env ?? [] } }]);
+    const official = ['PATH=/usr/bin', 'PGDATA=/var/lib/postgresql/data'];
+    // compose `tmpfs: [/var/lib/postgresql/data]`: not in .Mounts, in HostConfig.Tmpfs (and no anonymous volume).
+    expect(dataLocation(inspect([], { tmpfs: { '/var/lib/postgresql/data': '' }, env: official }))).toEqual({ type: 'tmpfs', dir: '/var/lib/postgresql/data' });
+    // A `type: tmpfs` mount (long syntax, --mount) is listed in .Mounts.
+    expect(dataLocation(inspect([{ Type: 'tmpfs', Destination: '/var/lib/postgresql/data' }], { env: official }))).toEqual({ type: 'tmpfs', dir: '/var/lib/postgresql/data' });
+    // Nothing over the PGDATA the image declares: the container's own layer.
+    expect(dataLocation(inspect([{ Type: 'bind', Source: '/srv/seed', Destination: '/docker-entrypoint-initdb.d' }], { env: official }))).toEqual({
+      type: 'container',
+      dir: '/var/lib/postgresql/data',
+    });
+    // Postgres 18's image: PGDATA under /var/lib/postgresql/18, its anonymous volume on /var/lib/postgresql — a tmpfs
+    // on the old /data path does not hold the data.
+    const pg18 = ['PGDATA=/var/lib/postgresql/18/docker'];
+    expect(dataLocation(inspect([{ Type: 'volume', Name: 'a'.repeat(64), Destination: '/var/lib/postgresql' }], { tmpfs: { '/var/lib/postgresql/data': '' }, env: pg18 }))).toEqual({
+      type: 'volume',
+      name: 'a'.repeat(64),
+    });
+    // The deepest mount over the data folder wins.
+    expect(dataLocation(inspect([{ Type: 'volume', Name: 'proj_root', Destination: '/var/lib/postgresql' }], { tmpfs: { '/var/lib/postgresql/18/docker': 'size=1g' }, env: pg18 }))).toEqual({
+      type: 'tmpfs',
+      dir: '/var/lib/postgresql/18/docker',
+    });
+    // A volume and a tmpfs on the same folder: the tmpfs hides the volume.
+    expect(dataLocation(inspect([{ Type: 'volume', Name: 'proj_pgdata', Destination: '/var/lib/postgresql/data' }], { tmpfs: { '/var/lib/postgresql/data': '' }, env: official }))).toEqual({
+      type: 'tmpfs',
+      dir: '/var/lib/postgresql/data',
+    });
+    // A custom image without PGDATA and nothing under /var/lib/postgresql: not known, never taken for the container's layer.
+    expect(dataLocation(inspect([{ Type: 'volume', Name: 'proj_data', Destination: '/data' }]))).toBeNull();
+    expect(dataLocation(inspect([], { tmpfs: { '/var/lib/postgresql/data': '' } }))).toEqual({ type: 'tmpfs', dir: '/var/lib/postgresql/data' });
   });
 
   it('judges containers by state and health, never by the exit code of up --wait', () => {

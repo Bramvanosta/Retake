@@ -18,7 +18,9 @@ hooks. Every URL of a sandbox is on this machine.
 outdated: the next reset restores the base — the database as it was before its first seed — and seeds again, never
 on what a take left. A sandbox snapshotted before it kept a base seeds from its outdated snapshot and says how to get
 one (`retake sandbox down … --volumes`, then `up`: the user's, in their terminal; it deletes every volume of the
-sandbox). `sandbox_status` says what the next reset does.
+sandbox). `sandbox_status` says what the next reset does. A database in memory (`tmpfs:`), in its container's own
+layer or in an anonymous volume loses its data at every `down`: Retake forgets its seed, and a new Postgres cluster
+there is seeded again by the next reset. When it cannot tell, the user runs `retake sandbox down … --volumes --forget`.
 
 ## The product's own dev server (provider `process`)
 
