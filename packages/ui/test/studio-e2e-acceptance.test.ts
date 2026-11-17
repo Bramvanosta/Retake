@@ -45,6 +45,14 @@ import { hasTool } from '@retake/test-support/repo';
 import { linkSharedCache } from '@retake/test-support/render';
 import { auditPage, formatFindings, settle } from './a11y.js';
 import { scratchHome } from '@retake/test-support/home';
+import { readNamedRender } from '@retake/core/io';
+/** A render record as the readers hand it: its paths absolute (core record-paths.ts; on the disk, relative to renders/). */
+async function recordOf(file: string): Promise<RenderRecord> {
+  const entry = await readNamedRender(file);
+  if (!entry.read.ok) throw new Error(`${file}: ${entry.read.problem}`);
+  return entry.read.value as unknown as RenderRecord;
+}
+
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_SLOW === '1' && process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -380,7 +388,8 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     await page.getByTestId('render-open-review').click();
     await page.waitForURL(`**#/p/${P}/s/${S}/review/${S}-v1`);
     await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);
-    const v1 = JSON.parse(await readFile(join(dir, 'renders', `${S}-v1.json`), 'utf8')) as RenderRecord;
+    // The record as the readers hand it: its paths absolute (on the disk, relative to renders/).
+    const v1 = await recordOf(join(dir, 'renders', `${S}-v1.json`));
     expect(v1).toMatchObject({ status: 'succeeded', run_id: ids.capture, edit: { from: 'scenario', sha256: sha(text1) } });
     timings.push(`v1: ${v1.frames} frames, ${v1.width}×${v1.height}; verdict "${await page.getByTestId('review-verdict').innerText()}"`);
     await page.goBack();

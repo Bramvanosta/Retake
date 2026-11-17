@@ -177,6 +177,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** (2026-11-16; first committed on its work branch with `engine-entries.test.ts` red, repaired by L8.2b before main; no live Firebase Auth emulator take, `sandbox-docker.test.ts` not run: MACOS-CHECKLIST §18) |
 | L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** (2026-11-16; `retake env` on a real project and a real app's route by hand: MACOS-CHECKLIST §19) |
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
+| L9.1 | Records with project-relative paths (field feedback 2, point 32): run, render and review records write the paths of the project's files relative to their own folder, older absolute records read where they now lie, render records at format version 2, MCP checks only the files each reader opens | M | **done** (2026-11-17) |
+| L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | todo |
+| L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | todo |
+| L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | todo |
+| L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | todo |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1446,6 +1451,15 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   COMMANDS registry (every key cap derived from it) compared with menu.rs; Help › Keyboard Shortcuts, ⌘, on Set Up,
   File › Show Workspace in Finder; context menus on the Productions posters behind a real secondary click.
   Requirements R-DSK-05 – R-DSK-07 (R-DSK-03's gap); by hand: MACOS-CHECKLIST 14h.
+
+### L9.1 — Records with project-relative paths (M; decided 2026-11-17)
+- **Goal:** a project folder copied to another workspace or another Mac renders its copied runs and reviews and
+  exports its copied renders (`docs/FIELD-FEEDBACK-2.md` point 32, the first of five lots L9.1 – L9.5).
+- **Done (2026-11-17):** run.json, render records and review reports write the paths of the project's files relative
+  to their own folder (core `record-paths.ts`; DESIGN §3.5 "Paths in records"); older absolute records are rebased
+  where they now lie, never rewritten; a relative path climbing out of its bound reads as missing; render records at
+  format version 2 (0.3.0 refuses them with its newer-format sentence); MCP checks only what each reader opens.
+  Requirements R-SHR-01 – R-SHR-05.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

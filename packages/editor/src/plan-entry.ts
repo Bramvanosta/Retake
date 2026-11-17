@@ -72,6 +72,7 @@ export type {
 } from './timeline.js';
 export { withPlan } from './render-record.js';
 export { RENDER_ENCODING, audioOf, recordPathProblem, sceneCaptions } from './render-fields.js';
+export type { RecordPathRefusal, RecordReads } from './render-fields.js';
 export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './theme-hash.js';
 export type { ThemeFiles } from './theme-hash.js';
 export type { FinishedRender, NamedRender, RenderAttempt, RenderRecord, StoredRender } from './render-record.js';

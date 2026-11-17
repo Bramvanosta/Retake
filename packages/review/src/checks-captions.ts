@@ -9,10 +9,17 @@ import { finding, locate } from './checks-base.js';
 import type { Finding } from './types.js';
 import { isClip, segmentLabel, spanAt } from './spans.js';
 
-/** Faces of the plan's theme fonts: CSS family + weight → file (through plan.assets). */
+/**
+ * Faces of the plan's theme fonts: CSS family + weight → file, through plan.assets only — a face whose url is no asset
+ * of the plan is not measured (a url is never taken for a path: a record's text could name any file, relative to any
+ * folder).
+ */
 export function planFontFiles(plan: EditPlan): Array<{ family: string; weight: number | [number, number]; style: 'normal' | 'italic'; file: string }> {
   const faces = plan.brand.tokens.font_faces ?? [];
-  return faces.map((f) => ({ family: f.family, weight: f.weight, style: f.style, file: plan.assets[f.url] ?? f.url })).filter((f) => !isPlanAssetUrl(f.file));
+  return faces.flatMap((f) => {
+    const file = isPlanAssetUrl(f.url) && Object.hasOwn(plan.assets, f.url) ? plan.assets[f.url] : undefined;
+    return typeof file === 'string' && file !== '' && !isPlanAssetUrl(file) ? [{ family: f.family, weight: f.weight, style: f.style, file }] : [];
+  });
 }
 
 interface CaptionFit {

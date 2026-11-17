@@ -134,7 +134,7 @@ async function writeRender(id: string, version: number, plan: EditPlan, o: { edi
   bitsRender(file, plan.durationInFrames, plan.width, plan.height, plan.fps);
   const at = new Date(Date.parse('2026-01-01T13:00:00.000Z') + o.minute * 60_000).toISOString();
   const record: RenderRecord = {
-    version: 1,
+    version: 2,
     id,
     project: 'demo',
     scenario: 'bits',

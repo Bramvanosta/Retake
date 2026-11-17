@@ -16,7 +16,7 @@ import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor/plan';
 import type { EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import { segmentSpans } from '@retake/review/checks';
-import { PERSON_POLICY } from '@retake/core';
+import { PERSON_POLICY, renderRecordOnDisk } from '@retake/core';
 import { REPO } from './repo.js';
 import { synthTimeline } from './timeline.js';
 import type { SceneSpec } from './timeline.js';
@@ -192,7 +192,7 @@ export async function makeCase(ws: Workspace, name: string, timeline: Timeline, 
   else drawRender(plan, file, opts.draw);
   clock += 60_000;
   const record: RenderRecord = {
-    version: 1,
+    version: 2,
     id,
     project: 'demo',
     scenario: name,
@@ -221,7 +221,8 @@ export async function makeCase(ws: Workspace, name: string, timeline: Timeline, 
     warnings: [],
     plan,
   };
-  await writeFile(record.record, JSON.stringify(record, null, 2));
+  // As the render writer puts it on the disk (core record-paths.ts: relative inside the project).
+  await writeFile(record.record, JSON.stringify(renderRecordOnDisk(record, { file: record.record, project: ws.project.dir }), null, 2));
   return { record, plan, timeline: run.timeline, run };
 }
 

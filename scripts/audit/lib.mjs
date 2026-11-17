@@ -578,6 +578,7 @@ export const CORE_CONTEXTS = [
       'dates',
       'line-diff',
       'path-inside',
+      'record-paths',
       'templating',
       'sql-text',
       'shell-words',

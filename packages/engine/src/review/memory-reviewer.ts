@@ -25,7 +25,7 @@ import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@reta
 import { MEMORY_PNG } from '../render/memory-renderer.js';
 import type { OutputFolder, Outputs } from '../outputs/outputs.js';
 import type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './reviewer.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, reportOnDisk } from '@retake/core/base';
 
 /** A 1 × 1 black JPEG. */
 export const MEMORY_JPEG = Buffer.from(
@@ -218,7 +218,8 @@ export class MemoryReviewer implements Reviewer {
       };
       result.review.ms = Math.round(performance.now() - started);
       await files.write(join(tmpDir, 'timeline.json'), '{}\n');
-      await files.write(join(tmpDir, 'report.json'), `${JSON.stringify(result, null, 2)}\n`);
+      // As the review package writes it: its paths against the FINAL folder (core record-paths.ts).
+      await files.write(join(tmpDir, 'report.json'), `${JSON.stringify(reportOnDisk(result, { folder: finalDir, project: project.dir }), null, 2)}\n`);
       await files.write(join(tmpDir, 'report.md'), `# Review of ${name}\n\n${findings.length} findings\n`);
       // Swapped in as the review package does: the previous review set aside, then removed. Cancelled before: kept.
       check();

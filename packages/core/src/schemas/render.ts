@@ -36,7 +36,9 @@ function renderRecordSchemas(object: ObjectOf, lax: boolean) {
   const flag = () => (lax ? (z.boolean() as unknown as z.ZodLiteral<true>) : z.literal(true));
   const opt = <S extends z.ZodType>(schema: S) => (lax ? (schema.optional() as unknown as S) : schema);
   const base = {
-    version: z.literal(1),
+    // What this version writes is version 2 (paths relative to the record's folder: core record-paths.ts); what a disk
+    // holds is 1 or 2 (core parseRenderRecord refuses a higher one first, with its sentence).
+    version: lax ? (z.union([z.literal(1), z.literal(2)]) as unknown as z.ZodLiteral<2>) : z.literal(2),
     id: z.string(),
     project: z.string(),
     scenario: z.string(),

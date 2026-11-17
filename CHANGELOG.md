@@ -6,6 +6,11 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Changed
+- Run, render and review records write the paths of a project's files relative to their own folder, so a project
+  folder copied to another workspace or another Mac renders, reviews and exports its copied captures and renders. Render
+  records move to format version 2: Retake 0.3.0 refuses them and asks to be updated (L9.1).
+
 ## [0.3.0] — 2026-11-16
 
 The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,

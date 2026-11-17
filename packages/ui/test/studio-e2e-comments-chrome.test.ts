@@ -36,6 +36,14 @@ import { REPO } from '@retake/test-support/repo';
 import { hasTool } from '@retake/test-support/repo';
 import { linkSharedCache } from '@retake/test-support/render';
 import { scratchHome } from '@retake/test-support/home';
+import { readNamedRender } from '@retake/core/io';
+/** A render record as the readers hand it: its paths absolute (core record-paths.ts; on the disk, relative to renders/). */
+async function recordOf(file: string): Promise<RenderRecord> {
+  const entry = await readNamedRender(file);
+  if (!entry.read.ok) throw new Error(`${file}: ${entry.read.problem}`);
+  return entry.read.value as unknown as RenderRecord;
+}
+
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -211,7 +219,8 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await page.getByTestId('render').click();
     await expect.poll(() => page.getByTestId('render-job').getAttribute('data-state'), POLL).toBe('queued');
     const renderMs = await work('render v1');
-    const v1 = JSON.parse(await readFile(join(dir, 'renders', `${S}-v1.json`), 'utf8')) as RenderRecord;
+    // The record as the readers hand it: its paths absolute (on the disk, relative to renders/).
+    const v1 = await recordOf(join(dir, 'renders', `${S}-v1.json`));
     expect(v1).toMatchObject({ status: 'succeeded', run_id: ids.run, variant: 'landscape', overrides: {} });
     console.log(`fixture ${S}: capture ${captureMs} ms; render + review v1 ${renderMs} ms (${v1.frames} frames, ${v1.width}×${v1.height}, ${v1.fps} fps)`);
 
@@ -343,7 +352,8 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
   }, 900_000);
 
   it("the viewer's frame latency on the real render and on a 4K copy; the sidebar stays put in a real scroll", async () => {
-    const v1 = JSON.parse(await readFile(join(dir, 'renders', `${S}-v1.json`), 'utf8')) as RenderRecord;
+    // The record as the readers hand it: its paths absolute (on the disk, relative to renders/).
+    const v1 = await recordOf(join(dir, 'renders', `${S}-v1.json`));
     // A 4K copy of v1 as a render of its own: x264 with its default GOP (keyframes up to 250 frames apart) and B-frames.
     const id4k = `${S}-v3`;
     const file4k = join(dir, 'renders', `${id4k}.mp4`);
