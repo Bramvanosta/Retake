@@ -2,6 +2,8 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
+Last updated: 2026-11-17, L8.4 on its branch (a pull request against `main`); **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
+
 Last updated: 2026-11-17, **L5.3** (the iOS Simulator runner, pull request on `claude/l5-3-ios-runner-8cf14c`); before that 2026-11-16, **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
@@ -87,6 +89,40 @@ automatically with themeable components, and let Claude operate everything throu
 Each lot adds its "State (after <lot>)" section here, above the previous one: newest first (the lead's register helper
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
+
+## State (after L8.4)
+- **L8.4 done (2026-11-17; branch `claude/fb-30-build-secrets-aaf6fb`, a pull request against `main`)** — a
+  docker-compose sandbox's build secrets (field feedback 2, point 30: an image installing a private package failed
+  from `sandbox_up` over MCP, the job's docker having none of the shell's tokens, docker compose passing the secret
+  empty without a word, the error cut at `exit code: 1):`).
+  - sandbox.yaml `compose.secrets: {NAME: "{{keychain:…}}" | "{{env:…}}" | false}` (core schema, types, checks:
+    one reference or `false` per name; loader variables, the settings of docker / buildx / BuildKit / compose / SSH /
+    XDG and the system's own names refused; a name the env file sets refused; a name no compose secret reads warned).
+  - sandbox `build-secrets.ts`, run by `up` after `config`: a name must be read by a service's `build.secrets`, never
+    mounted by a running container, and placed nowhere else — `config` is read once more with a marker value per name
+    (a container's `environment`, a build argument, any `${NAME}` refuse). The services the up builds (`--build`,
+    `pull_policy: build`, a missing image — docker compose builds a `never` one too, probed) give the variables needed;
+    only those references are resolved; each must be non-empty for docker compose (declared, env file, inherited) and
+    at least 3 characters, else refused before anything starts, the message leading with the keychain (and, for a
+    job, `RETAKE_WORKER_KEEP_ENV`), one hint a line. The values go in the environment of the `up` command alone;
+    `BUILDKIT_PROGRESS=plain` on a building up; every line (compose-up.log, debug, live note) and every message of
+    the up masked; the failing BuildKit step's last lines (`failedBuildStep`, 15) end the message, after the services'
+    list; `compose-up.log` rotated to `.1`.
+  - Engine `worker-env.ts`: `RETAKE_WORKER_KEEP_ENV` (the client's environment: the person's profile) keeps the dropped
+    names it lists, never a loader variable nor `RETAKE_MCP_TOKEN`. MCP `sandbox_up`'s text says where a build secret
+    comes from (tool-list golden rewritten).
+  - Probed on this Mac (OrbStack, compose 5.5.0): an unset or empty secret variable is passed empty silently; the env
+    file feeds secrets; `config --format json` lists `secrets.<id>.environment` and fills a bare `environment:` /
+    `build.args` entry from the environment; a changed secret does not invalidate BuildKit's cache; `pull_policy:
+    never` is built under `--build` and when the image is missing; the error line the field saw is `failure()`'s
+    `head:` after `exit code: 1)`.
+  - Acceptance: a real jobs worker through `createEngine` as an MCP client (refused without the keep list, built with
+    it, the token in no file of the workspace) and `packages/sandbox/test/build-secrets-docker.test.ts`
+    (`RETAKE_TEST_DOCKER=1`, busybox). Requirement R-SBX-14; mutations 19, all caught. Plan, critique and the two
+    reviews: their findings all fixed (the leaks a bare `environment:` / `build.args` / runtime mount would open, the
+    `never` pull policy, optional secrets, the long messages, the keep list's reach written down).
+  - Left for the person: MACOS-CHECKLIST §21 (the keychain from the Studio and the app opened from the Finder,
+    `{{env:}}` with the keep list through Claude, a real private registry's 401 in the message).
 
 ## State (after FB-31)
 - **FB-31 done (2026-11-17; branch `claude/fb-31-tmpfs-78a094`, a pull request, not merged; lot or hotfix not

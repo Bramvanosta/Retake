@@ -6,6 +6,22 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Added
+- A docker-compose sandbox's build secrets: sandbox.yaml `compose.secrets: {NPM_TOKEN: "{{keychain:…}}"}` (or
+  `"{{env:NPM_TOKEN}}"`) gives an image's build the private registry token its compose file reads through a build
+  secret (`secrets: {<id>: {environment: …}}`, `RUN --mount=type=secret`) — from a terminal, the Studio, the app and
+  Claude alike. Read only when an up builds, handed to that `docker compose up` alone, masked in its log and messages.
+- `RETAKE_WORKER_KEEP_ENV=NPM_TOKEN` (in your shell profile, beside the token): a jobs worker started by the Studio or
+  Claude keeps those tokens, which it otherwise drops.
+- `retake sandbox down --forget`: forget the sandbox's seed, reset and snapshot records (nothing is deleted), for data
+  you know is gone or disposable. `retake sandbox status` says where the database keeps its data when it is memory or
+  the container's own layer.
+
+### Changed
+- An up that would build with an empty build secret is refused before anything is built, naming the service, the
+  secret and the variable (docker compose passes it empty without a word). A failed build's message ends with the last
+  lines of the step that failed (the install's own error), and the previous up's log stays as `compose-up.log.1`.
+
 ### Fixed
 - The mail card (`studio/mail-view`) writes a captured mail's date the way the filmed pages write dates — in the
   take's browser time zone and locale ("Nov 17, 2026, 7:56 PM" for `en-US`), and on the product clock when the
@@ -20,11 +36,6 @@ release — for the person about to click Install and Restart.
   volume, only when it is empty: a database restored from a dump is still refused rather than frozen into the base).
 - A refused reset proposes the command that works for where the database keeps its data: `--volumes` for a volume,
   a plain `down` for memory or the container's own layer, `--volumes --forget` when Retake cannot tell.
-
-### Added
-- `retake sandbox down --forget`: forget the sandbox's seed, reset and snapshot records (nothing is deleted), for data
-  you know is gone or disposable. `retake sandbox status` says where the database keeps its data when it is memory or
-  the container's own layer.
 
 ## [0.3.0] — 2026-11-16
 

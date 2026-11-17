@@ -96,7 +96,18 @@ export interface SandboxManifest {
    * env file docker compose reads its `${VAR}` values from (default `.env` next to the first compose file when there is
    * one; `false`: none).
    */
-  compose?: { files?: string[]; project?: string; env_file?: string | false };
+  compose?: {
+    files?: string[];
+    project?: string;
+    env_file?: string | false;
+    /**
+     * Field feedback 2, point 30: the variables a compose file's build secrets read (`secrets.<id>.environment`), each
+     * one secret reference ({{env:VAR}} / {{keychain:service/account}}) resolved by Retake when an up builds and handed
+     * to that `docker compose up` alone, masked wherever they could appear; `false`: an optional build secret (an up
+     * never refuses it empty).
+     */
+    secrets?: Record<string, string | false>;
+  };
   services: Record<string, SandboxService>;
   /** The steps that build the demo data (paths relative to sandbox.yaml). */
   seed?: SeedStep[];

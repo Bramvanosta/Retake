@@ -121,6 +121,12 @@ export const SandboxFileSchema = z
             'The env file docker compose reads `${VAR}` values from (image versions, settings), relative to sandbox.yaml; default .env next to the first compose file when there is one; false: none.',
           )
           .optional(),
+        secrets: z
+          .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: 'a variable name is letters, digits and "_", not starting with a digit' }), z.union([nonEmpty(), z.literal(false)]))
+          .describe(
+            'The variables the build secrets of the compose files read (`secrets.<id>.environment`, mounted by a `build.secrets`, `RUN --mount=type=secret`), each one secret reference ({{env:VAR}} or {{keychain:service/account}}) handed to the `docker compose up` that builds, and masked; false: an optional build secret, which may stay empty. An empty build secret is refused before the build.',
+          )
+          .optional(),
       })
       .describe('docker-compose only.')
       .optional(),
