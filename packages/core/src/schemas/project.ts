@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
+import { iosAppError, iosSchemeError } from '../env.js';
 import { ENVIRONMENT_ACCESS, SANDBOX_PROVIDERS } from '../types/environment.js';
 import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types/project.js';
 import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_FFMPEG_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
@@ -92,16 +93,37 @@ const LongEnvironmentSchema = z.strictObject({
   read_only: ReadOnlySchema.optional(),
 });
 
-/** One environment: the page map (short form), or {production, access, pages, read_only} (long form). */
+/** Settings this version does not read yet: written, they are an error of checkProject ("not supported yet"). */
+const notYet = (what: string) => z.unknown().describe(`Not supported yet: ${what}.`).optional();
+
+/** `ios:` of an iOS environment: the app, the device type, the deep-link schemes. */
+export const IosSettingsSchema = z.strictObject({
+  app: checkedString(iosAppError).describe('The simulator build (.app) relative to the project dir (or absolute), or the bundle id of an app installed on the device (com.example.app).'),
+  device: nonEmpty().describe('The device type, as `xcrun simctl list devicetypes` names it, e.g. "iPhone 17 Pro" (the run makes a simulator of its own of it).'),
+  schemes: z.array(checkedString(iosSchemeError)).describe('The URL schemes `open:` may use (deep links into the app: `<scheme>://…`); none: `open:` is refused.').optional(),
+  runtime: notYet('the newest iOS runtime of the device type is used'),
+  appearance: notYet('the simulator keeps its own light or dark appearance'),
+  reset: notYet('the app is installed again for each take, its data kept'),
+});
+
+/** An iOS environment: the app filmed in the iOS Simulator (no pages; never production, always read-write). */
+const IosEnvironmentSchema = z.strictObject({
+  ios: IosSettingsSchema.describe('An iOS environment: the app filmed in the iOS Simulator. It has no pages, is never production and always read-write.'),
+});
+
+/**
+ * One environment: the page map (short form), {production, access, pages, read_only} (long form), or {ios} (an iOS
+ * environment; a page named `ios` with a URL is still a page: the union takes the branch that fits).
+ */
 const EnvironmentSchema = keyedUnion(
-  [LongEnvironmentSchema, PagesSchema],
+  [LongEnvironmentSchema, IosEnvironmentSchema, PagesSchema],
   {
     noun: 'environment',
     label: 'environment form',
-    keys: ['pages'],
+    keys: ['pages', 'ios'],
     common: [],
-    fallback: 1,
-    example: 'page keys and URLs such as "console: https://console.staging.example.com", or "pages:" with production / access',
+    fallback: 2,
+    example: 'page keys and URLs such as "console: https://console.staging.example.com", "pages:" with production / access, or "ios:" with app and device',
     misplaced: {
       keys: ['production', 'access', 'read_only'],
       message: (key, path) =>
@@ -110,7 +132,7 @@ const EnvironmentSchema = keyedUnion(
   },
   {
     id: 'Environment',
-    description: 'page key → base URL (or {url, display}); or the long form {production, access, pages, read_only}.',
+    description: 'page key → base URL (or {url, display}); the long form {production, access, pages, read_only}; or an iOS environment {ios: {app, device, schemes}}.',
   },
 );
 
@@ -140,6 +162,7 @@ const EnvironmentSettingsSchema = z.strictObject({
   sandbox: z.strictObject({ file: nonEmpty(), provider: z.enum(SANDBOX_PROVIDERS) }).optional(),
   mailbox: MailboxSchema.optional(),
   databases: DatabasesSchema.optional(),
+  ios: z.strictObject({ app: nonEmpty(), device: z.string(), schemes: z.array(nonEmpty()).optional() }).optional(),
 });
 
 const projectShape = {

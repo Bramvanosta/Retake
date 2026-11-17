@@ -69,6 +69,34 @@
           "type": "string",
           "const": "hidden",
           "description": "Captured without the in-page cursor (raw export for editors)."
+        },
+        "device": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ios"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "type": "string",
+              "minLength": 1
+            },
+            "xcode": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "runtime"
+          ],
+          "additionalProperties": false,
+          "description": "The device the take was filmed on (an iOS Simulator): width and height are its screen in points, scale its pixels per point."
         }
       },
       "required": [
@@ -253,6 +281,11 @@
         },
         "frame": {
           "$ref": "#/$defs/Frame"
+        },
+        "frame_default": {
+          "type": "boolean",
+          "const": true,
+          "description": "A device's take whose scenario and project write no frame: the edit frames it as a phone."
         },
         "template": {
           "type": "string"

@@ -828,6 +828,11 @@ export interface TimelineVideo {
   outro?: false | OutroSpec;
   /** Effective default frame of the video: scenario `frame`, else the project `frame` (default 'card'). */
   frame?: FrameSpec;
+  /**
+   * A device's take whose scenario and project write no `frame` (the frame is the default): the edit frames it as a
+   * phone. Absent when a frame was written, even `card`.
+   */
+  frame_default?: true;
   /** Template the run used (name or path). */
   template?: string;
   music?: MusicSpec;

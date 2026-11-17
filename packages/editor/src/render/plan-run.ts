@@ -268,8 +268,13 @@ export function editOfToday({
   if (since.filmed.length > 0) return asCaptured({ from: 'run', scenario_changed: true, filmed_changes: since.filmed });
   const sha256 = createHash('sha256').update(since.now).digest('hex');
   const file = since.file;
-  const now = parseScenario(since.now, { files, file, project });
-  const then = parseScenario(since.then);
+  // A device's take (an iOS environment) is read with its project and the environment it was filmed on: its deep
+  // links and steps are that environment's, which a scenario read alone, or with the project's default (web)
+  // environment, refuses — today's scenario and the snapshot alike.
+  const env = envName ?? captured.environment?.name;
+  const onDevice = captured.capture.device ? { project, files, ...(env !== undefined ? { env } : {}) } : null;
+  const now = parseScenario(since.now, { files, file, project, ...(onDevice && env !== undefined ? { env } : {}) });
+  const then = parseScenario(since.then, onDevice ?? {});
   if (!now.scenario) {
     const reason = `today's scenario ${captured.scenario} does not validate: the render shows the edit of run ${run.id} as captured — ${issuesMessage('scenario', now.issues, file).split('\n').slice(0, 4).join(' ')}`;
     return asCaptured({ from: 'run', scenario_changed: false, filmed_changes: [], reason }, [reason]);

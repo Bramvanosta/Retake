@@ -46,6 +46,7 @@ import { realPathOf } from './real-path.js';
 
 export * from './agent-env.js';
 export * from './browser-switches.js';
+export * from './ios-app.js';
 export * from './navigation-policy.js';
 export { realPathOf } from './real-path.js';
 export * from './work-policy.js';

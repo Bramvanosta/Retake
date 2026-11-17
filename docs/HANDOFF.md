@@ -2,7 +2,7 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-16, **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
+Last updated: 2026-11-17, **L5.3** (the iOS Simulator runner, pull request on `claude/l5-3-ios-runner-8cf14c`); before that 2026-11-16, **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
 v0.2.1 – v0.2.6, the lot log, the evidence per lot, the notes per lot and the trust rules in them, the cloud
@@ -11,8 +11,8 @@ container, the earlier heads of this file — under their original headings, so 
 
 ## Where things stand
 - **Phases 1 – 4 are done** (phases 3 – 4 pending the user's live runs, MACOS-CHECKLIST 12c – 12j and 13a – 13j);
-  **phase 5 is under way** (L5.1, L5.2, L5.2b, L5.5 – L5.18 done: the « Épure » Studio, the name Retake, the standalone
-  app and its releases, captures first, renders on the GPU, the two hardening lots). The architecture series
+  **phase 5 is under way** (L5.1, L5.2, L5.2b, L5.3, L5.5 – L5.18 done: the « Épure » Studio, the name Retake, the standalone
+  app and its releases, captures first, renders on the GPU, the two hardening lots, the iOS Simulator runner). The architecture series
   (L6.1 – L6.13, L7.1 – L7.58) is on `main` since 2026-11-15; the **L8 chain** answers the second field feedback
   ([FIELD-FEEDBACK-2.md](FIELD-FEEDBACK-2.md): L8.1, L8.1b, L8.2, L8.2b) and finishes the app's native menus (L8.3).
   The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`.
@@ -39,8 +39,8 @@ container, the earlier heads of this file — under their original headings, so 
 2. **The two open Homebrew pull requests** (4 and 7) do the same job: one should land, the other be closed.
 3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §18 – §20 and the L8 notes' "left for the
    person"), then the older live runs under "Pending for the person".
-4. **Then the ROADMAP's L5.3 / L5.4 question** (L5.3 the iOS Simulator runner, L5.4 the phase-5 acceptance:
-   "L5.3 – L5.4, L6"), when the person asks. Also open, when the person asks: the 2026-11-04 plan's T15 rest and T16
+4. **L5.3 is done** (below, "State (after L5.3)"), pending its pull request's merge; **L5.4** (the phase-5 acceptance)
+   only when the person asks. Also open, when the person asks: the 2026-11-04 plan's T15 rest and T16
    (the measured snapshot, `scripts/audit/snapshot.mjs` against `docs/audit/2026-11-04/summary.json`), and the desktop
    bundle's staging of stale `dist` outputs (until it is decided, `rm -rf packages/*/dist && pnpm build` before a
    bundle).
@@ -87,6 +87,28 @@ automatically with themeable components, and let Claude operate everything throu
 Each lot adds its "State (after <lot>)" section here, above the previous one: newest first (the lead's register helper
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
+
+## State (after L5.3)
+- **The iOS Simulator runner** (`packages/runner-ios`, guide [guide/ios.md](guide/ios.md)): a project environment
+  `ios: {app, device, schemes}` picked with `env:`; a dedicated device "Retake - <type> - <runtime>" (en-US, QWERTY,
+  booted headless, status bar 9:41, a lock per device machine-wide); an XCUITest driver built from the repo
+  (`packages/runner-ios/driver`, built once per Xcode into `<RETAKE_HOME>/ios-driver/`), on 127.0.0.1 with a per-run
+  token proved by HMAC, deadlines per command and an idle quit; existing steps reused (click = tap, scroll = swipe,
+  open = deep link through the driver), every other one refused at validation on its line; typing a secret refused.
+- **The film:** `simctl io recordVideo --codec h264`, t0 = the "Recording started" line corrected by the lateness the
+  movie's own duration shows (`mov-box.ts`); the variable-rate movie made constant-rate BT.709 at the project's fps; each
+  tap's touch-down read from the video; a grey fingertip disc with the ripple burnt in by the runner (one ffmpeg
+  overlay pass: `overlay`, `setpts`, `setparams` and `crop` are in `ENGINE_NEEDS` — **the app's ffmpeg must be rebuilt
+  with them at the next release**). Same `timeline.json` + `capture.mp4` contract through runner-web's driver seam;
+  the planner renders a device capture at scale 1 in a phone frame unless a frame is written (layout-phone's island
+  now covers the device's).
+- **Measured** (M4, 2026-11-17): calibration Δ 1–5 ms per tap on a quiet run (one tap +54 ms under load 20–30: BL-193),
+  lateness 2–68 ms per take; burn 7–17 s; `retake run` ~80 s warm, ~2 min cold; `render --review` 95–115 s.
+- **Fixture:** `fixtures/ios-wholesale` (the SwiftUI app Northfield Buyer, `build.mjs`) and its project; the gated
+  acceptance `RETAKE_TEST_IOS=1 npx vitest run packages/runner-ios/test/ios-acceptance.test.ts` (~10 min after
+  `pnpm build`) deletes the devices it made unless `RETAKE_IOS_KEEP_DEVICE=1`.
+- **Left:** BACKLOG BL-193 (dry runs, recording, live picture and pause on iOS; gestures; runtime choice; paste of a
+  secret; the timing under load). The Studio shows an iOS environment read-only; `retake env set` does not edit one.
 
 ## State (after L8.5)
 - **L8.5 done (2026-11-17; branch `claude/fb-33-mail-timezone-82c1d3`)** — the mail card dated like the filmed pages

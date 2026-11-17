@@ -20,6 +20,9 @@ export const hooks = () => import('@retake/hooks');
 /** Lazy: @retake/runner-web pulls in Playwright, the capture's encoder and its in-page kit. */
 export const runnerWeb = () => import('@retake/runner-web');
 
+/** Lazy: @retake/runner-ios drives the iOS Simulator (its runs only: a web run never loads it). */
+export const runnerIos = () => import('@retake/runner-ios');
+
 /** Lazy: @retake/sandbox pulls in the database driver (pg) and the process and docker-compose providers. */
 export const sandbox = () => import('@retake/sandbox');
 

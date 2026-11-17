@@ -106,6 +106,27 @@ export function defaultRetakeHome(home: string): string {
   return join(home, STATE_DIR);
 }
 
+/** The folders of the Retake home (this machine's own state, beside its sessions and profiles), by what they hold. */
+export const HOME_DIRS = {
+  /** ios-driver/<key>/: the iOS driver's sources copied and built (one folder per Xcode build and driver sources). */
+  iosDriver: 'ios-driver',
+} as const;
+export type HomeDir = keyof typeof HOME_DIRS;
+
+/** `<home>/ios-driver/<key>`: the build of the iOS driver for one Xcode build and one version of its sources. */
+export function iosDriverCache(home: string, key: string): string {
+  return join(home, HOME_DIRS.iosDriver, key);
+}
+
+/**
+ * `<root>/retake-ios-<uid>`: the locks of the iOS simulators a user's runs film on (one per device udid). Machine-wide,
+ * not in a Retake home: a simulator is the machine's (xcodebuild only reaches the default device set), whatever Retake
+ * home a run has.
+ */
+export function iosDeviceLocks(uid: number, root = '/tmp'): string {
+  return join(root, `retake-ios-${uid}`);
+}
+
 /** The workspace's job history: `<workspace>/.retake/history.jsonl` (what was produced: runs, renders…). */
 export const HISTORY_FILE = 'history.jsonl';
 /** The workspace journal: `<workspace>/.retake/journal.jsonl` (every authored write and hook run: who, what, when). */

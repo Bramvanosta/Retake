@@ -105,6 +105,8 @@ export interface EnvironmentView {
   access: 'read-only' | 'read-write';
   sandbox: boolean;
   personas: PersonaView[];
+  /** An iOS environment (no pages): the app it films, the simulator's device type, the deep-link schemes it opens. */
+  ios?: { app: string; device: string; schemes: string[] };
 }
 
 export interface ProjectView {
@@ -186,6 +188,7 @@ export async function projectView(project: LoadedProject, folder: ProjectFolder)
       production: env.production === true,
       access: environmentAccess(env),
       sandbox: env.sandbox !== undefined,
+      ...(env.ios ? { ios: { app: env.ios.app, device: env.ios.device, schemes: [...(env.ios.schemes ?? [])] } } : {}),
       personas: resolvePersonas(project, name, { home: retakeHome() }).map((p) => ({
         name: p.name,
         pages: p.pages,

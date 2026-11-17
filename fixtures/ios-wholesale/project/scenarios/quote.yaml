@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../../packages/core/schema/scenario.schema.json
+# A café requests a quote from its phone: browse the roaster's catalogue, search, open a coffee, choose the quantity,
+# add it to the quote, open the quote (a deep link), leave a note and send the request.
+version: 1
+video: quote
+title: {kicker: For cafés, text: Request a quote from your phone}
+outro: {tagline: "From the catalogue to a quote request, in a minute."}
+
+scenes:
+  - id: browse
+    caption: {kicker: Catalogue, text: "The roaster's coffees, always with you."}
+    steps:
+      - wait_for: {target: {testid: catalogue-list}}
+      - scroll: {by: 420, duration: 0.7}
+      - hold: 0.6
+      - scroll: {by: -420, duration: 0.7}
+
+  - id: search
+    caption: {kicker: Search, text: "Find a coffee by name, origin or taste."}
+    steps:
+      - type: {into: {placeholder: Search coffees}, text: Ethiopia, cps: 8}
+      - wait_for: {text: Selowa Ridge}
+        hold: 0.8
+
+  - id: product
+    caption: {kicker: Choose, text: "Pick the quantity, in 5 kg bags."}
+    steps:
+      - click: {text: Selowa Ridge}
+      - wait_for: {target: {testid: add-to-quote}}
+      - click: {role: button, name: Increment}
+      - click: {role: button, name: Increment}
+        mark: quantity
+      - click: {testid: add-to-quote}
+      - wait_for: {text: Added to your quote}
+        hold: 1
+
+  - id: request
+    caption: {kicker: Request, text: "Leave a note and send the request."}
+    open: "northfield://quote"
+    steps:
+      - wait_for: {target: {testid: quote-total}}
+      - type: {into: {testid: quote-notes}, text: "Whole bean, delivery on Tuesday please.", cps: 14}
+      - click: {testid: send-request}
+      - wait_for: {target: {testid: confirmation-title}}
+        mark: sent
+        hold: 1.6

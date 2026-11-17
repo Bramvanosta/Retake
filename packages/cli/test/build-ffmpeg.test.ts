@@ -252,6 +252,23 @@ describe("the engine's needs", () => {
     expect(readFileSync(join(ROOT, 'packages/editor/src/render/policy.ts'), 'utf8')).toMatch(/probeFrameEncode\(path, s, frameEncodeCodecArgs\(encoder, s\)\)/);
   });
 
+  it("an iOS take's conversion and touch-down crops (runner-ios convert.ts): every filter of their graphs is in ENGINE_NEEDS", () => {
+    const text = readFileSync(join(ROOT, 'packages/runner-ios/src/convert.ts'), 'utf8');
+    // The graphs of convertArgs and readCrops, their literals read whole (one per line once the formatter lays them out).
+    const graphs = [text.slice(text.indexOf('export function convertArgs'), text.indexOf('export async function convertTake')), text.slice(text.indexOf('export async function readCrops'))];
+    const used = new Set<string>();
+    for (const g of graphs) {
+      for (const lit of g.matchAll(/`([^`]*)`|'([^'\\]*)'/g)) {
+        const s = lit[1] ?? lit[2];
+        for (const m of s.matchAll(/(?:^|[,;\]])([a-z][a-z0-9_]*)(?==)/g)) used.add(m[1]);
+      }
+    }
+    expect([...used].sort()).toEqual(['color', 'crop', 'format', 'overlay', 'scale', 'select', 'setparams', 'setpts']);
+    expect([...used].filter((f) => !ENGINE_NEEDS.filters.includes(f))).toEqual([]);
+    expect(ENGINE_NEEDS.demuxers).toEqual(expect.arrayContaining(['concat', 'mov', 'png_pipe']));
+    expect(ENGINE_NEEDS.decoders).toEqual(expect.arrayContaining(['h264', 'png']));
+  });
+
   it('the muxers of the files it writes (by extension: .m4a needs ipod) and the decoders of the videos a person may bring (core VIDEO_CODECS)', () => {
     const { muxers } = engineArguments();
     expect([...muxers.keys()]).toEqual(expect.arrayContaining(['ipod', 'mp4', 'webm']));

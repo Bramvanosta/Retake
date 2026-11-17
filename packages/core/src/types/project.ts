@@ -188,6 +188,8 @@ export interface ProjectConfig {
   capture: CaptureSettings;
   /** Default frame of every scenario: a FrameStyle or a layout component id (default 'card'). */
   frame: FrameSpec;
+  /** Derived (never written in project.yaml): project.yaml writes no `frame` — `frame` is the default. */
+  frame_defaulted?: true;
   template: string;
   locale?: string;
   /** Extra hosts hooks may target (environment hosts, localhost and 127.0.0.1 are always allowed). */

@@ -179,7 +179,7 @@ const IO =
 const pkgOf = (f) => f.split('/')[1];
 const retake = (s) => (s.startsWith('@retake/') ? s.slice(8).split('/')[0] : null);
 const SHELLS = ['cli', 'mcp', 'ui'];
-const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'components'];
+const ADAPTERS = ['runner-web', 'runner-ios', 'editor', 'review', 'sandbox', 'hooks', 'components'];
 /**
  * Every package of the repository in its layer (docs/audit/target-architecture.md): a folder of packages/ that is in
  * none, or in two, fails packages/core/test/import-rules.test.ts — a new package is given its rules on purpose.
@@ -595,7 +595,7 @@ export const CORE_CONTEXTS = [
   { name: 'ids', files: ['id-grammar', 'ids'] },
   { name: 'language', files: ['types/language', 'steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'overlay-use', 'schemas/language', 'schemas/steps'] },
   { name: 'environment', files: ['types/environment', 'env', 'hosts', 'access', 'display', 'clock', 'writes', 'auth', 'persona-plan', 'checks/auth'] },
-  { name: 'policy', files: ['agent-policy', 'agent-env', 'agent-shell-words', 'browser-switches', 'work-policy', 'navigation-policy', 'real-path', 'ip-class'] },
+  { name: 'policy', files: ['agent-policy', 'agent-env', 'agent-shell-words', 'browser-switches', 'work-policy', 'navigation-policy', 'real-path', 'ip-class', 'ios-app'] },
   {
     name: 'hooks',
     files: [
@@ -624,6 +624,7 @@ export const CORE_CONTEXTS = [
       'schemas/scenario',
       'checks/scenario',
       'checks/actions',
+      'checks/ios',
       'blocks',
       'blocks-model',
       'block-words',

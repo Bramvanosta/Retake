@@ -741,3 +741,83 @@ describe('retake doctor --project: personas (R-AUTH-02)', () => {
     }
   });
 });
+
+describe('retake doctor: the iOS Simulator', () => {
+  const RUNTIMES = JSON.stringify({
+    runtimes: [
+      { name: 'iOS 18.2', version: '18.2', platform: 'iOS', isAvailable: true, supportedDeviceTypes: [{ name: 'iPhone 16' }] },
+      { name: 'iOS 26.5', version: '26.5', platform: 'iOS', isAvailable: true, supportedDeviceTypes: [{ name: 'iPhone 16' }, { name: 'iPhone 17 Pro' }] },
+    ],
+  });
+  const APP = '/opt/builds/Buyer.app';
+
+  /** A Mac with Xcode 26.6 and the iOS 26.5 runtime (`xcode: false`: none); `platform` of the app's Info.plist. */
+  function iosProbes(o: { xcode?: boolean; platform?: string; built?: boolean; home?: string; ran?: string[] } = {}): DoctorProbes {
+    const base = macProbes();
+    return macProbes({
+      env: { RETAKE_HOME: o.home ?? '/tmp/retake-home-doctor' },
+      exec: async (cmd, args, ms) => {
+        o.ran?.push(cmd);
+        if (cmd === 'xcode-select') return o.xcode === false ? { code: 2, stdout: '', stderr: 'xcode-select: error: unable to get active developer directory' } : { code: 0, stdout: '/Applications/Xcode.app/Contents/Developer\n', stderr: '' };
+        if (cmd === 'xcrun' && o.xcode === false) return null;
+        if (cmd === 'xcrun' && args.join(' ') === 'xcodebuild -version') return { code: 0, stdout: 'Xcode 26.6\nBuild version 17F113\n', stderr: '' };
+        if (cmd === 'xcrun' && args.join(' ') === 'simctl list runtimes -j') return { code: 0, stdout: RUNTIMES, stderr: '' };
+        if (cmd === 'plutil') return { code: 0, stdout: `${o.platform ?? 'iphonesimulator'}\n`, stderr: '' };
+        return base.exec(cmd, args, ms);
+      },
+      exists: (p) => p === `${APP}/Info.plist` || base.exists(p),
+      list: (dir) => (o.built && dir === `${o.home ?? '/tmp/retake-home-doctor'}/ios-driver` ? ['17F113-87a90b1f8a51'] : null),
+    });
+  }
+
+  beforeAll(async () => {
+    const ios = (name: string, extra: string[]) => writeFile(join(ws, 'projects', name, 'project.yaml'), ['name: Buyer', 'environments:', ...extra, ''].join('\n')).then(() => undefined);
+    await mkdir(join(ws, 'projects', 'buyer', 'scenarios'), { recursive: true });
+    await ios('buyer', ['  simulator:', `    ios: {app: "${APP}", device: iPhone 17 Pro, schemes: [northfield]}`, '  bundle:', '    ios: {app: com.example.buyer, device: iPhone 99}', '  upper:', '    ios: {app: /opt/builds/Other.APP, device: iPhone 17 Pro}']);
+    await mkdir(join(ws, 'projects', 'buyer-web', 'scenarios'), { recursive: true });
+    await ios('buyer-web', ['  web: {app: "https://app.example.com"}', '  simulator:', `    ios: {app: "${APP}", device: iPhone 17 Pro}`]);
+  });
+
+  afterAll(async () => {
+    await rm(join(ws, 'projects', 'buyer'), { recursive: true, force: true });
+    await rm(join(ws, 'projects', 'buyer-web'), { recursive: true, force: true });
+  });
+
+  it('Xcode, its newest iOS runtime and the driver: built here, or built on the first run', async () => {
+    const first = await checks(iosProbes());
+    expect(byName(first.checks, 'iOS Simulator')).toEqual({ status: 'ok', name: 'iOS Simulator', detail: 'Xcode 26.6 (17F113) · iOS 26.5 · the driver builds on the first run (about 10 s)' });
+    const built = await checks(iosProbes({ built: true }));
+    expect(byName(built.checks, 'iOS Simulator').detail).toBe('Xcode 26.6 (17F113) · iOS 26.5 · driver built');
+  });
+
+  it('no Xcode: no line when nothing needs it; a FAIL when the --project runs on iOS by default, a WARN otherwise', async () => {
+    const ran: string[] = [];
+    const none = await checks(iosProbes({ xcode: false, ran }));
+    expect(none.checks.some((c) => c.name === 'iOS Simulator')).toBe(false);
+    // xcrun without developer tools opens the system's install prompt: never run then.
+    expect(ran).toContain('xcode-select');
+    expect(ran).not.toContain('xcrun');
+    const needed = await checks(iosProbes({ xcode: false }), 'buyer');
+    expect(needed.code).toBe(EXIT.failure);
+    expect(byName(needed.checks, 'iOS Simulator')).toMatchObject({
+      status: 'fail',
+      detail: 'Xcode is not installed (xcode-select -p names no developer folder) — needed by the iOS environments simulator, bundle, upper of project buyer',
+      hint: expect.stringContaining('xcode-select'),
+    });
+    const optional = await checks(iosProbes({ xcode: false }), 'buyer-web');
+    expect(byName(optional.checks, 'iOS Simulator')).toMatchObject({ status: 'warn', detail: expect.stringContaining('needed by the iOS environment simulator of project buyer-web') });
+    expect(optional.checks.filter((c) => c.status === 'fail').map((c) => c.name)).not.toContain('iOS Simulator');
+  });
+
+  it("each iOS environment: its device type known to the runtime, its app built for the simulator (or a bundle id, checked at the run's start)", async () => {
+    const ok = await checks(iosProbes(), 'buyer');
+    expect(byName(ok.checks, 'iOS simulator')).toEqual({ status: 'ok', name: 'iOS simulator', detail: `iPhone 17 Pro · app ${APP}` });
+    // A build's path as core reads it (".APP" too), not a bundle id.
+    expect(byName(ok.checks, 'iOS upper')).toMatchObject({ status: 'fail', detail: expect.stringContaining('app /opt/builds/Other.APP is not built') });
+    expect(byName(ok.checks, 'iOS bundle')).toMatchObject({ status: 'fail', detail: 'device "iPhone 99" is not a device type iOS 26.5 runs', hint: 'pick one of: iPhone 16, iPhone 17 Pro' });
+    const device = await checks(iosProbes({ platform: 'iphoneos' }), 'buyer');
+    expect(byName(device.checks, 'iOS simulator')).toMatchObject({ status: 'fail', detail: `app ${APP} is built for iphoneos, not the iOS Simulator` });
+    const web = await checks(iosProbes({ platform: 'iphoneos' }), 'buyer-web');
+    expect(byName(web.checks, 'iOS simulator')).toMatchObject({ status: 'warn' });
+  });
+});

@@ -150,3 +150,93 @@ export function synthTimeline(opts: {
     warnings: [],
   };
 }
+
+// ── A device's take ──────────────────────────────────────────────────────────
+
+/** A device take: one scene on the environment (no URL), two taps and a swipe, the touches' samples and ripples. */
+export function deviceTimeline(o: { device?: boolean; frame?: string } = {}): Timeline {
+  const env = 'simulator';
+  return {
+    version: 1,
+    run_id: 'device',
+    project: 'northfield-fixture',
+    scenario: 'buyer',
+    created_at: '2026-11-17T10:00:00.000Z',
+    mode: 'capture',
+    capture: {
+      file: 'capture.mp4',
+      width: 402,
+      height: 874,
+      scale: 3,
+      fps: 30,
+      duration: 8,
+      t0_wall: 0,
+      frames: 240,
+      ...(o.device === false ? {} : { device: { kind: 'ios', name: 'iPhone 17 Pro', runtime: 'iOS 26.5' } }),
+    },
+    video: { title: { text: 'Buyer app' }, frame: o.frame ?? 'card', ...(o.frame === undefined ? { frame_default: true as const } : {}), template: 'editorial' },
+    scenes: [{ id: 'main', index: 0, kind: 'scene', t_start: 0, t_end: 8, page: env, status: 'ok', caption: { text: 'Find a product and ask for a quote' } }],
+    events: [
+      {
+        scene: 'main',
+        scene_index: 0,
+        step: 0,
+        action: 'click',
+        t_start: 0.6,
+        t_end: 1.4,
+        t_click: 1.0,
+        status: 'ok',
+        page: env,
+        target: { desc: 'text="Anchor bolts"', bbox: { x: 16, y: 300, w: 370, h: 60 } },
+        point: { x: 201, y: 330 },
+      },
+      { scene: 'main', scene_index: 0, step: 1, action: 'scroll', t_start: 2.0, t_end: 3.0, status: 'ok', page: env },
+      {
+        scene: 'main',
+        scene_index: 0,
+        step: 2,
+        action: 'click',
+        t_start: 4.6,
+        t_end: 5.4,
+        t_click: 5.0,
+        status: 'ok',
+        page: env,
+        target: { desc: 'role=button name="Add to quote"', bbox: { x: 24, y: 780, w: 354, h: 50 } },
+        point: { x: 201, y: 805 },
+      },
+      { scene: 'main', scene_index: 0, step: 3, action: 'wait', t_start: 5.4, t_end: 7.5, status: 'ok', page: env },
+    ],
+    markers: [],
+    pages: [{ id: env, t_start: 0, t_end: 8 }],
+    // Touches: the dot appears where the finger lands and leaves when it lifts — it jumps, it never glides.
+    cursor: [
+      { t: 0, x: 201, y: 437, visible: false },
+      { t: 0.85, x: 201, y: 330, visible: true },
+      { t: 1.0, x: 201, y: 330, visible: true, down: true },
+      { t: 1.1, x: 201, y: 330, visible: true },
+      { t: 1.28, x: 201, y: 330, visible: false },
+      { t: 2.0, x: 201, y: 700, visible: true, down: true },
+      { t: 2.5, x: 201, y: 450, visible: true, down: true },
+      { t: 3.0, x: 201, y: 200, visible: true },
+      { t: 3.18, x: 201, y: 200, visible: false },
+      { t: 4.85, x: 201, y: 805, visible: true },
+      { t: 5.0, x: 201, y: 805, visible: true, down: true },
+      { t: 5.1, x: 201, y: 805, visible: true },
+      { t: 5.28, x: 201, y: 805, visible: false },
+    ],
+    cursor_effects: [
+      { t: 1.0, type: 'press' },
+      { t: 1.0, type: 'ripple', x: 201, y: 330 },
+      { t: 1.1, type: 'release' },
+      { t: 5.0, type: 'press' },
+      { t: 5.0, type: 'ripple', x: 201, y: 805 },
+      { t: 5.1, type: 'release' },
+    ],
+    idle: [
+      { t_start: 3.3, t_end: 4.5 },
+      { t_start: 5.6, t_end: 8 },
+    ],
+    environment: { name: env, access: 'read-write' },
+    warnings: [],
+  };
+}
