@@ -10,6 +10,7 @@ import { errorMessage } from '../util.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
 import { machinePath } from './project.js';
+import { CHILD_ENV_BASE, ENV_NAME_PLAIN, isLoaderEnvName } from '../agent-env.js';
 
 /** Compose files read when `compose.files` is absent. */
 export const DEFAULT_COMPOSE_FILES: readonly string[] = ['compose.yaml'];
@@ -81,10 +82,11 @@ export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; 
 /**
  * The env file of a docker-compose sandbox: a written `env_file` must exist; a `COMPOSE_PROFILES` in it (or in the
  * default `.env` next to the first compose file) is refused — docker compose would read it and start other services
- * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason).
+ * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason). Returns the names it sets (undefined
+ * when there is none, or it cannot be read).
  */
-export function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[], ctx: CheckContext): void {
-  if (!ctx.projectDir || c.env_file === false) return;
+export function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[], ctx: CheckContext): string[] | undefined {
+  if (!ctx.projectDir || c.env_file === false) return undefined;
   const files = needFiles(ctx.files, 'the env file check');
   let file: string;
   let at: IssuePath;
@@ -115,6 +117,7 @@ export function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly 
       `the env file ${typeof c.env_file === 'string' ? `"${c.env_file}"` : 'next to the compose file (.env)'} sets COMPOSE_PROFILES: docker compose would start other services than sandbox.yaml says — remove it (or give \`env_file\` another file)`,
     );
   }
+  return envFileKeys(text);
 }
 
 /**
@@ -143,9 +146,11 @@ export function composeEnvProblem(manifest: Record<string, unknown>, name: strin
 
 /**
  * The services the compose files declare (undefined when they cannot be read); those under `profiles:` are added to
- * `profiled` (a sandbox never starts them: compose runs without COMPOSE_PROFILES).
+ * `found.profiled` (a sandbox never starts them: compose runs without COMPOSE_PROFILES); the variables their top-level
+ * secrets read (`secrets.<id>.environment`) to `found.secretVars`.
  */
-export function composeServices(files: readonly string[], base: IssuePath, written: boolean, ctx: CheckContext, profiled: Set<string>): Set<string> | undefined {
+export function composeServices(files: readonly string[], base: IssuePath, written: boolean, ctx: CheckContext, found: { profiled: Set<string>; secretVars?: Set<string> }): Set<string> | undefined {
+  const { profiled, secretVars } = found;
   const out = new Set<string>();
   let complete = true;
   files.forEach((f, i) => {
@@ -176,6 +181,9 @@ export function composeServices(files: readonly string[], base: IssuePath, writt
       complete = false;
       return;
     }
+    if (isObj(doc) && isObj(doc.secrets) && secretVars) {
+      for (const sec of Object.values(doc.secrets)) if (isObj(sec) && typeof sec.environment === 'string') secretVars.add(sec.environment);
+    }
     if (isObj(doc) && isObj(doc.services)) {
       for (const [name, svc] of Object.entries(doc.services)) {
         out.add(name);
@@ -184,4 +192,57 @@ export function composeServices(files: readonly string[], base: IssuePath, writt
     }
   });
   return complete ? out : undefined;
+}
+
+/** docker's, buildx's, BuildKit's and compose's own settings (which daemon, config folder, builder, what is started), the SSH agent a build may forward, the per-user folders and temporary folders. */
+const DOCKER_SETTING = /^(?:(?:DOCKER|BUILDX|BUILDKIT|COMPOSE|SSH|XDG)_|(?:TMP|TEMP)$)/i;
+
+/** `{{env:VAR}}` / `{{keychain:service/account}}` (or `{{secret:…}}`) as a whole value, and nothing else. */
+const ONE_SECRET_REF = /^\s*\{\{\s*(?:secret:)?(?:env:[A-Za-z_][A-Za-z0-9_]*|keychain:[^{}\s][^{}]*?)\s*\}\}\s*$/;
+
+/**
+ * `compose.secrets`: each name a plain variable name docker compose may be handed — never a loader variable
+ * (core agent-env isLoaderEnvName), a setting of docker, buildx, BuildKit or compose (`DOCKER_CONFIG` would point docker
+ * at another config and its plugins, `COMPOSE_PROFILES` change what starts), one of the system's that every program a
+ * job starts gets (CHILD_ENV_BASE: PATH, HOME, TMPDIR, the proxies — passed into builds —, the certificates) or one
+ * the env file sets (two sources for one name) — and each value exactly one {{env:VAR}} / {{keychain:service/account}} reference:
+ * a plain value belongs in the env file, and compose reads the env file itself ({{compose_env:…}} would add nothing) —,
+ * or false (an optional build secret). A name no top-level secret of the compose files reads (`secretVars`, when they
+ * could all be read) is a warning: `up` refuses it, unless a file the compose files include declares it.
+ */
+export function checkComposeSecrets(c: Record<string, unknown>, envKeys: readonly string[] | undefined, secretVars: ReadonlySet<string> | undefined, ctx: CheckContext): void {
+  if (!isObj(c.secrets) || ctx.broken(['compose', 'secrets'])) return;
+  for (const [name, value] of Object.entries(c.secrets)) {
+    const at: IssuePath = ['compose', 'secrets', name];
+    if (!ENV_NAME_PLAIN.test(name)) continue; // the schema says so
+    if (isLoaderEnvName(name)) {
+      ctx.error(at, `compose.secrets: ${name} is a loader variable (it makes a program load code or read its settings from elsewhere), never a build secret: remove it`, { path: at, key: true });
+      continue;
+    }
+    if (DOCKER_SETTING.test(name) || CHILD_ENV_BASE.some((re) => re.test(name))) {
+      ctx.error(
+        at,
+        `compose.secrets: ${name} is a setting of docker, compose or the system (which daemon, which config, which proxy, which certificates, what is started), never a build secret: remove it`,
+        { path: at, key: true },
+      );
+      continue;
+    }
+    if (envKeys?.includes(name)) {
+      ctx.error(at, `compose.secrets: the env file sets ${name} too — keep one of them (a secret belongs here, a plain setting in the env file)`, { path: at, key: true });
+      continue;
+    }
+    if (value !== false && (typeof value !== 'string' || !ONE_SECRET_REF.test(value))) {
+      ctx.error(
+        at,
+        `compose.secrets: ${name} is one {{env:VAR}} or {{keychain:service/account}} reference (a plain value belongs in the env file, which docker compose reads itself), or false for an optional build secret`,
+      );
+      continue;
+    }
+    if (secretVars && !secretVars.has(name)) {
+      ctx.warning(
+        at,
+        `compose.secrets: no secret of the compose files reads ${name} (a top-level \`secrets: {<id>: {environment: ${name}}}\`): sandbox up refuses it unless an included file declares it`,
+      );
+    }
+  }
 }

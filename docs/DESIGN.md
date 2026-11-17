@@ -1207,7 +1207,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   its start time differs or it cannot be read: removed under `take.lock.break` (`O_EXCL`; one older than 10 s is
   removed) only if its text is unchanged; released in `finally` and on process `exit`); `seed-journal.json`
   (recreated per seed); `logs/<service>.log` (+
-  `.1`; process), `logs/compose-up.log` (the last `up`) and `logs/seed.log` (`exec` steps) for docker-compose.
+  `.1`; process), `logs/compose-up.log` (the last `up`; the one before as `.1`) and `logs/seed.log` (`exec` steps) for docker-compose.
 - **Flow.** `up` = lock → provider.up (orphans of an earlier manifest stopped; each service: kept when ours — health
   checked again, a changed hash warned —, else ports free → spawn → state `starting` → health → ports owned →
   `running`) → seed when never seeded / hash changed / a service started / (snapshot) the database missing or closed

@@ -19,7 +19,13 @@
  *   `RETAKE_DOCKER`, `PLAYWRIGHT_BROWSERS_PATH`) are kept as they are: the worker serves trust `mcp` (core
  *   agent-policy.ts), so a job whose program one of them names by a relative path or inside the workspace fails before
  *   that program starts and says what to change — rather than running another program than the person named;
- * - RETAKE_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace).
+ * - RETAKE_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace);
+ * - the names the person lists in `RETAKE_WORKER_KEEP_ENV` (commas or spaces) are kept although the list above
+ *   drops them — a registry token a sandbox's build secret reads (`compose.secrets: {NPM_TOKEN: "{{env:NPM_TOKEN}}"}`).
+ *   It is read from the environment of the client that starts the worker (the person's shell profile, beside the token),
+ *   not from Retake's workspace files — though a project's `.mcp.json` or `.claude/settings.json` `env` can set a
+ *   client's environment too (the guide says to keep it in the profile). Any dropped name it lists is kept, a model's
+ *   key included (the person's choice); a loader variable and RETAKE_MCP_TOKEN never are.
  *
  * Everything else stays: an automated sign-in's `{{env:NAME}}` secrets (project.yaml) are read by the worker from its
  * environment, as for a worker started in a terminal.
@@ -28,7 +34,7 @@ import type { EngineEnv } from '../env.js';
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
 import { isUnder } from '@retake/core/model';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, loadPathSeparator, workspaceFolders } from '@retake/core/policy';
+import { ENV_NAME_PLAIN, LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isLoaderEnvName, loadPathSeparator, workspaceFolders } from '@retake/core/policy';
 import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
 import { cleansWorkerEnv } from '../caller.js';
 import type { Caller } from '../caller.js';
@@ -59,6 +65,17 @@ export const WORKER_ENV_DROPPED: readonly RegExp[] = [
   /^GH_ENTERPRISE_TOKEN$/,
 ];
 
+/** the variable whose names a worker keeps although WORKER_ENV_DROPPED drops them (the person's own choice). */
+export const WORKER_KEEP_ENV = 'RETAKE_WORKER_KEEP_ENV';
+
+/**
+ * The names `RETAKE_WORKER_KEEP_ENV` lists (commas or spaces) that a worker may keep: plain variable names, never a
+ * loader variable (core isLoaderEnvName) nor the MCP server's HTTP token.
+ */
+export function workerKeptNames(value: string | undefined): string[] {
+  return [...new Set((value ?? '').split(/[\s,]+/).filter((n) => ENV_NAME_PLAIN.test(n) && !isLoaderEnvName(n) && n !== 'RETAKE_MCP_TOKEN'))];
+}
+
 /** Whether a path-list variable has an entry that is relative or inside one of the workspace folders. */
 function loadsFromWorkspace(value: string, folders: readonly string[], sepRe: RegExp): boolean {
   return value
@@ -82,8 +99,9 @@ export interface WorkerEnvOptions {
 export function cleanWorkerEnv(env: EngineEnv, root: string, o: WorkerEnvOptions = {}): NodeJS.ProcessEnv {
   const folders = [...new Set([root, ...(o.folders ?? [])])];
   const out: NodeJS.ProcessEnv = {};
+  const kept = new Set(workerKeptNames(env[WORKER_KEEP_ENV]));
   for (const [k, v] of Object.entries(env)) {
-    if (v === undefined || WORKER_ENV_DROPPED.some((re) => re.test(k))) continue;
+    if (v === undefined || (WORKER_ENV_DROPPED.some((re) => re.test(k)) && !kept.has(k))) continue;
     // The NODE_OPTIONS flags and path lists of core agent-policy.ts (its loader variables).
     if (k === 'NODE_OPTIONS' && NODE_OPTIONS_LOADS.test(v)) continue;
     if (LOAD_PATH_ENV.test(k) && loadsFromWorkspace(v, folders, loadPathSeparator(k, delimiter))) continue;

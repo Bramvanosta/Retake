@@ -13,6 +13,7 @@ client, product, font or address) and where each point went. The numbers are the
 2026-11-11; CHANGELOG.md, and the hotfix notes in `docs/archive/HANDOFF-history.md`). On 2026-11-15 the person opened
 the lots **L8.1, L8.1b, L8.2 and L8.2b** for the rest (themes, fonts, sandboxes, environments, painted pages); L8.3
 (the app's native menus, BACKLOG BL-166) runs in the same chain but does not come from this feedback.
+On 2026-11-16 the person added points 30 – 32 to the notes; point 30 became **L8.4** (2026-11-17).
 
 ## The points
 
@@ -47,3 +48,4 @@ the lots **L8.1, L8.1b, L8.2 and L8.2b** for the rest (themes, fonts, sandboxes,
 | 27 | A grey loading skeleton was filmed for half a second after a click that changed the page client-side (the app's header had text, so the page counted as painted), and the review said nothing. Proposal: judge the main region, wait after a client-side route change. | **L8.2b** |
 | 28 | After sandbox.yaml changed, a reset ran the seed on the dirty database and froze the take's data into the new snapshot. Proposal: start again from a clean base, or refuse and say so in `sandbox_status`. | **L8.2** |
 | 29 | `reset.firebase_auth` put the accounts back and invalidated the personas' saved sessions (an `auth: {persona}` hook got 401). Proposal: sign the personas in again, or say so in the reset's result. | **L8.2** |
+| 30 | An image whose build reads a private registry token through a build secret (`secrets: {<id>: {environment: <VAR>}}`, `RUN --mount=type=secret`) failed when the sandbox was started over MCP: the job's docker never has the shell's tokens, docker compose passed the secret empty without a word, and the error stopped at `exit code: 1):` without the install's own output. The same build in a terminal worked. Proposal: pass the variables the compose file's secrets name, or declare them in sandbox.yaml (`{{env:…}}`, the keychain); refuse an empty one before the build; show the failing step's last lines. | **L8.4** (`compose.secrets`, `RETAKE_WORKER_KEEP_ENV`) |

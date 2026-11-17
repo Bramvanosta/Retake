@@ -21,7 +21,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   instead of a lot. The founder adds lots from it: L5.5 – L5.8 (2026-10-26, field feedback), L5.9 – L5.15
   (2026-10-29: the Studio redesign and the rename, captures first, renders on the GPU), the architecture series
   L6.1 – L6.13 and L7.1 – L7.58 (2026-11-09 – 2026-11-15, on main since 2026-11-15), L8.1 – L8.3 (2026-11-15: the
-  second field feedback, `docs/FIELD-FEEDBACK-2.md`, and the app's native menus, BL-166).
+  second field feedback, `docs/FIELD-FEEDBACK-2.md`, and the app's native menus, BL-166), L8.4 (2026-11-17: its
+  point 30).
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
   is a future topic, parked in `docs/BACKLOG.md`; voice-over is an evolution there too (the MVP keeps a silent track).
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market
@@ -177,6 +178,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** (2026-11-16; first committed on its work branch with `engine-entries.test.ts` red, repaired by L8.2b before main; no live Firebase Auth emulator take, `sandbox-docker.test.ts` not run: MACOS-CHECKLIST §18) |
 | L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** (2026-11-16; `retake env` on a real project and a real app's route by hand: MACOS-CHECKLIST §19) |
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
+| L8.4 | A docker-compose sandbox's build secrets (field feedback 2, point 30): sandbox.yaml `compose.secrets` (`{{keychain:…}}` / `{{env:…}}`) handed to the building `up` alone and masked, an empty build secret refused before the build, `RETAKE_WORKER_KEEP_ENV` (the person's own list of tokens a client-started worker keeps), the failing BuildKit step's lines in the message, the previous up's log kept | M | **done** (2026-11-17; a real build from the Studio or the app with a keychain item left to the person: MACOS-CHECKLIST §21) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1446,6 +1448,17 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   COMMANDS registry (every key cap derived from it) compared with menu.rs; Help › Keyboard Shortcuts, ⌘, on Set Up,
   File › Show Workspace in Finder; context menus on the Productions posters behind a real secondary click.
   Requirements R-DSK-05 – R-DSK-07 (R-DSK-03's gap); by hand: MACOS-CHECKLIST 14h.
+
+### L8.4 — A docker-compose sandbox's build secrets (M; decided 2026-11-17)
+- **Goal:** an image whose build reads a private registry token through a build secret builds from a job of the
+  Studio, the desktop app or an MCP client as it does from a terminal, the token never shown, and a missing token is
+  said before the build, not as one cut line after it (`docs/FIELD-FEEDBACK-2.md` point 30).
+- **Done (2026-11-17):** see HANDOFF "State (after L8.4)". `compose.secrets` (validated: one secret reference per
+  name, never a setting of docker, compose or the system, never a name the env file sets), checked by `up` against the
+  compose files (build secrets only, never interpolated), resolved only for the services that up builds, passed to that
+  `docker compose up` alone and masked in its lines and messages; an empty build secret refused first, leading with
+  the keychain; `RETAKE_WORKER_KEEP_ENV`; the failing step's last lines; `compose-up.log.1`. Requirement R-SBX-13; by
+  hand: MACOS-CHECKLIST §21.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.
