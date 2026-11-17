@@ -17,7 +17,7 @@ A mail client card showing a captured email — subject, sender, date and its re
 | `from` | text |  | 60 | Sender name (default — the email's). |
 | `address` | text |  | 80 | Sender address (default — the email's). |
 | `subject` | text |  | 120 | Subject (default — the email's). |
-| `date` | text |  | 40 | Date as shown (default — the email's date). |
+| `date` | text |  | 40 | Date as shown (default — the email's date, written in the take's time zone and locale, on the product clock when the run had one). |
 | `body` | text |  | 800 | Body text when there is no captured email image. |
 | `mailbox` | text |  | 24 | Mailbox name in the toolbar (default "Inbox", or "Inbox · Buyer" for a mail waited for with to: persona:buyer). |
 

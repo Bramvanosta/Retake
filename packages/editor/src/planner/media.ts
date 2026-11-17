@@ -33,7 +33,10 @@ function mediaOfArtefact(c: MediaScope, a: TimelineArtefact): MediaValue {
       ...(a.from_name ? { from_name: a.from_name } : {}),
       to: [...a.to],
       subject: a.subject,
-      date: a.date,
+      // The date the filmed pages would show for it: on the product's clock when the run had one (R-MAIL-05).
+      date: a.product_date ?? a.date,
+      ...(a.timezone ? { timezone: a.timezone } : {}),
+      ...(a.locale ? { locale: a.locale } : {}),
       preview: a.preview,
       ...(a.image ? { image: img(`artefact-email-${slugOf(a.name)}`, a.image) } : {}),
       ...(a.persona ? { persona: a.persona } : {}),

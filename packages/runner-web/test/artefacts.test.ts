@@ -215,6 +215,10 @@ describe('a run with a mailbox, downloads and notifications', () => {
     expect(e.to).toEqual(['buyer@cafe.example']);
     expect(e.preview).toMatch(/^Confirm your email Welcome aboard/);
     expect(e.image?.width).toBe(1200);
+    // No `browser:` and no clock (R-MAIL-05): the machine's zone, the locale the page said, the mail's own date only.
+    expect(e.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(e.locale).toMatch(/^[a-z]{2,3}(-[A-Za-z0-9]+)*$/);
+    expect(e).not.toHaveProperty('product_date');
     const png = await readFile(join(runDir, e.image!.file));
     expect(imageSize(png, 'image/png')).toEqual({ width: e.image!.width, height: e.image!.height });
     const json = JSON.parse(await readFile(join(runDir, e.file), 'utf8')) as { html: string; text: string };
@@ -265,4 +269,59 @@ describe('a run with a mailbox, downloads and notifications', () => {
     expect(d).toMatchObject({ via: 'project', t: 0 });
     expect(d.pages.length).toBe(2);
   });
+});
+
+describe('a captured mail is dated like the filmed pages (R-MAIL-05)', () => {
+  it("the take's browser zone and locale, and the mail's date on the product's clock", async () => {
+    const project = makeProject(dir, { app: server.url });
+    project.config.mailbox = { provider: 'mailpit', url: `${server.url}/mailpit`, poll_ms: 150 };
+    project.config.browser = { ...project.config.browser, timezone: 'America/New_York', locale: 'fr-CA' };
+    project.config.clock = '2026-11-02T10:24:00';
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('dated-mail', {
+          pacing: FAST,
+          scenes: [{ id: 'flow', open: '/app.html', steps: [{ click: { css: '#signup' } }, { wait_for_email: { subject: 'Confirm', timeout: 10, as: 'welcome' } }] }],
+        }),
+        mode: 'dry',
+        runId: `dated-mail-${Date.now()}`,
+      }),
+    );
+    expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
+    const t = await readTimeline(rec.timeline!);
+    expect(TimelineSchema.safeParse(t).success).toBe(true);
+    const e = t.artefacts!.find((a): a is EmailArtefact => a.kind === 'email')!;
+    expect(e.timezone).toBe('America/New_York');
+    expect(e.locale).toBe('fr-CA');
+    const clock = t.environment!.clock!;
+    expect(clock.timezone).toBe('America/New_York');
+    // The pages' clock read clock.epoch_ms at capture time 0 (t0_wall, a few ms after its anchor), then ran with the wall clock.
+    const expected = clock.epoch_ms + (Date.parse(e.date) - t.capture.t0_wall);
+    expect(e.product_date).toBeDefined();
+    expect(Math.abs(Date.parse(e.product_date!) - expected)).toBeLessThan(1000);
+    expect(e.date).not.toBe(e.product_date);
+  }, 120_000);
+
+  it("a frozen product clock dates every mail at the clock's time", async () => {
+    const project = makeProject(dir, { app: server.url });
+    project.config.mailbox = { provider: 'mailpit', url: `${server.url}/mailpit`, poll_ms: 150 };
+    project.config.clock = { at: '2026-11-02T10:24:00Z', freeze: true };
+    const rec = await runScenario(
+      inRunsOf({
+        policy: PERSON_POLICY,
+        project,
+        scenario: makeScenario('frozen-mail', {
+          pacing: FAST,
+          scenes: [{ id: 'flow', open: '/app.html', steps: [{ click: { css: '#signup' } }, { wait_for_email: { subject: 'Confirm', timeout: 10, as: 'welcome' } }] }],
+        }),
+        mode: 'dry',
+        runId: `frozen-mail-${Date.now()}`,
+      }),
+    );
+    expect(rec.status, JSON.stringify(rec.error)).toBe('succeeded');
+    const e = (await readTimeline(rec.timeline!)).artefacts!.find((a): a is EmailArtefact => a.kind === 'email')!;
+    expect(e.product_date).toBe('2026-11-02T10:24:00.000Z');
+  }, 120_000);
 });

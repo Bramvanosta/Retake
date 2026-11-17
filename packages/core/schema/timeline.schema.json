@@ -1352,7 +1352,22 @@
                 "type": "string"
               },
               "date": {
-                "type": "string"
+                "type": "string",
+                "description": "The mail's own date (ISO 8601, UTC), as the mailbox gave it."
+              },
+              "product_date": {
+                "type": "string",
+                "description": "The mail's date on the product's clock (a run with clock:): what the filmed pages read at that instant."
+              },
+              "timezone": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "The IANA time zone the filmed page's browser wrote dates in when the mail was captured."
+              },
+              "locale": {
+                "type": "string",
+                "maxLength": 35,
+                "description": "The locale the filmed page's browser wrote dates in (BCP 47) when the mail was captured."
               },
               "preview": {
                 "type": "string"

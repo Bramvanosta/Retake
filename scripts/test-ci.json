@@ -341,6 +341,7 @@
     "packages/runner-web/test/kit-build.test.ts",
     "packages/runner-web/test/kit-cursor-host.test.ts",
     "packages/runner-web/test/layer-encode-quit.test.ts",
+    "packages/runner-web/test/page-dating.test.ts",
     "packages/runner-web/test/page-preflight.test.ts",
     "packages/runner-web/test/profile-browser.test.ts",
     "packages/runner-web/test/raw-units.test.ts",

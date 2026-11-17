@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, Page } from 'playwright-core';
+import { machineZone } from '@retake/core/environment';
 import type { ResolvedClock } from '@retake/core/environment';
 import type { GpuInfo } from '@retake/core/render';
 import { registerSessionCopy } from './copies.js';
@@ -14,6 +15,8 @@ import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
 import type { ProductClockConfig } from './product-clock.js';
+import { readPageDating, settleDating } from './page-dating.js';
+import type { PageDating } from './page-dating.js';
 import type { PageRole } from './write-guard.js';
 import type { CursorEffectPayload } from './kit/types.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
@@ -74,6 +77,8 @@ export class BrowserSession {
   private readonly signIn = new WeakMap<Page, (url: string) => boolean>();
   /** The product's clock: installed after the preflight (installClock), anchored at capture time 0. */
   private clockState: ProductClockConfig | null = null;
+  /** The zone and locale the filmed pages write dates in (dating()). */
+  private datingState: PageDating = {};
 
   private constructor(
     readonly options: SessionOptions,
@@ -117,6 +122,8 @@ export class BrowserSession {
       throw failed.reason;
     }
     for (const r of launched) if (r.status === 'fulfilled') session.adopt(r.value);
+    // Before any page loads: the browser's own Intl defaults (R-MAIL-05).
+    session.datingState = settleDating(await readPageDating(session.realms[0]?.context.pages()[0]), opts.browser, machineZone());
     for (const realm of session.realms)
       for (const p of realm.context.pages())
         await session
@@ -250,6 +257,24 @@ export class BrowserSession {
     if (!c || c.freeze) return;
     this.clockState = { ...c, since: Date.now() };
     await Promise.all(this.realms.map((r) => this.applyClock(r.context)));
+  }
+
+  /**
+   * What the product's clock reads at real instant `epochMs` (epoch ms): `epoch + (epochMs − since)`, the clock's time
+   * when frozen — the time the in-page clock gives every document (product-clock.ts). Undefined without a clock.
+   */
+  productTime(epochMs: number): number | undefined {
+    const c = this.clockState;
+    if (!c) return undefined;
+    return c.freeze ? c.epoch : c.epoch + (epochMs - c.since);
+  }
+
+  /**
+   * The time zone and locale the filmed pages write dates in (R-MAIL-05), the same in every realm (each is launched
+   * with the run's `browser.timezone` / `browser.locale`): read once when the session opened (page-dating.ts).
+   */
+  dating(): PageDating {
+    return this.datingState;
   }
 
   /** The clock in a context: for its new documents (an init script; a later one moves an earlier one) and its open ones. */

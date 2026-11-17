@@ -137,7 +137,11 @@ export async function waitForEmail(ctx: StepContext, args: WaitForEmailArgs): Pr
   rt.artefacts.claimed.add(found.id);
   const message = await mb.get(found.id, rt.signal);
   const where = rt.current ? { scene: rt.current.scene, step: rt.current.step } : {};
-  const a = await rt.artefacts.addEmail(args.as, message, rt.now(), where, filter.persona);
+  const a = await rt.artefacts.addEmail(args.as, message, rt.now(), where, {
+    ...(filter.persona ? { persona: filter.persona } : {}),
+    ...rt.session.dating(),
+    productTime: (ms) => rt.session.productTime(ms),
+  });
   rt.log('info', `wait_for_email: captured "${message.subject}" from ${formatAddress(message.from)} as ${args.as}`);
   return {
     data: { artefact: 'email', name: args.as, file: a.file, subject: a.subject, from: formatAddress(message.from), to: a.to, ...(filter.persona ? { persona: filter.persona } : {}) },

@@ -121,7 +121,7 @@ function offsetText(ms: number): string {
 }
 
 /** The machine's IANA zone (what the browser uses without `browser.timezone`), when Node.js knows it. */
-function machineZone(): string | undefined {
+export function machineZone(): string | undefined {
   try {
     return new Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
   } catch {

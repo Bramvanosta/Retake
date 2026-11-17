@@ -5,7 +5,8 @@
 # 600 px (the captured email's image), shown from its top (scroll: auto scrolls a tall one slowly from top to bottom).
 # Fed by a captured email (`email: <name>`) or scenario values (from, subject, date, body text), scenario values
 # winning. Window rises in (0.5 s); with scroll: auto the scroll starts after 1.2 s and ends 0.8 s before the card does.
-# L5.5 (R-FLD-04): no scroll by default — a moving mail is hard to read.
+# L5.5 (R-FLD-04): no scroll by default — a moving mail is hard to read. L8.5 (R-MAIL-05): a captured mail's date is
+# written in the take's browser zone and locale (Intl), on the product clock when the run had one.
 id: studio/mail-view
 version: 1.0.0
 kind: card
@@ -17,7 +18,7 @@ slots:
   from: {type: text, max_chars: 60, description: Sender name (default — the email's).}
   address: {type: text, max_chars: 80, description: Sender address (default — the email's).}
   subject: {type: text, max_chars: 120, description: Subject (default — the email's).}
-  date: {type: text, max_chars: 40, description: Date as shown (default — the email's date).}
+  date: {type: text, max_chars: 40, description: "Date as shown (default — the email's date, written in the take's time zone and locale, on the product clock when the run had one)."}
   body: {type: text, max_chars: 800, description: Body text when there is no captured email image.}
   mailbox: {type: text, max_chars: 24, description: 'Mailbox name in the toolbar (default "Inbox", or "Inbox · Buyer" for a mail waited for with to: persona:buyer).'}
 params:

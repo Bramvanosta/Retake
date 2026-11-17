@@ -270,8 +270,15 @@ export interface EmailMedia {
   from_name?: string;
   to: string[];
   subject: string;
-  /** ISO 8601. */
+  /**
+   * ISO 8601: the date the filmed pages would show for the mail — on the product's clock when the run had one
+   * (`clock:`), else the mail's own date.
+   */
   date: string;
+  /** The IANA time zone of the take's browser (absent: a take that did not record it): a card writes `date` in it. */
+  timezone?: string;
+  /** The locale of the take's browser (BCP 47, e.g. "en-US"): a card writes `date` the way it does. */
+  locale?: string;
   /** The first characters of the text (whitespace collapsed). */
   preview: string;
   /** The HTML rendered at 600 px layout width (2×), full height. */
