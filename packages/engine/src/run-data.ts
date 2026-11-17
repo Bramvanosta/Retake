@@ -16,7 +16,7 @@ import { ACTION_NAMES } from '@retake/core/language';
 import { SCENARIO_COMPARE_MAX_BYTES } from '@retake/core/scenario';
 import { parseRunRecord } from '@retake/core/run';
 import { parseTimeline } from '@retake/core/run';
-import { RUN_RECORD_MAX, TIMELINE_MAX } from '@retake/core/io';
+import { RUN_RECORD_MAX, TIMELINE_MAX, runReadIn } from '@retake/core/io';
 import { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, lsig } from './outputs/run-files.js';
 import { listedRecord } from './runs.js';
 import type { RunRecordOnDisk } from './runs.js';
@@ -263,7 +263,8 @@ export class RunDataCache {
       folder.list('screenshots'),
     ]);
     // The bytes are the confined folder's (RunFolder); what they are is the one parse boundary's to say (core run-record.ts).
-    const record = recordValue === undefined ? undefined : listedRecord(parseRunRecord(recordValue));
+    // Its paths absolute, resolved against the folder read (core record-paths.ts).
+    const record = recordValue === undefined ? undefined : listedRecord(runReadIn(parseRunRecord(recordValue), folder.dir));
     const read = timelineValue === undefined ? undefined : parseTimeline(timelineValue);
     const timeline = read?.ok ? read.value : undefined;
     return new RunData({ folder, sig, record, timeline, snapshot: snap.ok ? snap.bytes.toString('utf8') : undefined, screenshots: new Set(shots ?? []) });

@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PERSON_POLICY } from '@retake/core';
+import { PERSON_POLICY, reportOnDisk } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { ReviewCancelledError } from '@retake/review/checks';
 import type { ReviewProgress } from '@retake/review/checks';
@@ -89,7 +89,9 @@ export function reviewerContract(name: string, setup: () => Promise<ReviewerCase
         for (const s of r.files.sheets) expect(JPEG(await bytesOf(c, s)), s).toBe(true);
         const { thumbnails, ...rest } = r;
         expect(thumbnails).toEqual([]);
-        expect(JSON.parse((await textOf(c, r.files.report_json)) ?? 'null')).toEqual(JSON.parse(JSON.stringify(rest)));
+        // report.json is the result in its disk form: its paths relative to its own (final) folder (core record-paths.ts) — both reviewers.
+        expect(JSON.parse((await textOf(c, r.files.report_json)) ?? 'null')).toEqual(reportOnDisk(JSON.parse(JSON.stringify(rest)) as typeof rest, { folder: r.files.dir, project: c.project.dir }));
+        expect(JSON.parse((await textOf(c, r.files.report_json)) ?? 'null')).toMatchObject({ files: { dir: '.', report_json: 'report.json' } });
         expect(r.clean).toBe(r.counts.error === 0 && r.counts.warning === 0);
         expect(await leftovers(c)).toEqual([]);
       },

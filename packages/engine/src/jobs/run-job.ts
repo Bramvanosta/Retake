@@ -10,7 +10,7 @@
 import type { EngineEnv } from '../env.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
+import { FORMAT_VERSIONS, errorMessage, runRecordOnDisk } from '@retake/core/base';
 import { listSteps, resolveStepRef } from '@retake/core/language';
 import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
 import { usedNamedHooks } from '@retake/core/hooks';
@@ -359,7 +359,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       hooks: { setup: 'none', teardown: 'none' },
       warnings: [],
     });
-    await runs.writeJson(dir, 'run.json', queued);
+    await runs.writeJson(dir, 'run.json', runRecordOnDisk(queued, project.dir));
     const input: RunJobInput = {
       version: JOB_INPUT_VERSION,
       kind: 'run',

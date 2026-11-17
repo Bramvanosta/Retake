@@ -84,13 +84,14 @@ export interface RenderEdit {
  * the overrides' — for the written type only (the editor names them once); no function here chooses them.
  */
 export interface RenderBase<P, O> {
-  version: 1;
+  /** 2: its paths are written relative to the record's folder on a disk (core record-paths.ts); absolute in memory. */
+  version: 2;
   /** "<scenario>-v<N>" (+ "-vertical" / "-square"), or the base name of an explicit `out` file. */
   id: string;
   project: string;
   scenario: string;
   run_id: string;
-  /** Absolute run directory. */
+  /** The run folder: absolute in memory; on a disk, the rule of core record-paths.ts. */
   run_dir: string;
   /** Theme (template name) the plan was made with, and its folder's content hash at render time. */
   template: string;
@@ -103,7 +104,7 @@ export interface RenderBase<P, O> {
   overrides: O;
   edit?: RenderEdit;
   variant: RenderVariant;
-  /** Absolute path of the video, and of this record. */
+  /** The video, and this record: absolute in memory; on a disk, the rule of core record-paths.ts (`record`: its base name). */
   file: string;
   record: string;
   /** Render version (absent with an explicit `out`). */
@@ -142,7 +143,8 @@ type Words<T> = { [K in keyof T]: T[K] extends infer V ? (V extends object ? { [
  * optional; a closed word is any text.
  */
 export interface StoredRenderBase {
-  version: 1;
+  /** 1: every path absolute (an older Retake); 2: relative on the disk. Read, every path is absolute (core record-paths.ts). */
+  version: 1 | 2;
   id: string;
   project: string;
   scenario: string;
@@ -245,13 +247,14 @@ export interface RenderSaid {
 /**
  * What reading a file of renders/ answered — never a throw: a stored record with what it lacks; a file problem (`said`:
  * what the object says all the same); a record made for a newer Retake, with its sentence; a record of a status Retake
- * never writes. `detail`: the path of the first member that does not read (a path, never a value).
+ * never writes. `detail`: the path of the first member that does not read (a path, never a value). `written`: the record
+ * as the file holds it, when the reader of renders/ resolved any of its paths (core io render-folder.ts).
  */
 export type RenderRead =
-  | { ok: true; value: StoredRenderRecord; notes: ReadNote[]; lacks: RenderLack[] }
+  | { ok: true; value: StoredRenderRecord; notes: ReadNote[]; lacks: RenderLack[]; written?: StoredRenderRecord }
   | { ok: false; problem: FileProblem; detail?: string; said?: RenderSaid }
   | { ok: false; problem: 'newer-format'; message: string; said: RenderSaid }
-  | { ok: false; problem: 'unknown-status'; record: UnknownStatusRender; lacks: RenderLack[] };
+  | { ok: false; problem: 'unknown-status'; record: UnknownStatusRender; lacks: RenderLack[]; written?: UnknownStatusRender };
 
 const KNOWN_STATUS = ['succeeded', 'failed', 'cancelled'] as const;
 const isKnownStatus = (s: string): s is (typeof KNOWN_STATUS)[number] => (KNOWN_STATUS as readonly string[]).includes(s);
@@ -301,7 +304,7 @@ export function renderSaidOf(value: unknown): RenderSaid | null {
 
 /**
  * A parsed file of renders/ as a stored record. In this order: no object → `invalid` at `(root)`; a format version
- * above this one's → `newer-format`; a version that is not 1, a status or an id that is no text → `invalid` at that
+ * above this one's → `newer-format`; a version that is neither 1 nor 2, a status or an id that is no text → `invalid` at that
  * member; a status that is none of the three → `unknown-status`, with the record read leniently. Every other member
  * is read leniently: left out when a record may lack it, its empty value when every record holds it, a block that
  * does not read dropped whole — each noted. A member a state never has (an error on a succeeded record, a probe on a
@@ -313,7 +316,7 @@ export function parseRenderRecord(value: unknown): RenderRead {
   const message = newerFormatMessage(value, { file: 'render record', supported: FORMAT_VERSIONS.render });
   if (message !== undefined) return { ok: false, problem: 'newer-format', message, said };
   for (const member of RENDER_DECIDING_MEMBERS) {
-    if (member === 'version' ? value.version !== 1 : typeof value[member] !== 'string') return { ok: false, problem: 'invalid', detail: member, said };
+    if (member === 'version' ? value.version !== 1 && value.version !== 2 : typeof value[member] !== 'string') return { ok: false, problem: 'invalid', detail: member, said };
   }
   const status = value.status as string;
   const known = isKnownStatus(status);

@@ -60,7 +60,7 @@ export function registerEditCommands({ program, action }: ProgramContext): void 
     .option('--no-previous', 'do not compare with a previous render')
     .option('--scenario <name>', 'with "latest": the latest render of this scenario')
     .option('--strict', 'exit with 1 when the review is not clean (errors or warnings)')
-    .option('--json', 'print the review result (report.json) as JSON')
+    .option('--json', 'print the review result as JSON (its paths absolute)')
     .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, r: string, o: ReviewCommandOptions) => reviewCommand(u, g, p, r, o)));
 

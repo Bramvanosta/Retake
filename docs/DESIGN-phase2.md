@@ -666,7 +666,9 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 renderWork(opts: { project /* loaded */; run /* id or dir */; root?; scenario?; template?; overrides?; out?; onProgress?; signal?;
                    concurrency?; renderer; ws; clock }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +
-//  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
+//  overrides; version 2 since L9.1: its paths written relative to renders/ inside the project, the record returned
+//  absolute — DESIGN §3.5 "Paths in records"); measures the music track (ffprobe) and passes its length to planEdit
+//  (`musicDuration_s`)
 renderStill(opts: { plan; frame; out; root }): Promise<string>      // root: the workspace (never found from the cwd)
 renderStills(opts: { plan; frames: Array<{ frame; out }>; root }): Promise<string[]>   // one browser session for all frames
 renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest, slots?, params?, at?, file? }[];
@@ -682,8 +684,9 @@ exportRender(opts: { project /* loaded */; render /* id | path | latest */; form
 //  render/export-manifest.ts) writes manifest.json from what the editor made, beside the formats exported earlier. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
 //  GIF (480 px, 12 fps, palette, 15 s around the first marker else the first 15 s). Re-rendered from the run through
 //  the planner (same theme and overrides): vertical, square, and 4K from a non-4K master (capture upscaled, warning).
-//  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file` and
-//  `run_dir` inside the project (`recordPathProblem`), re-renders through planRun's gates; `network` / `onBrowser`
+//  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file`,
+//  `run_dir` inside the project (`recordPathProblem`: what an export opens; a review job also checks its plan's capture,
+//  tracks and caption fonts — L9.1), re-renders through planRun's gates; `network` / `onBrowser`
 //  passed to the re-renders (`guard` in the worker). `exportMethod(record, format)` says copy / transcode / render.
 generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
 listRenders(project): Promise<StoredRender[]>      // L7.6b: the complete records of their own file (core/io readRendersFolder, core renderRecordsOf), oldest first
@@ -1270,7 +1273,8 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
   is untouched. `reviewImages(files, {fps, markers, mode})` is the image list (contact sheet pages + marker key frames;
   `all`: every key frame, scene sheets, the diff sheet) — the thumbnails and the MCP's `review_get` both use it.
 - **Through MCP (L3.2)**: a `review` job (engine `jobs/review-job.ts`) runs `reviewRender` with `thumbnails: false`
-  (no image data in job.json); `review_get` (engine `reviews.ts`) reads report.json as data and rebuilds every path
+  (no image data in job.json; report.json's paths written relative to its own folder since L9.1, the result handed back
+  absolute); `review_get` (engine `reviews.ts`) reads report.json as data and rebuilds every path
   from `review/<id>/` (a known file name of that folder, symbolic links resolved inside it), lists the images with
   `reviewImages`, and the MCP server makes JPEG thumbnails on read (`thumbnailOf`, ≤ 1280 px; ≤ 4 images and ≤ 1.5 MB
   of base64 per result, the rest as paths). Finding messages, the environment and the diff's per-segment changes go

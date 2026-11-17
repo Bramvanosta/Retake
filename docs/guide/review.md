@@ -34,7 +34,7 @@ $ retake review northfield-fixture catalogue-v3
 | `sheet_scene_<id>.jpg` (+ pages) | one sheet per scene, card and interstitial at 2 frames per second |
 | `keyframes/<marker>.png`, `keyframes/<scene>-first.png`, `-last.png`, `intro-hold.png`, `outro-hold.png` | full-size frames: every marker (the screen once its marked step is done — for a marked `wait_for`, the awaited state), the first and last fully visible frame of each scene, a held frame of the intro and the outro |
 | `timeline.json` | the output-time timeline: segments (frames and seconds, components with params and slots, caption component, transition in, layout rects, source range, speed, zooms, overlays), transitions, captions, markers, step spans and the clicks of the capture placed on the output (cursor point in capture px and on screen) |
-| `report.json` | the review result: render, rules, `clean`, counts, findings, segment durations, the diff and the files |
+| `report.json` | the review result: render, rules, `clean`, counts, findings, segment durations, the diff and the files — its paths written relative to this folder (`sheet_1fps.jpg`, `../../renders/quote-v3.mp4`), so a copied project keeps them; `retake review --json` prints them absolute |
 | `report.md` | the same for people: the run's environment (L1.7: `Environment production · production · read-only · 1 write mocked · clock 2026-11-02T10:24:00`; also in report.json `environment` and on the terminal), findings with timecodes, a segment table, captions, markers and clicks, changes since the previous render, files |
 | `diff_<previous>.jpg` | the frames that changed visibly since the previous render, side by side (before \| now) |
 

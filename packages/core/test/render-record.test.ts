@@ -64,6 +64,7 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     expect(got).toEqual({
       ctl: 'ok',
       v2: 'ok',
+      'v2-relative': 'ok',
       'no-created': 'ok lacks created_at',
       'created-5': 'ok lacks created_at notes created_at-dropped',
       'renamed-newest': 'ok',
@@ -80,7 +81,7 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
       paused: 'unknown-status',
       failed: 'ok',
       'variant-cube': 'ok',
-      'version-2': 'newer-format',
+      'version-3': 'newer-format',
       link: 'ok',
       'out-name': 'ok',
       'no-plan': 'ok lacks plan',
@@ -119,12 +120,16 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     expect(said(parseRenderRecord(without('id')))).toBe('invalid at id');
     expect(said(parseRenderRecord({ ...base, id: 7 }))).toBe('invalid at id');
     expect(said(parseRenderRecord({ version: 1 }))).toBe('invalid at status');
+    // Version 2 (relative paths, R-SHR-03) is this one's; version 1 still reads.
+    expect(said(parseRenderRecord({ version: 2 }))).toBe('invalid at status');
+    expect(parseRenderRecord({ ...base, version: 2 }).ok).toBe(true);
+    expect(parseRenderRecord({ ...base, version: 1 }).ok).toBe(true);
     // A newer format is said before anything else is looked at, with its sentence and what the object says.
-    const newer = parseRenderRecord({ version: 2, id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2), status: 9 });
+    const newer = parseRenderRecord({ version: 3, id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2), status: 9 });
     expect(newer).toEqual({
       ok: false,
       problem: 'newer-format',
-      message: 'this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      message: 'this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
       said: { id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2) },
     });
     // What a file that is no record says all the same: texts only.
@@ -310,7 +315,7 @@ describe('the rules over the entries of renders/', () => {
       ['no plan', good(2, { unset: ['plan'] }), [true, false, false]],
       ['failed', good(2, { set: { status: 'failed', error: 'x' } }), [true, true, true]],
       ['unknown status', good(2, { set: { status: 'paused' } }), [false, false, false]],
-      ['newer', good(2, { set: { version: 2 } }), [false, false, false]],
+      ['newer', good(2, { set: { version: 3 } }), [false, false, false]],
       ['a link', problem('quote-v2', 'not-a-file', true), [false, false, false]],
     ];
     for (const [name, e, want] of table) expect([name, renderOfFile(e) !== null, completeRender(e) !== null, projectRenderOf(e) !== null], name).toEqual([name, ...want]);
@@ -373,7 +378,7 @@ describe('the rules over the entries of renders/', () => {
       [problem('quote-v2', 'too-big'), 'too-big'],
       [problem('quote-v2', 'not-json'), 'unreadable'],
       [good(2, { unset: ['status'] }), 'unreadable'],
-      [good(2, { set: { version: 2 } }), 'newer-format'],
+      [good(2, { set: { version: 3 } }), 'newer-format'],
       [good(2, { set: { status: 'paused' } }), 'unknown-status'],
       [entry({ file: 'quote-final', id: 'quote-v2', at: at(2) }), 'renamed'],
       [good(2, { unset: ['plan'] }), 'incomplete'],
@@ -427,7 +432,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
       [problem('quote-v2', 'too-big'), 'quote-v2.json: too-big'],
       [good(2, { unset: ['created_at'] }), 'quote-v2.json: incomplete'],
       [good(2, { unset: ['plan'] }), 'quote-v2.json: incomplete'],
-      [good(2, { set: { version: 2 } }), 'quote-v2.json: newer-format'],
+      [good(2, { set: { version: 3 } }), 'quote-v2.json: newer-format'],
       [good(2, { set: { status: 'paused' } }), 'quote-v2.json: unknown-status'],
       [good(2, { set: { status: 'failed', error: 'x' } }), 'quote-v2.json: not-succeeded'],
       [good(2, { unset: ['status'] }), 'quote-v2.json: unreadable'],
@@ -494,7 +499,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
     expect(named([good(1), good(2, { set: { status: 'paused' } })])).toEqual({ pick: 'quote-v1.json', passed: ['quote-v2.json: unknown-status'], not_considered: 0 });
     expect(named([good(1), good(2, { set: { status: 'failed', error: 'x' } })]).passed).toEqual(['quote-v2.json: not-succeeded']);
     expect(named([good(1), good(2, { unset: ['created_at'] })]).passed).toEqual(['quote-v2.json: incomplete']);
-    expect(named([good(1), good(2, { set: { version: 2 } })]).passed).toEqual(['quote-v2.json: newer-format']);
+    expect(named([good(1), good(2, { set: { version: 3 } })]).passed).toEqual(['quote-v2.json: newer-format']);
     expect(named([good(1), good(2, { unset: ['status'] }), problem('notes', 'not-json')])).toEqual({ pick: 'quote-v1.json', passed: ['quote-v2.json: unreadable'], not_considered: 1 });
     // Of the scenario asked, by what the record says; without one: any.
     expect(named([good(1), good(2, { set: { scenario: 'other' } })]).pick).toBe('quote-v1.json');

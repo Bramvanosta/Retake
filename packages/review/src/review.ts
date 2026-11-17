@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, reportOnDisk } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import type { Timeline } from '@retake/core/run';
 import {
@@ -371,7 +371,10 @@ async function writeReport(r: ReviewRun, parts: ReportParts): Promise<Omit<Revie
   };
   await writeFile(join(tmpDir, 'timeline.json'), `${JSON.stringify(outputTimeline, null, 2)}\n`);
   result.review.ms = Math.round(performance.now() - r.started);
-  await writeFile(join(tmpDir, 'report.json'), `${JSON.stringify(result, null, 2)}\n`);
+  // Its paths relative to the review's FINAL folder inside the project (core record-paths.ts): the folder it is moved to,
+  // never the temporary one it is written in. The result handed back keeps them absolute.
+  const onDisk = reportOnDisk(result, { folder: finalDir, project: r.project.dir });
+  await writeFile(join(tmpDir, 'report.json'), `${JSON.stringify(onDisk, null, 2)}\n`);
   await writeFile(join(tmpDir, 'report.md'), reportMarkdown(result, outputTimeline));
   return result;
 }

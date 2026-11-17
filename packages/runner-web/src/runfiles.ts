@@ -1,6 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordOnDisk } from '@retake/core/base';
 import { writeJson } from '@retake/core/io';
 import type { FinishedRun, RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 
@@ -8,7 +9,9 @@ import type { FinishedRun, RunProgress, RunRecord, RunningRun } from '@retake/co
  * runs/<id>/run.json (RunRecord, rewritten atomically as the run progresses) and log.jsonl (every progress
  * event with a timestamp). Writes are queued so the action loop never waits on the disk. `redact` masks the run's
  * secret values in run.json when it is written (progress events arrive redacted). The record is the run's in flight,
- * then — once, at its end — the finished one (`finish`): the last save writes that.
+ * then — once, at its end — the finished one (`finish`): the last save writes that. Its paths are absolute in memory and
+ * written by the rule of core record-paths.ts (relative to the run folder inside `project`, the project folder): in
+ * run.json, and in the record that log.jsonl's run_start and run_end carry.
  */
 export class RunFiles {
   private chain: Promise<void> = Promise.resolve();
@@ -22,6 +25,7 @@ export class RunFiles {
   constructor(
     readonly dir: string,
     record: RunningRun,
+    private readonly project: string,
     private readonly redact: (record: RunRecord) => RunRecord = (r) => r,
   ) {
     this.record = record;
@@ -30,7 +34,8 @@ export class RunFiles {
   }
 
   progress(e: RunProgress): void {
-    this.log.write(JSON.stringify({ ts: new Date().toISOString(), ...e }) + '\n');
+    const line = e.type === 'run_start' || e.type === 'run_end' ? { ...e, run: runRecordOnDisk(e.run, this.project) } : e;
+    this.log.write(JSON.stringify({ ts: new Date().toISOString(), ...line }) + '\n');
   }
 
   /** The run ended: `done` is the record from now on (set once; the next save writes it). */
@@ -47,7 +52,7 @@ export class RunFiles {
     this.chain = this.chain.then(async () => {
       this.dirty = false;
       try {
-        await writeJson(join(this.dir, 'run.json'), this.redact(this.record));
+        await writeJson(join(this.dir, 'run.json'), runRecordOnDisk(this.redact(this.record), this.project));
       } catch (e) {
         this.lastError = e as Error;
       }

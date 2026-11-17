@@ -135,7 +135,7 @@ describe('every other file of renders/: left alone, and it keeps what it names (
       entry({ file: 'keep', id: 'quote-v1', at: at(0), run: 'OLD', set: { scenario: 'other' } }),
       entry({ file: 'keep', id: 'quote-v1', at: at(50), run: 'OLD' }),
       entry({ file: 'quote-v1 copy', id: 'quote-v1', at: at(1), run: 'OLD' }),
-      entry({ file: 'later', id: 'quote-v1', at: at(1), run: 'OLD', set: { version: 2 } }),
+      entry({ file: 'later', id: 'quote-v1', at: at(1), run: 'OLD', set: { version: 3 } }),
       entry({ file: 'odd', id: 'quote-v1', at: at(1), run: 'OLD', set: { status: 'paused' } }),
       entry({ file: 'broken', id: 'quote-v1', at: at(1), run: 'OLD', unset: ['status'] }),
     ]) {
@@ -147,7 +147,7 @@ describe('every other file of renders/: left alone, and it keeps what it names (
   it('a record of an unknown status, of a newer format, without a status: left alone under its own name too, its take kept — never an item', () => {
     const table: Array<[RenderEntry, string]> = [
       [good(5, { run: 'OLD', set: { status: 'paused' } }), 'quote-v5.json: unknown-status'],
-      [good(5, { run: 'OLD', set: { version: 2 } }), 'quote-v5.json: newer-format'],
+      [good(5, { run: 'OLD', set: { version: 3 } }), 'quote-v5.json: newer-format'],
       [good(5, { run: 'OLD', unset: ['status'] }), 'quote-v5.json: unreadable'],
     ];
     for (const [e, line] of table) {

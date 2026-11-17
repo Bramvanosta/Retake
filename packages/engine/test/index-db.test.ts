@@ -423,7 +423,7 @@ describe('the workspace index', () => {
       await writeFile(join(renders, 'quote-v2.json'), rec('quote-v2', { status: 'paused' }));
       // A record of a status Retake never writes renamed by hand: no row either.
       await writeFile(join(renders, 'quote-v6.json'), rec('quote-v9', { status: 'paused', template: 'pausedrenamedtheme' }));
-      await writeFile(join(renders, 'quote-v3.json'), rec('quote-v3', { version: 2, template: 'newertheme' }));
+      await writeFile(join(renders, 'quote-v3.json'), rec('quote-v3', { version: 3, template: 'newertheme' }));
       const { status: _s, ...noStatus } = JSON.parse(rec('quote-v4', { template: 'nostatustheme' })) as Record<string, unknown>;
       await writeFile(join(renders, 'quote-v4.json'), JSON.stringify(noStatus));
       // A record bigger than the index's old cap (1 MB) and within the reader's: a row (before: skipped).

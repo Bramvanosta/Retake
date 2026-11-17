@@ -263,7 +263,8 @@ A render record is a union of states: `FinishedRender` (`status: 'succeeded'`, n
 writer puts on a disk, made by `finishedRender`) and `RenderAttempt` (`failed` / `cancelled` with its `error` and no
 `probe`: what a render's error carries, made by `renderAttempt`, never written). `StoredRenderRecord` is what any
 version or a person left on a disk; `parseRenderRecord` (the parse boundary) answers it or a typed problem and never
-throws. **Only three members decide** whether a file of `renders/` is a record: its format `version` (1; above:
+throws. **Only three members decide** whether a file of `renders/` is a record: its format `version` (1 or 2 — 2 since
+L9.1, its paths relative: §3.5 "Paths in records"; above:
 `newer-format` with the sentence above), its `status` (a text; one Retake never writes is `unknown-status`, read
 leniently and said as that) and its `id` (a text). Every other member is read leniently — a closed word is kept as its
 text, a member every record holds and that does not read is its empty value (`''`, `0`, `[]`, `{}`), a block that
@@ -909,6 +910,32 @@ access, the display table (URLs elsewhere stay real), the clock and the writes t
 policy keeps names, enums, display bases and the clock; real URLs and matched patterns are redacted like any URL. A
 read-only run refuses its writing hooks first (before secrets, sessions and the browser); `--allow-writes` on a
 read-only environment and an unusable clock throw before the run folder is made.
+
+**Paths in records** (L9.1, R-SHR-01 – 05; core `record-paths.ts`, the rule written once). A path a record holds is
+written relative to the folder of the file that holds it, with `/` separators, when that folder and the path both lie
+inside the project folder (a lexical check: a `runs/` that is a symbolic link stays relative); any other path absolute,
+as before. In memory every path is absolute: the readers (core io `run-folder.ts`, `render-folder.ts`, the engine's
+run data) resolve a relative path against the folder of the file they read, never the process's folder, and bound it
+as the writer does — a relative path that resolves outside its bound (run.json: its run folder; a render record of
+`renders/`: its project; a record elsewhere: its own folder) is read as `''`, missing. run.json
+writes `dir: "."` (read as the folder read), `capture`, `timeline`, `screenshots`, the error's `screenshot` / `dom` and
+the optional failures' shots relative to the run folder, and so does the record log.jsonl's `run_start` / `run_end`
+carry; a render record (format **version 2**) its `file`, `run_dir`, `plan.source.file`, `plan.tracks.*.file`,
+`plan.music.file` and `plan.assets` relative to `renders/`, and `record` as its base name (read as the file read); a
+review's report.json its paths relative to its final folder. The records an older Retake wrote, all absolute, are read
+rebased: run.json's paths inside its old `dir` onto the folder read; a version 1 render record's paths inside the
+project it was written in (the folder above its own `record`'s `renders/`, else its `file`'s — at least two names
+below the root, whatever its name: `/renders/x.json` is no anchor) onto the project it is read in; anything else as
+written, so a record naming a file outside the project is still refused through MCP. Nothing is rewritten. Answers
+keep absolute paths; render_status's `untrusted.record` is the record as the file holds it (core io render-folder's
+`written`, carried by the read). Through MCP (editor `recordPathProblem`) each use checks what it opens: every use the
+video and the run folder (inside the project); a review also the plan's capture and page tracks (inside the project)
+and its caption fonts (a `font_faces[].url` that is an asset of the plan, its file an absolute .woff2 / .woff / .ttf /
+.otf that, when there, is a regular file). A path that is not absolute is refused; the sentences say fixed words and
+the render id, the path under `details.untrusted.paths`. Not covered: raw / export manifests (`exports/`), `.retake/`
+state, `retake plan --out` (a person's file), and a workspace theme's files (outside the project: absolute until
+themes live in the project, L9.2). Hard links are not checked here (only a render's served files are:
+`servedFileProblems`).
 
 ### 3.6 Sessions & personas (L1.6; core `auth.ts`, runner `auth.ts`)
 - **Model.** `auth` (global, or keyed by environment) names personas: `{pages?, session?: profile | storage_state,
@@ -2028,9 +2055,9 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
 - **Storage** (R-ARC-03, local only): `LocalStorage(projectDir)` — `resolve(ref)` (refs are project-relative POSIX
   paths: no absolute path, `..`, `.`, empty segment or backslash), `refOf(path)`, `describe(ref, kind, {hash})`
   (stat + streamed sha256), `readText(ref)` → `{text, sha256}`, `writeText(ref, text, {ifMatch})` (atomic; a folder
-  that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
-  keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
-  BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
+  that is a symbolic link out of the project is refused, real paths compared). Since L9.1 the producers (runner,
+  render, review) write the paths of their records relative to the record's folder inside the project (§3.5 "Paths in
+  records"; render records are version 2); the readers hand them absolute.
 - **Project store and workspace journal** (L6.6, engine `store/`; a port since L7.10: `store/store.ts`
   `ProjectStores`, carried with the engine's clock in each `StoreScope`, its disk adapter `diskProjectStores` chosen at
   the composition roots, the journal lines stamped by the scope's clock): every authored write goes through `ProjectStore`
@@ -3012,7 +3039,7 @@ folders resolved — same inode, not a link — and the name still names the fil
 64 MiB, the snapshot ≤ 2 MiB, frame indexes ≤ 32 MiB, screenshots ≤ 16 MiB (`SCREENSHOT_MAX`; was 64), frames ≤ 16 MiB. Frame names in an index must match `^\d{6}\.(jpe?g|png)$` (others are left out); a track's files
 `^capture-[A-Za-z0-9._-]+\.mp4$` / `^frames-[A-Za-z0-9._-]+\.jsonl$` (else the step has no picture); screenshot names
 are rebuilt from the scene id and step (`<fileSlug(scene)>-<NN>-<action>.png`, `error-<fileSlug(scene)>-<i>.png`; the
-action one of the 27) — `RunRecord.screenshots` (absolute paths) is never used. A video goes to ffmpeg as open
+action one of the 27) — `RunRecord.screenshots` (relative to the run folder on a disk since L9.1, absolute once read) is never used. A video goes to ffmpeg as open
 descriptors, never a path (review A #7: a path checked then opened by ffmpeg could be swapped for a link):
 `RunFolder.openVideo(name, n)` opens it n times (`O_NOFOLLOW`, a regular file, checked once open, the same inode each
 time), the child gets them as fds 3…, read as `-protocol_whitelist fd -f mp4 -fd <n> -i fd:`. `RunDataCache` holds 6
