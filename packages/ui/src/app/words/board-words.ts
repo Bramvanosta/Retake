@@ -178,6 +178,13 @@ export function envFlagWords(e: { production: boolean; access: 'read-only' | 're
     .join(' · ');
 }
 
+/** What an environment films, in a few words: "iOS · iPhone 17 Pro" for an iOS one, else its pages ("2 pages"). */
+export function envWhatWords(e: { pages: Record<string, string>; ios?: { device: string } }): string {
+  if (e.ios) return `iOS · ${e.ios.device}`;
+  const n = Object.keys(e.pages).length;
+  return `${n} page${n === 1 ? '' : 's'}`;
+}
+
 /** The one flag a browser row has room for (production, read-only, sandbox, default — the riskiest first). */
 export function envFlagWord(e: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }, isDefault: boolean): string {
   return e.production ? 'production' : e.access === 'read-only' ? 'read-only' : e.sandbox ? 'sandbox' : isDefault ? 'default' : '';

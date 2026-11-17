@@ -393,6 +393,17 @@ export interface TextArtefact extends ArtefactBase {
 
 export type TimelineArtefact = EmailArtefact | DocumentArtefact | NotificationArtefact | TextArtefact;
 
+/** The device a take was filmed on (Timeline.capture.device): an iOS Simulator's. */
+export interface CaptureDevice {
+  kind: 'ios';
+  /** The device type, as the simulator names it ("iPhone 17 Pro"). */
+  name: string;
+  /** The iOS runtime it ran ("iOS 26.5"). */
+  runtime: string;
+  /** The Xcode the driver was built with ("26.6 (17F113)"). */
+  xcode?: string;
+}
+
 export interface Timeline {
   version: 1;
   run_id: string;
@@ -420,6 +431,11 @@ export interface Timeline {
      * cursor track and effects recorded as usual, nothing drawn. Absent: the cursor is in the pictures.
      */
     cursor?: 'hidden';
+    /**
+     * The device the take was filmed on, when it was no browser page (an iOS environment's simulator): `width` /
+     * `height` are its screen in points, `scale` its pixels per point. Absent: a browser page.
+     */
+    device?: CaptureDevice;
   };
   /** Title, intro, outro, frame, template and music of the scenario (written by runners; older runs have none). */
   video?: TimelineVideo;

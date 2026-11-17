@@ -24,10 +24,12 @@ import { mailboxFor, sandboxOf } from '../sandbox.js';
 import type { LoadedProject } from '../types/project.js';
 import type { NormalizedStep } from '../types/language.js';
 import type { Scenario } from '../types/scenario.js';
+import type { IosSettings } from '../types/environment.js';
 import type { Template } from '../types/theme.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
 import { checkActionArgs, checkTarget } from './actions.js';
+import { checkIosScenario } from './ios.js';
 import { CheckContext, isObj } from './context.js';
 import { checkHooks, checkNamedHooks } from './hooks.js';
 import { checkMediaFields } from './media.js';
@@ -93,6 +95,8 @@ class ScenarioChecker {
   private readonly ctx: CheckContext;
   private pages?: Record<string, string>;
   private envName?: string;
+  /** The environment's `ios:` when it is an iOS environment (its steps are checkIosScenario's). */
+  private ios?: IosSettings;
   private readonly maxZoom: number;
   private readonly stepIds = new Map<string, IssuePath>();
   private readonly marks = new Map<string, IssuePath>();
@@ -134,6 +138,9 @@ class ScenarioChecker {
     this.environment();
     this.scenes();
     this.navigation();
+    if (this.ios && this.envName !== undefined) {
+      checkIosScenario(this.s, this.ctx, { envName: this.envName, ...(this.opts.project?.config.hooks ? { projectHooks: this.opts.project.config.hooks } : {}) });
+    }
     const saved = new Set<string>();
     const pageKeys = this.pages ? Object.keys(this.pages) : undefined;
     const project = this.opts.project;
@@ -166,6 +173,8 @@ class ScenarioChecker {
       return;
     }
     this.pages = envs[this.envName] ?? {};
+    const settings = project.config.environment_settings;
+    this.ios = settings && Object.hasOwn(settings, this.envName) ? settings[this.envName].ios : undefined;
   }
 
   /**
@@ -261,7 +270,8 @@ class ScenarioChecker {
    */
   private navigation(): void {
     const pageKeys = this.pages ? Object.keys(this.pages) : undefined;
-    for (const p of scenarioNavigationProblems(this.s, { ...(pageKeys ? { pageKeys } : {}), ...(this.envName !== undefined ? { envName: this.envName } : {}) })) {
+    const ios = this.ios ? { ios: { ...(this.ios.schemes ? { schemes: this.ios.schemes } : {}) } } : {};
+    for (const p of scenarioNavigationProblems(this.s, { ...(pageKeys ? { pageKeys } : {}), ...(this.envName !== undefined ? { envName: this.envName } : {}), ...ios })) {
       if (!this.ctx.broken(p.path)) this.ctx.error(p.path, p.message);
     }
   }
@@ -332,7 +342,8 @@ class ScenarioChecker {
       const steps = Array.isArray(entry.steps) ? entry.steps : [];
       const pageKey = page ?? '(default page)';
       const opensFirst = isObj(steps[0]) && 'open' in steps[0];
-      if (entry.open === undefined && !opensFirst && !visited.has(pageKey) && entry.skip !== true) {
+      // On an iOS environment the first scene starts on the app, launched.
+      if (entry.open === undefined && !opensFirst && !visited.has(pageKey) && entry.skip !== true && !this.ios) {
         const where = page ? ` on page "${page}"` : '';
         this.ctx.warning(p, `scene "${String(entry.id)}" is the first scene${where} but has no \`open\`: it starts on whatever is loaded`);
       }

@@ -2909,3 +2909,24 @@ browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium
 `chrome-mac/Chromium.app` and `headless_shell`. Its own lot: the new layout in the stage and the signer, the digests
 re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
 Testing's terms allow shipping it in a public DMG (with BL-138).
+
+### BL-193 — The iOS runner: what L5.3 left
+*M–L · from L5.3 (2026-11-17) · builds on: docs/guide/ios.md, packages/runner-ios*
+
+L5.3 films an iOS app in the Simulator with taps, typing, swipes and deep links. Left out, each its own decision:
+- **Takes:** dry runs, inspection (`page_inspect`), recording (`retake record`), the Studio's live picture and pausing
+  of an iOS take; a Studio readiness screen for iOS; `retake env add` for an iOS environment.
+- **Gestures and keys:** double tap, long press, drag, pinch, rotation, `scroll to: top | bottom`, the Home button, a
+  hardware keyboard, typing a secret (a paste that the on-screen keyboard does not show), system alerts answered by
+  name (XCUITest's interruption monitor cancels them today, with a warning in the log).
+- **Targets:** `in:` scopes (a row, a dialog), `last_visible`, roles beyond button, text field, switch, text and cell.
+- **Environment:** `runtime` and `appearance` choices, `reset: true` (a fresh install), the app's launch arguments from a
+  scenario, the app's clock, physical devices, iPad / tvOS / visionOS layouts, a capture scale below the device's.
+- **Film and export:** the raw export's cursor layer for an iOS take (a touch atlas), `keep_frames` and `step_shots`;
+  swipes timed from the video like taps; a phone and a web page in one scene.
+- **Timing:** t0 is the moment the Simulator's recorder says it started, corrected by the lateness the movie's own
+  duration shows. Under heavy load a frame can still reach the recording late (one calibration tap at +54 ms, load
+  20–30), so a touch can lead its screen's answer by a frame or two; taps whose 44 pt box shows no change are timed by
+  a constant. The gated calibration holds one frame on a quiet Mac only.
+- **Tests:** test-support's `deviceTimeline` is a literal (not made by the runner's `writeTouches`); the number of
+  touch-down searches run at once is untested (speed only).

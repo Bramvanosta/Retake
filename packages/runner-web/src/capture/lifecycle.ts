@@ -34,10 +34,11 @@ import { INSPECT_PACING } from '../inspect.js';
 import type { LogLevel } from '../runtime.js';
 import { RunFiles } from '../runfiles.js';
 import { StepFailure, describeStep, templated, untilSteps } from '../scenes.js';
+import { caption } from '../step-describe.js';
 import { RunSecrets } from '../secrets.js';
 import { CaptureClock, TimelineBuilder } from '../timeline.js';
-import { throwIfAborted, wallNow } from '../util.js';
-import type { CaptureDriver, CaptureRun } from './driver.js';
+import { sleep, throwIfAborted, wallNow } from '../util.js';
+import type { CaptureDriver, CaptureRun, CaptureTools, DriverFactory } from './driver.js';
 import { openHooks, setupHooks, stepHookRunner, teardownHooks } from './hooks.js';
 import type { HooksState, SetupDeps } from './hooks.js';
 import type { FilmingEvent, FilmingReport, RunOptions } from './options.js';
@@ -454,11 +455,25 @@ async function endRun(run: CaptureRun, driver: CaptureDriver): Promise<RunRecord
   return secrets.redactRecord(done);
 }
 
-/** Run a scenario with `driverOf`'s driver (runScenario: the browser's). */
-export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) => CaptureDriver): Promise<RunRecord> {
+/** The lifecycle's tools every driver is handed (CaptureTools): what a driver of another package plays its steps with. */
+export const CAPTURE_TOOLS: CaptureTools = Object.freeze({
+  stepFailure: (message: string, o: ConstructorParameters<typeof StepFailure>[1]) => new StepFailure(message, o),
+  runnerError: (message: string) => new RunnerError(message),
+  isCancelled,
+  errorMessage,
+  describeStep,
+  caption,
+  templated,
+  untilSteps,
+  throwIfAborted,
+  sleep,
+});
+
+/** Run a scenario with `driverOf`'s driver (runScenario: the browser's, or RunOptions.driver). */
+export async function runCapture(opts: RunOptions, driverOf: DriverFactory): Promise<RunRecord> {
   const { run, toRun, hookGroups } = await openRun(opts, settleRun(opts));
   const { sc, signal, secrets, until, readsMail, mailbox, record, timeline, template, env, log, emit } = run;
-  const driver = driverOf(run);
+  const driver = driverOf(run, CAPTURE_TOOLS);
   const removeSignals = installSignalHandlers(
     (sig) => run.abort.abort(new CancelledError(`run cancelled (${sig})`)),
     hookGroups,

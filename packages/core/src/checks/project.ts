@@ -1,7 +1,7 @@
-import { isAbsolute } from 'node:path';
+import { isAbsolute, normalize } from 'node:path';
 import { passEnvProblem, sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
-import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
+import { environmentAccess, environmentHttpCredentials, iosAppKind, isIosEnvironment, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { FilesWith } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
@@ -104,6 +104,39 @@ function checkSandboxEntries(sandboxes: unknown, envs: Record<string, unknown>, 
   return Object.keys(sandboxes);
 }
 
+/** What an iOS environment's settings this version does not read yet would do, said by their refusal. */
+const IOS_NOT_YET: Readonly<Record<string, string>> = {
+  runtime: 'the newest iOS runtime the device type supports is used — remove it',
+  appearance: 'the simulator shows its own appearance — remove it',
+  reset: 'the app is installed again for each take, its data kept — remove it',
+};
+
+/**
+ * The iOS environments of project.yaml (`{ios: {app, device, schemes}}`): the settings not supported yet, an `app` path
+ * that leaves the project folder (`..`; an absolute path is the person's own), and no personas for them (an iOS
+ * environment signs nobody in). Never production, read-write, no sandbox: its form has no such key.
+ */
+function checkIosEnvironments(written: Record<string, unknown>, auth: unknown, ctx: CheckContext): void {
+  const perEnv = isObj(auth) && !Object.keys(auth).some((k) => AUTH_KEYS.includes(k)) ? auth : {};
+  for (const [name, env] of Object.entries(written)) {
+    if (!isIosEnvironment(env)) continue;
+    const at: IssuePath = ['environments', name, 'ios'];
+    for (const [key, why] of Object.entries(IOS_NOT_YET)) {
+      if (Object.hasOwn(env.ios, key)) ctx.error([...at, key], `\`${key}\` of an iOS environment is not supported yet: ${why}`, { path: [...at, key], key: true });
+    }
+    const app = env.ios.app;
+    if (typeof app === 'string' && !ctx.broken([...at, 'app']) && iosAppKind(app) === 'path') {
+      if (app.trim().startsWith('~')) ctx.error([...at, 'app'], `"${app}": write the path of the app relative to the project, or an absolute path (\`~\` is not expanded)`);
+      else if (!isAbsolute(app.trim()) && normalize(app.trim()).split(/[\\/]/)[0] === '..') {
+        ctx.error([...at, 'app'], `"${app}" leaves the project folder: write the path of the app relative to the project (inside it), or an absolute path`);
+      }
+    }
+    if (Object.hasOwn(perEnv, name)) {
+      ctx.error(['auth', name], `environment ${name} is an iOS environment: it signs nobody in — remove its personas (auth.${name})`, { path: ['auth', name], key: true });
+    }
+  }
+}
+
 /** `browser.args` of project.yaml or retake.yaml: no switch that turns Chromium's sandbox or site isolation off. */
 export function checkBrowserArgs(browser: unknown, ctx: CheckContext): void {
   if (!isObj(browser) || !Array.isArray(browser.args)) return;
@@ -166,6 +199,8 @@ export function checkProject(value: unknown, structural: readonly LocatedIssue[]
     const credentials = environmentHttpCredentials({ config: { environments: { [envName]: urls } } as never }, envName);
     if (credentials.problem) ctx.error(at, credentials.problem);
   }
+
+  checkIosEnvironments(written, value.auth, ctx);
 
   if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env) && !sandboxNames.includes(value.default_env)) {
     const all = [...envNames, ...sandboxNames];

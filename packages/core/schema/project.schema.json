@@ -447,6 +447,53 @@
         },
         {
           "type": "object",
+          "properties": {
+            "ios": {
+              "type": "object",
+              "properties": {
+                "app": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The simulator build (.app) relative to the project dir (or absolute), or the bundle id of an app installed on the device (com.example.app)."
+                },
+                "device": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The device type, as `xcrun simctl list devicetypes` names it, e.g. \"iPhone 17 Pro\" (the run makes a simulator of its own of it)."
+                },
+                "schemes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "The URL schemes `open:` may use (deep links into the app: `<scheme>://…`); none: `open:` is refused."
+                },
+                "runtime": {
+                  "description": "Not supported yet: the newest iOS runtime of the device type is used."
+                },
+                "appearance": {
+                  "description": "Not supported yet: the simulator keeps its own light or dark appearance."
+                },
+                "reset": {
+                  "description": "Not supported yet: the app is installed again for each take, its data kept."
+                }
+              },
+              "required": [
+                "app",
+                "device"
+              ],
+              "additionalProperties": false,
+              "description": "An iOS environment: the app filmed in the iOS Simulator. It has no pages, is never production and always read-write."
+            }
+          },
+          "required": [
+            "ios"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "propertyNames": {
             "type": "string"
           },
@@ -478,7 +525,7 @@
           }
         }
       ],
-      "description": "page key → base URL (or {url, display}); or the long form {production, access, pages, read_only}."
+      "description": "page key → base URL (or {url, display}); the long form {production, access, pages, read_only}; or an iOS environment {ios: {app, device, schemes}}."
     },
     "AuthConfig": {
       "type": "object",

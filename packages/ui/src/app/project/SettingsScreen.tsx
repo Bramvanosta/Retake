@@ -12,7 +12,7 @@ import type { ProjectView } from '@retake/engine';
 import { Txt, plural, shown } from '../bits.js';
 import { useProjectView } from '../project-data.js';
 import { hrefTo } from '../route.js';
-import { envFlagWords } from '../words/board-words.js';
+import { envFlagWords, envWhatWords } from '../words/board-words.js';
 import { captureWords, hookLine, namedHookLines } from '../words/settings-words.js';
 import type { HookLine } from '../words/settings-words.js';
 import { Callout, Facts, StatusMark } from '../ui-kit/index.js';
@@ -143,7 +143,7 @@ function PlacePanels({ p }: { p: ProjectView }) {
                   <Txt text={e.name} />
                 </a>
                 <span className="sc-quiet">
-                  <Txt text={[...(flags ? [flags] : []), plural(Object.keys(e.pages).length, 'page'), plural(e.personas.length, 'persona')].join(' · ')} />
+                  <Txt text={[...(flags ? [flags] : []), envWhatWords(e), plural(e.personas.length, 'persona')].join(' · ')} />
                 </span>
               </li>
             );

@@ -14,6 +14,7 @@ install it, a first video and where to go next.
 | [Review and frame comments](review.md) | contact sheets, checks and reports; comments on frames |
 | [Sign-ins and environments](environments.md) | personas and their sessions, display URLs, production and read-only, the clock |
 | [Sandboxes](sandbox.md) | a disposable copy of your product, seeded and reset before every take |
+| [iOS apps in the Simulator](ios.md) | an iOS environment, the device, the steps on iOS, the film and its touches |
 | [Claude and MCP](mcp.md) | the MCP server, the Claude skills and the Claude Code plugin |
 | [The Studio](studio.md) | the Studio web app, screen by screen |
 | [The desktop app (macOS)](desktop-app.md) | installing Retake.app, its updates, the desktop shell |

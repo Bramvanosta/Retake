@@ -22,3 +22,4 @@ export * from '../step-match.js';
 export * from '../filmed.js';
 export * from '../agent-trust.js';
 export { CardSchema, InterstitialSchema, ScenarioSchema, SceneCursorSchema, SceneEntrySchema, ScenePageSchema, ScenePagesSchema, SceneSchema, ViewportSchema } from '../schemas/scenario.js';
+export { IOS_PRESS_KEYS, IOS_STEP_ACTIONS, IOS_TARGET_KEYS, IOS_TARGET_ROLES } from '../checks/ios.js';

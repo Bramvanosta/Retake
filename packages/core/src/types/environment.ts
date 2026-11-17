@@ -141,6 +141,24 @@ export interface EnvironmentSettings {
   mailbox?: MailboxConfig;
   /** The sandbox's databases (core databasesFor: merged over the project's `databases` on this environment). */
   databases?: Record<string, DatabaseConfig>;
+  /** An iOS environment (`ios:` in project.yaml): the app filmed in the iOS Simulator. It has no pages. */
+  ios?: IosSettings;
+}
+
+/**
+ * `ios:` of an iOS environment (project.yaml): the app a run films in the iOS Simulator, on a device of its own. An
+ * iOS environment has no pages, is never production, always read-write, with no personas and no sandbox.
+ */
+export interface IosSettings {
+  /**
+   * The app: the path of a simulator build (`.app`), relative to the project folder (or absolute), or the bundle id of
+   * an app already installed on the run's device (`com.example.app`).
+   */
+  app: string;
+  /** The device type the run's simulator is made of, as `xcrun simctl list devicetypes` names it ("iPhone 17 Pro"). */
+  device: string;
+  /** The URL schemes `open:` may use (deep links into the app, `<scheme>://…`); none: `open:` is refused. */
+  schemes?: string[];
 }
 
 /** How a sandbox starts its services: `docker compose` on its compose files, or local processes. */
@@ -225,4 +243,6 @@ export interface ResolvedEnvironment {
   read_only?: ReadOnlySettings;
   /** A sandbox environment: never production, always read-write. */
   sandbox?: EnvironmentSandbox;
+  /** An iOS environment: the app filmed in the iOS Simulator (`pages` is empty). */
+  ios?: IosSettings;
 }

@@ -11,7 +11,10 @@ import { missingOrInvalid } from '@retake/core/base';
 import type { CaptureHookRunner } from '@retake/core/hooks';
 import { EngineError } from '@retake/engine/composition';
 import type { CaptureRunner, HookBrowser, HookRunner } from '@retake/engine/composition';
-import { runnerWeb } from './lazy.js';
+import { resolveEnvironment } from '@retake/core/environment';
+import type { ResolvedEnvironment } from '@retake/core/environment';
+import type { LoadedProject } from '@retake/core/project';
+import { runnerIos, runnerWeb } from './lazy.js';
 
 type RunnerWeb = Awaited<ReturnType<typeof runnerWeb>>;
 type Session = RunnerWeb['BrowserSession']['prototype'];
@@ -41,6 +44,24 @@ async function refusals<T>(rw: RunnerWeb, work: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * The environment a run films when it is an iOS one (`ios:`), else null: a name that resolves to nothing is the runner's
+ * to refuse, in its own words, as before.
+ */
+export function iosEnvironmentOf(project: Pick<LoadedProject, 'config'>, env: string | undefined): ResolvedEnvironment | null {
+  try {
+    const resolved = resolveEnvironment(project, env);
+    return resolved.ios ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What a browser does that an iOS environment cannot (a recording's window, a js hook's page, an inspection, a dry run). */
+function refuseIos(env: { name: string }, what: string): never {
+  throw new EngineError('invalid', `environment ${env.name} is an iOS environment: ${what} is not available on it (an iOS environment's runs are captures)`);
+}
+
 export function runnerWebCapture(): CaptureRunner {
   let loaded: RunnerWeb | undefined;
   const load = async (): Promise<RunnerWeb> => (loaded = await runnerWeb());
@@ -53,8 +74,20 @@ export function runnerWebCapture(): CaptureRunner {
     load: async () => void (await load()),
     // The request is handed on as is but for the outputs port: the runner reads its own options (the hook runner is the
     // engine's addition) and writes its run folder on the disk itself.
-    run: async ({ runs: _runs, ...req }) => (await load()).runScenario(req),
-    record: async (o) => (await load()).recordSession(o),
+    // An iOS environment's run is filmed by the iOS runner's driver under the same lifecycle (loaded for it only); a web
+    // run is handed on unchanged.
+    run: async ({ runs: _runs, ...req }) => {
+      const ios = iosEnvironmentOf(req.project, req.env ?? req.scenario.scenario.env);
+      if (!ios) return (await load()).runScenario(req);
+      if (req.inspect) refuseIos(ios, 'an inspection');
+      if (req.mode === 'dry') refuseIos(ios, 'a dry run');
+      const [rw, { iosDriver }] = await Promise.all([load(), runnerIos()]);
+      return rw.runScenario({ ...req, driver: iosDriver });
+    },
+    record: async (o) => {
+      if (o.env.ios) refuseIos(o.env, 'a recording');
+      return (await load()).recordSession(o);
+    },
     sessions: {
       check: async (o) => (await load()).checkSavedSession(o),
       signIn: async (o) => (await load()).signIn(o),
@@ -87,6 +120,8 @@ export function runnerWebCapture(): CaptureRunner {
         });
       },
       evalIn: async (browser, o, pageKey, code) => {
+        const ios = iosEnvironmentOf(o.project, o.env.name);
+        if (ios) refuseIos(ios, 'a js hook');
         const rw = await load();
         return rw.evalHookInPage(own(rw, browser), o, pageKey, code);
       },

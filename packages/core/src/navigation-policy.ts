@@ -102,6 +102,29 @@ export interface NavigationOptions {
   envName?: string;
   /** The words of the work's confinement (agent work: "through MCP"; AGENT_CONFINEMENT when absent). */
   via?: Confinement;
+  /**
+   * An iOS environment (its `ios.schemes`): `open` names a deep link into the app, `<scheme>://…` with one of its
+   * schemes — never a web page, a path or another scheme (iosNavigationProblem). The page rules do not apply.
+   */
+  ios?: { schemes?: readonly string[] };
+}
+
+/**
+ * Why a scenario on an iOS environment may not open `url` (null when it may), the same for a person's and an agent's
+ * work: a deep link `<scheme>://…` whose scheme is one of the environment's `ios.schemes` (in any case, as WHATWG URL
+ * reads a scheme). A web page (http, https: no browser on the device), a path (an iOS environment has no pages) and any
+ * other scheme are refused. Templated text is judged once rendered (the iOS driver checks it again).
+ */
+export function iosNavigationProblem(url: string, o: Pick<NavigationOptions, 'envName'> & { ios: { schemes?: readonly string[] } }): string | null {
+  const schemes = o.ios.schemes ?? [];
+  const env = o.envName !== undefined ? `iOS environment ${o.envName}` : 'the iOS environment';
+  const listed = schemes.length ? `its schemes: ${schemes.join(', ')}` : 'it lists no `ios.schemes` in project.yaml (a person adds them)';
+  const scheme = SCHEME_PREFIX.exec(url.replace(/[\t\n\r]/g, ''))?.[1]?.toLowerCase();
+  const shown = shownUrl(url);
+  if (scheme === undefined) return `${shown} is not a deep link: ${env} has no pages — \`open\` names a link into the app, \`<scheme>://…\` (${listed})`;
+  if (scheme === 'http' || scheme === 'https') return `${shown} opens a web page: ${env} films its app only — \`open\` names a deep link \`<scheme>://…\` (${listed})`;
+  if (!schemes.includes(scheme)) return `${shown} opens a ${scheme}: link, not one of the schemes of ${env} (${listed})`;
+  return null;
 }
 
 /**
@@ -219,6 +242,11 @@ export function scenarioNavigationProblems(sc: unknown, o: NavigationOptions & {
   const out: Array<{ path: IssuePath; message: string }> = [];
   for (const ref of scenarioNavigationRefs(sc)) {
     if (ref.url.includes('{{')) continue;
+    if (o.ios) {
+      const message = iosNavigationProblem(ref.url, { ios: o.ios, ...(o.envName !== undefined ? { envName: o.envName } : {}) });
+      if (message) out.push({ path: ref.path, message });
+      continue;
+    }
     let hint = '';
     let notAPage: string | null = null;
     if (ref.pagePrefix) {

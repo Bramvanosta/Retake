@@ -27,6 +27,18 @@ const SERVICE_STATE: Record<string, [MarkState, string]> = { running: ['ok', 'Ru
 
 /** A location's pages: the key, the URL a take opens, the one the video shows instead. */
 export function PagesFacts({ e }: { e: EnvironmentView }) {
+  if (e.ios) {
+    return (
+      <Facts
+        label={`The app ${e.name} films`}
+        rows={[
+          { key: 'app', label: 'App', value: <Txt className="k-mono" text={e.ios.app} /> },
+          { key: 'device', label: 'Simulator', value: <Txt text={e.ios.device} /> },
+          { key: 'schemes', label: 'Deep links', value: <Txt text={e.ios.schemes.length ? e.ios.schemes.map((s) => `${s}://`).join(', ') : 'none'} /> },
+        ]}
+      />
+    );
+  }
   const pages = Object.entries(e.pages);
   if (pages.length === 0) return <p className="sc-quiet">No page.</p>;
   return (
