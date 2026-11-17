@@ -88,6 +88,42 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
 
+## State (after FB-31)
+- **FB-31 done (2026-11-17; branch `claude/fb-31-tmpfs-78a094`, a pull request, not merged; lot or hotfix not
+  decided)** — a sandbox database kept in memory (field feedback 2, point 31: `tmpfs:` on Postgres's data folder, no
+  volume). Docker lists no tmpfs in `.Mounts`, so `down` (even `--volumes`) counted the database as kept and left its
+  seed in the state; the product loaded data at its own start-up, so the next `up` refused and proposed
+  `down --volumes`, which changed nothing.
+  - Where the data lives: compose-parse `dataLocation` reads `docker inspect` whole — the deepest mount over the
+    container's `PGDATA` (else the official image's folder; Postgres 18's `/var/lib/postgresql/18/docker` read right; a
+    tmpfs wins a tie), `HostConfig.Tmpfs` and `type: tmpfs` mounts; nothing over a declared `PGDATA` is the container's
+    own layer; a custom image without `PGDATA` is read as before. `DataStorage` kinds `tmpfs`, `container`;
+    `goesWithDown` adds an anonymous volume (probed: compose leaves it behind at `down`, the next `up` makes a new one —
+    the official image with no volume named loses its data at every `down` too).
+  - `down`: a tmpfs forgets the seed, last reset, `unseeded_at` and the snapshot, base and cluster records at once
+    (`DownResult.forgotten`); the container's own layer and an anonymous volume (a reading of settings) do so only when
+    no cluster is recorded yet, else the next reset's cluster check decides. `retake sandbox down --forget` forgets them
+    for any sandbox (nothing deleted). CLI only: no MCP tool stops a sandbox.
+  - The cluster: `SnapshotPort.clusterId` (`pg_control_system().system_identifier`, readable by any role), recorded as
+    `provider_state.cluster` after each reset. Another cluster under the sandbox makes the reset forget the old seed and
+    snapshot: where the data lives with the container, the database is fresh whatever it holds (a first seed and a
+    base); elsewhere (a named volume: a dump restored) the last reset is kept, so only an empty database is fresh and
+    one holding data is refused (review A's finding). `up` seeds for it (`its Postgres is a new cluster`);
+    `sandbox status` runs the same plan with the records forgotten (`new_cluster`, `storage`).
+  - The refusal's command follows where the data lives: `--volumes` for a volume of the sandbox, a plain `down` for a
+    tmpfs or the container's own layer, `down --volumes --forget` when it cannot be read (and what `--forget` alone does).
+  - Not done: `reset.snapshot.ephemeral` (proposed in the notes) — the cluster identity tells the same thing without a
+    key, and `--forget` covers what it cannot see. Requirement R-SBX-13 (lot label `FB-31`, to rename once decided).
+  - Method: two reviews (A: safety — a new cluster trusted unconditionally, the container reading, anonymous volumes,
+    the `--forget` wording; B: the façade's status type, a CLI case for `--forget`, the `down` lines, a tmpfs tie,
+    missing cases), all fixed with tests; 7 mutations, all caught (no tmpfs forget, no forget on a new cluster, a new
+    cluster always fresh, the container forgotten despite a cluster, `HostConfig.Tmpfs` ignored, no container layer,
+    the cluster not recorded).
+  - Tests: reset-order (8 new), compose-units (`dataLocation`), sandbox-words, operations-cli (`down --forget`, golden
+    regenerated); Docker `compose.test.ts` with a new tmpfs case (initdb loads a table on every new data folder: down,
+    up, then the database restarted under the running sandbox). The FB-30 branch also touches `compose-parse.ts` and
+    `compose.ts`: expect a merge there.
+
 ## State (after L5.3)
 - **The iOS Simulator runner** (`packages/runner-ios`, guide [guide/ios.md](guide/ios.md)): a project environment
   `ios: {app, device, schemes}` picked with `env:`; a dedicated device "Retake - <type> - <runtime>" (en-US, QWERTY,

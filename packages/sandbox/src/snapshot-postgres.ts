@@ -126,6 +126,12 @@ export interface TemplateState {
 export interface SnapshotPort {
   readonly target: SnapshotTarget;
   close(): Promise<void>;
+  /**
+   * The server's cluster: its system identifier, made by initdb (`pg_control_system()`, readable by any role) — another
+   * one means the data folder was made again (in memory, the container's own layer, a volume removed). null when it
+   * cannot be read.
+   */
+  clusterId(): Promise<string | null>;
   broken(): Promise<string | null>;
   repair(): Promise<boolean>;
   adoptEarlier(): Promise<'renamed' | 'dropped' | null>;
@@ -297,6 +303,16 @@ export class PostgresSnapshot implements SnapshotPort {
 
   async close(): Promise<void> {
     await this.client.end().catch(() => undefined);
+  }
+
+  async clusterId(): Promise<string | null> {
+    try {
+      const r = await this.q('SELECT system_identifier::text AS id FROM pg_control_system()');
+      const id = (r.rows[0] as { id?: string } | undefined)?.id;
+      return typeof id === 'string' && id ? id : null;
+    } catch {
+      return null;
+    }
   }
 
   private q(sql: string, params?: unknown[]) {

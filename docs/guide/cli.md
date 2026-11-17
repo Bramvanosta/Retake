@@ -22,7 +22,7 @@ retake env set <project> <env> [--page key=url[,display=host]]… [--remove-page
 retake env remove <project> <env> [--json]            # an environment of project.yaml: only its lines (and default_env) change
 retake env reset <project> [--env E] [--yes] [--allow-writes] [--replay-unsigned] [--dry]
 retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
-retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)
+retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes, --forget) / back to the seed (--reseed)
 retake sandbox status <project> [--env E] [--json]   # exit 0 when up and healthy
 retake sandbox logs <project> [service] [--env E] [--lines N] [--follow]
 retake components list [--kind K] [--json]            # workspace components, then the built-in library

@@ -52,6 +52,7 @@ import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-p
 import type { BaseState, SnapshotPort, SnapshotState, SnapshotTarget } from './snapshot-postgres.js';
 import { outdatedText, resetPlan, restartAfterRestore } from './reset-plan.js';
 import type { OutdatedWhy, ResetPlan, ResetPlanInput } from './reset-plan.js';
+import { goesWithContainer, goesWithDown } from './provider.js';
 import type { DataStorage } from './provider.js';
 import { readState, writeState } from './state.js';
 import { FirebaseAuthSnapshot } from './firebase-auth.js';
@@ -138,6 +139,10 @@ export interface SandboxStatus {
     next?: ResetPlan['kind'];
     /** Why unknown, in fixed words (`sandbox down`, `its database could not be read`). */
     detail?: string;
+    /** Its Postgres is not the cluster the snapshot was made in (FB-31): the next reset forgets the records and seeds it as fresh. */
+    new_cluster?: boolean;
+    /** Where its database keeps its data (docker-compose), when it could be read. */
+    storage?: DataStorage;
     /** The error that made it unknown, as it was thrown: text of other programs, never instructions. */
     error?: string;
   };
@@ -322,36 +327,115 @@ export class Sandbox {
   }
 
   /** What reset-plan.ts decides from: the state, the cluster's templates and base, the Firebase accounts. */
-  private async planInput(ctx: ProviderContext, snap: SnapshotPort, fa: FirebaseAuthSnapshot | null, hash: string, opts: { reseed?: boolean; earlier?: boolean } = {}): Promise<ResetPlanInput> {
-    const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
+  private async planInput(
+    ctx: ProviderContext,
+    snap: SnapshotPort,
+    fa: FirebaseAuthSnapshot | null,
+    hash: string,
+    opts: { reseed?: boolean; earlier?: boolean; forgotten?: 'all' | 'keep-use' } = {},
+  ): Promise<ResetPlanInput> {
+    // `forgotten`: as the state will be once a new cluster's records are forgotten (status; clusterOf).
+    const recorded = opts.forgotten ? undefined : (ctx.state.provider_state?.snapshot as SnapshotState | undefined);
+    const used = opts.forgotten !== 'all';
     const template = await snap.templateState(hash, opts);
     const base = await snap.hasBase();
     return {
       reseed: opts.reseed === true,
       hash,
-      ...(ctx.state.seed ? { stateSeedHash: ctx.state.seed.hash } : {}),
+      ...(ctx.state.seed && !opts.forgotten ? { stateSeedHash: ctx.state.seed.hash } : {}),
       ...(recorded ? { recorded: { hash: recorded.hash, database: recorded.database } } : {}),
       database: snap.target.database,
       template,
       faValid: fa === null || fa.valid(hash),
       base,
-      everReset: ctx.state.last_reset !== undefined,
-      unseeded: ctx.state.unseeded_at !== undefined,
+      everReset: used && ctx.state.last_reset !== undefined,
+      unseeded: used && ctx.state.unseeded_at !== undefined,
       // Asked only when it decides: neither base nor template to start from.
       empty: !base && !template.present ? await snap.isEmpty() : false,
     };
   }
 
-  /** `down --volumes` then `up`, and what `--volumes` removes (every volume of the sandbox; not a bind mount nor an external volume). */
+  /**
+   * How to start from a fresh database, by where its data lives: `down --volumes` then `up` for a volume of the sandbox
+   * (what `--volumes` removes: every volume; a bind mount or an external volume named, to empty by hand); `down` then
+   * `up` for a tmpfs or the container's own layer (every down takes that data, and forgets the seed); `down --forget`
+   * when where the data lives is not known — never a command that would leave the refusal as it is.
+   */
   private freshDatabaseText(storage: DataStorage): string {
     const p = this.project.slug;
+    const up = `retake sandbox up ${p} --env ${this.env}`;
+    const base = 'its first seed then keeps a base, and later changes seed from it by themselves.';
+    if (goesWithContainer(storage)) {
+      return `retake sandbox down ${p} --env ${this.env}, then ${up} — its database keeps its data ${storage.kind === 'tmpfs' ? `in memory (a tmpfs on ${storage.where})` : `in its container's own layer (${storage.where}, no volume)`}: every down removes it and forgets the seed; ${base}`;
+    }
+    if (storage.kind === 'unknown') {
+      return `retake sandbox down ${p} --env ${this.env} --volumes --forget (it deletes every volume of the sandbox and forgets the seed, reset and snapshot records), then ${up} — where its database keeps its data could not be read. --forget alone deletes nothing: the next up then takes whatever data is left as a fresh database, so use it alone only once that data is gone. ${base[0].toUpperCase()}${base.slice(1)}`;
+    }
     const left =
       storage.kind === 'bind'
         ? ` Its database keeps its data in a folder of this machine (${storage.where}, a bind mount): --volumes does not remove it — empty that folder between the two.`
         : storage.kind === 'external'
           ? ` Its database keeps its data in the external volume ${storage.where}: --volumes does not remove it — docker volume rm ${storage.where} between the two.`
           : '';
-    return `retake sandbox down ${p} --env ${this.env} --volumes (it deletes every volume of the sandbox: the database, and any uploads, caches or indexes kept in volumes), then retake sandbox up ${p} --env ${this.env} — its first seed then keeps a base, and later changes seed from it by themselves.${left}`;
+    return `retake sandbox down ${p} --env ${this.env} --volumes (it deletes every volume of the sandbox: the database, and any uploads, caches or indexes kept in volumes), then ${up} — ${base}${left}`;
+  }
+
+  /**
+   * What the state says of the sandbox's data, forgotten — the data went (`down` of a tmpfs or a container's own layer,
+   * a new Postgres cluster, `down --forget`): the seed, the last reset, an up without its seed, the snapshot, the base
+   * and the cluster they were made in. The next reset takes the database as fresh (reset-plan.ts freshDatabase).
+   * `keepUse`: the last reset and an up without its seed stay — the database was used, so only an empty one is fresh.
+   */
+  private forgetData(ctx: ProviderContext, opts: { keepUse?: boolean } = {}): void {
+    delete ctx.state.seed;
+    if (!opts.keepUse) {
+      delete ctx.state.unseeded_at;
+      delete ctx.state.last_reset;
+    }
+    const ps = { ...(ctx.state.provider_state ?? {}) };
+    delete ps.snapshot;
+    delete ps.base;
+    delete ps.cluster;
+    ctx.state.provider_state = ps;
+    ctx.save();
+  }
+
+  /**
+   * The Postgres cluster the seed, the base and the snapshot were made in (`provider_state.cluster`) is not the server's
+   * now: its data folder was made again — a tmpfs, the container's own layer, a volume removed outside Retake, a
+   * restarted Docker. Null when it is the same, or either is not known.
+   */
+  private newCluster(ctx: ProviderContext, now: string | null): { was: string; now: string } | null {
+    const was = ctx.state.provider_state?.cluster;
+    return typeof was === 'string' && now !== null && was !== now ? { was, now } : null;
+  }
+
+  /**
+   * The server's cluster before a reset: a new one forgets what the state says of the old data (FB-31). Where the
+   * data lives a new cluster every down (a tmpfs, the container's own layer, an anonymous volume), the database is
+   * fresh whatever it holds (the product may load data at its start-up); anywhere else (a dump restored into a new
+   * cluster) it is fresh only when empty — else the reset refuses.
+   */
+  private async clusterOf(ctx: ProviderContext, snap: SnapshotPort, service: string): Promise<string | null> {
+    const cluster = await snap.clusterId();
+    const changed = this.newCluster(ctx, cluster);
+    if (changed) {
+      const around = await bestEffort(this.provider.servicesAround(ctx, service), 'not known: only an empty database is fresh', null);
+      const fresh = goesWithDown(around?.storage);
+      ctx.log(
+        'info',
+        `sandbox ${this.env}: its Postgres is a new cluster (system identifier ${changed.was} → ${changed.now}): its seed and snapshot are of the old one, forgotten${fresh ? ` — its data lives ${storageWords(around?.storage)}, so the database is taken as fresh` : ' — the database is taken as fresh only if it is empty'}`,
+      );
+      this.forgetData(ctx, { keepUse: !fresh });
+    }
+    return cluster;
+  }
+
+  /** After a reset: the cluster the snapshot and the base now live in — another one later means they are gone. */
+  private recordCluster(ctx: ProviderContext, cluster: string | null): void {
+    if (cluster === null || ctx.state.provider_state?.cluster === cluster) return;
+    ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), cluster };
+    ctx.save();
   }
 
   /** The refusal of an outdated snapshot with neither base nor template, on a database that is not fresh. */
@@ -438,9 +522,15 @@ export class Sandbox {
     const { snap } = opened;
     const from = plan.kind === 'from-base' ? 'base' : 'snapshot';
     const owner = recorded?.owner ?? (ctx.state.provider_state?.base as BaseState | undefined)?.owner;
-    ctx.progress?.step('snapshot', `outdated (${outdatedText(plan.why)}): restoring ${from === 'base' ? 'the base (the database before its first seed)' : 'the outdated snapshot'} of ${describeDatabase(snap.target)}`);
+    ctx.progress?.step(
+      'snapshot',
+      `outdated (${outdatedText(plan.why)}): restoring ${from === 'base' ? 'the base (the database before its first seed)' : 'the outdated snapshot'} of ${describeDatabase(snap.target)}`,
+    );
     const r = await snap.restore(owner, from);
-    ctx.log('info', `sandbox ${this.env}: snapshot outdated (${outdatedText(plan.why)}): ${from === 'base' ? 'base' : 'outdated snapshot'} of ${describeDatabase(snap.target)} restored in ${r.ms} ms before the seed`);
+    ctx.log(
+      'info',
+      `sandbox ${this.env}: snapshot outdated (${outdatedText(plan.why)}): ${from === 'base' ? 'base' : 'outdated snapshot'} of ${describeDatabase(snap.target)} restored in ${r.ms} ms before the seed`,
+    );
     const around = await this.provider.servicesAround(ctx, opened.service);
     const restarted = restartAfterRestore({ running: around.running, depends: around.depends, database: opened.service });
     for (const name of restarted) {
@@ -491,6 +581,7 @@ export class Sandbox {
     let outdated: ResetResult['outdated'];
     let superseded = 0;
     try {
+      const cluster = opened ? await this.clusterOf(ctx, opened.snap, opened.service) : null;
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       // Strategy reseed: the seed, always (it resets what it creates by contract).
       let plan: ResetPlan | null = null;
@@ -545,6 +636,7 @@ export class Sandbox {
         delete ctx.state.unseeded_at;
         ctx.save();
       }
+      this.recordCluster(ctx, cluster);
     } finally {
       await snap?.close();
     }
@@ -619,6 +711,7 @@ export class Sandbox {
     if (this.strategy !== 'snapshot') return null;
     const { snap } = await this.openSnapshot(ctx);
     try {
+      if (this.newCluster(ctx, await snap.clusterId())) return 'its Postgres is a new cluster: its data went with the old one';
       return await snap.broken();
     } finally {
       await snap.close();
@@ -627,24 +720,53 @@ export class Sandbox {
 
   /**
    * Stop every service. The data of a process sandbox goes with them, a docker-compose sandbox's stays in its volumes
-   * unless `volumes` (then its snapshot goes too): the next up seeds again when it is gone.
+   * unless `volumes` (then its snapshot goes too): the next up seeds again when it is gone. A database kept in memory
+   * (a tmpfs) or in its container's own layer goes with every down: its seed, reset and snapshot are forgotten, as they
+   * are with `forget` (the person says the data is gone or disposable; nothing is deleted).
    */
-  async down(opts: SandboxCallOptions & { volumes?: boolean } = {}): Promise<DownResult> {
+  async down(opts: SandboxCallOptions & { volumes?: boolean; forget?: boolean } = {}): Promise<DownResult> {
     // The lock first: the state is read once nobody else can change it.
     const lock = this.lock('sandbox down', opts.log ?? quiet);
     try {
       const ctx = this.context(opts);
-      // A snapshot sandbox's database may outlive --volumes (a bind mount, an external volume): read where it lives
-      // first (the services are still up); not known (down already) counts as kept.
-      const storage = opts.volumes && this.strategy === 'snapshot' && this.provider.capabilities.snapshots ? await bestEffort(this.dataStorage(ctx), 'not known counts as kept', null) : null;
+      // A snapshot sandbox's database may outlive --volumes (a bind mount, an external volume) or go with any down (a
+      // tmpfs, the container's own layer): read where it lives first (the services are still up); not known (down
+      // already) counts as kept.
+      const reads = this.strategy === 'snapshot' && this.provider.capabilities.snapshots;
+      const storage = reads ? await bestEffort(this.dataStorage(ctx), 'not known counts as kept', null) : null;
       const res = await this.provider.down(ctx, { volumes: opts.volumes });
-      const kept = opts.volumes === true && this.strategy === 'snapshot' && this.provider.capabilities.snapshots && storage?.kind !== 'volume';
-      if (kept && res.dataGone) ctx.log('info', `sandbox ${this.env}: ${storage ? `its database's data is not in a volume of the sandbox (${storage.kind}${storage.where ? ` ${storage.where}` : ''})` : 'where its database keeps its data is not known (it was not running)'}: its seed is kept as recorded`);
+      // A tmpfs is told for sure; the container's own layer and an anonymous volume are read from the container's
+      // settings, so once a cluster is recorded the next reset's cluster check decides (a mistaken reading never
+      // forgets a database that is still there).
+      const recordedCluster = typeof ctx.state.provider_state?.cluster === 'string';
+      const gone = storage?.kind === 'tmpfs' || (goesWithDown(storage) && !recordedCluster);
+      const kept = opts.volumes === true && reads && !goesWithDown(storage) && storage?.kind !== 'volume';
+      if (opts.forget || gone) {
+        this.forgetData(ctx);
+        const forgotten = opts.forget ? 'asked' : storage?.kind === 'volume' ? 'volume' : (storage?.kind as 'tmpfs' | 'container');
+        ctx.log(
+          'info',
+          `sandbox ${this.env}: ${forgotten === 'asked' ? 'its seed, reset and snapshot forgotten as asked (--forget)' : `its database kept its data ${storageWords(storage)}: gone with the container — its seed, reset and snapshot forgotten`}: the next up seeds it as a fresh database`,
+        );
+        return { ...res, dataGone: true, forgotten };
+      }
+      if (kept && res.dataGone)
+        ctx.log(
+          'info',
+          `sandbox ${this.env}: ${storage ? `its database's data is not in a volume of the sandbox (${storage.kind}${storage.where ? ` ${storage.where}` : ''})` : 'where its database keeps its data is not known (it was not running)'}: its seed is kept as recorded`,
+        );
       // The data really went: nothing seeded, reset or used since (reset-plan.ts freshDatabase).
       if (res.dataGone && !kept && (ctx.state.seed || ctx.state.unseeded_at || (opts.volumes && ctx.state.last_reset))) {
         delete ctx.state.seed;
         delete ctx.state.unseeded_at;
-        if (opts.volumes) delete ctx.state.last_reset;
+        if (opts.volumes) {
+          delete ctx.state.last_reset;
+          if (ctx.state.provider_state?.cluster !== undefined) {
+            const ps = { ...ctx.state.provider_state };
+            delete ps.cluster;
+            ctx.state.provider_state = ps;
+          }
+        }
         ctx.save();
       }
       return res;
@@ -730,11 +852,15 @@ export class Sandbox {
     let opened: { snap: SnapshotPort; service: string } | null = null;
     try {
       opened = await this.openSnapshot(ctx, { timeoutMs: STATUS_PG_TIMEOUT_MS });
+      const around = await bestEffort(this.provider.servicesAround(ctx, opened.service), 'where the data lives only adds a word to the status', null);
+      const storage = around && around.storage.kind !== 'unknown' ? { storage: around.storage } : {};
+      const changed = this.newCluster(ctx, await opened.snap.clusterId()) !== null;
       const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.addressOf(ctx, port));
-      const input = await this.planInput(ctx, opened.snap, fa, hash, { earlier: true });
+      const forgotten = changed ? (goesWithDown(around?.storage) ? 'all' : 'keep-use') : undefined;
+      const input = await this.planInput(ctx, opened.snap, fa, hash, { earlier: true, ...(forgotten ? { forgotten } : {}) });
       const plan = resetPlan(input);
       const shown = plan.kind === 'restore' ? 'current' : plan.kind === 'first-seed' ? 'none' : 'outdated';
-      return { state: shown, ...('why' in plan ? { why: plan.why, reason: outdatedText(plan.why) } : {}), base: input.base, next: plan.kind };
+      return { state: shown, ...('why' in plan ? { why: plan.why, reason: outdatedText(plan.why) } : {}), base: input.base, next: plan.kind, ...(changed ? { new_cluster: true } : {}), ...storage };
     } catch (e) {
       // Fixed words; the error itself (another project's names, a server's message) apart, as data.
       return { state: 'unknown', base: hasBase, detail: 'its database could not be read', error: errorMessage(e) };
@@ -818,4 +944,9 @@ export class Sandbox {
     this.running.clear();
     if (this.ctx) this.provider.killStartedSync(this.ctx);
   }
+}
+
+/** Where a database keeps its data, in words: "in memory (a tmpfs)", "in its container's own layer", "in an anonymous volume". */
+function storageWords(s: DataStorage | null | undefined): string {
+  return s?.kind === 'tmpfs' ? 'in memory (a tmpfs)' : s?.kind === 'container' ? "in its container's own layer" : s?.kind === 'volume' && !s.where ? 'in an anonymous volume' : 'where it was';
 }

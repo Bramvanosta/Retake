@@ -33,6 +33,8 @@ export interface SandboxCommandOptions {
   build?: boolean;
   /** down (docker-compose): remove the volumes too. */
   volumes?: boolean;
+  /** down: forget the seed, reset and snapshot records (nothing deleted). */
+  forget?: boolean;
   /** reset: run the seed even when a snapshot could be restored. */
   reseed?: boolean;
   /** logs (docker-compose): keep reading. */
@@ -150,8 +152,20 @@ export async function sandboxDownCommand(ui: Ui, global: GlobalOptions, projectA
   const { project, sb } = await open(global, projectArg, opts.env);
   if (opts.volumes) composeOnly(sb, 'volumes', '--volumes', 'its data goes with its processes');
   try {
-    const res = await sandboxWork.down(sb, { interrupts: interrupts(ui, global.ports), log: uiLog(ui), volumes: opts.volumes });
-    const gone = opts.volumes ? ' · volumes removed (the database and its snapshot: the next up seeds again)' : '';
+    const res = await sandboxWork.down(sb, { interrupts: interrupts(ui, global.ports), log: uiLog(ui), volumes: opts.volumes, forget: opts.forget });
+    const gone = [
+      ...(opts.volumes && !res.forgotten ? ['volumes removed (the database and its snapshot: the next up seeds again)'] : []),
+      ...(opts.volumes && res.forgotten ? ['volumes removed'] : []),
+      ...(res.forgotten === 'asked'
+        ? [`seed, reset and snapshot forgotten${opts.volumes ? '' : ' (nothing deleted)'}: the next up takes the database as fresh`]
+        : res.forgotten
+          ? [
+              `its database was ${res.forgotten === 'tmpfs' ? 'in memory (a tmpfs)' : res.forgotten === 'container' ? "in its container's own layer" : 'in an anonymous volume'}: gone with it, seed and snapshot forgotten (the next up seeds again)`,
+            ]
+          : []),
+    ]
+      .map((g) => ` · ${g}`)
+      .join('');
     if (res.stopped.length) ui.ok(`${project.slug} sandbox ${sb.env} stopped: ${res.stopped.join(', ')}${gone}`);
     else ui.ok(`${project.slug} sandbox ${sb.env} was not running${gone}`);
     return EXIT.ok;

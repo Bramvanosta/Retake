@@ -439,12 +439,17 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
    * A db (postgres:17-alpine) and an app (busybox) in one compose project, strategy snapshot, an additive seed
    * (no DROP, no TRUNCATE: the field case) that `seed` rewrites. Nothing is pulled.
    */
-  async function ladderSandbox(slug: string): Promise<{ dir: string; url: string; seedFile: string; name: string }> {
+  async function ladderSandbox(slug: string, o: { tmpfs?: boolean } = {}): Promise<{ dir: string; url: string; seedFile: string; name: string }> {
     const name = `${PREFIX}${slug}-${rand()}`;
     const dir = await newProject(slug);
     const base = await freeBase(2);
     const pw = `pg-sandbox-${base + 1}`;
     await mkdir(join(dir, 'sandbox', 'seed'), { recursive: true });
+    if (o.tmpfs) {
+      // FB-31: the product loads its catalogue during its own start-up — here initdb, on every new data folder.
+      await mkdir(join(dir, 'sandbox', 'initdb'), { recursive: true });
+      await writeFile(join(dir, 'sandbox', 'initdb', '00-catalogue.sql'), "CREATE TABLE catalogue (name text);\nINSERT INTO catalogue VALUES ('loaded at boot');\n");
+    }
     await writeFile(
       join(dir, 'sandbox', 'compose.yaml'),
       [
@@ -462,10 +467,9 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
         '    pull_policy: never',
         `    environment: {POSTGRES_USER: demo, POSTGRES_PASSWORD: ${pw}, POSTGRES_DB: app}`,
         `    ports: ["127.0.0.1:${base + 1}:5432"]`,
-        '    volumes: ["db-data:/var/lib/postgresql/data"]',
+        ...(o.tmpfs ? ['    tmpfs: ["/var/lib/postgresql/data"]', '    volumes: ["./initdb:/docker-entrypoint-initdb.d:ro"]'] : ['    volumes: ["db-data:/var/lib/postgresql/data"]']),
         '    healthcheck: {test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d app"], interval: 1s, timeout: 3s, retries: 60}',
-        'volumes:',
-        '  db-data:',
+        ...(o.tmpfs ? [] : ['volumes:', '  db-data:']),
         '',
       ].join('\n'),
     );
@@ -491,7 +495,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     return { dir, url: `postgres://demo:${pw}@localhost:${base + 1}/app`, seedFile, name };
   }
 
-  it('a changed seed restores the base before seeding: the last take\'s rows are not in the new snapshot', async () => {
+  it("a changed seed restores the base before seeding: the last take's rows are not in the new snapshot", async () => {
     const { dir, url, seedFile, name } = await ladderSandbox('ladder');
     const rows = async () => (await query(url, 'SELECT name FROM demo ORDER BY id')).map((r) => r.name);
     const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
@@ -511,7 +515,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
       expect(await changed.reset({ log })).toMatchObject({ restored: true });
       expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
-      expect((await changed.status()).snapshot).toEqual({ state: 'current', base: true, next: 'restore' });
+      expect((await changed.status()).snapshot).toEqual({ state: 'current', base: true, next: 'restore', storage: { kind: 'volume', where: `${name}_db-data` } });
       console.log(`[compose ladder] base restored in ${r.base!.ms} ms, reset ${r.ms} ms (app restarted before the seed)`);
     } finally {
       await sb.down({ volumes: true });
@@ -547,7 +551,9 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       await query(admin, 'ALTER DATABASE app__retake_snap WITH IS_TEMPLATE false');
       await query(admin, 'DROP DATABASE app__retake_snap');
       const before = await readFile(stateFile, 'utf8');
-      await expect(changed.reset({ log })).rejects.toThrow(/the database already holds data and there is no base or snapshot to start from \(its snapshot is gone\): .*Nothing was changed\. Start from a fresh database: retake sandbox down \S+ --env sandbox --volumes/);
+      await expect(changed.reset({ log })).rejects.toThrow(
+        /the database already holds data and there is no base or snapshot to start from \(its snapshot is gone\): .*Nothing was changed\. Start from a fresh database: retake sandbox down \S+ --env sandbox --volumes/,
+      );
       expect(await rows()).toContain('TAKE ROW');
       expect(await readFile(stateFile, 'utf8')).toBe(before);
       // A fresh database: down --volumes, then up — its first seed keeps a base again.
@@ -558,6 +564,45 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     } finally {
       await sb.down({ volumes: true });
     }
+  });
+
+  it('FB-31: a database in a tmpfs — down forgets its seed, so the next up seeds it although the product loaded data at boot; a restarted database (a new cluster) is seeded again by the next reset', async () => {
+    const { dir, url, name } = await ladderSandbox('tmpfs', { tmpfs: true });
+    const rows = async () => (await query(url, 'SELECT name FROM demo ORDER BY id')).map((r) => r.name);
+    const stateFile = join(dir, '.retake', 'sandbox', 'sandbox', 'state.json');
+    const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
+    try {
+      const up = await sb.up({ log });
+      expect(up.reset).toMatchObject({ base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      expect((await sb.status()).snapshot).toEqual({ state: 'current', base: true, next: 'restore', storage: { kind: 'tmpfs', where: '/var/lib/postgresql/data' } });
+      const cluster = (JSON.parse(await readFile(stateFile, 'utf8')) as { provider_state: { cluster?: string } }).provider_state.cluster;
+      expect(cluster).toMatch(/^\d+$/);
+      await query(url, "INSERT INTO demo (name) VALUES ('TAKE ROW')");
+      // A plain down: the data goes with the container, and so does what the state says of it.
+      const down = await sb.down({ log });
+      expect(down).toMatchObject({ dataGone: true, forgotten: 'tmpfs' });
+      const st = JSON.parse(await readFile(stateFile, 'utf8')) as Record<string, unknown>;
+      expect(st.seed).toBeUndefined();
+      expect(st.last_reset).toBeUndefined();
+      // The field case: the catalogue loaded at boot — the database is not empty, yet the next up seeds it.
+      const again = await openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks).up({ log });
+      expect(again.reset).toMatchObject({ base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+      expect((await query(url, 'SELECT name FROM catalogue'))[0].name).toBe('loaded at boot');
+      const second = (JSON.parse(await readFile(stateFile, 'utf8')) as { provider_state: { cluster?: string } }).provider_state.cluster;
+      expect(second).toMatch(/^\d+$/);
+      expect(second).not.toBe(cluster);
+      // Docker restarts the database by itself (a restarted Docker, a reboot): a new cluster under a running sandbox.
+      docker(['compose', '-p', name, 'restart', 'db']);
+      const db = docker(['compose', '-p', name, 'ps', '-q', 'db']).trim();
+      for (let i = 0; i < 120 && docker(['inspect', '--format', '{{.State.Health.Status}}', db]).trim() !== 'healthy'; i++) await new Promise((r) => setTimeout(r, 500));
+      const r = await openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks).reset({ log });
+      expect(r).toMatchObject({ restored: false, base: { action: 'taken' }, snapshot: { action: 'taken' } });
+      expect(await rows()).toEqual(['Willow Street Bakery', 'Copper Kettle Cafe']);
+    } finally {
+      await sb.down({ volumes: true });
+    }
+    expect(labelled('container', name)).toEqual([]);
   });
 
   it('the monorepo recipe — the app run from its source in a stock Node image, beside its database: up, seed, snapshot, reset', async () => {

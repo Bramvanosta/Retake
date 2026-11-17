@@ -45,7 +45,7 @@ export interface SandboxHandle {
   /** Start what is not running, wait until healthy, and seed when needed unless `seed: 'never'` (holds the take lock). */
   up(o?: SandboxCallOptions & { seed?: 'auto' | 'never'; build?: boolean }): Promise<SandboxUpResult>;
   /** Stop every service; the data goes with them unless the provider keeps it (`volumes` removes it too). */
-  down(o?: SandboxCallOptions & { volumes?: boolean }): Promise<DownResult>;
+  down(o?: SandboxCallOptions & { volumes?: boolean; forget?: boolean }): Promise<DownResult>;
   /** Back to the seed; the sandbox must be up (SandboxError `down` otherwise). */
   reset(o?: SandboxCallOptions & { by?: string; reseed?: boolean }): Promise<ResetResult>;
   /** How it is now: no lock taken, nothing written. */

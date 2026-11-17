@@ -758,6 +758,7 @@ describe("the commands run through the engine's operations, held against fixture
     expect.soft((await retake('sandbox down --volumes on a process sandbox', 'sandbox', 'down', 'ops', '--volumes')).code).toBe(EXIT.usage);
     expect.soft((await retake('sandbox down', 'sandbox', 'down', 'ops')).code).toBe(EXIT.ok);
     expect.soft((await retake('sandbox down again', 'sandbox', 'down', 'ops')).code).toBe(EXIT.ok);
+    expect.soft((await retake('sandbox down --forget', 'sandbox', 'down', 'ops', '--forget')).code).toBe(EXIT.ok);
     expect.soft((await retake('sandbox status unknown env', 'sandbox', 'status', 'ops', '--env', 'nowhere')).code).toBe(EXIT.usage);
     expect.soft((await retake('sandbox status no sandbox', 'sandbox', 'status', 'film')).code).toBe(EXIT.failure);
     // The docker-compose sandbox `init` wrote: its own flags pass.

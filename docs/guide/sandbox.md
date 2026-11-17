@@ -162,7 +162,15 @@ by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as 
   `up`, applies the change. `--build` (docker-compose) builds the images first.
 - **`down`** stops every service. A process sandbox's data goes with its processes; a docker-compose sandbox keeps
   its volumes (the next `up` restores its snapshot, or reseeds) unless `--volumes`, which removes them — the database
-  and its snapshot — too. Images are never removed.
+  and its snapshot — too. Images are never removed. A database kept in memory (`tmpfs:` on its data folder), in its
+  container's own layer (nothing mounted over it) or in an anonymous volume (the image's own, none named in the
+  compose file: `down` leaves it behind and the next `up` starts a new one) loses its data at every `down`,
+  `--volumes` or not. Retake reads that from the container (its `PGDATA` and what is mounted over it): a tmpfs makes
+  `down` forget the seed, the last reset and the snapshot at once; the other two are confirmed by the next reset
+  (a new Postgres cluster, below). Either way the next `up` seeds it — even when the product loads data during its
+  own start-up. `--forget` forgets them for any sandbox (nothing is deleted, only Retake's record of the seed, reset
+  and snapshot): the next `up` then takes whatever data is left as a fresh database, so use it once that data is
+  gone.
 - **Every take checks its pages first** (L5.8, sandbox or not): one GET of each page of the environment, 5 s each.
   A page that does not answer — nothing listens on its port (a dev server that stopped or moved to another port), a
   gateway error (502, 503, 504) — stops the run before anything opens, naming the page and its URL; any other HTTP
@@ -439,7 +447,15 @@ CREATE DATABASE "app" TEMPLATE "app__retake_snap" OWNER "<owner at the take>";
   else already holds data nobody can vouch for (a sandbox switched from strategy `reseed`, a template dropped by hand,
   `up --no-seed` and then used): the reset is refused before anything changes (`the database already holds data and
   there is no base or snapshot to start from`), with the same two commands. `down --volumes` forgets the seed only when
-  the database's data really goes with the volumes: a bind mount or an external volume keeps it, and the seed with it. `retake sandbox status` (and `sandbox_status`) says what the next reset does: `snapshot
+  the database's data really goes with the volumes: a bind mount or an external volume keeps it, and the seed with it.
+  Retake also records the Postgres cluster the base and the snapshot were made in (its system identifier, made by
+  `initdb`): when the server is another one — a tmpfs after Docker restarted, a volume removed by hand —, the next
+  reset (and `up`) says so and forgets the old seed and snapshot. Where the data lives with the container (a tmpfs,
+  its own layer, an anonymous volume) the new database gets its first seed and a base whatever it holds; anywhere
+  else (a dump restored into a new cluster) only an empty one does, and one holding data is refused. The refusal's
+  command follows where the data lives: `--volumes` for a volume of the sandbox, a plain `down` for a tmpfs or the
+  container's own layer, `down --volumes --forget` when it cannot be read — never a command that would leave it as
+  it is. `retake sandbox status` (and `sandbox_status`) says what the next reset does: `snapshot
   current · base kept`, `outdated (…) — the next reset restores the base, restarts the services, seeds and takes a
   new snapshot`, `outdated (…), no base — …`, `no base nor snapshot, and the database already holds data — the next reset refuses: …`, `none
   yet`, or `unknown (sandbox down)`; it reads the cluster without changing anything (2 s timeout). After a change the
