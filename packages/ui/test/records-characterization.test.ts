@@ -128,6 +128,7 @@ describe("the Studio's list of renders, state by state", () => {
   const RTABLE: Record<string, string> = {
     ctl: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     v2: '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'v2-relative': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 1
     'no-created': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
     // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 1
@@ -153,7 +154,7 @@ describe("the Studio's list of renders, state by state", () => {
     failed: '200 quote: 2 renders, 0 queued or running | quote-v2:failed quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     'variant-cube': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 10
-    'version-2': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    'version-3': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
     // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 14
     link: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
     'out-name': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',

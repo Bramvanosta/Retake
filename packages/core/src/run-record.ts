@@ -37,7 +37,11 @@ interface RunCommon {
   scenario: string;
   mode: RunMode;
   started_at: string;
-  /** Absolute run directory (of the machine that filmed). */
+  /**
+   * The run folder. Every path of a record is absolute in memory; on a disk, the rule of core record-paths.ts (`dir`
+   * written ".", the others relative to the run folder inside the project). An older record wrote them absolute (of
+   * the machine that filmed): read rebased onto the folder read.
+   */
   dir: string;
   env: string;
   /** `allow_writes`: `--allow-writes` was given and accepted (production with `access: read-write`). */

@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
+import { readNamedRender } from '@retake/core/io';
 import type { RenderJobInput } from '../src/jobs/job-input.js';
 import { JobFiles } from '../src/jobs/queue.js';
 import { createEngine } from '../src/index.js';
@@ -55,7 +56,12 @@ const historyLines = async (): Promise<Array<Record<string, unknown>>> =>
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as Record<string, unknown>);
-const recordOf = async (id: string): Promise<RenderRecord> => JSON.parse(await readFile(join(dir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
+/** A render record as the readers hand it: its paths absolute (core record-paths.ts; on the disk they are relative). */
+const recordOf = async (id: string): Promise<RenderRecord> => {
+  const entry = await readNamedRender(join(dir, 'renders', `${id}.json`));
+  if (!entry.read.ok) throw new Error(`${id}: ${entry.read.problem}`);
+  return entry.read.value as unknown as RenderRecord;
+};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-render-port-'));

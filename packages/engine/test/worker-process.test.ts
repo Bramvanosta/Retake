@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, PERSON_POLICY } from '@retake/core';
-import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core/io';
+import { loadProject, loadScenario, readRunRecord, reserveRunId, fileFacts } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import type { RunRecord } from '@retake/core';
 import type { RunJobInput } from '../src/jobs/job-input.js';
@@ -126,8 +126,13 @@ const waiting = (id: string) => async () => {
   return j?.state === 'running' && j.progress?.current?.action === 'wait' ? j : undefined;
 };
 
+/** run.json as the runner wrote it (the written schema), handed on as the readers read it: its paths absolute (core record-paths.ts). */
 async function runRecord(runId: string): Promise<RunRecord> {
-  return RunRecordSchema.parse(JSON.parse(await readFile(join(ws, 'projects', 'w', 'runs', runId, 'run.json'), 'utf8'))) as RunRecord;
+  const file = join(ws, 'projects', 'w', 'runs', runId, 'run.json');
+  RunRecordSchema.parse(JSON.parse(await readFile(file, 'utf8')));
+  const read = await readRunRecord(file);
+  if (!read.ok) throw new Error(`${runId}: ${read.problem}`);
+  return read.value as RunRecord;
 }
 
 /** Nothing of the setup is left pending: the rollback ran (status rolled_back), none is `ok` with a rollback. */

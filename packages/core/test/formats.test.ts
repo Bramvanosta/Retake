@@ -22,8 +22,8 @@ afterEach(async () => {
 });
 
 describe('file format versions (R-PRIN-13)', () => {
-  it('every format this Retake reads is version 1', () => {
-    expect(FORMAT_VERSIONS).toEqual({ scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 1 });
+  it('every format this Retake reads is version 1, but a render record: version 2 (its paths relative, R-SHR-03)', () => {
+    expect(FORMAT_VERSIONS).toEqual({ scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 2 });
     expect(RETAKE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 

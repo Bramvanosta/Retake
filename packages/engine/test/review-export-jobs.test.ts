@@ -35,6 +35,8 @@ import type { ExportJobResult, ReviewJobResult } from '../src/jobs/types.js';
 import { MEMORY_JPEG, MemoryReviewer } from '../src/review/memory-reviewer.js';
 import { MEMORY_PNG, MemoryRenderer } from '../src/render/memory-renderer.js';
 import { hasTool } from '@retake/test-support/repo';
+import { readNamedRender } from '@retake/core/io';
+import { renderForWork } from '../src/renders.js';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Workspace } from '@retake/test-support/review';
 import { linkSharedCache } from '@retake/test-support/render';
@@ -112,6 +114,14 @@ describe.skipIf(!can)('review jobs', () => {
       expect(r).toMatchObject({ kind: 'review', render_id: 'quote-v1', dir: join(ws.project.dir, 'review', 'quote-v1') });
       expect(existsSync(r.report)).toBe(true);
       expect(job.progress?.fraction).toBeGreaterThan(0.9);
+      // report.json names its files relative to its own (final) folder, its render's relative to it too (R-SHR-01).
+      const report = JSON.parse(await readFile(r.report, 'utf8')) as Untyped;
+      expect(report.files.dir).toBe('.');
+      expect(report.files.report_json).toBe('report.json');
+      expect(report.files.sheets.length).toBeGreaterThan(0);
+      for (const f of report.files.sheets as string[]) expect(f).not.toMatch(/^\.\.|^\//);
+      expect([report.render.file, report.render.record]).toEqual(['../../renders/quote-v1.mp4', '../../renders/quote-v1.json']);
+      expect(JSON.stringify(report)).not.toContain(ws.root);
       const raw = await readFile(join(queue.files.dir, job.id, 'job.json'), 'utf8');
       expect(raw.length).toBeLessThan(8000);
       expect(raw).not.toMatch(/base64|\/9j\//);
@@ -232,20 +242,43 @@ describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around 
       const renderer = new MemoryRenderer();
       const mwork = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { reviewer, renderer } });
       const renders = join(ws.project.dir, 'renders');
-      const good = JSON.parse(await readFile(join(renders, 'quote-v1.json'), 'utf8')) as RenderRecord;
+      // The record as the readers hand it (its paths absolute: core record-paths.ts), written back as a version 1 record.
+      const read = await readNamedRender(join(renders, 'quote-v1.json'));
+      if (!read.read.ok) throw new Error(read.read.problem);
+      const good = { ...(read.read.value as unknown as RenderRecord), version: 1 } as unknown as RenderRecord;
       await copyFile(good.file, join(outside, 'master.mp4'));
       await writeFile(join(renders, 'evil-v1.json'), JSON.stringify({ ...good, id: 'evil-v1', scenario: 'evil', file: join(outside, 'master.mp4'), record: join(renders, 'evil-v1.json') }));
       await writeFile(join(renders, 'stray-v1.json'), JSON.stringify({ ...good, id: 'stray-v1', scenario: 'stray', run_dir: outside, record: join(renders, 'stray-v1.json') }));
-      for (const id of ['evil-v1', 'stray-v1']) {
-        for (const submit of [() => engine.exports.submit({ project: 'demo', render_id: id }), () => engine.reviews.submit({ project: 'demo', render_id: id })]) {
-          const e = await submit().then(
-            () => undefined,
-            (err: Error & { code?: string; fix?: string }) => err,
-          );
-          expect(e?.code, id).toBe('refused');
-          expect(e?.message).toMatch(/is outside the project folder: through MCP a render is read only from the project/);
-          expect(e?.fix).toMatch(new RegExp(`^retake -C .* (export|review) demo ${id}`));
-        }
+      // R-SHR-02: a version 2 record whose relative video climbs out of the project (read as none), and — for a review,
+      // which opens them — a capture outside the project, a caption font that is no font file, a caption face whose
+      // url is a path instead of an asset of the plan.
+      const disk = JSON.parse(await readFile(join(renders, 'quote-v1.json'), 'utf8')) as Untyped;
+      const v2 = (id: string, more: object) => writeFile(join(renders, `${id}.json`), JSON.stringify({ ...disk, id, scenario: id.replace(/-v1$/, ''), record: `${id}.json`, ...more }));
+      await v2('climb-v1', { file: `${'../'.repeat(30)}etc/hosts` });
+      await v2('capture-v1', { plan: { ...disk.plan, source: { ...disk.plan.source, file: join(outside, 'master.mp4') } } });
+      const font = Object.keys(disk.plan.assets).find((u) => u.includes('font-display'))!;
+      await v2('font-v1', { plan: { ...disk.plan, assets: { ...disk.plan.assets, [font]: join(outside, 'secret.jpg') } } });
+      const faces = disk.plan.brand.tokens.font_faces as Array<Record<string, unknown>>;
+      expect(faces.length).toBeGreaterThan(0);
+      await v2('face-v1', { plan: { ...disk.plan, brand: { ...disk.plan.brand, tokens: { ...disk.plan.brand.tokens, font_faces: [{ ...faces[0], url: '/etc/hosts' }] } } } });
+      const refused = (e: (Error & { code?: string; fix?: string; details?: Untyped }) | undefined, id: string, kind: 'export' | 'review') => {
+        expect(e?.code, id).toBe('refused');
+        expect(e?.message, id).toMatch(/ of render [a-z]+-v1 (names a file outside its project|is no path Retake can read|is no font file of its plan) \(its record was edited by hand, or written elsewhere\): through MCP the files of a render must lie in its project/);
+        // The record's text is never in the sentence: under details.untrusted.
+        expect(e?.message, id).not.toMatch(/outside\/|\/etc\//);
+        expect(e?.details?.untrusted?.paths).toHaveLength(1);
+        expect(e?.fix).toMatch(new RegExp(`^retake -C .* ${kind} demo ${id}`));
+      };
+      const submitted = (kind: 'export' | 'review', id: string) =>
+        (kind === 'export' ? engine.exports.submit({ project: 'demo', render_id: id }) : engine.reviews.submit({ project: 'demo', render_id: id })).then(
+          () => undefined,
+          (err: Error & { code?: string; fix?: string }) => err,
+        );
+      for (const id of ['evil-v1', 'stray-v1', 'climb-v1']) for (const kind of ['export', 'review'] as const) refused(await submitted(kind, id), id, kind);
+      // What only a review opens: refused for a review, never for a use that reads the video and the run only (an export).
+      for (const id of ['capture-v1', 'font-v1', 'face-v1']) {
+        refused(await submitted('review', id), id, 'review');
+        expect((await renderForWork(diskOutputs.renders, ws.project, id)).id, id).toBe(id);
       }
       // A job queued without a submit (written by hand): the worker checks again.
       for (const input of [

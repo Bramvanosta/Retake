@@ -28,6 +28,9 @@ release — for the person about to click Install and Restart.
   lines of the step that failed (the install's own error), and the previous up's log stays as `compose-up.log.1`.
 - The app is about half the size (a 203 MB download instead of 422 MB): it no longer carries a browser or the
   compositor. Captures and renders use Chrome for Testing 159 (Playwright 1.65.1) instead of Chromium 141.
+- Run, render and review records write the paths of a project's files relative to their own folder, so a project
+  folder copied to another workspace or another Mac renders, reviews and exports its copied captures and renders. Render
+  records move to format version 2: Retake 0.3.0 refuses them and asks to be updated (L9.1).
 
 ### Fixed
 - The mail card (`studio/mail-view`) writes a captured mail's date the way the filmed pages write dates — in the

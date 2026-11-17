@@ -1077,6 +1077,19 @@ describe('the render records, state by state and site by site', () => {
       matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
+    'v2-relative': {
+      latest: 'quote-v2:succeeded',
+      byId: 'quote-v2:succeeded',
+      work: 'taken quote-v2',
+      workLatest: 'taken quote-v2',
+      studio: 'quote-v2:succeeded:landscape:NEW quote-v1:succeeded:landscape:NEW',
+      board: 'quote-v2:succeeded',
+      index: 'quote-v1 quote-v2',
+      commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
+      prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
+    },
     // moved: row 1 — latest, workLatest, index, commentsLatest and prune answer (each a raw TypeError before): the record without its creation time is in no list; row 20: prune's first list, which keeps it
     'no-created': {
       latest: 'quote-v1:succeeded',
@@ -1336,10 +1349,10 @@ describe('the render records, state by state and site by site', () => {
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 10 — byId and work answer the newer-Retake sentence, prune keeps OLD (the take the file names) and counts the file
-    'version-2': {
+    'version-3': {
       latest: 'quote-v1:succeeded',
-      byId: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      work: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      byId: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      work: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
       workLatest: 'taken quote-v1',
       studio: 'quote-v1:succeeded:landscape:NEW',
       board: 'quote-v1:succeeded',
@@ -1478,8 +1491,8 @@ describe('the render records, state by state and site by site', () => {
     'file-outside': {
       latest: 'quote-v2:succeeded',
       byId: 'quote-v2:succeeded',
-      work: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
-      workLatest: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
+      work: 'refused: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
+      workLatest: 'refused: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
       studio: 'quote-v2:succeeded:landscape:NEW quote-v1:succeeded:landscape:NEW',
       board: 'quote-v2:succeeded',
       index: 'quote-v1 quote-v2',
@@ -1539,6 +1552,12 @@ describe('the render records, state by state and site by site', () => {
       outline: 'frames 30',
       asRead: 'frames 30',
     },
+    'v2-relative': {
+      list: 'listed 0',
+      anchor: 'frame 0',
+      outline: 'frames 30',
+      asRead: 'frames 30',
+    },
     // moved: row 1 — list answers (a raw TypeError before): refused, the record lacks a member (a file that is there is never "not found")
     'no-created': {
       list: 'refused: renders/quote-v2.json is not used: its record lacks its scenario, its creation time or its plan',
@@ -1588,11 +1607,11 @@ describe('the render records, state by state and site by site', () => {
       asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     // moved: row 10 — list, anchor and outline answer the newer-Retake sentence (the by-id sentence)
-    'version-2': {
-      list: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      anchor: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      outline: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      asRead: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+    'version-3': {
+      list: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      anchor: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      outline: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      asRead: 'invalid: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
     },
     // moved: row 14 — list, anchor and outline: refused (the by-id sentence for a link)
     link: {
@@ -1623,9 +1642,9 @@ describe('the render records, state by state and site by site', () => {
     },
     'file-outside': {
       list: 'listed 0',
-      anchor: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
-      outline: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
-      asRead: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
+      anchor: 'refused: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
+      outline: 'refused: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
+      asRead: 'refused: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
     },
   };
 
@@ -1667,6 +1686,7 @@ describe('the render records, state by state and site by site', () => {
     const got: Record<string, Record<keyof typeof sites, string>> = {};
     for (const id of [
       'v2',
+      'v2-relative',
       'no-created',
       'renamed-reused',
       'scenario-other',
@@ -1674,7 +1694,7 @@ describe('the render records, state by state and site by site', () => {
       'no-variant',
       'paused',
       'variant-cube',
-      'version-2',
+      'version-3',
       'link',
       'out-name',
       'no-plan',
@@ -1743,7 +1763,7 @@ describe('the render records, state by state and site by site', () => {
     expect(await shown('no-plan')).toEqual({ count: 1, reasons: [{ why: 'incomplete', count: 1 }] });
     expect(await shown('scenario-other')).toEqual({ count: 1, reasons: [{ why: 'another-scenario', count: 1 }] });
     expect(await shown('link')).toEqual({ count: 1, reasons: [{ why: 'linked', count: 1 }] });
-    expect(await shown('version-2')).toEqual({ count: 1, reasons: [{ why: 'newer-format', count: 1 }] });
+    expect(await shown('version-3')).toEqual({ count: 1, reasons: [{ why: 'newer-format', count: 1 }] });
     expect(await shown('cut-short')).toEqual({ count: 1, reasons: [{ why: 'unreadable', count: 1 }] });
     // A failed render is shown (as failed), not counted; a file under another name is not this list's to read.
     expect([await shown('failed'), await shown('renamed-newest'), await shown('out-name')]).toEqual([undefined, undefined, undefined]);
@@ -1787,5 +1807,16 @@ describe('the render records, state by state and site by site', () => {
     ]);
     expect((await engine.projects.board(b.slug)).scenarios.find((x) => x.name === 'quote')?.render?.render_id).toBe('quote-v4');
     expect((await renderIndex(diskOutputs.renders, b.dir)).map((r) => r.id)).toEqual(['quote-v1', 'quote-v2', 'quote-v3', 'quote-v4']);
+    // R-SHR-02 / R-SHR-04, on purpose: in a project of the name they were written in, the reader rebases their
+    // paths into this project — `untrusted.record` is still the record as written, the checked members resolved.
+    const same = buildRenderState(root, 'ctl', { slug: 'northfield-fixture', film, runFilm: film });
+    rmSync(join(same.renders, 'quote-v1.json'));
+    const value = recordFixture('past/render-l73.json') as Record<string, unknown> & { id: string };
+    writeFileSync(join(same.renders, `${value.id}.json`), `${JSON.stringify(value, null, 2)}\n`);
+    const v = await engine.renders.status(same.slug, value.id);
+    const { plan: _p, warnings: _w, ...written } = value;
+    expect(JSON.stringify(v.untrusted.record)).toBe(JSON.stringify(written));
+    expect(v.record?.project).toBe('northfield-fixture');
+    expect(v.record_file).toBe(join(same.renders, 'quote-v4.json'));
   });
 });

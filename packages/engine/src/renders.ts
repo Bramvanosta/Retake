@@ -17,7 +17,7 @@ import { OUTPUT_DIRS } from './outputs/outputs.js';
 import type { OutputFolder, RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/project';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
-import type { StoredRender } from '@retake/editor/plan';
+import type { RecordReads, StoredRender } from '@retake/editor/plan';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './refs.js';
@@ -280,6 +280,7 @@ export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownSt
   const pol = r.policy;
   const probe = r.probe;
   return defined<RenderStatusRecord>({
+    // The view's own version (RenderStatusRecord), not the record's format (core FORMAT_VERSIONS.render).
     version: 1,
     id: r.id,
     status: word(status, ['succeeded', 'failed', 'cancelled'] as const),
@@ -372,7 +373,8 @@ export type RenderForWork = Extract<StoredRender, { status: 'succeeded' }>;
 /**
  * A succeeded render that work submitted through MCP may read (a review, an export): named by its id (or `latest`, of
  * `scenario`), read from renders/<id>.json only — never a path —, and its video and run folder inside the project
- * (symbolic links resolved): a record's paths are absolute, a hand-edited one could name any file.
+ * (symbolic links resolved) — and, for a review (`o.reads`), what the review opens: the plan's capture, tracks and
+ * caption fonts (editor recordPathProblem). A hand-edited record could name any file.
  */
 export async function renderForWork(
   renders: RenderOutputs,
@@ -383,6 +385,8 @@ export async function renderForWork(
     fix?: (id: string) => string;
     /** With `latest`: told what it passed over (latestRenderMembers makes an answer's members of it). */
     latest?: (pick: RenderLatestPick<ProjectRender>) => void;
+    /** What the use opens (editor recordPathProblem): `review` — also the plan's capture, tracks and caption fonts. Default `video`. */
+    reads?: RecordReads;
   } = {},
 ): Promise<RenderForWork> {
   const scenario = o.scenario;
@@ -410,8 +414,9 @@ export async function renderForWork(
   if (!planned.ok) throw new EngineError('invalid', `render ${id} has ${renderLackWords('plan')} (${projectRef('renders', `${id}.json`)}): nothing to read`);
   const record = planned.value;
   if (record.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${record.status}: nothing to read`);
-  const problem = recordPathProblem(project.dir, record, nodeFileFacts);
-  if (problem) throw new EngineError('refused', problem, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem] } });
+  const problem = recordPathProblem(project.dir, record, nodeFileFacts, o.reads ? { reads: o.reads } : {});
+  // (The path is the record's text: under `details.untrusted`, never in the sentence.)
+  if (problem) throw new EngineError('refused', problem.message, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem.message], untrusted: { paths: [problem.path] } } });
   // (The path is the record's text: under `details.untrusted`, never in the sentence.)
   if (!existsSync(record.file))
     throw new EngineError('not_found', `the video of render ${id} is missing: its record names a file that is not there`, { details: { untrusted: { video: record.file } } });
@@ -524,7 +529,10 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
     // Outside `untrusted`, the record's checked members only; the record as the file holds it is
     // `untrusted.record`. The GPU path's failure and what our ffmpeg failed with quote what they saw: under untrusted.
     view.record = renderStatusRecord(rest, slug);
-    view.untrusted.record = rest;
+    // The record as the file holds it (its paths as written — relative, or an older record's absolute ones: core
+    // render-folder's `written`), not the paths the reader resolved.
+    const { plan: _p, warnings: _w, error: _e, ...written } = (entry.read.ok || entry.read.problem === 'unknown-status' ? entry.read.written : undefined) ?? record;
+    view.untrusted.record = written;
     if (rest.policy?.fallback) view.untrusted.fallback_reason = rest.policy.fallback.reason;
     if (rest.policy?.ffmpeg?.failed !== undefined) view.untrusted.ffmpeg_failed = rest.policy.ffmpeg.failed;
     const renders = OUTPUT_DIRS.renders(project.dir);

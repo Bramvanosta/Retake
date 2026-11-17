@@ -383,8 +383,9 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportMad
   const name = found.output;
   const label = printableText(name);
   if (trust === 'mcp') {
+    // Its video and its run folder (what an export opens); the engine's gate (renderForWork) ran the same check before.
     const problem = recordPathProblem(project.dir, record, nodeFileFacts);
-    if (problem) throw new ExportError(problem);
+    if (problem) throw new ExportError(problem.message);
   }
   if (record.status !== 'succeeded')
     throw new ExportError(

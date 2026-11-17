@@ -100,7 +100,8 @@
       "about": "words this version does not know: `variant: cube`, an encoder, a browser source, a policy word",
       "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "variant": "cube", "encoding.audio": "voice", "browser.source": "system", "policy.gl.used": "metal", "edit.from": "draft" } }]
     },
-    "version-2": { "about": "a record of a newer format (`version: 2`), made on OLD", "files": [{ "file": "quote-v2", "run": "OLD", "at": "2026-10-02T09:02:00.000Z", "set": { "version": 2 } }] },
+    "v2-relative": { "about": "L9.1: a good newer quote-v2 as this version writes it — version 2, its paths relative to renders/ (core record-paths.ts)", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "set": { "version": 2, "run_dir": "../runs/$RUN", "file": "$ID.mp4", "record": "$ID.json" } }] },
+    "version-3": { "about": "a record of a newer format (`version: 3`), made on OLD", "files": [{ "file": "quote-v2", "run": "OLD", "at": "2026-10-02T09:02:00.000Z", "set": { "version": 3 } }] },
     "link": { "about": "quote-v2.json is a link to a record outside the project", "files": [{ "file": "quote-v2", "run": "NEW", "at": "2026-10-02T09:02:00.000Z", "link": true }] },
     "out-name": {
       "about": "a render written with `--out renders/quote-final.mp4`: a complete record of its file whose id is no render id of its scenario",

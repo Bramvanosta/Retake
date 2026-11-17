@@ -924,7 +924,7 @@ describe('the files of renders/ that are no render of their own name (R-1)', () 
       await writeFile(join(w.d, 'renders', 'quote-v6.mp4'), 'mp4');
       r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['unknown-status'], ['render-file']]);
-      await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { version: 2 }));
+      await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { version: 3 }));
       r = await pruneProject({ outputs: diskOutputs, stores: diskProjectStores }, w.p);
       expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['newer-format'], ['render-file']]);
       // Deleted for real: the file left alone and its video are still there.

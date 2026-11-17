@@ -241,7 +241,7 @@ instead of 700 ms.
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration — encoded during the take (L5.7): output frame n is the screencast frame on screen at n / fps, as before; a take ends without a long encode |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Retake, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
+| `run.json` | run record — its paths relative to the run folder (`dir: "."`, `capture.mp4`, `screenshots/…`; an older run's absolute ones still read) — (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Retake, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames.jsonl` | the screencast frames' capture times (always) |
@@ -318,3 +318,28 @@ A file of a higher version than this Retake reads (a newer Retake wrote it) is r
 update Retake` — instead of a list of keys this one does not know; `render`, `plan` and `export-capture` refuse a run
 whose `run.json` is newer the same way. Retake never rewrites your files: a future incompatible change raises the
 format's version and keeps reading the older ones (a `retake migrate` command is in docs/BACKLOG.md).
+
+## Moving a project, or handing it over
+
+A project folder can be copied or moved alone — `projects/<slug>/` into another workspace, onto another Mac, to
+someone else — with its runs, renders and reviews. The records name the files of their project relative to
+themselves: `run.json` says `dir: "."`, `capture.mp4`, `screenshots/…`; a render record (`renders/<id>.json`, format
+version 2) says `quote-v3.mp4`, `../runs/<run-id>`, `../runs/<run-id>/capture.mp4`; a review's `report.json` says
+`sheet_1fps.jpg`, `../../renders/quote-v3.mp4`. In the copy, render a copied run and review or export a copied render
+as usual, at a terminal or through Claude: every file read and written is the copy's. Commands and Claude still say
+absolute paths.
+
+- **What moves with the folder:** its scenarios, hooks, assets, comments, runs, renders, reviews and exports.
+- **What does not:** the workspace's themes and components (a render with a workspace theme still names that
+  workspace's logo and fonts: absolute — copy the theme too, until a project keeps its own themes), the starter themes
+  of the Retake that rendered (absolute: the review measures without a font it cannot find), `.retake/` state (job
+  history, comment stills: machine-local), the manifests of `exports/` (absolute paths), and a render written with
+  `--out` outside the project.
+- **Records an older Retake wrote** (every path absolute) still read: their paths inside the project they were made in
+  are taken as the same files of the project they are read in, even under another folder name — the folder above
+  their `renders/` is the old project. Nothing is rewritten.
+- **A record moved out of its folder** is read relative to where it lies: name `renders/quote-v3.json` of the project,
+  not a copy of the record somewhere else (a copy elsewhere finds neither its video nor its run, unless they lie beside
+  it the same way). A relative path that leads out of the project is never followed: it reads as missing.
+- **Through Claude**, a render whose video, run folder, capture or page tracks lie outside its project is refused, as
+  before; so is a caption font that is no font file of the plan.
