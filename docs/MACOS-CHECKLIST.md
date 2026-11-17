@@ -2018,6 +2018,28 @@ scratch workspace (`RETAKE_ROOT` and `RETAKE_HOME` in a temp folder), with the n
    or without latin files) is refused with the reason; a family whose licence is neither OFL-1.1 nor Apache-2.0 is
    refused naming its licence. Delete the scratch workspace afterwards.
 
+## 21. A sandbox's build secrets from the Studio, the app and Claude (L8.4)
+
+The tests cover the checks on a fake docker and one real build under the agent policy with `{{env:…}}` (Docker, a
+busybox image already here). Never the keychain (the tests do not touch it) nor a real private registry: here it is a
+product of yours whose image installs a private package through a build secret (`RUN --mount=type=secret`).
+
+1. **The refusal.** Without `compose.secrets`, ask Claude to start the sandbox (`sandbox_up`) on a machine where the
+   image is not built yet: the job fails before any build, naming the service, the secret and the variable, and
+   leading with `compose.secrets: {NAME: "{{keychain:…}}"}`. Nothing was built (`docker image ls`).
+2. **The keychain.** `security add-generic-password -s retake-demo -a npm-token -w` (paste the token), then
+   `compose.secrets: {NPM_TOKEN: "{{keychain:retake-demo/npm-token}}"}` in sandbox.yaml; `sandbox_up` through Claude,
+   then a `--build` from the Studio or the app opened from the Finder: the image builds; macOS may ask once whether
+   Retake's node may read the item. `grep -c <the token> <sandbox>/.retake/sandbox/<env>/logs/compose-up.log*` → 0.
+3. **`{{env:…}}` for jobs.** Switch the reference to `"{{env:NPM_TOKEN}}"`, add
+   `export RETAKE_WORKER_KEEP_ENV=NPM_TOKEN` next to the token in your shell profile, open a new terminal, restart
+   Claude Code (a worker already running keeps its environment: it exits a minute after its last job):
+   `sandbox_up` through Claude builds.
+   The app opened from the Finder still refuses (no shell profile): the keychain is the way there.
+4. **A failing step.** Put a wrong token in the keychain item: the error ends with the install's own lines (a 401),
+   the token masked; `compose-up.log.1` holds the previous up's log. Fix the item and rebuild with
+   `docker compose build --no-cache <service>` if the failed attempt left a cached layer.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

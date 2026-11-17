@@ -57,7 +57,7 @@ Every key of sandbox.yaml (version 1; `retake schema sandbox` prints the JSON Sc
 |---|---|
 | `version` | `1` (required) |
 | `provider` | `process` (programs of this machine) or `docker-compose` (required) |
-| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `retake-<project>-<env>-<hash>`), `env_file` (default `.env` next to the first compose file when there is one; `false`: none — see [A "stage" sandbox](#a-stage-sandbox-images-of-a-production-build)) |
+| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `retake-<project>-<env>-<hash>`), `env_file` (default `.env` next to the first compose file when there is one; `false`: none — see [A "stage" sandbox](#a-stage-sandbox-images-of-a-production-build)), `secrets` (the build secrets' variables, each one `{{env:…}}` / `{{keychain:…}}` — see [Build secrets](#build-secrets-a-private-registry-token)) |
 | `services.<name>` | `url` (health base), `pages` (key → URL or `{url, display}`), `health`; process: `command`, `cwd`, `env`, `stop_timeout_s` |
 | `services.<name>.health` | a path, `false`, or `{path \| url, status, text, timeout_s, interval_ms, tcp}` (`tcp`: process only) |
 | `seed[]` | `http`, `sql`, `shell`, `exec` (`{service, command, env, timeout_s}`, docker-compose) + `name`, `optional` |
@@ -307,7 +307,7 @@ worker) counts too, judged by its own healthcheck.
   `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`,
   `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`; never another `DOCKER_*`, such as a registry password) and the names of
   project.yaml `pass_env:`: a `${VAR}` of the compose file that your shell sets reaches it only through `pass_env:`
-  (or the env file below). There, the `docker` binary itself (`$RETAKE_DOCKER`, or the one found on `PATH`) may not
+  (or the env file below); a build secret's token through `compose.secrets` ([Build secrets](#build-secrets-a-private-registry-token)). There, the `docker` binary itself (`$RETAKE_DOCKER`, or the one found on `PATH`) may not
   be a relative path or lie inside the workspace: the job fails before it starts, saying to move it.
 - **A renamed `compose.project`**: the name an earlier `up` used stays in the state until nothing of it is left. While
   its containers run, `up` refuses (`compose project … — the name an earlier up of this sandbox used (compose.project
@@ -698,6 +698,66 @@ mailbox: {provider: mailpit, url: http://localhost:4925}
   the next `up` seeds again and a snapshot taken with the previous one is stale.
 - `retake sandbox up <project> --env stage` pulls the images the first time (`docker login` to a private registry
   first, in your terminal); `retake run <project> <scenario> --env stage --sandbox` resets it before each take.
+
+### Build secrets (a private registry token)
+
+An image that installs a private package reads a token through a build secret: the compose file declares it from a
+variable, a service's build mounts it, the Dockerfile reads it in one step (no layer keeps it).
+
+```yaml
+# compose.yaml
+services:
+  app:
+    build: {context: ../.., dockerfile: apps/api/Dockerfile, secrets: [NPM_TOKEN]}
+secrets:
+  NPM_TOKEN: {environment: NPM_TOKEN}
+# Dockerfile: RUN --mount=type=secret,id=NPM_TOKEN,env=NPM_TOKEN pnpm install --frozen-lockfile
+
+# sandbox.yaml
+compose:
+  secrets:
+    NPM_TOKEN: "{{keychain:retake-demo/npm-token}}"   # or "{{env:NPM_TOKEN}}"
+    SENTRY_AUTH_TOKEN: false                          # optional: the build does without it
+```
+
+- **Why sandbox.yaml names it.** docker compose passes a build secret *empty*, without a word, when its variable is not
+  set — the install then fails on a 401. A command you type in a terminal (`retake sandbox up … --build`) hands docker
+  your shell's variables; a job of the Studio, the desktop app or an MCP client (`sandbox_up`) never does: its docker
+  gets the shell's own variables, docker's connection settings and `pass_env:` only, and a worker those clients start
+  drops every registry and code-host token (`NPM_TOKEN`, `GITHUB_TOKEN`…). An app opened from the Finder has no shell
+  profile at all.
+- **`compose.secrets`** maps a variable a build secret reads (`secrets.<id>.environment`) to one secret reference, or
+  to `false` for an optional build secret (one the build does without: an up never refuses it empty).
+  `{{keychain:service/account}}` works from everywhere (store it once:
+  `security add-generic-password -s retake-demo -a npm-token -w`). `{{env:NAME}}` reads the environment of whoever runs
+  the up: your shell for a command you type; for a job, the jobs worker's — which keeps a dropped token only when
+  `RETAKE_WORKER_KEEP_ENV=NPM_TOKEN` (names separated by commas or spaces) is set in the environment of the client
+  that starts it, beside the token in your shell profile. It keeps any name it lists that the worker drops — a model's
+  key too — except a loader variable and `RETAKE_MCP_TOKEN`; set it in your profile, not in a project's `.mcp.json` or
+  `.claude/settings.json` `env` (files an agent of that folder can write). A worker already running keeps the
+  environment it started with until it exits, a minute after its last job. Validation refuses a plain value (it
+  belongs in the env file), a name the env file sets too, a loader variable and the settings of docker, buildx,
+  BuildKit, compose and the system (`DOCKER_*`, `BUILDX_*`, `BUILDKIT_*`, `COMPOSE_*`, `SSH_*`, `XDG_*`, `PATH`,
+  `TMPDIR`, `TMP`, `TEMP`, the proxies, the certificates); it warns of a name no secret of the compose files reads.
+- **Build secrets only.** `up` refuses a name no service's `build.secrets` reads, a name a service mounts in its
+  running container (its own `secrets:`, at `/run/secrets/<id>`), and a name docker compose would put anywhere else —
+  it reads `docker compose config` once more with a marker value for each name, and a marker in a container's
+  `environment` (`environment: [NPM_TOKEN]` fills itself from the up's environment), a build argument (kept in the
+  image's history) or a `${NPM_TOKEN}` of any compose file, an included one or the env file refuses the up. The
+  values travel in the environment of the `up` command alone — never its arguments, a file or another compose
+  command — and every line of that up (`logs/compose-up.log`, `--verbose`, the live line) and every message it gives
+  is masked with them (a value shorter than 3 characters is refused: it could not be masked).
+- **Checked before the build.** The services an `up` builds — every one with a `build:` under `--build`, else those
+  with `pull_policy: build` or whose image is not on this machine (docker compose builds those whatever their pull
+  policy; a missing image it would pull instead counts too) — must have every build secret they read non-empty for
+  docker compose (`compose.secrets`, else the env file, else the environment docker runs with), or the up is refused
+  before anything starts, naming the service, the secret and the variable. Only the references those builds need are
+  read: an up with images built beforehand never reaches the keychain.
+- **A failed build** ends its message with the last lines of the BuildKit step that failed (the install's own error, a
+  401 of the registry, rather than only `failed to solve … exit code: 1`). The whole output is in
+  `logs/compose-up.log`; the previous up's log stays as `compose-up.log.1`. An image once built with an empty secret
+  stays in BuildKit's cache (a changed secret does not invalidate a step): rebuild it with
+  `docker compose build --no-cache <service>` after the fix.
 
 ### Limits
 

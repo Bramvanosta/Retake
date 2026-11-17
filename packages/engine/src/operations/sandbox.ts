@@ -44,7 +44,7 @@ const SEED_APPROVAL = 'Seed steps that run shell commands are approved by the us
 export const sandboxUp = defineOperation({
   name: 'sandbox_up',
   title: 'Start a sandbox',
-  description: `Start a sandbox of a project (a disposable, local copy of the product, sandbox.yaml), as a job: what is not running is started, health is checked, and it is seeded when it never was or its seed changed. ${SEED_APPROVAL} A docker-compose sandbox pulls the images its compose file names that are not on this machine yet (a download nothing asks about): ask the user before the first up. Nothing outside the sandbox is touched.`,
+  description: `Start a sandbox of a project (a disposable, local copy of the product, sandbox.yaml), as a job: what is not running is started, health is checked, and it is seeded when it never was or its seed changed. ${SEED_APPROVAL} A docker-compose sandbox pulls the images its compose file names that are not on this machine yet (a download nothing asks about): ask the user before the first up. It builds the images of the compose file that are missing: a build secret (a private registry token) comes from sandbox.yaml compose.secrets (a {{keychain:…}} reference) — this job never has the user's shell tokens, so an empty one is refused before the build, saying what to write. Nothing outside the sandbox is touched.`,
   input: z.strictObject({ project: projectSlug, env: sandboxEnv, wait_s: waitS(20, 'the sandbox to be up') }),
   annotations: SANDBOX_JOB,
   async run({ project, env, wait_s }, ctx) {

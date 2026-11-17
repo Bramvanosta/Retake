@@ -6,6 +6,19 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Added
+- A docker-compose sandbox's build secrets: sandbox.yaml `compose.secrets: {NPM_TOKEN: "{{keychain:…}}"}` (or
+  `"{{env:NPM_TOKEN}}"`) gives an image's build the private registry token its compose file reads through a build
+  secret (`secrets: {<id>: {environment: …}}`, `RUN --mount=type=secret`) — from a terminal, the Studio, the app and
+  Claude alike. Read only when an up builds, handed to that `docker compose up` alone, masked in its log and messages.
+- `RETAKE_WORKER_KEEP_ENV=NPM_TOKEN` (in your shell profile, beside the token): a jobs worker started by the Studio or
+  Claude keeps those tokens, which it otherwise drops.
+
+### Changed
+- An up that would build with an empty build secret is refused before anything is built, naming the service, the
+  secret and the variable (docker compose passes it empty without a word). A failed build's message ends with the last
+  lines of the step that failed (the install's own error), and the previous up's log stays as `compose-up.log.1`.
+
 ## [0.3.0] — 2026-11-16
 
 The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,

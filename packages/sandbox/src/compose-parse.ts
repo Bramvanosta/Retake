@@ -27,19 +27,55 @@ export interface ComposeConfig {
   images: Record<string, string>;
   /** service → the services it depends on (`depends_on`, list or map form). */
   depends: Record<string, string[]>;
+  /**
+   * service → the ids of the build secrets its `build.secrets` mounts, for the services with a `build:` (an empty
+   * list when it mounts none).
+   */
+  builds: Record<string, string[]>;
+  /** service → its `pull_policy` when it has one (`build`: built at every up, the image present or not). */
+  pulls: Record<string, string>;
+  /** service → the ids of the secrets mounted in its running container (its own `secrets:`), for the services with some. */
+  runtimeSecrets: Record<string, string[]>;
+  /** secret id → the variable it is read from (top-level `secrets.<id>.environment`); file secrets are not listed. */
+  secretEnv: Record<string, string>;
 }
 
 /** `docker compose config --format json` → services, published TCP ports (ranges expanded), images. */
 export function parseComposeConfig(text: string, projectName: string): ComposeConfig {
   const doc = JSON.parse(text) as {
-    services?: Record<string, { image?: string; depends_on?: string[] | Record<string, unknown>; ports?: Array<{ published?: string | number; host_ip?: string; protocol?: string }> }>;
+    services?: Record<
+      string,
+      {
+        image?: string;
+        pull_policy?: string;
+        secrets?: Array<string | { source?: string }>;
+        build?: { secrets?: Array<string | { source?: string }> };
+        depends_on?: string[] | Record<string, unknown>;
+        ports?: Array<{ published?: string | number; host_ip?: string; protocol?: string }>;
+      }
+    >;
+    secrets?: Record<string, { environment?: string }>;
   };
   const services = Object.keys(doc.services ?? {});
   const ports: PublishedPort[] = [];
   const images: Record<string, string> = {};
   const depends: Record<string, string[]> = {};
+  const builds: Record<string, string[]> = {};
+  const secretEnv: Record<string, string> = {};
+  const pulls: Record<string, string> = {};
+  const runtimeSecrets: Record<string, string[]> = {};
+  const ids = (list: unknown): string[] => [
+    ...new Set((Array.isArray(list) ? list : []).map((x: string | { source?: string }) => (typeof x === 'string' ? x : x?.source)).filter((x): x is string => typeof x === 'string' && x !== '')),
+  ];
+  for (const [id, sec] of Object.entries(doc.secrets ?? {})) {
+    if (sec && typeof sec.environment === 'string' && sec.environment) secretEnv[id] = sec.environment;
+  }
   for (const [service, svc] of Object.entries(doc.services ?? {})) {
     images[service] = svc.image ?? `${projectName}-${service}`;
+    if (typeof svc.pull_policy === 'string' && svc.pull_policy) pulls[service] = svc.pull_policy;
+    if (svc.build && typeof svc.build === 'object') builds[service] = ids(svc.build.secrets);
+    const mounted = ids(svc.secrets);
+    if (mounted.length) runtimeSecrets[service] = mounted;
     const on = Array.isArray(svc.depends_on) ? svc.depends_on : svc.depends_on && typeof svc.depends_on === 'object' ? Object.keys(svc.depends_on) : [];
     if (on.length) depends[service] = on.map(String);
     for (const p of svc.ports ?? []) {
@@ -51,7 +87,7 @@ export function parseComposeConfig(text: string, projectName: string): ComposeCo
       for (let port = from; port <= to && port - from < 1000; port++) ports.push({ service, port, host: p.host_ip ?? '' });
     }
   }
-  return { services, ports, images, depends };
+  return { services, ports, images, depends, builds, pulls, runtimeSecrets, secretEnv };
 }
 
 /** Where a database container keeps its data, from `docker inspect --format '{{json .Mounts}}'` (the volume's compose project read by the caller). */
