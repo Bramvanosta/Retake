@@ -8,6 +8,7 @@
 import { APP_NAME } from '../brand.js';
 import type { UpdateFailure, UpdateOffReason, UpdateStatus } from '../data/ops.js';
 import type { MarkState } from '../ui-kit/index.js';
+import { megabytes } from '../words/tools-words.js';
 
 export type { UpdateFailure, UpdateOffReason, UpdateStatus };
 
@@ -32,14 +33,13 @@ export function failureWords(f: UpdateFailure, current: string): string {
       return `The update could not be installed: ${APP_NAME} ${current} was kept.`;
     case 'not_writable':
       return `${APP_NAME} cannot replace itself in its folder (this account may not write there): install the new version from its disk image.`;
+    case 'tools':
+      return `The Tools the update needs could not be downloaded and checked: nothing was installed, ${APP_NAME} ${current} was kept.`;
   }
 }
 
-/** "152 MB" (one decimal under 10 MB). */
-export function megabytes(n: number): string {
-  const mb = n / 1_000_000;
-  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
-}
+/** "152 MB" (one decimal under 10 MB): the Tools' words' (one rule for both). */
+export { megabytes };
 
 /** BL-167: the download's figure — its whole percent (undefined: no size announced) and its words. */
 export function downloadFigure(s: UpdateStatus): { percent?: number; text: string } | null {
@@ -69,6 +69,10 @@ export function badgeWords(s: UpdateStatus | null): string | null {
       const pct = downloadFigure(s)?.percent;
       return pct === undefined ? `Downloading v${s.version}…` : `Downloading v${s.version} · ${pct} %`;
     }
+    case 'preparing': {
+      const pct = toolsFigure(s)?.percent;
+      return pct === undefined ? `Downloading the Tools for v${s.version}…` : `Downloading the Tools for v${s.version} · ${pct} %`;
+    }
     case 'waiting':
       return `Update waits for ${s.jobs === 1 ? 'a job' : `${s.jobs} jobs`}`;
     case 'installing':
@@ -76,6 +80,7 @@ export function badgeWords(s: UpdateStatus | null): string | null {
     case 'failed':
       if (s.failure === 'not_writable') return `Update v${s.version}: install it from its disk image`;
       if (s.failure === 'install') return `Update v${s.version} not installed`;
+      if (s.failure === 'tools') return `Update v${s.version}: its Tools did not download`;
       return `Update v${s.version} failed`;
     default:
       return null;
@@ -93,6 +98,12 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
     case 'downloading':
       if (verifying(s)) return { state: 'running', title: 'Checking the signature', text: `${APP_NAME} checks the update against the key it was built with.` };
       return { state: 'running', title: `Downloading v${s.version}`, text: `${APP_NAME} downloads the update, then checks its signature against the key it was built with. Later stops it.` };
+    case 'preparing':
+      return {
+        state: 'running',
+        title: `Downloading the Tools for v${s.version}`,
+        text: `${APP_NAME} downloads what v${s.version} needs and checks each file against the digest it records. The current Tools stay until v${s.version} has started once: a failed update leaves this version working as it is. Later stops it.`,
+      };
     case 'waiting':
       return {
         state: 'running',
@@ -113,7 +124,11 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
       return { state: 'fail', title: 'Updates are off', text: s.reason && s.reason !== 'not_supervised' ? OFF_WORDS[s.reason] : OFF_WORDS.build };
     case 'failed':
       return s.failure
-        ? { state: 'fail', title: s.failure === 'not_writable' ? 'The update cannot be installed here' : 'The update did not go through', text: failureWords(s.failure, s.current ?? '') }
+        ? {
+            state: 'fail',
+            title: s.failure === 'not_writable' ? 'The update cannot be installed here' : 'The update did not go through',
+            text: `${failureWords(s.failure, s.current ?? '')}${s.failure === 'tools' && s.untrusted?.tools ? ` (${s.untrusted.tools})` : ''}`,
+          }
         : null;
     default:
       return null;
@@ -122,7 +137,7 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
 
 export type StepState = 'done' | 'running' | 'next' | 'failed';
 export interface InstallStep {
-  id: 'download' | 'signature' | 'jobs' | 'install';
+  id: 'download' | 'signature' | 'tools' | 'jobs' | 'install';
   label: string;
   state: StepState;
 }
@@ -144,6 +159,7 @@ export function installSteps(s: UpdateStatus): InstallStep[] | null {
   const labels: Array<[InstallStep['id'], string]> = [
     ['download', 'Download the update'],
     ['signature', 'Check its signature'],
+    ['tools', toolsStepLabel(s)],
     ['jobs', jobs],
     ['install', `Quit, install and restart ${APP_NAME}`],
   ];
@@ -153,22 +169,42 @@ export function installSteps(s: UpdateStatus): InstallStep[] | null {
     case 'downloading':
       at = verifying(s) ? 1 : 0;
       break;
-    case 'waiting':
+    case 'preparing':
       at = 2;
       break;
-    case 'installing':
+    case 'waiting':
       at = 3;
       break;
+    case 'installing':
+      at = 4;
+      break;
     case 'failed':
-      if (s.failure !== 'download' && s.failure !== 'install') return null;
+      if (s.failure !== 'download' && s.failure !== 'install' && s.failure !== 'tools') return null;
       // A download that failed may be its signature: the shell says one failure for both (update_flow Failure::Download).
-      at = s.failure === 'download' ? 0 : 3;
+      at = s.failure === 'download' ? 0 : s.failure === 'tools' ? 2 : 4;
       failed = true;
       break;
     default:
       return null;
   }
   return labels.map(([id, label], i) => ({ id, label, state: i < at ? 'done' : i === at ? (failed ? 'failed' : 'running') : 'next' }));
+}
+
+/** the update's Tools while the server downloads them: the percent (undefined before their size is known) and the words. */
+export function toolsFigure(s: UpdateStatus): { percent?: number; text: string } | null {
+  const t = s.tools;
+  if (s.state !== 'preparing' || !t) return null;
+  if (t.tools.length === 0) return { text: 'Reading what it needs…' };
+  if (t.total === 0) return { percent: 100, text: 'Tools: up to date' };
+  const percent = Math.min(100, Math.floor((Math.min(t.received, t.total) * 100) / t.total));
+  return { percent, text: `${megabytes(Math.min(t.received, t.total))} of ${megabytes(t.total)} · ${percent} %` };
+}
+
+/** The Tools step's label: what the new version downloads ("Download its Tools · 573 MB"), or that it needs none. */
+function toolsStepLabel(s: UpdateStatus): string {
+  const t = s.tools;
+  if (!t || t.tools.length === 0) return 'Download the Tools it needs';
+  return t.total === 0 ? 'Its Tools: up to date' : `Download the Tools it needs · ${megabytes(t.total)}`;
 }
 
 /** "Last checked: …" in the person's own time (null: never). */

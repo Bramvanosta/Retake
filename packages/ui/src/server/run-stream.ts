@@ -4,7 +4,7 @@
  */
 import type { ServerResponse } from 'node:http';
 import { SLUG_RE } from '@retake/core/model';
-import type { JobState } from '@retake/engine';
+import type { JobRecord, JobState } from '@retake/engine';
 import { FINISHED_JOB_STATES, openLiveFeed, readLiveChannel } from '@retake/engine/shell';
 import type { Engine, JobQueueView, LiveFeedFrame } from '@retake/engine';
 import { sseText } from './live.js';
@@ -53,6 +53,21 @@ export interface RunStreamOptions {
 const isPageId = (v: string): boolean => v.length <= 100 && SLUG_RE.test(v);
 
 /** One page's stream of one run. */
+/**
+ * What the page's `job` event says of the run's job: its state, the pause and cancel asked, and `waits_for` while the
+ * queue holds it for the app's Tools (the browser, or the render tools for the headless shell) — never for a job whose
+ * project launches a browser of its own: the Run screen's waiting words follow the queue, not the Tools' state alone.
+ */
+export function liveJobView(job: Pick<JobRecord, 'state' | 'pause_requested_at' | 'cancel_requested_at' | 'yield'>): {
+  state: JobState;
+  pause_requested: boolean;
+  cancel_requested: boolean;
+  waits_for?: 'browser' | 'render';
+} {
+  const waits = job.state === 'queued' && job.yield?.cause === 'tools' ? job.yield.needs : undefined;
+  return { state: job.state, pause_requested: Boolean(job.pause_requested_at), cancel_requested: Boolean(job.cancel_requested_at), ...(waits ? { waits_for: waits } : {}) };
+}
+
 export class RunStream {
   private waitingFrame: string | null = null;
   private timer: NodeJS.Timeout | undefined;
@@ -174,7 +189,7 @@ export class RunStream {
       const job = await bestEffort(engine.jobs.get(this.req.jobId), 'a job that cannot be read is followed again on the next tick', null);
       if (job) {
         jobState = job.state;
-        const view = { state: job.state, pause_requested: Boolean(job.pause_requested_at), cancel_requested: Boolean(job.cancel_requested_at) };
+        const view = liveJobView(job);
         const key = JSON.stringify(view);
         if (key !== this.lastJob) {
           this.lastJob = key;

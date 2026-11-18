@@ -70,7 +70,7 @@ function probes(): DoctorProbes {
       source: 'playwright',
       exists: true,
       launched: true,
-      version: '141.0.7390.37',
+      version: '159.0.8154.6',
       ms: 640,
       gpu: { accelerated: false, renderer: 'SwiftShader', software: ['webgl'] },
       sandbox: { on: true, off: [] },

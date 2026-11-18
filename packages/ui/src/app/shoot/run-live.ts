@@ -129,7 +129,11 @@ function useEventHandler({ stateRef, cursor, ended, frameRef, flushTimer, setSta
         advance(d.src, d.seq);
         break;
       case 'job':
-        if (str(d.state)) stateRef.current = { ...stateRef.current, job: { state: d.state, pause_requested: d.pause_requested === true, cancel_requested: d.cancel_requested === true } };
+        if (str(d.state)) {
+          const w = d.waits_for;
+          const waits: { waits_for?: 'browser' | 'render' } = w === 'browser' || w === 'render' ? { waits_for: w } : {};
+          stateRef.current = { ...stateRef.current, job: { state: d.state, pause_requested: d.pause_requested === true, cancel_requested: d.cancel_requested === true, ...waits } };
+        }
         break;
       case 'picture':
         if (str(d.state)) stateRef.current = { ...stateRef.current, picture: { state: d.state as PictureState, ...opt('why', str(d.why) ? d.why : undefined) } };

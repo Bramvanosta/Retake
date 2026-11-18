@@ -29,7 +29,8 @@
  *   re-render writes the file, queues the render of the thread's take on it (the worker run in this process renders
  *   and reviews it), the thread follows it, "Resolve with v3" resolves with that render; the Resolved filter; Reopen
  *   (the applied proposal offers nothing, said why).
- * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
+ * No CSP violation, no console error (console-errors.ts: but a preview frame's font or plan fetch refused as the page
+ * removes that frame — its capability revoked by the lease it gave back). `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -52,6 +53,7 @@ import { linkSharedCache } from '@retake/test-support/render';
 import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake } from '@retake/test-support/take';
 import { parseTimecode, timeExample } from '../src/app/words/comment-words.js';
 import { scratchHome } from '@retake/test-support/home';
+import { ConsoleErrors } from './console-errors.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -69,7 +71,8 @@ let page: Page;
 let land: RenderRecord;
 let vert: RenderRecord;
 const retakeHome = scratchHome('RETAKE_AUTHOR');
-const consoleErrors: string[] = [];
+/** The page's console errors (a preview frame's request refused while the page removes it does not count). */
+const consoleErrors = new ConsoleErrors();
 /** render_frame requests: their session ids and how many were in flight at once (at most). */
 const frames = { sessions: new Set<string>(), inFlight: 0, maxInFlight: 0, count: 0 };
 
@@ -228,14 +231,13 @@ beforeAll(async () => {
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  await consoleErrors.watch(context);
   await context.addInitScript(() => {
     (window as unknown as { __csp: number }).__csp = 0;
     document.addEventListener('securitypolicyviolation', () => (window as unknown as { __csp: number }).__csp++);
   });
   page = await context.newPage();
-  page.on('console', (m) => {
-    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(m.text());
-  });
+  page.on('console', (m) => consoleErrors.add(m));
   page.on('request', (r) => {
     if (!r.url().endsWith('/v1/call/render_frame')) return;
     frames.count++;
@@ -654,7 +656,7 @@ describe.skipIf(!canRun)('the Comments screen in Chromium', () => {
       await page.unrouteAll({ behavior: 'wait' });
       await page.setViewportSize({ width: 1440, height: 1000 });
     }
-    expect(consoleErrors).toEqual([]);
+    expect(consoleErrors.list()).toEqual([]);
   }, 180_000);
 
   it('⚑ a drag on the vertical render: the fields are the drag on the image itself; past the edge it is clamped inside', async () => {
@@ -689,7 +691,7 @@ describe.skipIf(!canRun)('the Comments screen in Chromium', () => {
     expect(await page.getByTestId('region-words').innerText()).toBe('No region: the comment is about the whole frame.');
 
     expect(await csp()).toBe(0);
-    expect(consoleErrors).toEqual([]);
+    expect(consoleErrors.list()).toEqual([]);
   }, 60_000);
 });
 
@@ -968,6 +970,6 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium", () => {
     expect(await buttonsShown()).toEqual([]);
 
     expect(await csp()).toBe(0);
-    expect(consoleErrors).toEqual([]);
+    expect(consoleErrors.list()).toEqual([]);
   }, 300_000);
 });

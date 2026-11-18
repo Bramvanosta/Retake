@@ -18,6 +18,8 @@ export function stubTools(): ReturnType<typeof studioTools> {
     updateState: none,
     setupContext: () => none,
     workspace: '/workspace',
+    engine: () => none,
+    toolsState: none,
   };
   return studioTools(deps);
 }

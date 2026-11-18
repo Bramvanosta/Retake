@@ -32,6 +32,8 @@ import { processTableSync } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
+import { openProjectBySlug } from '../projects.js';
+import { cachedProjectBrowsers } from '../tools/tool-need.js';
 import type { Outputs } from '../outputs/outputs.js';
 import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import { buildDirs } from './build.js';
@@ -81,6 +83,8 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const cli = `retake -C ${shellQuote(root)}`;
   // The worker process's composition root: the one queue this worker reads and writes (its ports' factory).
   const { queue, files } = ports.queues(root, cli, clock, ports.env);
+  // A job whose project launches a browser of its own waits for no Tool (tools/tool-need.ts, through the reads port).
+  queue.useTools({ browsers: cachedProjectBrowsers(async (slug) => (await openProjectBySlug(ws, slug)).config.browser) });
   const build = ports.processes.buildStamp();
   const lock = await WorkerLock.acquire(root, build, clock, log, o.startedBy);
   if (!lock) {

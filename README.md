@@ -98,7 +98,8 @@ brew install --cask bramvanosta/tap/retake        # stable releases
 brew install --cask bramvanosta/tap/retake@beta   # release candidates and stable releases
 ```
 
-The app carries everything it needs: its own Node.js, engine, Chromium, ffmpeg, starter themes and Claude plugin.
+The app carries its own Node.js, engine, ffmpeg, starter themes and Claude plugin. Its browser, render browser and
+compositor (the **Tools**) it downloads once, on your click in the Set-up sheet, from their publishers (about 315 MB).
 
 - **Gatekeeper.** A release notarised by Apple opens without a warning. A build that is not notarised (its release
   page says so) is refused the first time: try to open it once, then System Settings › Privacy & Security › **Open
@@ -367,5 +368,7 @@ Please report a vulnerability privately: see [SECURITY.md](SECURITY.md).
 
 Retake is released under the [MIT licence](LICENSE). It renders its videos with Remotion, which is not open source:
 its own licence (the `LICENSE.md` of its npm package) applies to everyone who renders with Retake, free for individuals
-and for companies of up to three people. The macOS app also carries GPL builds of FFmpeg, each with its notice and source offer in
-[`apps/desktop/licenses/`](apps/desktop/licenses/).
+and for companies of up to three people. The macOS app also carries a GPL build of FFmpeg, with its notice and source offer in
+[`apps/desktop/licenses/`](apps/desktop/licenses/); the Tools it downloads (Chrome for Testing, Chrome Headless Shell,
+Remotion's compositor and its own GPL FFmpeg build) come from their publishers under their own terms, each with a
+short notice in `apps/desktop/licenses/tools/`.

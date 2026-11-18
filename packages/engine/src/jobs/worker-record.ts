@@ -27,6 +27,8 @@ import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import type { ProcInfo } from '@retake/core/io';
 import type { QosYield } from './yield.js';
+import { toolsGate } from '../tools/gate.js';
+import type { ToolsGate } from './job-queue.js';
 import type { FreeBytes, JobProcesses, RecordWindow, WorkerPorts, WorkerPortsGiven } from './worker-ports.js';
 
 /** The OS utilities the worker's signal handler calls synchronously (core/io's). */
@@ -65,6 +67,8 @@ export interface WorkerOptions {
   cancelGraceMs?: number;
   /** How long a job process left by a dead worker may take to end itself before it is stopped (ms, default 15 000). */
   orphanGraceMs?: number;
+  /** The needs of the app's Tools missing now (default the gate of its ports' home: tools/gate.ts); tests hand theirs. */
+  toolsGate?: ToolsGate;
 }
 
 /** A heavy job in its job process. */
@@ -154,6 +158,8 @@ export interface Worker {
   filmingCapped: 'here' | 'elsewhere' | undefined;
   /** `.retake/workers/held.json` is written (it follows the heavy job's hold). */
   heldWritten: boolean;
+  /** The needs of the app's Tools missing now: a job that needs one is not claimed (pick.ts `blocked`). */
+  readonly tools: ToolsGate;
 }
 
 /** What runWorker opened and acquired before it serves: the record is built from it. */
@@ -234,5 +240,6 @@ export function newWorker(p: WorkerParts): Worker {
     filmingCause: undefined,
     filmingCapped: undefined,
     heldWritten: false,
+    tools: o.toolsGate ?? toolsGate(p.ports.env),
   };
 }

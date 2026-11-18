@@ -114,7 +114,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(r.code, r.err).toBe(EXIT.ok);
     for (const name of [
       'Node.js',
-      'Chromium',
+      'Browser',
       'Chromium sandbox',
       'GPU',
       'ffmpeg',
@@ -145,7 +145,16 @@ describe('retake doctor (mocked environment)', () => {
 
   it('a capture browser without its GPU, an ffmpeg without VideoToolbox: warnings with the fix (R-FLD-24)', async () => {
     const software = { accelerated: false, renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', software: ['gpu_compositing', 'rasterization'] };
-    const probe = async (): Promise<ChromiumProbe> => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: true, version: '141', ms: 500, gpu: software });
+    const probe = async (): Promise<ChromiumProbe> => ({
+      path: '/c/Chromium',
+      source: 'playwright',
+      exists: true,
+      launched: true,
+      version: '141',
+      ms: 500,
+      gpu: software,
+      sandbox: { on: true, off: [] },
+    });
     const { code, checks: list } = await checks(
       macProbes({
         chromium: probe,
@@ -192,15 +201,18 @@ describe('retake doctor (mocked environment)', () => {
       hint: expect.stringContaining('the executable of $RETAKE_CHROMIUM adds them itself'),
     });
     const silent = await checks(macProbes({ chromium: at({}) }));
-    expect(byName(silent.checks, 'Chromium sandbox')).toMatchObject({ status: 'warn', detail: 'the capture browser did not report its command line' });
+    expect(byName(silent.checks, 'Chromium sandbox')).toMatchObject({
+      status: 'fail',
+      detail: expect.stringMatching(/^the capture browser did not report its command line: captures, sign-ins and recordings refuse it/),
+    });
     // No line for a browser that did not launch; a sandbox that cannot start on Linux says what it needs.
     const linux = await checks(macProbes({ chromium: at({ launched: false, error: 'Chromium sandboxing failed! No usable sandbox!' }) }));
     expect(linux.checks.some((c) => c.name === 'Chromium sandbox')).toBe(false);
-    expect(byName(linux.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('unprivileged user namespaces') });
+    expect(byName(linux.checks, 'Browser')).toMatchObject({ status: 'fail', hint: expect.stringContaining('unprivileged user namespaces') });
     // As root, Chromium refuses its sandbox: the hint says to run as a regular user, never to turn the sandbox off.
     const root = await checks(macProbes({ chromium: at({ launched: false, error: 'Running as root without --no-sandbox is not supported. See https://crbug.com/638180.' }) }));
-    expect(byName(root.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringMatching(/does not run sandboxed as root.*run Retake as a regular user/) });
-    expect(byName(root.checks, 'Chromium').hint).not.toMatch(/user namespaces/);
+    expect(byName(root.checks, 'Browser')).toMatchObject({ status: 'fail', hint: expect.stringMatching(/does not run sandboxed as root.*run Retake as a regular user/) });
+    expect(byName(root.checks, 'Browser').hint).not.toMatch(/user namespaces/);
   });
 
   it('Linux without display, secret-tool or notify-send: warnings with hints, still exit 0', async () => {
@@ -224,7 +236,7 @@ describe('retake doctor (mocked environment)', () => {
     );
     expect(r.code).toBe(EXIT.failure);
     expect(r.err).toMatch(/FAIL +Node\.js +20\.11\.1 \(needs 22\+\)/);
-    expect(r.err).toMatch(/FAIL +Chromium +\/opt\/chromium\/chrome \(RETAKE_CHROMIUM\) did not launch headless: Failed to launch: missing libnss3\.so/);
+    expect(r.err).toMatch(/FAIL +Browser +\/opt\/chromium\/chrome \(RETAKE_CHROMIUM\) did not launch headless: Failed to launch: missing libnss3\.so/);
     expect(r.err).toMatch(/FAIL +ffmpeg +\/opt\/media\/bin\/ffmpeg not found/);
     expect(r.err).toMatch(/→ install ffmpeg/);
     expect(r.err).toMatch(/4 failures/);
@@ -239,7 +251,7 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName((await checks(versioned('N-117245-g0b097ed9f1'))).checks, 'ffmpeg').status).toBe('ok');
     expect(byName((await checks(versioned('2025-03-10-git-9d4b1a6ab2'))).checks, 'ffmpeg').status).toBe('ok');
     const missing = await checks(macProbes({ chromium: async () => ({ path: null, source: 'playwright', exists: false, launched: false }) }));
-    expect(byName(missing.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
+    expect(byName(missing.checks, 'Browser')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
   });
 
   it("Docker: missing, too old or stopped is a warning — a failure only when the --project's default sandbox is a docker-compose one", async () => {
@@ -345,7 +357,7 @@ describe('retake doctor (mocked environment)', () => {
       expect(themes.length).toBeGreaterThan(0);
       expect(names).toEqual([
         'Node.js',
-        'Chromium',
+        'Browser',
         'Chromium sandbox',
         'GPU',
         'ffmpeg',
@@ -371,7 +383,7 @@ describe('retake doctor (mocked environment)', () => {
       expect(byName((await checks(macProbes(), 'ordered')).checks, 'Profile')).toMatchObject({ status: 'ok', detail: 'none configured (a fresh temporary profile per run)' });
       // A damaged app bundle: its line right after Node.js.
       const damaged = (await checks(macProbes({ bundleProblems: () => ['manifest unreadable'] }))).checks.map((c) => c.name);
-      expect(damaged.slice(0, 3)).toEqual(['Node.js', 'App bundle', 'Chromium']);
+      expect(damaged.slice(0, 3)).toEqual(['Node.js', 'App bundle', 'Browser']);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -461,14 +473,15 @@ describe('retake doctor from an app bundle: every tool line names its source, no
     root: '/Applications/Retake.app/Contents/Resources',
     sealed: '/Applications/Retake.app',
     manifest: {} as BundleInfo['manifest'],
-    paths: { node: '/R/node/bin/node', engine: '/R/engine', browsers: '/R/browsers', ffmpeg: '/R/ffmpeg/bin', templates: '/R/engine/templates', plugin: '/R/plugin' },
+    paths: { node: '/R/node/bin/node', engine: '/R/engine', ffmpeg: '/R/ffmpeg/bin', templates: '/R/engine/templates', plugin: '/R/plugin' },
   };
+  const TOOLS = '/Users/me/.retake/tools';
   const appChromium = async (): Promise<ChromiumProbe> => ({
-    path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium',
-    source: 'bundled',
+    path: `${TOOLS}/browsers/chromium-1255/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`,
+    source: 'tools',
     exists: true,
     launched: true,
-    version: '141.0.7390.37',
+    version: '159.0.8154.6',
     ms: 500,
     gpu: { accelerated: true },
     sandbox: { on: true, off: [] },
@@ -493,19 +506,97 @@ describe('retake doctor from an app bundle: every tool line names its source, no
     return { code, checks: (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks };
   };
 
-  it('bundled tools: ffmpeg, ffprobe, Chromium and the render browser say "bundled"', async () => {
+  /** The app's Tools as doctor's probe reads them (core toolsState): each in `state`, `damaged` with its problem. */
+  const toolsProbe =
+    (state: 'ready' | 'missing' | 'damaged', homeFromEnv = false) =>
+    () => ({
+      dir: TOOLS,
+      homeFromEnv,
+      tools: [
+        {
+          id: 'render-browser' as const,
+          label: 'Render browser',
+          version: '159.0.8154.6',
+          state,
+          path: `${TOOLS}/browsers/chromium_headless_shell-1255`,
+          ...(state === 'damaged' ? { problem: 'its files changed since they were checked' } : {}),
+        },
+        { id: 'compositor' as const, label: 'Compositor', version: '4.0.534', state, path: `${TOOLS}/compositor-4.0.534` },
+        { id: 'browser' as const, label: 'Browser', version: '159.0.8154.6', state, path: `${TOOLS}/browsers/chromium-1255` },
+      ],
+    });
+  const shell = `${TOOLS}/browsers/chromium_headless_shell-1255/chrome-headless-shell-mac-arm64/chrome-headless-shell`;
+
+  it('the app\'s tools: ffmpeg and ffprobe say "bundled", the browser, the render browser and the compositor "downloaded Tools"', async () => {
     const r = await run(
       macProbes({
         bundle,
         chromium: appChromium,
         exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }),
-        renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
+        renderBrowser: () => ({ path: shell, source: 'tools' }),
+        tools: toolsProbe('ready'),
       }),
     );
     expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'ok', detail: '9.0.2 · /R/ffmpeg/bin/ffmpeg · bundled' });
     expect(byName(r.checks, 'ffprobe').detail).toBe('9.0.2 · /R/ffmpeg/bin/ffprobe · bundled');
-    expect(byName(r.checks, 'Chromium').detail).toContain(' · bundled · new headless');
-    expect(byName(r.checks, 'Render browser')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/headless_shell · bundled$/) });
+    expect(byName(r.checks, 'Tools')).toMatchObject({ status: 'ok', detail: `ready · render browser 159.0.8154.6, compositor 4.0.534, browser 159.0.8154.6 · ${TOOLS}` });
+    expect(byName(r.checks, 'Browser').detail).toContain(' · downloaded Tools · new headless');
+    expect(byName(r.checks, 'Render browser')).toMatchObject({ status: 'ok', detail: `${shell} · downloaded Tools` });
+    expect(byName(r.checks, 'Compositor')).toMatchObject({ status: 'ok', detail: `4.0.534 · ${TOOLS}/compositor-4.0.534 · downloaded Tools` });
+    const names = r.checks.map((c) => c.name);
+    expect(names.slice(names.indexOf('Tools'), names.indexOf('Tools') + 5)).toEqual(['Tools', 'Browser', 'Chromium sandbox', 'Render browser', 'Compositor']);
+  });
+
+  it('Tools not downloaded yet: WARN lines saying `retake tools install` (jobs wait), never "reinstall Retake"; the home is named when $RETAKE_HOME picks it', async () => {
+    const r = await run(
+      macProbes({
+        bundle,
+        chromium: async () => ({ ...(await appChromium()), exists: false, launched: false, problem: 'the browser is not downloaded yet' }),
+        exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }),
+        renderBrowser: () => ({ path: null, source: 'none', note: 'the render browser is not downloaded yet' }),
+        tools: toolsProbe('missing', true),
+      }),
+    );
+    expect(r.code).toBe(EXIT.ok);
+    expect(byName(r.checks, 'Tools')).toMatchObject({
+      status: 'warn',
+      detail: `not downloaded yet: render browser, compositor, browser · ${TOOLS} ($RETAKE_HOME)`,
+      hint: expect.stringMatching(/^run: retake tools install .*wait in the queue.*\$RETAKE_HOME names this home/),
+    });
+    for (const name of ['Browser', 'Render browser', 'Compositor']) {
+      expect(byName(r.checks, name), name).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^not downloaded yet \(/), hint: expect.stringMatching(/^run: retake tools install/) });
+    }
+    expect(r.checks.find((c) => c.name === 'Chromium sandbox')).toBeUndefined();
+    for (const c of r.checks) expect(`${c.name}: ${c.detail} ${c.hint ?? ''}`).not.toMatch(/reinstall Retake|\bpnpm\b|\bbrew\b/);
+  });
+
+  it('damaged Tools: FAIL lines saying `retake tools check`, then `retake tools install`', async () => {
+    const r = await run(
+      macProbes({
+        bundle,
+        chromium: async () => ({ ...(await appChromium()), launched: false, problem: 'damaged' }),
+        exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }),
+        renderBrowser: () => ({ path: null, source: 'none', note: 'the render browser is damaged' }),
+        tools: toolsProbe('damaged'),
+      }),
+    );
+    expect(r.code).toBe(EXIT.failure);
+    expect(byName(r.checks, 'Tools')).toMatchObject({ status: 'fail', hint: 'run: retake tools check, then retake tools install' });
+    expect(byName(r.checks, 'Render browser')).toMatchObject({
+      status: 'fail',
+      detail: expect.stringContaining('damaged: its files changed since they were checked'),
+      hint: 'run: retake tools check, then retake tools install',
+    });
+    for (const name of ['Browser', 'Compositor']) expect(byName(r.checks, name), name).toMatchObject({ status: 'fail', hint: 'run: retake tools check, then retake tools install' });
+    // An app whose bundle.json lists no valid Tools is a damaged app.
+    const broken = await run(macProbes({ bundle, chromium: appChromium, tools: () => ({ dir: TOOLS, homeFromEnv: false, problem: 'bundle.json: tools lacks browser', tools: [] }) }));
+    expect(byName(broken.checks, 'Tools')).toMatchObject({ status: 'fail', detail: 'bundle.json: tools lacks browser', hint: 'reinstall Retake' });
+  });
+
+  it('in a checkout the Tools line says what is used instead (never "missing")', async () => {
+    const r = await run(macProbes({ bundle: null, tools: () => null }));
+    expect(byName(r.checks, 'Tools')).toMatchObject({ status: 'ok', detail: 'checkout: Playwright cache / node_modules' });
+    expect(byName(r.checks, 'Compositor')).toMatchObject({ status: 'ok', detail: "node_modules · the library's own" });
   });
 
   it('the order: retake.yaml, then $RETAKE_FFMPEG, then the bundle, then PATH', async () => {
@@ -526,17 +617,18 @@ describe('retake doctor from an app bundle: every tool line names its source, no
     expect(byName((await run(probes({ bundle: null }))).checks, 'ffmpeg').detail).toMatch(/\/usr\/local\/bin\/ffmpeg · PATH$/);
   });
 
-  it('a damaged app: FAIL with "reinstall Retake", never a pnpm / brew command', async () => {
+  it('a damaged app: its own ffmpeg and ffprobe FAIL with "reinstall Retake", never a pnpm / brew command', async () => {
     const r = await run(
       macProbes({
         bundle,
         exec: async () => null,
-        chromium: async () => ({ path: '/R/browsers/chromium-1194/x/Chromium', source: 'bundled', exists: false, launched: false }),
-        renderBrowser: () => ({ path: null, source: 'none', note: "the app's headless shell is missing" }),
+        chromium: appChromium,
+        renderBrowser: () => ({ path: shell, source: 'tools' }),
+        tools: toolsProbe('ready'),
       }),
     );
     expect(r.code).toBe(EXIT.failure);
-    for (const name of ['ffmpeg', 'ffprobe', 'Chromium', 'Render browser']) {
+    for (const name of ['ffmpeg', 'ffprobe']) {
       const c = byName(r.checks, name);
       expect(c.status, name).toBe('fail');
       expect(c.hint, name).toMatch(/reinstall Retake/);
@@ -552,11 +644,12 @@ describe('retake doctor from an app bundle: every tool line names its source, no
         exec: async () => null,
         which: () => null,
         chromium: async () => ({ path: '/nowhere/Chromium', source: 'RETAKE_CHROMIUM', exists: false, launched: false }),
-        renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
+        renderBrowser: () => ({ path: shell, source: 'tools' }),
+        tools: toolsProbe('ready'),
       }),
     );
     expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'fail', hint: expect.stringContaining('this app carries no ffmpeg of its own') });
-    expect(byName(r.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining("remove it to use the app's own") });
+    expect(byName(r.checks, 'Browser')).toMatchObject({ status: 'fail', hint: expect.stringContaining("remove it to use the app's downloaded browser") });
     for (const c of r.checks) expect(`${c.name}: ${c.detail} ${c.hint ?? ''}`).not.toMatch(/\bpnpm\b|\bbrew\b|Homebrew/);
   });
 

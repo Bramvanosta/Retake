@@ -46,6 +46,7 @@ import { UNSAVED_OPS } from './unsaved.js';
 import { DESKTOP_OPS } from './desktop.js';
 import { SETUP_OPS } from './setup-ops.js';
 import { UPDATE_OPS } from './update-ops.js';
+import { TOOLS_OPS } from './tools-ops.js';
 import type { PlayerServer } from './player.js';
 import { COMPONENT_HASH_RE } from './preview-allow.js';
 import type { PreviewAllowList } from './preview-allow.js';
@@ -259,4 +260,5 @@ export const OWN_OPS = [
   ...DESKTOP_OPS,
   ...SETUP_OPS,
   ...UPDATE_OPS,
+  ...TOOLS_OPS,
 ] as const;

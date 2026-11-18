@@ -11,7 +11,7 @@ import { frameRateArgs } from '../src/session.js';
 import { encodeFrames, kitConfigFor, projectBrowser } from '../src/index.js';
 import { kitSource } from '../src/kit/source.js';
 import { mergeCapture, mergePacing, resolveAuth } from '../src/config.js';
-import { imageSize } from '../src/recorder.js';
+import { frameWall, imageSize } from '../src/recorder.js';
 import { LONG_TEXT_MAX_CPS, SEARCH_MAX_CPS, typingRate } from '../src/actions/keyboard.js';
 import { matchDay, monthDirection } from '../src/actions/calendar.js';
 import type { CalendarDay } from '../src/kit/types.js';
@@ -356,6 +356,15 @@ describe('timeline helpers', () => {
     expect(imageSize(await readFile(jpg))).toEqual({ width: 320, height: 94 });
     expect(imageSize(await readFile(png))).toEqual({ width: 64, height: 48 });
     expect(imageSize(Buffer.from('not an image'))).toBeNull();
+  });
+
+  it("a screencast frame's wall time: its compositor stamp, never later than its arrival (Chrome for Testing stamps ahead)", () => {
+    // Chromium 141: stamped before it arrives — the stamp.
+    expect(frameWall(1000.002, 1_000_004)).toBe(1_000_002);
+    // Chrome for Testing 159: stamped ≈ 13 ms after it arrives — the arrival.
+    expect(frameWall(1000.017, 1_000_004)).toBe(1_000_004);
+    expect(frameWall(undefined, 1_000_004)).toBe(1_000_004);
+    expect(frameWall(Number.NaN, 1_000_004)).toBe(1_000_004);
   });
 });
 

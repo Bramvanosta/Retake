@@ -600,6 +600,14 @@ pub(crate) fn setup_request(a: dc::SetupAction) {
     let h = app.clone();
     let _ = app.run_on_main_thread(move || match a {
         dc::SetupAction::Notifications => notify::request_permission(&h),
+        // The Tools page's Show in Finder: the Tools folder of this app's Retake home (never a path of the page's).
+        dc::SetupAction::ToolsFolder => {
+            let home = h.try_state::<Arc<Shell>>().and_then(|s| s.inner().home.clone());
+            match home.map(|h| h.join("tools")).filter(|t| t.is_dir()) {
+                Some(t) => macos::reveal(&t),
+                None => log("set-up: no Tools folder to show"),
+            }
+        }
         dc::SetupAction::CliFolder => {
             if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() {
                 log("set-up: another question is open — the folder panel waits for the next click");

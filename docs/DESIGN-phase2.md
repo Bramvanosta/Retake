@@ -805,7 +805,12 @@ Transitions render twice: a crossfade over the overlap of the two segments (both
 without overlap (frames [0, ⌊n/2⌋) at the end of the outgoing segment, [⌊n/2⌋, n) at the start of the incoming one).
 The capture frame is an `OffthreadVideo` inside a `Sequence` shifted to that frame — not `<Freeze
 frame={srcFrames[f]}>`: Remotion clamps a frozen timeline position to the composition length, so a capture frame
-index past the end of the edit would show the wrong frame. Theme fonts are registered with FontFace (delayRender)
+index past the end of the edit would show the wrong frame. `createRoot` installs `installResponseBlobWorkaround`
+(`remotion/response-blob.ts`, BL-192): Chrome for Testing 159 keeps every body read with `Response.blob()` until the
+page closes, and OffthreadVideo reads each frame (an 8 MB BMP at 1080p) that way. One 60 s render grew its profile by
+6.3 GB and failed at Chrome's 2 GB blob limit on a nearly full disk. `blob()` is replaced by a Blob made from
+`arrayBuffer()`, which is released. Drop it when Chrome fixes the leak (its browser test would still pass: re-measure
+the profile, BACKLOG BL-201). Theme fonts are registered with FontFace (delayRender)
 before anything is drawn; uses marked `missing` render with the scaffold of their kind. Components are imported through
 a GENERATED registry module (the plan's component entries, built-in or workspace, + the scaffolds) so user components
 are bundled too; the bundle is cached under `<root>/.retake/cache/remotion-<hash>/` keyed by a hash of the

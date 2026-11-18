@@ -642,6 +642,8 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     ]);
     // A colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
     reads.add('unsaved_report');
+    // Every page polls the app's Tools (Welcome's card, the shell): a read (READ_ANN, the catalogue's effect: read).
+    reads.add('tools_status');
     const writes = [...new Set(ops.map((o) => o.op))].filter((op) => !reads.has(op));
     expect(writes.sort()).toEqual(['preview_allow', 'scenario_edit', 'theme_copy', 'theme_create', 'theme_edit']);
     for (const o of opsOf('theme_edit')) expect(['editorial', 'default', 'motion']).not.toContain(JSON.parse(o.body).theme);

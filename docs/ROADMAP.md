@@ -22,7 +22,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   (2026-10-29: the Studio redesign and the rename, captures first, renders on the GPU), the architecture series
   L6.1 – L6.13 and L7.1 – L7.58 (2026-11-09 – 2026-11-15, on main since 2026-11-15), L8.1 – L8.3 (2026-11-15: the
   second field feedback, `docs/FIELD-FEEDBACK-2.md`, and the app's native menus, BL-166), L8.4 (2026-11-17: its
-  point 30).
+  point 30), BL-192 (2026-11-18: Playwright 1.65.1, the app's browser and compositor downloaded as its
+  Tools instead of shipped; a pull request against `main`).
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
   is a future topic, parked in `docs/BACKLOG.md`; voice-over is an evolution there too (the MVP keeps a silent track).
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market

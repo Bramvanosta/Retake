@@ -66,7 +66,7 @@ function fakeApp(dir: string): BundleInfo {
     root,
     sealed,
     manifest: {} as BundleInfo['manifest'],
-    paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), browsers: join(root, 'browsers'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') },
+    paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') },
   };
 }
 

@@ -122,6 +122,7 @@ pub fn check_refused(s: &State, app: &str) -> Option<String> {
         State::Downloading { version, .. } => Some(format!("{app} is downloading {version}: Later in the Studio's update sheet stops it.")),
         State::Waiting { version, .. } => Some(format!("{app} waits for its jobs to end to install {version}: Later in the Studio's update sheet stops it.")),
         State::Installing { version } => Some(format!("{app} is quitting to install {version}.")),
+        State::PreparingTools { version } => Some(format!("{app} is downloading the Tools {version} needs: Later in the Studio's update sheet stops it.")),
         _ => None,
     }
 }
@@ -137,10 +138,13 @@ pub enum Failure {
     Install,
     /// The app's folder is not writable by this user (a root-owned /Applications): no swap is tried.
     NotWritable,
+    /// The new version's Tools (its browser, render browser, compositor) could not be downloaded or checked before the
+    /// restart, or the Studio server did not answer within TOOLS_MS: nothing was installed.
+    Tools,
 }
 
 impl Failure {
-    pub const ALL: [Failure; 4] = [Failure::Check, Failure::Download, Failure::Install, Failure::NotWritable];
+    pub const ALL: [Failure; 5] = [Failure::Check, Failure::Download, Failure::Install, Failure::NotWritable, Failure::Tools];
 
     pub fn wire(self) -> &'static str {
         match self {
@@ -148,6 +152,7 @@ impl Failure {
             Failure::Download => "download",
             Failure::Install => "install",
             Failure::NotWritable => "not_writable",
+            Failure::Tools => "tools",
         }
     }
 
@@ -161,13 +166,14 @@ impl Failure {
             Failure::Download => "The update could not be downloaded, or its signature did not match: nothing was installed.".into(),
             Failure::Install => format!("The update could not be installed: {app} {current} was kept."),
             Failure::NotWritable => format!("{app} cannot replace itself in its folder (this account may not write there): install the new version from its disk image."),
+            Failure::Tools => format!("The Tools the update needs could not be downloaded and checked: nothing was installed, {app} {current} was kept."),
         }
     }
 
     /// The person may click Install and Restart again (with an update known): a download that failed may work next time,
     /// a failed install once a fresh check found the update again; a folder this account may not write, never.
     pub fn retry(self, found: bool) -> bool {
-        found && matches!(self, Failure::Download | Failure::Install)
+        found && matches!(self, Failure::Download | Failure::Install | Failure::Tools)
     }
 }
 
@@ -267,6 +273,9 @@ pub enum State {
     Waiting { version: String, jobs: u32 },
     /// The quit (and its question) is under way.
     Installing { version: String },
+    /// The archive is downloaded and verified: the Studio server downloads the Tools that version needs (its bundle.json
+    /// read from the archive) before the restart — until it answers, or TOOLS_MS.
+    PreparingTools { version: String },
     /// Hotfix v0.2.6 (BL-167): this app is the version an install just put in place (said once, after the restart).
     Updated { checked: Option<u64> },
     /// `retry`: Install and Restart may be clicked again (`Failure::retry`).
@@ -320,6 +329,7 @@ fn state_line_with(current: &str, s: &State, notes: &str) -> Option<String> {
         State::Downloading { version, received, total } => format!("{},\"version\":{},\"received\":{received},\"total\":{}}}", head("downloading"), v(version)?, opt_num(*total)),
         State::Waiting { version, jobs } => format!("{},\"version\":{},\"jobs\":{}}}", head("waiting"), v(version)?, jobs),
         State::Installing { version } => format!("{},\"version\":{}}}", head("installing"), v(version)?),
+        State::PreparingTools { version } => format!("{},\"version\":{}}}", head("preparing"), v(version)?),
         State::Failed { failure, version, checked, retry } => {
             let ver = match version {
                 Some(x) => v(x)?,
@@ -717,7 +727,7 @@ pub fn menu_item(s: &State) -> (UpdateItem, bool) {
         State::Off(_) | State::Idle { .. } | State::Updated { .. } | State::Failed { retry: false, .. } => (UpdateItem::Check, true),
         State::Checking => (UpdateItem::Checking, false),
         State::Available { .. } | State::Failed { retry: true, .. } => (UpdateItem::Available, true),
-        State::Downloading { .. } => (UpdateItem::Downloading, true),
+        State::Downloading { .. } | State::PreparingTools { .. } => (UpdateItem::Downloading, true),
         State::Waiting { .. } => (UpdateItem::Waiting, true),
         State::Installing { .. } => (UpdateItem::Installing, false),
     }
@@ -728,9 +738,66 @@ pub fn menu_item(s: &State) -> (UpdateItem, bool) {
 pub fn dock_label(s: &State) -> Option<String> {
     match s {
         State::Downloading { received, total, .. } => Some(percent(*received, *total).map_or_else(|| "…".to_string(), |p| format!("{p}%"))),
+        // The new version's Tools download in the server (their figure is the Studio's).
+        State::PreparingTools { .. } => Some("…".to_string()),
         // The window is gone while the app installs and restarts: the Dock icon says it is still at work.
         State::Installing { .. } => Some("↻".to_string()),
         _ => None,
+    }
+}
+
+// ---- The update's Tools ---------------------------------------------------------------
+
+/// The longest the shell waits for the server's answer on the update's Tools (milliseconds): then Failed `tools`.
+pub const TOOLS_MS: u64 = 30 * 60 * 1000;
+
+/// The line that asks the server for the update's Tools: the kept archive (`path`, `write_archive`'s) and the SHA-256
+/// of the bytes the updater verified — the server hashes the file again, reads the new version's bundle.json from it
+/// with /usr/bin/tar, checks its Tools against the manifest's rules and downloads those missing (ui update-tools.ts).
+/// None for a version, a digest or a path that fails its shape, or a line over SHELL_LINE_MAX.
+pub fn update_archive_line(version: &str, path: &Path, sha256: &str) -> Option<String> {
+    let p = path.to_str()?;
+    let name = path.file_name()?.to_str()?;
+    let ok_name = name.strip_prefix("update-").and_then(|r| r.strip_suffix(".tar.gz")).is_some_and(|pid| !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit()));
+    if !version_ok(version) || !crate::sha256::hex_ok(sha256) || !path.is_absolute() || !ok_name || p.chars().any(char::is_control) {
+        return None;
+    }
+    let line = format!("{{\"type\":\"update_archive\",\"version\":{},\"path\":{},\"sha256\":\"{sha256}\"}}", json::quote(version), json::quote(p));
+    fits_shell_line(&line).then_some(line)
+}
+
+/// The server's answer on the update's Tools (pipe.rs `update_tools`): ready, failed, or skip — this version cannot
+/// read the new version's manifest whole (another manifest version, a Tool it does not know): nothing is downloaded
+/// before the restart and the new version downloads its Tools at its first start, so this version's code never
+/// decides which later releases install.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolsAnswer {
+    Ready,
+    Failed,
+    Skip,
+}
+
+/// What the wait for the update's Tools does next: the server answered for this version (ready or skipped: go on to
+/// the wait and the quit; failed), the time is up, the server is gone, or wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolsWait {
+    Ready,
+    Skipped,
+    Failed,
+    TimedOut,
+    ServerGone,
+    Wait,
+}
+
+/// The rule of the wait: an answer for another version is not this one's; `server` false: no owned server any more.
+pub fn tools_wait(version: &str, answer: Option<(&str, ToolsAnswer)>, elapsed_ms: u64, server: bool) -> ToolsWait {
+    match answer {
+        Some((v, ToolsAnswer::Ready)) if v == version => ToolsWait::Ready,
+        Some((v, ToolsAnswer::Skip)) if v == version => ToolsWait::Skipped,
+        Some((v, ToolsAnswer::Failed)) if v == version => ToolsWait::Failed,
+        _ if !server => ToolsWait::ServerGone,
+        _ if elapsed_ms >= TOOLS_MS => ToolsWait::TimedOut,
+        _ => ToolsWait::Wait,
     }
 }
 
@@ -888,6 +955,11 @@ mod tests {
         assert_eq!(l(&State::Waiting { version: "0.2.1".into(), jobs: 2 }), r#"{"type":"update","state":"waiting","current":"0.2.0","version":"0.2.1","jobs":2}"#);
         assert_eq!(l(&State::Installing { version: "0.2.1".into() }), r#"{"type":"update","state":"installing","current":"0.2.0","version":"0.2.1"}"#);
         assert_eq!(l(&State::Updated { checked: Some(5) }), r#"{"type":"update","state":"updated","current":"0.2.0","checked":5}"#);
+        assert_eq!(l(&State::PreparingTools { version: "0.2.1".into() }), r#"{"type":"update","state":"preparing","current":"0.2.0","version":"0.2.1"}"#);
+        assert_eq!(
+            l(&State::Failed { failure: Failure::Tools, version: Some("0.2.1".into()), checked: None, retry: true }),
+            r#"{"type":"update","state":"failed","current":"0.2.0","failure":"tools","version":"0.2.1","checked":null,"retry":true}"#
+        );
         assert_eq!(
             l(&State::Failed { failure: Failure::Install, version: Some("0.2.1".into()), checked: None, retry: false }),
             r#"{"type":"update","state":"failed","current":"0.2.0","failure":"install","version":"0.2.1","checked":null,"retry":false}"#
@@ -1220,5 +1292,55 @@ mod tests {
             }
         }
         assert_eq!(UpdateItem::from_code(250), (UpdateItem::Check, true));
+    }
+
+    /// the line that hands the kept archive to the server — its version, its path's shape, the digest's shape.
+    #[test]
+    fn the_update_archive_line() {
+        let sha = "a".repeat(64);
+        let p = Path::new("/Users/x/Library/Caches/app/updates/update-4242.tar.gz");
+        assert_eq!(
+            update_archive_line("0.4.0", p, &sha).unwrap(),
+            format!(r#"{{"type":"update_archive","version":"0.4.0","path":"/Users/x/Library/Caches/app/updates/update-4242.tar.gz","sha256":"{sha}"}}"#)
+        );
+        assert!(update_archive_line("latest", p, &sha).is_none());
+        assert!(update_archive_line("0.4.0", p, &"A".repeat(64)).is_none());
+        assert!(update_archive_line("0.4.0", p, "abc").is_none());
+        for bad in ["updates/update-1.tar.gz", "/tmp/other.tar.gz", "/tmp/update-.tar.gz", "/tmp/update-1x.tar.gz", "/tmp/a\nb/update-1.tar.gz"] {
+            assert!(update_archive_line("0.4.0", Path::new(bad), &sha).is_none(), "{bad}");
+        }
+        // A path whose line would not fit the server's stdin cap.
+        let long = format!("/{}/update-1.tar.gz", "d".repeat(crate::setup::SHELL_LINE_MAX));
+        assert!(update_archive_line("0.4.0", Path::new(&long), &sha).is_none());
+    }
+
+    /// the wait for the server's answer has an end — an answer for this version, the server gone, 30 minutes.
+    #[test]
+    fn the_wait_for_the_update_tools() {
+        assert_eq!(TOOLS_MS, 30 * 60 * 1000);
+        assert_eq!(tools_wait("0.4.0", None, 0, true), ToolsWait::Wait);
+        use ToolsAnswer::{Failed as No, Ready as Yes, Skip};
+        assert_eq!(tools_wait("0.4.0", Some(("0.4.0", Yes)), 5, true), ToolsWait::Ready);
+        assert_eq!(tools_wait("0.4.0", Some(("0.4.0", No)), 5, true), ToolsWait::Failed);
+        // A manifest this version cannot read: the update goes on (its Tools come at its first start).
+        assert_eq!(tools_wait("0.4.0", Some(("0.4.0", Skip)), 5, true), ToolsWait::Skipped);
+        assert_eq!(tools_wait("0.4.0", Some(("0.3.9", Skip)), 5, true), ToolsWait::Wait);
+        // Another version's answer is not this one's.
+        assert_eq!(tools_wait("0.4.0", Some(("0.3.9", Yes)), 5, true), ToolsWait::Wait);
+        assert_eq!(tools_wait("0.4.0", None, TOOLS_MS - 1, true), ToolsWait::Wait);
+        assert_eq!(tools_wait("0.4.0", None, TOOLS_MS, true), ToolsWait::TimedOut);
+        assert_eq!(tools_wait("0.4.0", Some(("0.3.9", Yes)), 5, false), ToolsWait::ServerGone);
+        // An answer that arrived wins over a server that went right after.
+        assert_eq!(tools_wait("0.4.0", Some(("0.4.0", Yes)), 5, false), ToolsWait::Ready);
+        assert_eq!(tools_wait("0.4.0", Some(("0.4.0", Skip)), 5, false), ToolsWait::Skipped);
+        // While it prepares: Help's check is refused and said, its item opens the sheet, the Dock says it works.
+        let s = State::PreparingTools { version: "0.4.0".into() };
+        assert!(check_refused(&s, "Retake").is_some_and(|w| w.contains("Tools")));
+        assert_eq!(menu_item(&s), (UpdateItem::Downloading, true));
+        assert_eq!(dock_label(&s).as_deref(), Some("…"));
+        // A failed Tools step may be tried again with the update known; its words keep the current version.
+        assert!(Failure::Tools.retry(true));
+        assert!(!Failure::Tools.retry(false));
+        assert!(Failure::Tools.words("Retake", "0.3.0").contains("0.3.0 was kept"));
     }
 }

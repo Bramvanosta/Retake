@@ -15,8 +15,9 @@ What Retake needs on a machine, and where it finds its tools. The macOS app carr
 
 **Where Retake finds its tools** (one order for every tool, L5.16): an explicit setting (`retake.yaml` `ffmpeg:`,
 `browser.executable`) → an explicit variable (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`,
-`$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the app's own (when Retake runs from the app bundle: its Node.js, Chromium,
-headless shell, ffmpeg, starter themes and Claude plugin) → the system's (`PATH`, Playwright's cache). From a
+`$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the app's own (when Retake runs from the app bundle: its Node.js, ffmpeg,
+starter themes and Claude plugin, and the browser, headless shell and compositor it downloaded, its **Tools**, in
+`<Retake home>/tools/` — BL-192) → the system's (`PATH`, Playwright's cache; never Playwright's cache in the app). From a
 repository checkout there is no bundle, so nothing changes. ffprobe is taken beside `retake.yaml`'s ffmpeg when one is
 there, else `$RETAKE_FFPROBE`, else beside `$RETAKE_FFMPEG` when one is there, else the app's, else `PATH` — a lone
 static ffmpeg in `retake.yaml` keeps the ffprobe found before. A path in `retake.yaml` (`ffmpeg: tools/ffmpeg`) is the
@@ -24,7 +25,7 @@ workspace's (relative to its root); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPRO
 file in each process) — an absolute path or a command name on `PATH`. Jobs of the Studio, the desktop app or an MCP
 client run no tool from inside the workspace (a program there, or `ffmpeg: tools/ffmpeg`): keep the tools you name
 outside it (see [Workspace](workspace.md)). `retake doctor` names the source on each tool line
-(`retake.yaml`, `$RETAKE_FFMPEG`, `bundled`, `PATH`, `Playwright cache`); its MCP line checks the ffmpeg an MCP client
+(`retake.yaml`, `$RETAKE_FFMPEG`, `bundled`, `downloaded Tools`, `PATH`, `Playwright cache`); its MCP line checks the ffmpeg an MCP client
 will get (the registration carries `PATH` and `RETAKE_HOME` only, never your shell's `$RETAKE_FFMPEG`). An ffmpeg
 without libx264 (a foreign build) still encodes H.264, through the Mac's VideoToolbox (same SSIM as libx264 CRF 18 on a
 1080p render, ≈ 3× larger files; a raw package then says "VideoToolbox q:v 85" for its clips); one with neither is

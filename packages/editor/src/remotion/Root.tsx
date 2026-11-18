@@ -15,6 +15,7 @@ import { ModulesContext } from './modules.js';
 import type { ComponentModules } from './modules.js';
 import { ComponentPreview } from './Preview.js';
 import type { ComponentPreviewProps } from './Preview.js';
+import { installResponseBlobWorkaround } from './response-blob.js';
 
 const previewMetadata: CalculateMetadataFunction<ComponentPreviewProps> = ({ props }) => {
   const p = readPreviewProps(props);
@@ -34,6 +35,8 @@ function metadata(variant: 'landscape' | 'vertical' | 'square'): CalculateMetada
 }
 
 export function createRoot(modules: ComponentModules): ComponentType {
+  // Chrome 159 keeps every large Response.blob() body until the page closes (response-blob.ts): OffthreadVideo's frames.
+  installResponseBlobWorkaround();
   const Video = (props: PlanVideoProps) => (
     <ModulesContext.Provider value={modules}>
       <PlanVideo {...props} />

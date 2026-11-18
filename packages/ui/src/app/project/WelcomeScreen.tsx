@@ -6,7 +6,8 @@
  * scenario and location counts, last run (a shape and a word, and when), environment flags in words and folder; a
  * project whose project.yaml does not load says so with its first error line. Then a New project card (a command to
  * copy: the page has no write path for projects). Under them, "Lately" (the index: Activity.tsx) beside "Set up": Claude
- * (the MCP registration command to copy) and the workspace (folder, projects folder, version, worker). Every value from
+ * (the MCP registration command to copy) and the workspace (folder, projects folder, version, worker) — first, while the
+ * app's Tools are not all here, their card (ToolsPanel: the state, the bar, Show details, Pause or Download). Every value from
  * data is text (Txt / a kit slot); a step of a take re-reads nothing here (`onlyRunProgress`).
  */
 import { useMemo } from 'react';
@@ -24,7 +25,10 @@ import { hrefTo } from '../route.js';
 import { BrowserCollapsed } from '../shell/slots.js';
 import { runThumbs } from '../data/scenarios.js';
 import { NoThumb, Thumb, ThumbsProvider } from '../Thumb.js';
-import { AppMark, Blocker, EmptyState, Facts, Icon, StatusMark } from '../ui-kit/index.js';
+import { AppMark, Blocker, EmptyState, Facts, Icon, Progress, StatusMark } from '../ui-kit/index.js';
+import { useTools } from '../tools-data.js';
+import { ToolsActions, ToolsSaid, useToolsAct } from '../shell/tools-parts.js';
+import { TOOLS_TITLE, megabytes, toolsPercent, toolsWord } from '../words/tools-words.js';
 import type { MarkState } from '../ui-kit/index.js';
 
 type Extras = ProjectOverview;
@@ -37,6 +41,29 @@ const RUN_STATE: Record<string, [MarkState, string]> = {
   running: ['running', 'running'],
   queued: ['waiting', 'queued'],
 };
+
+/** The Tools' card while they are not all here (nothing in a checkout or once ready): the state, the bar, its actions. */
+function ToolsPanel() {
+  const s = useTools();
+  const { busy, said, act } = useToolsAct();
+  if (!s?.available || s.state === 'ready') return null;
+  const w = toolsWord(s);
+  const bar = s.state !== 'needed';
+  return (
+    <div className="wl-panel" data-testid="welcome-tools">
+      <div className="wl-tools-head">
+        <h3 className="wl-project-name">{shown(TOOLS_TITLE)}</h3>
+        <StatusMark state={w.state} word={s.state === 'downloading' ? 'Downloading' : w.word} />
+      </div>
+      <p className="sc-quiet">Captures and renders start once they are here. A job asked meanwhile waits in the queue.</p>
+      {bar && <Progress label="Tools" value={toolsPercent(s)} valueText={`${megabytes(s.received_bytes)} / ${megabytes(s.total_bytes)}`} testId="welcome-tools-bar" />}
+      <div className="wl-tools-actions">
+        <ToolsActions s={s} act={act} busy={busy} />
+      </div>
+      <ToolsSaid said={said} />
+    </div>
+  );
+}
 
 /** The last run of a project, in a few words (a row that is no run says why in fixed words). */
 export function LastRun({ extras }: { extras: Extras | undefined }) {
@@ -200,6 +227,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
           <h2 id="wl-setup-h" className="wl-h2">
             Set up
           </h2>
+          <ToolsPanel />
           <div className="wl-panel">
             <h3 className="wl-project-name">Work with Claude</h3>
             <p className="sc-quiet">Claude writes scenarios, runs them and reads the review through the MCP server; what it does shows up here too.</p>

@@ -11,7 +11,7 @@ import { renderPolicy } from './policy.js';
 import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
 import { RenderError } from './types.js';
 import { errorMessage } from '@retake/core/base';
-import { rendererLibrary } from './library.js';
+import { libraryBinaries, rendererLibrary } from './library.js';
 import type { RenderNetwork, RenderSeams } from './render-options.js';
 import { COMMON, guardEncoderPipe, handedRoot, openSession } from './render-session.js';
 
@@ -65,9 +65,11 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
   });
   try {
     const { renderStill: still, selectComposition } = await rendererLibrary();
+    const bin = libraryBinaries();
     const inputProps = videoProps(session.served);
     const composition = await selectComposition({
       ...COMMON,
+      binariesDirectory: bin,
       serveUrl: session.serveUrl,
       id: VIDEO_COMPOSITIONS[opts.plan.variant],
       inputProps,
@@ -81,6 +83,7 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
       await mkdir(dirname(out), { recursive: true });
       await still({
         ...COMMON,
+        binariesDirectory: bin,
         composition,
         serveUrl: session.serveUrl,
         frame: Math.round(f.frame),

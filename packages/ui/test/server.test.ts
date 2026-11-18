@@ -87,7 +87,7 @@ describe('static app from memory', () => {
     expect(INDEX_HTML).toContain('<title>Retake</title>');
   });
 
-  it('the bundle: no eval, no node built-in, under 900 KB; the document has no inline script or style', async () => {
+  it('the bundle: no eval, no node built-in, under 950 KB; the document has no inline script or style', async () => {
     const t = Date.now();
     const assets = await buildUi();
     expect(Date.now() - t).toBeLessThan(5000);
@@ -96,7 +96,7 @@ describe('static app from memory', () => {
     // Tightened to 430 KB (≈ 415 KB after the fixes).
     // The Comments screen (list, frame viewer, region, composer, thread) — 455.5 KB; room for the proposal view.
     // The theme screens (list, editor, New theme, site panel) — ≈ 569 KB.
-    expect(js.length).toBeLessThan(900_000);
+    expect(js.length).toBeLessThan(950_000);
     expect(js).not.toMatch(/\beval\(|new Function\(/);
     expect(js).not.toMatch(/(?:from|import)\s*\(?\s*["']node:/);
     expect(INDEX_HTML).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);
@@ -231,6 +231,12 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
       'setup_done',
       'desktop_update_status',
       'desktop_update',
+      'tools_status',
+      'tools_install',
+      'tools_control',
+      'tools_check',
+      'tools_prune',
+      'tools_reveal',
     ]);
     expect(() => uiTools([{ ...TOOLS.find((t) => t.name === 'run_capture')! }])).toThrow(/shadow/);
     const before = studio.calls;

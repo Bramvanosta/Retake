@@ -56,8 +56,8 @@ importers:
         specifier: ^0.25.10
         version: 0.25.12
       playwright-core:
-        specifier: 1.56.1
-        version: 1.56.1
+        specifier: 1.65.1
+        version: 1.65.1
       react:
         specifier: 19.1.1
         version: 19.1.1
@@ -201,8 +201,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       playwright-core:
-        specifier: 1.56.1
-        version: 1.56.1
+        specifier: 1.65.1
+        version: 1.65.1
       react:
         specifier: 19.1.1
         version: 19.1.1
@@ -314,8 +314,8 @@ importers:
         specifier: 5.4.296
         version: 5.4.296
       playwright-core:
-        specifier: 1.56.1
-        version: 1.56.1
+        specifier: 1.65.1
+        version: 1.65.1
     devDependencies:
       '@retake/hooks':
         specifier: workspace:*
@@ -385,8 +385,8 @@ importers:
         specifier: 19.1.9
         version: 19.1.9(@types/react@19.1.12)
       playwright-core:
-        specifier: 1.56.1
-        version: 1.56.1
+        specifier: 1.65.1
+        version: 1.65.1
 
 packages:
 
@@ -2680,9 +2680,9 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  playwright-core@1.56.1:
-    resolution: {integrity: sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==}
-    engines: {node: '>=18'}
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   pngjs@5.0.0:
@@ -5355,7 +5355,7 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  playwright-core@1.56.1: {}
+  playwright-core@1.65.1: {}
 
   pngjs@5.0.0: {}
 

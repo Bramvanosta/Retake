@@ -135,8 +135,8 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
 export interface RenderQueueView {
   /** Jobs that run or wait before it (0: it is next). */
   ahead: number;
-  /** It cannot start before a take ends (a take of this workspace waits, or one films on this Mac). */
-  held_by?: 'take';
+  /** It cannot start before a take ends (a take of this workspace waits, or one films on this Mac), or before the Tools it needs are downloaded. */
+  held_by?: 'take' | 'tools';
   /** The job running now, with its kind and how far it is. */
   running?: { id: string; kind: string; phase?: string; fraction?: number; eta_s?: number };
 }
@@ -356,7 +356,7 @@ export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownSt
       : undefined,
     concurrency: num(r.concurrency),
     bundle: isObj(r.bundle) ? defined({ hash: matching(r.bundle.hash, /^[0-9a-f]{1,128}$/), cached: r.bundle.cached === true, ms: num(r.bundle.ms) ?? 0 }) : undefined,
-    browser: isObj(r.browser) ? { source: word(r.browser.source, ['env', 'bundled', 'playwright', 'none', 'remotion'] as const) } : undefined,
+    browser: isObj(r.browser) ? { source: word(r.browser.source, ['env', 'tools', 'bundled', 'playwright', 'none', 'remotion'] as const) } : undefined,
     timings: isObj(r.timings)
       ? { plan_ms: num(r.timings.plan_ms) ?? 0, bundle_ms: num(r.timings.bundle_ms) ?? 0, render_ms: num(r.timings.render_ms) ?? 0, total_ms: num(r.timings.total_ms) ?? 0 }
       : undefined,

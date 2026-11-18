@@ -47,6 +47,8 @@ struct Upd {
     found: Option<Found>,
     /// The archive, downloaded and verified, in the app's cache folder (update_flow `write_archive`).
     archive: Option<PathBuf>,
+    /// The SHA-256 of the verified bytes kept there (the server checks the file against it).
+    archive_sha: Option<String>,
     remembered: uf::Remembered,
     home: Option<PathBuf>,
     /// The app's cache folder (the archive's).
@@ -195,7 +197,10 @@ fn remember(f: impl FnOnce(&mut uf::Remembered)) {
 
 /// Remove the kept archive (Later, after the install, a new check).
 fn drop_archive() {
-    let path = lock(&UPD).as_mut().and_then(|u| u.archive.take());
+    let path = lock(&UPD).as_mut().and_then(|u| {
+        u.archive_sha = None;
+        u.archive.take()
+    });
     if let Some(p) = path {
         let _ = std::fs::remove_file(p);
     }
@@ -217,7 +222,7 @@ pub fn start(app: &AppHandle, home: Option<PathBuf>, location: dc::InstallLocati
             log(&format!("updates: removed {n} archive(s) a previous run left"));
         }
     }
-    *lock(&UPD) = Some(Upd { state: State::Idle { checked }, found: None, archive: None, remembered, home, cache, location, checking: false, dl: None });
+    *lock(&UPD) = Some(Upd { state: State::Idle { checked }, found: None, archive: None, archive_sha: None, remembered, home, cache, location, checking: false, dl: None });
     let off = off_now();
     if let Some((f, v)) = &failed {
         log(&format!("updates: the update to {v} was not installed — {}", f.words(app_name(), &current(app))));
@@ -404,7 +409,7 @@ fn later(app: &AppHandle, why: &str) {
             u.dl = None;
             let failed = matches!(u.state, State::Failed { .. });
             let back = match (&u.state, &u.found) {
-                (State::Downloading { .. } | State::Waiting { .. } | State::Installing { .. } | State::Failed { .. }, Some(f)) => Some(found_state(f, u.remembered.checked)),
+                (State::Downloading { .. } | State::PreparingTools { .. } | State::Waiting { .. } | State::Installing { .. } | State::Failed { .. }, Some(f)) => Some(found_state(f, u.remembered.checked)),
                 (State::Failed { .. }, None) => Some(State::Idle { checked: u.remembered.checked }),
                 _ => None,
             };
@@ -482,7 +487,7 @@ fn install_request(app: &AppHandle, native: bool) {
         Step::Wait { .. } | Step::Quit => {
             let gen = GEN.fetch_add(1, Ordering::SeqCst) + 1;
             if have_archive {
-                wait_then_quit(app.clone(), gen);
+                prepare_then_quit(app.clone(), gen);
             } else {
                 download(app, gen);
             }
@@ -537,19 +542,95 @@ fn download(app: &AppHandle, gen: u64) {
         let kept = r.and_then(|bytes| {
             let n = bytes.len();
             let cache = cache.ok_or_else(|| "the app has no cache folder to keep it in".to_string())?;
-            uf::write_archive(&cache, std::process::id(), &bytes).map(|p| (p, n)).map_err(|e| format!("could not keep it: {e}"))
+            // The digest of the verified bytes (the server checks the kept file against it).
+            let sha = dc::sha256::sha256_hex(&bytes);
+            uf::write_archive(&cache, std::process::id(), &bytes).map(|p| (p, n, sha)).map_err(|e| format!("could not keep it: {e}"))
         });
         match kept {
-            Ok((path, n)) => {
+            Ok((path, n, sha)) => {
                 log(&format!("updates: {version} downloaded and verified ({} MB), kept in the cache folder", n / 1_000_000));
                 if let Some(u) = lock(&UPD).as_mut() {
                     u.archive = Some(path);
+                    u.archive_sha = Some(sha);
                 }
-                wait_then_quit(h, gen);
+                prepare_then_quit(h, gen);
             }
             Err(e) => {
                 log(&format!("updates: the download failed — {}", dc::sanitize(&e)));
                 set(&h, State::Failed { failure: Failure::Download, version: Some(version), checked, retry: true });
+            }
+        }
+    });
+}
+
+/// The server's answer on the update's Tools (a pipe line: child.rs), for the wait below.
+static TOOLS_ANSWER: Mutex<Option<(String, uf::ToolsAnswer)>> = Mutex::new(None);
+
+/// The owned server answered on the update's Tools (`{"type":"update_tools",…}`): kept for the wait under way.
+pub fn tools_answer(version: String, answer: uf::ToolsAnswer) {
+    *lock(&TOOLS_ANSWER) = Some((version, answer));
+}
+
+/// before the quit, the owned server downloads and checks the Tools the new version needs (it reads them from the
+/// kept archive: `update_archive_line`), while this version keeps running on its own Tools; then the wait and the quit.
+/// A failed answer, no answer within TOOLS_MS or a server gone → Failed `tools` (nothing installed; Install and
+/// Restart may be tried again). No owned server to ask (an attached one): the quit goes on, the new version downloads
+/// its Tools at its first start. Later (a newer generation) ends the wait; the server, told the state, stops its download.
+fn prepare_then_quit(app: AppHandle, gen: u64) {
+    let (version, archive, sha, checked) = {
+        let g = lock(&UPD);
+        let Some(u) = g.as_ref() else { return };
+        (u.found.as_ref().map(found_version), u.archive.clone(), u.archive_sha.clone(), u.remembered.checked)
+    };
+    let Some(version) = version else { return };
+    let line = match (&archive, &sha) {
+        (Some(p), Some(h)) => uf::update_archive_line(&version, p, h),
+        _ => None,
+    };
+    let Some(line) = line else {
+        log("updates: the kept archive cannot be handed to the Studio server — nothing installed");
+        set(&app, State::Failed { failure: Failure::Tools, version: Some(version), checked, retry: true });
+        return;
+    };
+    if crate::current_pending(&app).is_none() {
+        log("updates: no Studio server of this app's own to download the new Tools: the new version downloads them at its first start");
+        wait_then_quit(app, gen);
+        return;
+    }
+    *lock(&TOOLS_ANSWER) = None;
+    set(&app, State::PreparingTools { version: version.clone() });
+    if !crate::send_to_server(&line) {
+        set(&app, State::Failed { failure: Failure::Tools, version: Some(version), checked, retry: true });
+        return;
+    }
+    log(&format!("updates: the Studio server downloads the Tools {version} needs"));
+    std::thread::spawn(move || {
+        let start = Instant::now();
+        loop {
+            if GEN.load(Ordering::SeqCst) != gen {
+                return;
+            }
+            let answer = lock(&TOOLS_ANSWER).clone();
+            let step = uf::tools_wait(&version, answer.as_ref().map(|(v, a)| (v.as_str(), *a)), start.elapsed().as_millis() as u64, crate::current_pending(&app).is_some());
+            match step {
+                uf::ToolsWait::Wait => std::thread::sleep(WAIT_STEP),
+                uf::ToolsWait::Ready => {
+                    log(&format!("updates: the Tools {version} needs are ready"));
+                    wait_then_quit(app, gen);
+                    return;
+                }
+                uf::ToolsWait::Skipped => {
+                    log(&format!("updates: the Studio server cannot read the Tools {version} names: {version} downloads them at its first start"));
+                    wait_then_quit(app, gen);
+                    return;
+                }
+                fail => {
+                    log(&format!("updates: the Tools {version} needs are not ready ({fail:?}) — nothing installed"));
+                    if GEN.load(Ordering::SeqCst) == gen {
+                        set(&app, State::Failed { failure: Failure::Tools, version: Some(version), checked, retry: true });
+                    }
+                    return;
+                }
             }
         }
     });

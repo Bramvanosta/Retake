@@ -400,21 +400,19 @@ describe('render environment', () => {
   it('without a headless shell no render starts (Remotion never downloads its own): the message says how to install one', () => {
     const none = renderBrowser({}, null, () => null);
     expect(none).toMatchObject({ path: null, source: 'none' });
-    expect(() => assertRenderBrowser(none, policy, null)).toThrow(
+    expect(() => assertRenderBrowser(none, policy)).toThrow(
       `no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`,
     );
     expect(() =>
       assertRenderBrowser(
         renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null),
         policy,
-        null,
       ),
     ).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
     expect(() =>
       assertRenderBrowser(
         renderBrowser({}, null, () => process.execPath),
         policy,
-        null,
       ),
     ).not.toThrow();
   });
@@ -422,11 +420,11 @@ describe('render environment', () => {
   it('under the agent policy (a job of the worker) a render browser inside the workspace is refused; the CLI renders with it', () => {
     const shell = join(tmp, 'tools', 'headless_shell');
     const b = { path: shell, source: 'env' as const };
-    expect(() => assertRenderBrowser(b, policy, null)).not.toThrow();
+    expect(() => assertRenderBrowser(b, policy)).not.toThrow();
     policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
-      expect(() => assertRenderBrowser(b, policy, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
-      expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, policy, null)).not.toThrow();
+      expect(() => assertRenderBrowser(b, policy)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
+      expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, policy)).not.toThrow();
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
@@ -435,10 +433,10 @@ describe('render environment', () => {
   it('the render browser to start: as given for a command a person types; under the agent policy the real path that was checked', () => {
     const link = join(tmp, 'shell-link');
     symlinkSync(process.execPath, link);
-    expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(link);
+    expect(assertRenderBrowser({ path: link, source: 'env' }, policy)).toBe(link);
     policy = workPolicyFrom([join(tmp, 'ws-of-an-agent')], policy.ffmpeg, policy.render);
     try {
-      expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(realpathSync(process.execPath));
+      expect(assertRenderBrowser({ path: link, source: 'env' }, policy)).toBe(realpathSync(process.execPath));
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }

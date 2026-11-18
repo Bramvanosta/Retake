@@ -38,6 +38,11 @@ import { renderSuffix } from '@retake/core/ids';
 import { PROJECT_SLUG_RE, projectPath } from '@retake/core/project';
 import type { JobClient } from '@retake/engine';
 
+/** A queued job held by the app's Tools (its yield's cause), not one Quit would leave behind. */
+function heldByTools(j: JobRecord): boolean {
+  return j.yield?.cause === 'tools';
+}
+
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;
 export type PipeKind = (typeof PIPE_KINDS)[number];
@@ -318,7 +323,7 @@ export class Supervisor {
     }
     const live = new Set(this.watch.unfinished);
     for (const id of [...this.jobs.keys()]) if (!live.has(id)) this.forget(id);
-    const queued = [...this.jobs.values()].some((j) => j.state === 'queued' && pipeKind(j));
+    const queued = [...this.jobs.values()].some((j) => j.state === 'queued' && pipeKind(j) && !heldByTools(j));
     this.worker = queued ? await (this.o.workerAlive ?? (async () => (await liveWorker(this.o.root)) !== null))() : false;
     this.schedulePush();
   }
@@ -349,6 +354,9 @@ export class Supervisor {
       const kind = pipeKind(j);
       if (!kind || (j.state !== 'running' && j.state !== 'queued')) continue;
       if (j.state === 'queued' && !this.worker) continue;
+      // a job that waits for the Tools is kept on disk and starts by itself once they are checked — it never
+      // holds Quit or an update's Install and Restart.
+      if (j.state === 'queued' && heldByTools(j)) continue;
       jobs.push({ kind, state: j.state, ...this.names.get(j.id) });
     }
     const unsaved = this.o.board.items().map(pipeItem);

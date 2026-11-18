@@ -36,8 +36,8 @@ const APP = fileURLToPath(new URL('../src/app/', import.meta.url));
 
 /** The kit's foundations: the root modules the kit may import. */
 const KIT_FOUNDATIONS = new Set(['bits', 'route']);
-/** The shell's public modules: what the rest of the app may import of it (context-menu: a screen asks for the app's native context menu). */
-const SHELL_PUBLIC = new Set(['shell/AppShell', 'shell/slots', 'shell/command-bus', 'shell/say', 'shell/modes', 'shell/context-menu']);
+/** The shell's public modules: what the rest of the app may import of it (context-menu: a screen asks for the app's native context menu; tools-parts: the Tools' parts Welcome, the Tools page, a queued capture and the previews show). */
+const SHELL_PUBLIC = new Set(['shell/AppShell', 'shell/slots', 'shell/command-bus', 'shell/say', 'shell/modes', 'shell/context-menu', 'shell/tools-parts']);
 /** The API's functions only data/ may import (`request` is api.ts's own; a namespace or default import reaches them all). */
 const API_CALLS = new Set(['call', 'useCall', 'request']);
 
@@ -76,8 +76,8 @@ const FEATURES: Record<string, string[]> = {
   // The library screen; its browser the themes screen shows.
   library: ['library/LibraryBrowser', 'library/LibraryScreen'],
   themes: ['themes/ThemesScreen'],
-  // The project's screens (a location's page and the settings among them); the create sheet the library uses; the
-  // sessions picker of the Record and shoot screens.
+  // The project's screens (a location's page and the settings among them, the app's Tools page); the create sheet the
+  // library uses; the sessions picker of the Record and shoot screens.
   project: [
     'project/CastScreen',
     'project/CreateSheet',
@@ -87,6 +87,7 @@ const FEATURES: Record<string, string[]> = {
     'project/ReadmeEditor',
     'project/Sessions',
     'project/SettingsScreen',
+    'project/ToolsScreen',
     'project/WelcomeScreen',
   ],
 };
@@ -111,6 +112,7 @@ const FOUNDATIONS = [
   'throttle',
   'thumbs',
   'tokens',
+  'tools-data',
   'unsaved-report',
 ];
 
@@ -232,6 +234,7 @@ describe("the Studio app's feature boundaries", () => {
       'data/scenarios.ts',
       'data/shoot.ts',
       'data/themes.ts',
+      'data/tools.ts',
     ]);
     const api = files.flatMap(([f, text]) => findings(f, text)).filter((x) => x.includes(' -> api: '));
     expect(api).toEqual([]);

@@ -8,7 +8,9 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { errorMessage } from '@retake/core/base';
-import { bundleInfoOrNull, bundleProblems } from '@retake/core/io';
+import { bundleInfoOrNull, bundleProblems, bundleTools, toolsDir, toolsState } from '@retake/core/io';
+import type { BundleInfo, ToolEntry } from '@retake/core/io';
+import type { DoctorToolsProbe } from './types.js';
 import type { LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { EngineEnv } from '../env.js';
@@ -141,6 +143,26 @@ async function headProbe(url: string, timeoutMs: number): Promise<{ status?: num
   }
 }
 
+/**
+ * The app's downloaded Tools as doctor reads them (core/io toolsState, the cheap check): null in a checkout. A bundle
+ * whose `tools` do not parse says it through bundleProblems' line (App bundle) and gives none here.
+ */
+export function doctorToolsProbe(env: Record<string, string | undefined>, bundle: BundleInfo | null): DoctorToolsProbe | null {
+  if (!bundle) return null;
+  let entries: ToolEntry[];
+  try {
+    entries = bundleTools(bundle);
+  } catch (e) {
+    return { dir: toolsDir(env), homeFromEnv: !!env.RETAKE_HOME?.trim(), problem: e instanceof Error ? e.message : String(e), tools: [] };
+  }
+  const dir = toolsDir(env);
+  return {
+    dir,
+    homeFromEnv: !!env.RETAKE_HOME?.trim(),
+    tools: toolsState(entries, dir).map((s, i) => ({ id: s.id, label: entries[i]!.label, version: entries[i]!.version, state: s.state, path: s.path, ...(s.problem ? { problem: s.problem } : {}) })),
+  };
+}
+
 /** The probes of this machine, with what `ports` know of it (the composition root's: their env is the one read). */
 export function machineProbes(ports: Pick<EnginePorts, 'env' | 'capture' | 'renderer' | 'sandboxes'>): DoctorProbes {
   const env = ports.env as Record<string, string | undefined>;
@@ -158,6 +180,7 @@ export function machineProbes(ports: Pick<EnginePorts, 'env' | 'capture' | 'rend
     execPath: process.execPath,
     bundle: bundleInfoOrNull(),
     bundleProblems,
+    tools: () => doctorToolsProbe(env, bundleInfoOrNull()),
     renderBrowser: () => ports.renderer.machine.browser(),
     renders: (policy) => ports.renderer.machine.path(policy),
     captures: capturesProbe(ports.env),
