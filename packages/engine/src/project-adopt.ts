@@ -1,7 +1,7 @@
 /**
  * A project adopts what it uses of the workspace (R-SHR-14): a workspace theme copied or moved into the
- * project's own `templates/`, brand files into its `brand/` — so the project folder alone carries its look. Components
- * can join the same request.
+ * project's own `templates/`, workspace components into its `components/` (R-SHR-25), brand files into its `brand/` —
+ * so the project folder alone carries its look.
  *
  * - Copy (`retake project adopt --copy`, MCP `project_adopt`): the theme folder verbatim, its provenance kept (a theme
  *   MCP made can still be updated through MCP, a person's never), through the project's store (staged, checked,
@@ -20,11 +20,19 @@
  * - Never: a starter (no workspace theme: `theme copy` / a new theme makes one), a name the project already has
  *   (conflict), a theme serving a file from outside its folder, MCP moving anything or touching brand files (a person
  *   moves brand files: `<project>/brand/` is no agent's folder).
+ * - A component (`--component <id>`, MCP `project_adopt {components}`: copy only through MCP): the workspace component's
+ *   folder verbatim (its sources, README, committed preview; no hidden entry, no node_modules, no link) into
+ *   `<project>/components/<namespace>/<name>/`, its files hashed and checked as they are copied; refused for a built-in
+ *   id, an id the project already holds, a component that does not validate. A move is refused while a workspace theme
+ *   picks it, while another project (its themes, project.yaml, scenarios) names it without a component of its own of
+ *   that id, while a project or a workspace theme does not open, or while a job is queued or running; set aside as a
+ *   theme is (`.retake/adopted/<stamp>-component-<namespace>-<name>/`, under the write lock of its component.yaml).
  * - project.yaml and the scenarios are not rewritten: the project's own theme of that name is found first. Earlier
  *   renders keep the workspace folder's identity, and still match: their theme name resolves to the project's copy,
  *   whose content hash is the one they hold (the board, an export). Other projects' renders of a moved theme are named.
  */
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { lstat, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -41,16 +49,23 @@ import { dateOf } from './clock.js';
 import type { CallerTrust } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
-import { rendersOfThemeFolder, usersOfWorkspaceTheme } from './project-uses.js';
+import { rendersOfThemeFolder, usersOfWorkspaceComponent, usersOfWorkspaceTheme } from './project-uses.js';
+import { checkComponentId, projectComponentTarget, workspaceRegistry } from './components.js';
+import type { ComponentTarget } from './components.js';
 import { FONT_EXTENSIONS, LOGO_EXTENSIONS, TOKENS_EXTENSIONS } from './brand/files.js';
 import { checkProjectSlug } from './refs.js';
-import type { StoreScope } from './store/store.js';
+import type { ProjectStore, StoreScope } from './store/store.js';
 import { checkNewThemeName, checkTemplateName } from './templates.js';
 import { projectThemeTarget } from './theme-target.js';
 import type { OpenedWorkspace } from './workspace.js';
 
 /** Brand files one adopt copies, at most (a folder named whole). */
 export const ADOPT_BRAND_FILES_MAX = 500;
+/** The built-in library's namespace (components create.ts BUILTIN_NAMESPACE): never a project's to adopt. */
+const BUILTIN_NAMESPACE = 'studio';
+/** The files and bytes of one component an adopt copies, at most. */
+export const ADOPT_COMPONENT_FILES_MAX = 500;
+export const ADOPT_COMPONENT_BYTES_MAX = 50 * 1024 * 1024;
 
 export interface AdoptRequest {
   project: string;
@@ -58,6 +73,8 @@ export interface AdoptRequest {
   themes?: string[];
   /** Brand files or folders, relative to the workspace root (a person only). */
   brand?: string[];
+  /** Workspace components, by id ("namespace/name"). */
+  components?: string[];
   /** `copy` leaves the workspace's; `move` sets it aside (a person only). */
   mode: 'copy' | 'move';
 }
@@ -80,11 +97,22 @@ export interface AdoptedBrand {
   moved_to?: string;
 }
 
+export interface AdoptedComponent {
+  id: string;
+  /** The project's copy (`<project>/components/<namespace>/<name>`). */
+  dir: string;
+  files: string[];
+  /** A move: where the workspace folder was set aside. */
+  moved_to?: string;
+}
+
 export interface AdoptResult {
   project: string;
   mode: 'copy' | 'move';
   themes: AdoptedTheme[];
   brand: AdoptedBrand[];
+  /** Present when the request named components. */
+  components?: AdoptedComponent[];
   /** What a person should know (themes whose provenance names a moved brand file, renders made before…). */
   notes: string[];
 }
@@ -149,7 +177,7 @@ async function workspaceTheme(ws: OpenedWorkspace, name: string): Promise<Loaded
 async function setAside(
   ws: OpenedWorkspace,
   path: string,
-  a: { what: 'theme' | 'brand'; name: string; stamp: string; scope: StoreScope; check: () => Promise<void>; lockFile?: string },
+  a: { what: 'theme' | 'brand' | 'component'; name: string; stamp: string; scope: StoreScope; check: () => Promise<void>; lockFile?: string },
 ): Promise<string> {
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const real = realPathOf(path, nodeFileFacts);
@@ -208,15 +236,22 @@ async function moveUsersCheck(ws: OpenedWorkspace, project: LoadedProject, name:
   }
 }
 
-/** One workspace theme into the project (see the header). */
-async function adoptTheme(pass: AdoptPass, name: string): Promise<AdoptedTheme> {
-  const { ws, project, req, o, stamp, notes } = pass;
+/** What an adopt of the theme `name` needs, every refusal checked (run for every item before any is done). */
+async function themeSourceOf(pass: AdoptPass, name: string): Promise<{ source: LoadedTemplate; target: ReturnType<typeof projectThemeTarget> }> {
+  const { ws, project, req } = pass;
   checkTemplateName(name);
   const source = await workspaceTheme(ws, name);
   const target = projectThemeTarget(ws, project, 'an adopted theme');
   if ((await readdir(target.dir).catch(() => [] as string[])).some((e) => e.toLowerCase() === name.toLowerCase()))
     throw new EngineError('conflict', `project ${project.slug} already has a theme folder ${name} (${PROJECT_LIBRARY_DIRS.templates}/${name}): nothing adopted — remove or rename one of them by hand`);
   if (req.mode === 'move') await moveUsersCheck(ws, project, name);
+  return { source, target };
+}
+
+/** One workspace theme into the project (see the header). */
+async function adoptTheme(pass: AdoptPass, name: string): Promise<AdoptedTheme> {
+  const { ws, project, req, o, stamp, notes } = pass;
+  const { source, target } = await themeSourceOf(pass, name);
   const before = req.mode === 'move' ? await folderHashes(source.dir) : undefined;
   // The workspace theme of a starter's name already hides that starter: the project's copy keeps that for itself.
   const files = await copyThemeFolder(ws, { source, from: name }, target, checkNewThemeName(name), { provenance: 'keep', scope: o.scope, keepStarterName: true });
@@ -306,9 +341,9 @@ async function themesFromBrand(ws: OpenedWorkspace, ref: string): Promise<string
   return out;
 }
 
-/** One brand file into `<project>/brand/` (see the header). */
-async function adoptBrand(pass: AdoptPass, ref: string): Promise<AdoptedBrand> {
-  const { ws, project, req, o, stamp, notes } = pass;
+/** What an adopt of the brand file `ref` needs, every refusal checked (run for every item before any is done). */
+async function brandTargetOf(pass: AdoptPass, ref: string): Promise<{ src: { abs: string; real: string }; posix: string; target: string; store: ProjectStore }> {
+  const { ws, project, o } = pass;
   const src = await brandSource(ws, ref);
   const posix = ref.split(/[\\/]/).join('/');
   // Below the workspace's brand/: the same place under the project's; elsewhere: brand/<its name>.
@@ -322,6 +357,13 @@ async function adoptBrand(pass: AdoptPass, ref: string): Promise<AdoptedBrand> {
     )
   )
     throw new EngineError('conflict', `project ${project.slug} already has ${target}: nothing adopted from ${ref} — remove or rename one of them by hand`);
+  return { src, posix, target, store };
+}
+
+/** One brand file into `<project>/brand/` (see the header). */
+async function adoptBrand(pass: AdoptPass, ref: string): Promise<AdoptedBrand> {
+  const { ws, req, o, stamp, notes } = pass;
+  const { src, posix, target, store } = await brandTargetOf(pass, ref);
   const hashOf = async () =>
     createHash('sha256')
       .update(await readFile(src.abs))
@@ -345,17 +387,177 @@ async function adoptBrand(pass: AdoptPass, ref: string): Promise<AdoptedBrand> {
   return out;
 }
 
-/** A project adopts workspace themes and brand files (see the header). Errors: invalid, not_found, refused, conflict. */
+/** The files of a component folder a copy takes (relative, `/`): hidden entries and node_modules left out; a link, a hard link or a special file refuses it. */
+async function componentFiles(dir: string, id: string): Promise<string[]> {
+  const out: string[] = [];
+  let bytes = 0;
+  const walk = async (rel: string) => {
+    for (const e of await readdir(join(dir, rel), { withFileTypes: true })) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isSymbolicLink()) throw new EngineError('refused', `component ${id} holds a symbolic link (${r}): copy it by hand`);
+      if (e.isDirectory()) await walk(r);
+      else if (e.isFile()) {
+        const st = await lstat(join(dir, r));
+        if (st.nlink > 1) throw new EngineError('refused', `component ${id} holds a file with another name (a hard link: ${r}): copy it by hand`);
+        bytes += st.size;
+        out.push(r);
+        if (out.length > ADOPT_COMPONENT_FILES_MAX) throw new EngineError('refused', `component ${id} holds more than ${ADOPT_COMPONENT_FILES_MAX} files: copy it by hand`);
+        if (bytes > ADOPT_COMPONENT_BYTES_MAX) throw new EngineError('refused', `component ${id} is larger than ${ADOPT_COMPONENT_BYTES_MAX / 1024 / 1024} MB: copy it by hand`);
+      } else throw new EngineError('refused', `component ${id} holds a special file (${r}): copy it by hand`);
+    }
+  };
+  await walk('');
+  return out.sort();
+}
+
+/** Why a workspace component is not moved: who else uses it, a project or a workspace theme that does not open. */
+async function componentMoveCheck(ws: OpenedWorkspace, project: LoadedProject, id: string): Promise<void> {
+  const u = await usersOfWorkspaceComponent(ws, id, { except: project.slug });
+  const list = (l: string[]) => `${l.slice(0, 10).join(', ')}${l.length > 10 ? ` and ${l.length - 10} more` : ''}`;
+  if (u.users.length) {
+    throw new EngineError('refused', `the workspace component ${id} is used by ${list(u.users)}: it is not moved — adopt a copy (--copy), or adopt it into those projects first`, {
+      details: { users: u.users },
+    });
+  }
+  if (u.unreadable.length) {
+    throw new EngineError('refused', `${list(u.unreadable)} does not open: whether it uses the workspace component ${id} cannot be told — fix it, or adopt a copy (--copy)`, {
+      details: { unreadable: u.unreadable },
+    });
+  }
+}
+
+/** What an adopt of the component `id` needs, every refusal checked (run for every item before any is done). */
+async function componentSourceOf(pass: AdoptPass, id: string): Promise<{ dir: string; target: ComponentTarget; ns: string; name: string; nsDir: string; files: string[] }> {
+  const { ws, project, req } = pass;
+  checkComponentId(id);
+  // A studio/ id is the built-in library's namespace: a workspace component there overrides a built-in for every
+  // project (starter themes and defaults pick it): it stays the workspace's, whoever asks and however.
+  if (id.split('/')[0] === BUILTIN_NAMESPACE) {
+    throw new EngineError(
+      'refused',
+      `component id "${id}": the "${BUILTIN_NAMESPACE}/" namespace belongs to the built-in library — a workspace component of that id overrides the built-in one for every project and stays a workspace item: nothing adopted`,
+    );
+  }
+  const reg = await workspaceRegistry(ws);
+  const broken = reg.notices.find((n) => n.id === id && n.severity === 'error');
+  if (!reg.has(id) && !broken) {
+    try {
+      reg.get(id);
+    } catch (e) {
+      throw toEngineError(e);
+    }
+  }
+  const source = reg.has(id) ? reg.get(id) : undefined;
+  if (source?.source === 'builtin') throw new EngineError('refused', `${id} is a built-in component shipped with Retake: every project uses it already — nothing to adopt`);
+  const dir = source?.dir ?? broken!.dir;
+  const valid = await ws.registries.catalogue.validate(dir);
+  if (!valid.ok) throw new EngineError('refused', `the workspace component ${id} does not validate (retake components validate ${id}): fix it before a project adopts it`);
+  const target = projectComponentTarget(ws, project, 'an adopted component');
+  const [ns, name] = id.split('/') as [string, string];
+  const nsDir = join(target.dir, ns);
+  if ((await readdir(nsDir).catch(() => [] as string[])).some((e) => e.toLowerCase() === name.toLowerCase()))
+    throw new EngineError(
+      'conflict',
+      `project ${project.slug} already has a component folder ${id} (${PROJECT_LIBRARY_DIRS.components}/${id}): nothing adopted — remove or rename one of them by hand`,
+    );
+  if (req.mode === 'move') await componentMoveCheck(ws, project, id);
+  const files = await componentFiles(dir, id);
+  return { dir, target, ns, name, nsDir, files };
+}
+
+/** One workspace component into the project (see the header). */
+async function adoptComponent(pass: AdoptPass, id: string): Promise<AdoptedComponent> {
+  const { ws, req, o, stamp } = pass;
+  const { dir, target, ns, name, nsDir, files } = await componentSourceOf(pass, id);
+  const before = await folderHashes(dir);
+  try {
+    const store = target.store(o.scope);
+    // Its namespace folder first (inside the project's own components/, through the project's store).
+    await store.makeFolder(projectLibraryRef('components', ns));
+    await store.createFolder(nsDir, name, {
+      what: 'component',
+      build: async (stage) => {
+        for (const f of files) {
+          await stage.copy(f, join(dir, ...f.split('/')));
+          const copied = createHash('sha256')
+            .update(await readFile(join(stage.dir, ...f.split('/'))))
+            .digest('hex');
+          // Copied bytes are the ones validated (a source file changed meanwhile refuses the copy).
+          if (copied !== before[f]) throw new EngineError('conflict', `component ${id}: ${f} changed while it was copied — try again`);
+        }
+      },
+      recheck: async () => ({ existing: existsSync(join(nsDir, name)) }),
+    });
+  } catch (e) {
+    throw toEngineError(e);
+  }
+  const out: AdoptedComponent = { id, dir: join(nsDir, name), files };
+  if (req.mode === 'move') {
+    let jobs: string[] = [];
+    try {
+      out.moved_to = await setAside(ws, dir, {
+        what: 'component',
+        name: `${ns}-${name}`,
+        stamp,
+        scope: o.scope,
+        lockFile: 'component.yaml',
+        check: async () => {
+          // Read again under the lock: a job queued while the folder was copied may read it.
+          jobs = await o.activeJobs();
+          if (jobs.length) throw busyError(jobs);
+          if (!sameHashes(before, await folderHashes(dir))) {
+            throw new EngineError(
+              'conflict',
+              `the workspace component ${id} changed while it was adopted: the project's copy is made (${projectLibraryRef('components', ns, name)}), the workspace component stays — compare them and remove one by hand`,
+            );
+          }
+        },
+      });
+    } catch (e) {
+      if (jobs.length) await rm(out.dir, { recursive: true, force: true });
+      throw e;
+    }
+  }
+  return out;
+}
+
+/**
+ * A refusal met after some items were done (a race since the check pass: a job, a change): its words and `details.done`
+ * name what was already copied or moved, so the person knows the workspace's may be gone.
+ */
+function partialError(e: EngineError, out: AdoptResult): EngineError {
+  const verb = out.mode === 'move' ? 'moved' : 'copied';
+  const done = [
+    ...out.themes.map((t) => `theme ${t.name} ${verb}${t.moved_to ? ` (the workspace's set aside in ${t.moved_to})` : ''}`),
+    ...out.brand.map((b) => `${b.from} ${verb}${b.moved_to ? ` (set aside in ${b.moved_to})` : ''}`),
+    ...(out.components ?? []).map((c) => `component ${c.id} ${verb}${c.moved_to ? ` (the workspace's set aside in ${c.moved_to})` : ''}`),
+  ];
+  if (!done.length) return e;
+  const details = { ...((e.details as Record<string, unknown> | undefined) ?? {}), done: { themes: out.themes, brand: out.brand, components: out.components ?? [] } };
+  return new EngineError(e.code, `${e.message} — done before it stopped, into project ${out.project}: ${done.join('; ')}`, { details, ...(e.fix ? { fix: e.fix } : {}) });
+}
+
+/** A project adopts workspace themes, components and brand files (see the header). Errors: invalid, not_found, refused, conflict. */
 export async function adoptIntoProject(ws: OpenedWorkspace, req: AdoptRequest, o: AdoptOptions): Promise<AdoptResult> {
   const project = await openProjectBySlug(ws, checkProjectSlug(req.project));
   const themes = [...new Set(req.themes ?? [])];
   const brand = [...new Set(req.brand ?? [])];
+  const components = [...new Set(req.components ?? [])];
   if (req.mode !== 'copy' && req.mode !== 'move') throw new EngineError('invalid', 'mode is copy or move');
   if (o.trust === 'mcp' && req.mode === 'move')
-    throw new EngineError('refused', 'through MCP a workspace theme is only copied into a project (project_adopt): a person moves it with retake project adopt');
+    throw new EngineError('refused', 'through MCP a workspace theme or component is only copied into a project (project_adopt): a person moves it with retake project adopt');
   if (o.trust === 'mcp' && brand.length) throw new EngineError('refused', 'brand files are never adopted through MCP: a person moves them with retake project adopt --brand <path>');
-  if (!themes.length && !brand.length) throw new EngineError('invalid', 'name what the project adopts: a workspace theme (--theme) or brand files (--brand)');
+  if (!themes.length && !brand.length && !components.length) {
+    throw new EngineError(
+      'invalid',
+      o.trust === 'mcp'
+        ? 'name what the project adopts: workspace themes (themes) or workspace components (components)'
+        : 'name what the project adopts: a workspace theme (--theme), a workspace component (--component) or brand files (--brand)',
+    );
+  }
   for (const t of themes) checkTemplateName(t);
+  for (const c of components) checkComponentId(c);
   if (req.mode === 'move') {
     const jobs = await o.activeJobs();
     if (jobs.length) throw busyError(jobs);
@@ -364,8 +566,18 @@ export async function adoptIntoProject(ws: OpenedWorkspace, req: AdoptRequest, o
   const notes: string[] = [];
   const out: AdoptResult = { project: project.slug, mode: req.mode, themes: [], brand: [], notes };
   const pass: AdoptPass = { ws, project, req, o, stamp, notes };
-  for (const name of themes) out.themes.push(await adoptTheme(pass, name));
-  for (const ref of brand) out.brand.push(await adoptBrand(pass, ref));
+  // Every item checked first (users, validity, name clashes): one refused, nothing is done.
+  for (const name of themes) await themeSourceOf(pass, name);
+  for (const ref of brand) await brandTargetOf(pass, ref);
+  for (const id of components) await componentSourceOf(pass, id);
+  if (components.length) out.components = [];
+  try {
+    for (const name of themes) out.themes.push(await adoptTheme(pass, name));
+    for (const ref of brand) out.brand.push(await adoptBrand(pass, ref));
+    for (const id of components) out.components!.push(await adoptComponent(pass, id));
+  } catch (e) {
+    throw partialError(toEngineError(e), out);
+  }
   if (out.themes.length) {
     notes.push("the project's earlier renders made with it still match: their theme name now finds the project's copy, of the same content");
   }

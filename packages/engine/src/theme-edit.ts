@@ -36,7 +36,7 @@ import type { Template } from '@retake/core/theme';
 import type { TemplateEntry, ThemeEdit, ThemeField, ThemeEditApplied } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components/geometry';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
-import { workspaceRegistry } from './components.js';
+import { projectRegistry } from './components.js';
 import { componentCalls } from './registries/component-calls.js';
 import { callerOf, editsThemes } from './caller.js';
 import type { Caller, EngineClient } from './caller.js';
@@ -419,7 +419,8 @@ function themePalette(template: Template | undefined, lib: ComponentCalls): Them
 
 /** One theme as its editor shows it (see the header); remembers the version shown (undo restores only those). */
 export async function themeEditView(ws: OpenedWorkspace, name: string, memos: ThemeEditMemos, projectSlug?: string): Promise<ThemeEditView> {
-  const loc = await locateTheme(ws, name, projectSlug !== undefined ? await openProjectBySlug(ws, checkProjectSlug(projectSlug)) : undefined);
+  const project = projectSlug !== undefined ? await openProjectBySlug(ws, checkProjectSlug(projectSlug)) : undefined;
+  const loc = await locateTheme(ws, name, project);
   const read = readThemeText(loc);
   const blocker = textBlocker(name, read);
   const editable: ThemeEditable = loc.editable !== true ? loc.editable : blocker ? { why: blocker } : true;
@@ -442,7 +443,8 @@ export async function themeEditView(ws: OpenedWorkspace, name: string, memos: Th
   if (parsed.template) {
     parsed.template.name ??= name;
     try {
-      const r = (await workspaceRegistry(ws)).resolveTheme(parsed.template);
+      // The picks as the named project's renders resolve them (its own components first).
+      const r = (await projectRegistry(ws, project)).resolveTheme(parsed.template);
       resolved = Object.fromEntries(COMPONENT_KINDS.map((k) => [k, r[k] ? { id: r[k]!.id, params: r[k]!.params } : null]));
     } catch (e) {
       issues.push(toEngineError(e).message);
@@ -521,7 +523,8 @@ export async function editTheme(
 ): Promise<ThemeEditResult> {
   const refused = themeEditRefused(callerOf(o.client));
   if (refused) throw refused;
-  const loc = await locateTheme(ws, name, o.project !== undefined ? await openProjectBySlug(ws, checkProjectSlug(o.project)) : undefined);
+  const named = o.project !== undefined ? await openProjectBySlug(ws, checkProjectSlug(o.project)) : undefined;
+  const loc = await locateTheme(ws, name, named);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
   const base = readThemeText(loc);
   const blocker = textBlocker(name, base);
@@ -580,7 +583,7 @@ export async function editTheme(
     if (p) throw new EngineError('refused', `not saved: the ${f.role} ${p}`, { details: { file: f.rel } });
   }
   try {
-    (await workspaceRegistry(ws)).resolveTheme(parsed.template);
+    (await projectRegistry(ws, named)).resolveTheme(parsed.template);
   } catch (e) {
     throw new EngineError('invalid', `not saved: ${toEngineError(e).message}`);
   }

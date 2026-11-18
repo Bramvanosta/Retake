@@ -20,7 +20,9 @@ import {
   PREVIEW_ARTIFACTS,
   UNHASHED_DIRS,
   geometryEntry,
+  componentOverride,
   importProblem,
+  isOwnComponent,
   kitEntry,
   paramDefaults,
   parseManifest,
@@ -327,27 +329,31 @@ function bundleComponentOf(info: ReturnType<ComponentRegistry['list']>[number]):
   return { id: info.manifest.id, kind: info.manifest.kind, dir: info.dir, entry: info.entry, defaults: paramDefaults(info.manifest.params as JsonSchemaNode | undefined) };
 }
 
-/** The registry's workspace components with their folder content hash (componentFolderHash): what the Studio's preview allow-list keys. */
+/**
+ * The registry's own components — the workspace's and, in a project's registry, the project's (isOwnComponent: the
+ * person's code) — with their folder content hash (componentFolderHash): what the Studio's preview allow-list keys.
+ */
 export async function workspaceComponents(registry: ComponentRegistry): Promise<WorkspaceComponent[]> {
   const out: WorkspaceComponent[] = [];
   for (const info of registry.list()) {
-    if (info.source !== 'workspace') continue;
-    out.push({ id: info.manifest.id, kind: info.manifest.kind, hash: await componentFolderHash(bundleComponentOf(info)) });
+    if (info.source === 'builtin') continue;
+    const overrides = componentOverride(registry.notices, { source: info.source, id: info.manifest.id });
+    out.push({ id: info.manifest.id, kind: info.manifest.kind, hash: await componentFolderHash(bundleComponentOf(info)), source: info.source, ...(overrides ? { overrides } : {}) });
   }
   return out;
 }
 
 /**
- * The components of the Studio's preview bundle and the per-kind scaffolds: every built-in component, and the workspace
- * components `allowed` (asked with each one's id and folder content hash; absent: all of them); `held`: the workspace
- * components left out, sorted.
+ * The components of the Studio's preview bundle and the per-kind scaffolds: every built-in component, and the own
+ * components (the workspace's, a project's) `allowed` (asked with each one's id and folder content hash; absent: all of
+ * them); `held`: the own components left out, sorted.
  */
 export async function playerComponentSet(registry: ComponentRegistry, allowed?: PreviewAllowed): Promise<{ components: BundleComponent[]; held: string[] }> {
   const components: BundleComponent[] = [];
   const held: string[] = [];
   for (const info of registry.list()) {
     const c = bundleComponentOf(info);
-    if (info.source === 'workspace' && allowed && !allowed(c.id, await componentFolderHash(c))) held.push(c.id);
+    if (isOwnComponent(info.source) && allowed && !allowed(c.id, await componentFolderHash(c))) held.push(c.id);
     else components.push(c);
   }
   components.push(...(await scaffoldComponents()));
@@ -522,7 +528,8 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
           // Workspace sources import siblings as "./x.js" (NodeNext): try the TypeScript file first.
           extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
           modules: [...((config.resolve?.modules as string[] | undefined) ?? ['node_modules']), ...nodeModules],
-          ...(app ? { restrictions: [renderBundleRestriction([app.root, opts.root, cacheDir])] } : {}),
+          // The components' own folders too: a project's (or a components_dir) may lie outside the workspace root.
+          ...(app ? { restrictions: [renderBundleRestriction([app.root, opts.root, cacheDir, ...opts.components.filter((c) => !c.scaffold).map((c) => c.dir)])] } : {}),
         },
         plugins: [...(config.plugins ?? []), componentFilesGuard(opts.components) as never],
       }),

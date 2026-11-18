@@ -163,8 +163,8 @@ export function siteSignature(root: string): string {
 
 /**
  * Everything the library / theme screens watch, as one map: `components:<ns>`, `themes:<name>`, `site` — and, with
- * `projectsDir`, each project's own themes (`themes:<slug>/<name>`: a project with a real `templates/` folder, at most
- * WATCH_FOLDERS_MAX projects, within the same budget).
+ * `projectsDir`, each project's own themes and components (`themes:<slug>/<name>`, `components:<slug>/<ns>`: a project
+ * with a real `templates/` / `components/` folder, at most WATCH_FOLDERS_MAX projects, within the same budget).
  */
 export async function libraryWatchScan(o: { root: string; componentsDir: string; templatesDir: string; projectsDir?: string; budget?: number }): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -176,8 +176,10 @@ export async function libraryWatchScan(o: { root: string; componentsDir: string;
     for (const slug of realFolders(o.projectsDir)) {
       if (!PROJECT_SLUG_RE.test(slug)) continue;
       const own = projectLibraryDir(join(o.projectsDir, slug), 'templates');
-      if (!realFolder(own)) continue;
-      for (const [name, sig] of await themeSignatures(own, budget)) out.set(`themes:${slug}/${name}`, sig);
+      if (realFolder(own)) for (const [name, sig] of await themeSignatures(own, budget)) out.set(`themes:${slug}/${name}`, sig);
+      // The project's own components (`components:<slug>/<ns>`): a real components/ folder only.
+      const comps = projectLibraryDir(join(o.projectsDir, slug), 'components');
+      if (realFolder(comps)) for (const [ns, sig] of componentNamespaceSignatures(comps, budget)) out.set(`components:${slug}/${ns}`, sig);
     }
   }
   out.set('site', siteSignature(o.root));

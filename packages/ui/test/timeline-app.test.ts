@@ -4,7 +4,12 @@
  * a button activates it), the frame a key moves to, timecodes, the scrubber's value text, and the codec check that
  * decides between the preview and the "cannot play" message.
  */
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { EditNotices } from '../src/app/edit/EditNotes.js';
+import { HeldComponents } from '../src/app/themes/frame-controls.js';
+import { heldItemWords, heldSubject, heldTitle } from '../src/app/words/timeline-words.js';
 import {
   canPlay,
   cannotPlayWords,
@@ -149,5 +154,38 @@ describe('the codec check', () => {
     expect(await canPlay('h264', { decodingInfo: async () => Promise.reject(new Error('no')) }, size)).toBe(true);
     expect(codecWords('h264')).toBe('H.264');
     expect(cannotPlayWords('h264')).toBe("This browser cannot play the take's H.264 video: open the Studio in Chrome, Safari or Firefox. The tracks still work.");
+  });
+});
+
+describe("⚑ the Allow callouts word a held component by its origin (a project's own is never called the workspace's)", () => {
+  const ws = { id: 'acme/marked', kind: 'card', hash: '0123456789abcdef', source: 'workspace' as const };
+  const own = { id: 'acme/intro', kind: 'intro', hash: 'fedcba9876543210', source: 'project' as const, overrides: 'workspace' as const };
+  const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'");
+
+  it("the timeline's callout (EditNotes)", () => {
+    const v = { editable: true, preview_held: [own], capture: {}, source: {} } as unknown as Parameters<typeof EditNotices>[0]['v'];
+    const html = text(renderToStaticMarkup(createElement(EditNotices, { v, slug: 'demo', name: 'up', proposal: false, allowing: null, allowError: null, onAllow: () => undefined })));
+    expect(html).toContain('A component of this project is not run in the preview');
+    expect(html).toContain("This project's components are code");
+    expect(html).toContain("(this project's own intro, used instead of the workspace's one, folder fedcba9876543210)");
+    expect(html).not.toMatch(/workspace component/i);
+    // A workspace one reads as before.
+    const v2 = { ...v, preview_held: [ws] } as typeof v;
+    const before = text(renderToStaticMarkup(createElement(EditNotices, { v: v2, slug: 'demo', name: 'up', proposal: false, allowing: null, allowError: null, onAllow: () => undefined })));
+    expect(before).toContain('A workspace component is not run in the preview');
+    expect(before).toContain('Components of this workspace are code');
+    expect(before).toContain('acme/marked (card, folder 0123456789abcdef)');
+  });
+
+  it("the theme preview's callout (HeldComponents)", () => {
+    const html = text(
+      renderToStaticMarkup(createElement(HeldComponents, { held: [ws, { ...own, overrides: 'builtin' as const }], heldId: 'h', allowing: null, allowError: null, onAllow: () => undefined })),
+    );
+    expect(html).toContain('2 components of this workspace and project are not run in the preview');
+    expect(html).toContain("This workspace's and this project's components are code");
+    expect(html).toContain("(this project's own intro, used instead of the built-in one, folder fedcba9876543210)");
+    expect(heldTitle([own, own])).toBe('2 components of this project are not run in the preview');
+    expect(heldSubject([ws])).toBe('Components of this workspace');
+    expect(heldItemWords({ ...ws, overrides: 'builtin' })).toBe(' (card, used instead of the built-in one, folder 0123456789abcdef) ');
   });
 });

@@ -1,7 +1,7 @@
 /**
  * At a terminal (trust `author`): `retake project adopt` moves a workspace theme into the project by default
  * (refused while another project uses it, the users listed, exit 1), `--copy` leaves the workspace's, `--brand` takes
- * brand files, `--json` prints the engine's answer; `retake theme list [--project]` says each theme's origin;
+ * brand files, `--component` workspace components, `--json` prints the engine's answer; `retake theme list [--project]` says each theme's origin;
  * `retake theme create --project` makes the project's own theme from the project's brand file first; `retake list`
  * names each project's own themes. In process (main + memoryIo), a scratch workspace; nothing is rendered.
  */
@@ -41,6 +41,36 @@ afterEach(async () => {
 });
 
 describe('retake project adopt', () => {
+  it("--component: moves a workspace component into the project's components/ (refused while a workspace theme picks it), --copy leaves it", async () => {
+    const r1 = await retake('components', 'create', 'acme/card', '--kind', 'card', '--description', 'A card.', '--no-preview');
+    expect(r1.code, r1.err).toBe(EXIT.ok);
+    await writeFile(join(ws, 'templates', 'brand', 'template.yaml'), `${await readFile(join(ws, 'templates', 'brand', 'template.yaml'), 'utf8')}\n# picks acme/card\n`);
+    const no = await retake('project', 'adopt', 'demo', '--component', 'acme/card');
+    expect(no.code).toBe(EXIT.failure);
+    expect(no.err).toMatch(/the workspace component acme\/card is used by theme brand: it is not moved — adopt a copy \(--copy\)/);
+    const copy = await retake('project', 'adopt', 'demo', '--component', 'acme/card', '--copy', '--json');
+    expect(copy.code, copy.err).toBe(EXIT.ok);
+    expect(JSON.parse(copy.out).components).toEqual([expect.objectContaining({ id: 'acme/card', dir: join(proj(), 'components', 'acme', 'card') })]);
+    expect(await readdir(join(ws, 'components', 'acme'))).toEqual(['card']);
+    await rm(join(proj(), 'components'), { recursive: true });
+    await cp(join(T, 'editorial'), join(ws, 'templates', 'brand'), { recursive: true, force: true });
+    await writeFile(join(ws, 'templates', 'brand', 'template.yaml'), await readFile(join(T, 'editorial', 'template.yaml'), 'utf8'));
+    const ok = await retake('project', 'adopt', 'demo', '--component', 'acme/card');
+    expect(ok.code, ok.err).toBe(EXIT.ok);
+    expect(ok.out + ok.err).toMatch(/component acme\/card moved into project demo/);
+    expect(ok.out + ok.err).toMatch(/set aside in \.retake\/adopted\/\d{8}T\d{6}Z-component-acme-card/);
+    expect(await readdir(join(ws, 'components', 'acme'))).toEqual([]);
+    expect((await retake('components', 'list', '--project', 'demo')).out).toMatch(/acme\/card\s+card\s+project/);
+    // A workspace override of a built-in (studio/) stays the workspace's: refused, moved or copied.
+    expect((await retake('components', 'create', 'studio/card-title', '--kind', 'card', '--no-preview')).code).toBe(EXIT.ok);
+    for (const extra of [[], ['--copy']]) {
+      const r = await retake('project', 'adopt', 'demo', '--component', 'studio/card-title', ...extra);
+      expect(r.code).toBe(EXIT.failure);
+      expect(r.err).toMatch(/"studio\/" namespace belongs to the built-in library — a workspace component of that id overrides the built-in one for every project and stays a workspace item/);
+    }
+    expect(await readdir(join(ws, 'components', 'studio'))).toEqual(['card-title']);
+  });
+
   it('moves by default: refused while another project uses the theme (listed, exit 1), then moved once nothing else does', async () => {
     await project('other', 'brand');
     const no = await retake('project', 'adopt', 'demo', '--theme', 'brand');

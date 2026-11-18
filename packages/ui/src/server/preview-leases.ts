@@ -56,5 +56,6 @@ export class PreviewLeases {
  * session: id, kind and folder content hash — what the Allow button names and sends (preview_allow).
  */
 export interface PreviewHeld {
-  preview_held?: Array<{ id: string; kind: string; hash: string }>;
+  /** Each held component with where it comes from (`project`: the project's own) and what it hides, when it does. */
+  preview_held?: Array<{ id: string; kind: string; hash: string; source: 'project' | 'workspace'; overrides?: 'workspace' | 'builtin' }>;
 }

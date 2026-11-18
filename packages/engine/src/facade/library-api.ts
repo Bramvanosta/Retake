@@ -13,6 +13,8 @@ import { readSite, siteHostConflicts, submitSiteJob } from '../jobs/site-job.js'
 import { fetchFonts } from '../brand/fontsource-fetch.js';
 import { tokensDraft } from '../brand/tokens.js';
 import { ENGINE_TRUST } from '../caller.js';
+import { openProjectBySlug } from '../projects.js';
+import { checkProjectSlug } from '../refs.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
@@ -55,10 +57,10 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
 export function componentsApi(ctx: EngineContext): Engine['components'] {
   const { ws, scope, submitCtx, startWorker, caches } = ctx;
   return {
-    registry: async () => (await caches.registry.get(ws)).registry,
-    list: (kind) => componentList(ws, kind),
-    get: (id) => componentGet(ws, id),
-    validate: (id) => componentValidate(ws, id),
+    registry: async (o = {}) => (await caches.registry.get(ws, o.project !== undefined ? await openProjectBySlug(ws, checkProjectSlug(o.project)) : undefined)).registry,
+    list: (kind, o = {}) => componentList(ws, kind, o.project),
+    get: (id, o = {}) => componentGet(ws, id, o.project),
+    validate: (id, o = {}) => componentValidate(ws, id, o.project),
     create: (req) => componentCreate(ws, req, scope),
     preview: async (req) => {
       const r = await submitPreviewJob(submitCtx, {

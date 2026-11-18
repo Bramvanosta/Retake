@@ -46,7 +46,7 @@ export const okName = (n: unknown): n is string => typeof n === 'string' && n.le
 /** The name of a theme that exists (at most 100 characters), whatever made it. */
 export const okTheme = (n: unknown): n is string => typeof n === 'string' && n.length <= ANY_THEME_NAME_MAX && ANY_THEME_NAME.test(n);
 
-export type SourceFilter = 'all' | 'builtin' | 'workspace';
+export type SourceFilter = 'all' | 'builtin' | 'workspace' | 'project';
 
 export interface LibraryFilter {
   /** A kind, or 'all'. */
@@ -127,7 +127,22 @@ export const kindHeading = (k: string, n = 2): string => (isKind(k) ? KIND_WORDS
 export const SOURCE_WORDS: Record<LibraryItem['source'], { badge: string; title: string }> = {
   builtin: { badge: 'Built-in', title: `Ships with ${APP_NAME}.` },
   workspace: { badge: 'Workspace', title: "Made in this workspace's components folder (by you or with Claude). Its code runs only in the render browser, never in the Studio." },
+  project: {
+    badge: 'Project',
+    title:
+      "Made in this project's components folder (by you or with Claude): used by this project's renders instead of a workspace or built-in one of its id. Its code runs only in the render browser, never in the Studio unless you allow it.",
+  },
 };
+
+/** What a project's component hides, in words (as a theme's "Used instead of the workspace's"), or null. */
+export function overrideWords(o: LibraryItem['overrides']): string | null {
+  return o === 'workspace' ? "Used instead of the workspace's" : o === 'builtin' ? 'Used instead of the built-in one' : null;
+}
+
+/** The source filter's choices: All, Built-in, Workspace, and Project when the project has components of its own (or it is the filter). */
+export function sourceChoices(items: readonly Pick<LibraryItem, 'source'>[], current: SourceFilter): SourceFilter[] {
+  return ['all', 'builtin', 'workspace', ...(current === 'project' || items.some((i) => i.source === 'project') ? (['project'] as const) : [])];
+}
 
 /** What a card's poster box says when it shows no picture (null: the picture is there, or loading it is not said). */
 export function posterWords(p: LibraryItem['poster'], o: { asked?: 'asked' | 'ended' } = {}): string | null {

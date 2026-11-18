@@ -207,6 +207,7 @@
     "packages/engine/test/clock.test.ts",
     "packages/engine/test/comment-apply.test.ts",
     "packages/engine/test/comment-proposals.test.ts",
+    "packages/engine/test/component-project.test.ts",
     "packages/engine/test/component-shell-forms.test.ts",
     "packages/engine/test/editor-renderer.test.ts",
     "packages/engine/test/engine-caches.test.ts",

@@ -98,8 +98,11 @@ interface FileRecord {
 export interface PlayerServerOptions {
   /** The Studio's port: only `http://127.0.0.1:<it>` and `http://localhost:<it>` may frame the preview. */
   studioPort: number;
-  /** The current bundle (the server asks for it on each frame document; PlayerBundles memoises it). */
-  bundle: () => Promise<PlayerBundle>;
+  /**
+   * The current bundle of a scope (the server asks for it on each frame document and script; PlayerBundles memoises
+   * it): a project's scope bundles its own components with the workspace's and the built-in ones.
+   */
+  bundle: (scope: string) => Promise<PlayerBundle>;
   /** Diagnostics: the route family and the error's name, never a path or a capability. */
   log?: (message: string) => void;
   /** 0 or absent: a free port. */
@@ -184,13 +187,15 @@ function openRecorded(rec: FileRecord): number | undefined {
 }
 
 interface Scope {
+  /** Its name: a project's slug (each project its own bundle of components), or DEFAULT_SCOPE. */
+  name: string;
   cap: string;
   files: Map<string, FileRecord>;
   idByKey: Map<string, string>;
   plans: Map<string, Buffer>;
 }
 
-const newScope = (): Scope => ({ cap: newCap(), files: new Map(), idByKey: new Map(), plans: new Map() });
+const newScope = (name: string): Scope => ({ name, cap: newCap(), files: new Map(), idByKey: new Map(), plans: new Map() });
 
 /** One player server's state: its scopes (null once closed), port, origin and counts. */
 interface PlayerState {
@@ -215,7 +220,7 @@ function scopeNamed(st: PlayerState, name: string): Scope | undefined {
     scopes.set(name, sc);
     return sc;
   }
-  sc = newScope();
+  sc = newScope(name);
   scopes.set(name, sc);
   while (scopes.size > PLAYER_SCOPES_MAX) scopes.delete(scopes.keys().next().value!);
   return sc;
@@ -315,10 +320,11 @@ async function serveFile(st: PlayerState, req: IncomingMessage, res: ServerRespo
 
 /** `GET /s/<cap>/frame`: the frame document. */
 async function serveFrame(st: PlayerState, o: PlayerServerOptions, req: IncomingMessage, res: ServerResponse, cap: string): Promise<string> {
-  if (!scopeOfCap(st, cap)) return notFound(res), 'frame';
-  const b = await o.bundle();
+  const asked = scopeOfCap(st, cap);
+  if (!asked) return notFound(res), 'frame';
+  const b = await o.bundle(asked.name);
   const sc = scopeOfCap(st, cap);
-  if (!sc) return notFound(res), 'frame';
+  if (!sc || sc.name !== asked.name) return notFound(res), 'frame';
   const html = Buffer.from(frameHtml(sc.cap, b.hash, o.studioPort), 'utf8');
   res.writeHead(200, {
     ...COMMON_HEADERS,
@@ -333,9 +339,10 @@ async function serveFrame(st: PlayerState, o: PlayerServerOptions, req: Incoming
 
 /** `GET /s/<cap>/(b|boot).<hash>.js`: a script of the current bundle. */
 async function serveScript(st: PlayerState, o: PlayerServerOptions, req: IncomingMessage, res: ServerResponse, m: RegExpExecArray): Promise<string> {
-  if (!scopeOfCap(st, m[1])) return notFound(res), 'script';
-  const b = await o.bundle();
-  if (b.hash !== m[3] || !scopeOfCap(st, m[1])) return notFound(res), 'script';
+  const asked = scopeOfCap(st, m[1]);
+  if (!asked) return notFound(res), 'script';
+  const b = await o.bundle(asked.name);
+  if (b.hash !== m[3] || scopeOfCap(st, m[1])?.name !== asked.name) return notFound(res), 'script';
   const body = m[2] === 'b' ? b.js : b.boot;
   res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'private, max-age=86400, immutable', 'Content-Length': String(body.length) });
   res.end(req.method === 'HEAD' ? undefined : body);
@@ -440,7 +447,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     rotate() {
       const scopes = st.scopes;
       if (scopes === null) return;
-      for (const name of [...scopes.keys()]) scopes.set(name, newScope());
+      for (const name of [...scopes.keys()]) scopes.set(name, newScope(name));
     },
     release(scope) {
       st.scopes?.delete(scope);

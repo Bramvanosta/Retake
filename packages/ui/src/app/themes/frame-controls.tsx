@@ -3,6 +3,7 @@
  * workspace components the preview holds until they are allowed. Presentational: the frame's state comes in.
  */
 import type { ThemePreviewAnswer } from '../../server/theme-ops.js';
+import { heldItemWords, heldSubject, heldTitle } from '../words/timeline-words.js';
 import { Txt } from '../bits.js';
 import { Button, Callout } from '../ui-kit/index.js';
 
@@ -73,16 +74,16 @@ export function HeldComponents({
 }) {
   if (held.length === 0) return null;
   return (
-    <Callout state="warn" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}>
+    <Callout state="warn" role="note" title={heldTitle(held)}>
       <div data-testid="preview-held">
         <p className="tm-line" id={heldId}>
-          Components of this workspace are code: the preview runs one only once you allow it, for this Studio session. Its stand-in draws until then; a render uses it either way.
+          <Txt text={heldSubject(held)} /> are code: the preview runs one only once you allow it, for this Studio session. Its stand-in draws until then; a render uses it either way.
         </p>
         <ul className="tm-held" aria-describedby={heldId}>
           {held.map((c) => (
             <li key={c.id} data-testid="held-component" data-id={c.id}>
               <Txt className="k-mono" text={c.id} />
-              <Txt className="tm-quiet" text={` (${c.kind}, folder ${c.hash}) `} />
+              <Txt className="tm-quiet" text={heldItemWords(c)} />
               <Button size="sm" data-testid="allow-component" disabled={allowing !== null} onClick={() => onAllow(c)}>
                 {allowing === c.id ? 'Allowing…' : 'Allow in the preview'}
               </Button>

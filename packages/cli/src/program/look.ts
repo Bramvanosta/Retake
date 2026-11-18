@@ -12,25 +12,30 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
   const components = program.command('components').description('list, validate, scaffold and preview components (intros, layouts, captions…)');
   components
     .command('list')
-    .description('components of the workspace (components/) and the built-in library')
+    .description("components of the workspace (components/) and the built-in library; with --project, the project's own (projects/<slug>/components/) first")
     .addOption(new Option('--kind <kind>', 'only this kind').choices([...COMPONENT_KINDS]))
+    .option('--project <slug>', "list this project's own components first, as its renders resolve them")
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: ComponentsListOptions) => componentsListCommand(u, g, o)));
   components
     .command('validate')
     .description('check a component: manifest, params schema, preview samples, entry compile and imports (every workspace component when omitted)')
     .argument('[component]', 'component id (namespace/name) or folder')
+    .option('--project <slug>', "the project's own component of that id first (none named: its own components too)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string | undefined, o: ComponentsValidateOptions) => componentsValidateCommand(u, g, id, o)));
   components
     .command('create')
     .alias('new')
-    .description('scaffold a workspace component (components/<namespace>/<name>/) from the scaffold of its kind (alias: new)')
+    .description(
+      "scaffold a workspace component (components/<namespace>/<name>/) — or a project's own with --project (projects/<slug>/components/<namespace>/<name>/) — from the scaffold of its kind (alias: new)",
+    )
     .argument('<id>', 'component id "namespace/name" (lower-case letters, digits and "-")')
     .addOption(new Option('--kind <kind>', 'what it renders').choices([...COMPONENT_KINDS]).makeOptionMandatory())
     .option('--description <text>', 'one or two sentences: what it looks like and when to use it')
     .option('--name <name>', 'display name (default: from the id)')
     .option('--theme <name>', 'theme of the generated preview (default editorial)')
+    .option('--project <slug>', "make it in this project's own components folder (used by its renders only)")
     .option('--no-preview', 'do not render preview.png')
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string, o: ComponentsCreateOptions) => componentsCreateCommand(u, g, id, o)));
@@ -39,7 +44,8 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .description('render preview.png (960×540) + preview.json + the README block of a component, or of every component with --all')
     .argument('[component]', 'component id (namespace/name) or folder')
     .option('--all', 'every component: workspace, built-in library and the per-kind scaffolds')
-    .option('--workspace', 'with --all: only the workspace components')
+    .option('--workspace', "with --all: only the workspace components (and the project's own with --project)")
+    .option('--project <slug>', "the project's own components first, and its own theme of --theme's name")
     .option('--stale', 'only previews that are missing or out of date')
     .option('--theme <name>', 'theme of the previews (a theme name or path; default editorial)')
     .option('--out <dir>', 'write only the images to <dir>/<namespace>/<name>.png (component folders untouched)')

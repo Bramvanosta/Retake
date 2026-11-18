@@ -43,7 +43,7 @@ export const PLAYER_BUNDLE_FORMAT = 3;
 /** Largest component file the preview bundles. */
 export const COMPONENT_FILE_MAX = 1024 * 1024;
 /** Bundles kept in memory. */
-export const PLAYER_BUNDLES_KEEP = 2;
+export const PLAYER_BUNDLES_KEEP = 4;
 
 const PACKAGE_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** The frame's sources (always the TypeScript sources: they ship with the package). */

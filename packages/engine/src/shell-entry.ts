@@ -14,7 +14,7 @@ export { fetchFonts } from './brand/fontsource-fetch.js';
 export { tokensDraft } from './brand/tokens.js';
 export { callerOf, submittedInStudio } from './caller.js';
 export { addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
-export { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell } from './components.js';
+export { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriters, componentValidateShell } from './components.js';
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkHeadedDisplay, prepareRun, writesSummary } from './execute-run.js';
 export { firebaseAuthText, formatMs, resetLadderText, sandboxUpText, snapshotStatusText } from './format.js';
 export { envResetWork, hooksRunWork, rollbackWork } from './hooks-work.js';
