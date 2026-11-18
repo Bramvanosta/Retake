@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TOOL_HOSTS } from '@retake/core/io';
 
 // biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
 type Untyped = any;
@@ -431,11 +432,19 @@ describe('release.yml: the keys never share a runner with dependency code', () =
     for (const entry of ['apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'scripts/publish-update.mjs']) {
       const g = importGraph(join(REPO, entry));
       expect(g.bare, entry).toEqual([]);
-      // One dynamic import in the graph: desktop.mjs build() (`pnpm desktop:build`, the developer app — its own command,
-      // started by its own main guard only) loads the engine's integrations entry; bundle.mjs takes words and the icon
-      // maker from desktop.mjs.
+      // The dynamic loads in the graph, each inside a function the sign job never calls: desktop.mjs build() (`pnpm
+      // desktop:build`, the developer app — its own command, started by its own main guard only) loads the engine's
+      // integrations entry; bundle.mjs takes words and the icon maker from desktop.mjs. tools.mjs (the stage's and the
+      // record-tools / check-tools commands' Tools) loads core's io/tools (coreTools: createRequire) and the installer's
+      // modules (engineTools) from the packages' build.
       expect(g.dynamic, entry).toEqual(
-        g.files.includes('apps/desktop/scripts/desktop.mjs') ? ["apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')"] : [],
+        g.files.includes('apps/desktop/scripts/desktop.mjs')
+          ? [
+              "apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')",
+              'apps/desktop/scripts/tools.mjs: import(pathToFileURL(join(ENGINE_TOOLS, m)',
+              'apps/desktop/scripts/tools.mjs: createRequire',
+            ]
+          : [],
       );
       for (const f of g.files) expect(f.startsWith('..') || f.includes('node_modules'), f).toBe(false);
       if (entry === 'apps/desktop/scripts/release.mjs')
@@ -444,9 +453,18 @@ describe('release.yml: the keys never share a runner with dependency code', () =
           'apps/desktop/scripts/desktop.mjs',
           'apps/desktop/scripts/release.mjs',
           'apps/desktop/scripts/sign.mjs',
+          'apps/desktop/scripts/tools.mjs',
           'scripts/publish-update.mjs',
         ]);
     }
+    // tools.mjs loads nothing at import (only inside coreTools / engineTools), and the sign entry calls nothing that needs
+    // them: no stage, no stage check, no Tools command.
+    const tools = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'tools.mjs'), 'utf8');
+    for (const line of tools.split('\n').filter((l) => /\bimport\(|createRequire\(/.test(l))) expect(line, line).toMatch(/^ {2,}/);
+    expect(tools.match(/createRequire\(import\.meta\.url\)/g)?.length).toBe(1);
+    expect(tools).toMatch(/\nexport function coreTools\(\) \{\n[^}]*createRequire\(import\.meta\.url\)\(IO\);\n\}/);
+    const releaseSrc = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'release.mjs'), 'utf8');
+    expect(releaseSrc).not.toMatch(/\b(?:checkStage|stageTools|stage|coreTools|readTools|recordTools|checkArchives|fetchAndCheck)\(/);
     // The walk itself finds a package import, a dynamic one and a nested one (canaries).
     const d = dir('graph');
     writeFileSync(join(d, 'a.mjs'), "import { x } from './b.mjs';\nimport fs from 'node:fs';\n");
@@ -641,12 +659,19 @@ describe('release.yml: what it runs', () => {
     expect(rust).toContain(`RUSTUP_TOOLCHAIN=${channel}"`);
   });
 
-  it("the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config's version said", () => {
+  it("the build job: Node.js checked first, the Tools the app downloads checked against tools.json (downloaded by the installer's downloader; no browser installed), ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config's version said", () => {
     const names = jobs.build!.steps.map((s) => s.name ?? s.uses);
     expect(names.indexOf('Node.js, the pinned build')).toBe(1);
     expect(names.indexOf('Node.js, the pinned build')).toBeLessThan(names.indexOf("pnpm (corepack, at package.json's packageManager)"));
     expect(names.indexOf("pnpm (corepack, at package.json's packageManager)")).toBeLessThan(names.indexOf('Dependencies'));
-    expect(step('build', 'Chromium and the headless shell').run).toMatch(/cli\.js install chromium chromium-headless-shell\nnode apps\/desktop\/scripts\/bundle\.mjs check-pins\n/);
+    const tools = step('build', 'The Tools, downloaded from their publishers and checked against tools.json');
+    expect(tools.run).toMatch(/^set -eu\nnode apps\/desktop\/scripts\/bundle\.mjs check-tools --fetch "\$RUNNER_TEMP\/tools"\n?$/);
+    expect(tools.env).toBeUndefined();
+    // After the packages are built (check-tools runs the installer's code from their dist), before the app is laid out.
+    expect(names.indexOf('Build the packages')).toBeLessThan(names.indexOf('The Tools, downloaded from their publishers and checked against tools.json'));
+    expect(names.indexOf('The Tools, downloaded from their publishers and checked against tools.json')).toBeLessThan(names.indexOf('Lay out the app (ad hoc)'));
+    // No browser is installed or copied any more: Playwright's installer never runs in the release.
+    expect(raw).not.toMatch(/playwright-core\/cli\.js|check-pins|browsers\.json|install chromium/);
     const lay = step('build', 'Lay out the app (ad hoc)');
     expect(lay.run).toMatch(/pnpm desktop:bundle --app-only --ffmpeg "\$RUNNER_TEMP\/ffmpeg"/);
     expect(lay.env).toEqual({ UPDATES: '${{ needs.release.outputs.updates }}', FEED: '${{ needs.release.outputs.feed }}', PUBKEY: '${{ needs.release.outputs.pubkey }}' });
@@ -931,10 +956,13 @@ const RELEASE_FILES = [
   'scripts/release.mjs',
   'docs/RELEASING.md',
   'apps/desktop/bundle/node.json',
-  'apps/desktop/bundle/browsers.json',
+  'apps/desktop/bundle/tools.json',
 ];
 /** The one host a release file may name besides example.*: the Node.js project's downloads, which ci-node.sh fetches. */
 const NODE_DOWNLOADS = { file: 'apps/desktop/scripts/ci-node.sh', host: 'nodejs.org', url: 'https://nodejs.org/dist/v$version/$file' };
+/** tools.json names the Tools' publishers' URLs: on the Tools' hosts only (core TOOL_HOSTS, the installer's allow-list). */
+const TOOLS_MANIFEST = 'apps/desktop/bundle/tools.json';
+const toolsHost = (f: string, m: string) => f === TOOLS_MANIFEST && TOOL_HOSTS.some((h) => m === h || m.startsWith(`https://${h}/`));
 
 describe('the release files stay generic', () => {
   it('no host, domain, account or repository of anyone in the workflow, the keychain script, the helper or RELEASING.md', () => {
@@ -942,9 +970,9 @@ describe('the release files stay generic', () => {
       const text = readFileSync(join(REPO, f), 'utf8');
       for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) expect(DENIED.has(createHash('sha256').update(word).digest('hex')), `${f}: a denied word`).toBe(false);
       for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi))
-        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.host)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
+        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.host) && !toolsHost(f, m[0])) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
       for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g))
-        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.url)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
+        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.url) && !toolsHost(f, m[0])) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
     }
     // The workflow names its repository only through github.repository; its actions' owners are GitHub's and the toolchain's.
     expect(raw).not.toMatch(/github\.com|ghcr\.io|@users\.noreply/);

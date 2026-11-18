@@ -138,12 +138,31 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
 
 ## Each release
 
-1. **The browser the app ships**: bump Playwright (`playwright-core`, every package that names it, the same exact
-   version) to its newest release — its Chromium is the app's — then install its browsers
-   (`node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell`) and
-   re-record `apps/desktop/bundle/browsers.json` for the new revision folders
-   (`node apps/desktop/scripts/bundle.mjs browser-digest <Playwright's cache>/chromium-<revision>`, and the headless
-   shell's; DESIGN §4p (e)). Every release, even when nothing else changed.
+1. **Record tools.json**: the app carries no browser and no compositor; it downloads them, its **Tools**, on the
+   person's click, from the URLs `apps/desktop/bundle/tools.json` records (DESIGN §4p (f)). Bump Playwright
+   (`playwright-core`, every package that names it, the same exact version) to its newest release — its Chrome for
+   Testing is the app's browser — and, when Remotion moved, its compositor with it (*A Remotion upgrade* below). Then
+   record tools.json from the real archives:
+   ```sh
+   node apps/desktop/scripts/bundle.mjs record-tools --fetch <scratch folder>   # downloads the three archives there
+   node apps/desktop/scripts/bundle.mjs record-tools --from <folder of the archives>   # or: archives you already have
+   node apps/desktop/scripts/bundle.mjs check-tools --archives <folder of the archives>
+   ```
+   `record-tools` takes each archive's size and sha256 (the compositor's npm sha512 must be the lockfile's), extracts
+   it with the installer's own code, removes what the app never runs (`prune`), records the tree digest and size of
+   what is left, then checks the file it wrote as an install would. `check-tools` (no flag) checks tools.json against
+   the repository only: the revisions and browser version of its playwright-core, the compositor version and
+   integrity of pnpm-lock.yaml. Commit the new tools.json; also update the version each notice of
+   `apps/desktop/licenses/tools/` names (the stage refuses a stale one). Every release, even when nothing else changed.
+
+   **A release that changes the Tools' format** (a Tool added, removed or renamed, another host, a new manifest
+   version or field) is allowed, with this rule: an app already installed reads the new version's `bundle.json` with
+   its own, older rules before it restarts. When it cannot read it whole, it answers `skip`: it downloads nothing, the
+   update goes on, and the new version downloads its Tools at its first start (the Set-up sheet's item; jobs wait in
+   the queue). So a format change never blocks an update, but its first start asks for a download; say so in the
+   CHANGELOG paragraph. What is never skipped: an update archive whose `bundle.json` names another version than the
+   one announced is refused, so `app` in bundle.json must be the version you tag (the stage writes the repository's version there: step 2's
+   `set-version.mjs`).
 2. **The version**, everywhere it is written, then the tests, on the Mac (the CI workflow, `.github/workflows/ci.yml`, builds,
    checks the guards and runs only the deterministic tier of the tests, `pnpm test:ci`, on main, BACKLOG BL-163; the
    release does not wait for it — see that main's run of the commit is green before you tag, BACKLOG BL-144):
@@ -158,10 +177,15 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    - [ ] the desktop shell, black box (a release build of the shell first) —
      `RETAKE_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts`
    - [ ] the built app, launched and checked (about 5 min) — `RETAKE_TEST_BUNDLE=1
-     RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg-out> npx vitest run packages/cli/test/app-bundle-acceptance.test.ts`
-     (`<ffmpeg-out>`: the folder `node scripts/build-ffmpeg.mjs` wrote)
-   - [ ] the updater end to end (two app builds, ≈ 3 GB of scratch) —
-     `RETAKE_TEST_UPDATE=1 npx vitest run packages/cli/test/app-update-e2e.test.ts`
+     RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg-out> RETAKE_TEST_TOOL_ARCHIVES=<archives> npx vitest run
+     packages/cli/test/app-bundle-acceptance.test.ts` (`<ffmpeg-out>`: the folder `node scripts/build-ffmpeg.mjs`
+     wrote; `<archives>`: the folder of the three Tools' archives step 1 used — the test installs them from there, with
+     no network, and is skipped without it)
+   - [ ] the updater end to end (two app builds, ≈ 3 GB of scratch; the second with a Tools folder the first lacks) —
+     `RETAKE_TEST_UPDATE=1 RETAKE_TEST_TOOL_ARCHIVES=<archives> npx vitest run packages/cli/test/app-update-e2e.test.ts`.
+     Run it while nothing edits the checkout: the build refuses a checkout that changes during it
+   - [ ] the committed tools.json against the real archives (a few seconds) — `RETAKE_TEST_TOOL_ARCHIVES=<archives>
+     npx vitest run packages/cli/test/app-release-sign.test.ts`
    - [ ] the Docker sandboxes (about 65 s; images `retake-test-*`, removed after) — `RETAKE_TEST_DOCKER=1 npx vitest run
      packages/sandbox/test/compose.test.ts packages/sandbox/test/compose-env.test.ts packages/engine/test/sandboxes.test.ts
      packages/cli/test/sandbox-docker.test.ts`
@@ -190,8 +214,10 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
      how to install.
    - `build` (no secret at all) installs pnpm (corepack, at `package.json`'s `packageManager`: its version and the
      sha512 the download is checked against), the dependencies (`pnpm install --frozen-lockfile`), Rust 1.99.1,
-     Playwright's Chromium and headless shell — checked against the digests `apps/desktop/bundle/browsers.json` pins —
-     and our ffmpeg from its sha256-checked sources, then lays the app out and signs it ad hoc
+     checks the Tools (`bundle.mjs check-tools --fetch`: tools.json against the lockfile's pins, then each archive
+     downloaded from its publisher by the installer's own downloader, its sha256 and its tree checked as the app's
+     install would; nothing of it is kept or shipped), builds our ffmpeg from its sha256-checked sources, then lays
+     the app out and signs it ad hoc
      (`pnpm desktop:bundle --app-only`) and hands it over packed, with its sha256.
    - `sign`, on a fresh runner that runs only this repository's scripts (no `pnpm install`, no package script, no
      Homebrew, no cargo), checks the artifact's sha256 and unpacks only its two parts — `app/Retake.app` and
@@ -230,8 +256,10 @@ v0.2.1`) and tag the fixed commit.
 
 Two failures are the runner's, not yours: `hdiutil: … Resource busy` (the DMG step tries three times before it gives
 up) — *Re-run failed jobs*; and a notarisation that times out (75 minutes per submission) — re-run `sign`. A first run
-may also stop on a digest: the browsers' download (`build`) differs from what their pins were recorded from — DESIGN
-§4p (e) says how to record a checked one; `apps/desktop/bundle/node.json`'s `about` says how to record a Node.js
+may also stop on a digest: `check-tools --fetch` (`build`) found a published archive that is not the one tools.json
+records — a publisher replaced a file, or tools.json was recorded from other archives. Never edit the digest by hand:
+record tools.json again from the real archives (step 1), check what changed, and make a new version of it;
+`apps/desktop/bundle/node.json`'s `about` says how to record a Node.js
 upgrade. The workflow keeps no cache, so every run — a re-run too — downloads ffmpeg's sources again: two of them
 (x264's and libvpx's) are archives their forge generates on request and may come back with other bytes; a run that
 stops on their sha256 means re-verify and re-pin them (`scripts/ffmpeg-sources.json`), never skip the check.
@@ -272,6 +300,9 @@ upgrade of Remotion (every `@remotion/*` package and `remotion`, the same exact 
    build), `network-guard.test.ts`, `render-gpu.test.ts` and `packages/cli/test/app-bundle.test.ts` (the deploy
    carries the patch), then the full suite and one `RETAKE_TEST_BUNDLE=1` run: the stage refuses an engine whose
    renderer lacks a mark.
+4. The compositor is a Tool (`@remotion/compositor-darwin-arm64`, downloaded by the app): record tools.json again
+   (*Each release*, step 1) and update `apps/desktop/licenses/tools/compositor.md` for the new version — `check-tools`
+   and the stage refuse a tools.json or a notice that does not name the lockfile's compositor.
 
 If Remotion ever offers these as options (a sandboxed `openBrowser`, a loopback-only server), drop the patch for them.
 
@@ -287,7 +318,7 @@ If Remotion ever offers these as options (a sandboxed `openBrowser`, a loopback-
 - **The signing keys never share a runner with code from a dependency.** On a hosted runner every step runs as the same
   user, and a process one step leaves behind can read files and other processes' environments until the job ends. So
   the `build` job, which runs the dependencies' code (pnpm's packages and their scripts, cargo's build scripts,
-  Homebrew, ffmpeg's build, Playwright's installer), holds no secret, no variable and no environment; the `sign` job,
+  Homebrew, ffmpeg's build), holds no secret, no variable and no environment; the `sign` job,
   which holds the keys, runs on a fresh runner and runs only this repository's scripts (their imports: Node.js and
   files of this repository — `packages/cli/test/release-workflow.test.ts` walks them) and the Tauri CLI, from a fresh
   temporary copy of bytes that matched its pinned sha512, made only to sign the update archive (its HOME in that copy;
@@ -297,8 +328,15 @@ If Remotion ever offers these as options (a sandboxed `openBrowser`, a loopback-
   temporary keychain (the key non-extractable) and files only the runner's user reads; no password is ever on a command
   line; all of it is removed in a final step that always runs.
 - What the build job builds is what gets signed: the sign job checks the artifact is the one the build job packed, but
-  trusts the build itself (build provenance: BACKLOG BL-145). Node.js and the browsers are checked against pins; pnpm,
-  the Tauri CLI, our ffmpeg's sources and the lockfile's packages against hashes.
+  trusts the build itself (build provenance: BACKLOG BL-145). Node.js is checked against pins; pnpm, the Tauri CLI,
+  our ffmpeg's sources and the lockfile's packages against hashes.
+- **The Tools are not shipped: they are checked against tools.json.** The app carries no browser, no render browser and
+  no compositor. tools.json, committed and copied into the signed app's `bundle.json`, records each Tool's publisher
+  URL (Google's Chrome for Testing bucket, the npm registry: the only two hosts the installer and `check-tools`
+  accept, on every redirect hop), size, sha256 and tree digest. The build job downloads each archive and checks it
+  against that record (`check-tools --fetch`), so a release whose recorded archives are no longer the published ones
+  fails before anything is signed. On the person's Mac the app checks the same sha256 before anything is extracted and
+  the same tree after; the publishers can withhold a Tool (the download fails), never replace it.
 - **No cache.** Nothing is restored from an earlier run or another workflow: every job starts from the checkout, the
   pinned downloads and the lockfile (ffmpeg and cargo are built at every run; no setup action, no cache action).
   **Node.js is checked by the shell** in every job, before anything of it runs: `apps/desktop/scripts/ci-node.sh`
@@ -307,6 +345,7 @@ If Remotion ever offers these as options (a sandboxed `openBrowser`, a loopback-
   `bin/node` against the binary's pin; the binary is never asked to vouch for itself.
 - `packages/cli/test/release-workflow.test.ts` reads the workflow as data, runs its step scripts against stand-ins and
   holds it to these rules.
-- The app carries Remotion's compositor and the compositor's own FFmpeg build (GPL, with fdk-aac compiled in — not our
-  ffmpeg, which is built without non-free parts). A public release distributes it to anyone who downloads it; that
-  licence risk was accepted on 2026-11-04 for these releases, to be resolved before any sale (BACKLOG BL-138).
+- The app no longer carries Remotion's compositor nor its own FFmpeg build (GPL, with fdk-aac compiled in): since
+  BL-192 the app downloads it on the person's click from the npm registry, as the repository's `pnpm install` does,
+  and a release distributes only our ffmpeg (built without non-free parts) and its notices. BACKLOG BL-138 keeps what
+  is left of that licence question.

@@ -48,6 +48,7 @@ import { QuitSheet } from './QuitSheet.js';
 import { SetupSheet } from './SetupSheet.js';
 import { ShortcutsSheet } from './ShortcutsSheet.js';
 import { UpdateControl } from './UpdateSheet.js';
+import { ToolsControl } from './ToolsItem.js';
 import { BrowserPane } from './browser-pane.js';
 import type { OpenProject } from './browser-pane.js';
 import { MAC, useMenuCommands } from './menu-commands.js';
@@ -341,6 +342,7 @@ function ShellState({ connection, updates, info, held, inApp }: { connection: Co
           {UPDATES[updates]}
         </span>
       )}
+      <ToolsControl />
       {inApp && <UpdateControl />}
     </span>
   );

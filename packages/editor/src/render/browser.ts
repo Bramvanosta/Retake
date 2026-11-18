@@ -1,14 +1,16 @@
 /**
- * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
- * (looked up through playwright-core's browser registry — core/io browsers.ts —, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
- * revision: the app bundle's own when Retake runs from one — `@retake/core/io` bundle.ts), else none: a render then refuses to start
- * and says how to install the headless shell. Remotion never downloads a browser of its own.
+ * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else — in the app — its downloaded render
+ * browser (`<RETAKE_HOME>/tools`, core/io tools.ts: used only once its cheap check says ready), else — in a checkout —
+ * Playwright's Chromium headless shell (looked up through playwright-core's browser registry, core/io browsers.ts, so it
+ * follows PLAYWRIGHT_BROWSERS_PATH and the installed revision), else none: a render then refuses to start and says what
+ * to do (`retake tools install` in the app, the install command in a checkout). Remotion never downloads a browser of
+ * its own.
  */
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { policyProgram } from '@retake/core/policy';
 import type { WorkPolicy } from '@retake/core/policy';
-import { bundleInfo, insideBundle, playwrightBrowser, programLookup } from '@retake/core/io';
+import { appToolPath, bundleInfo, playwrightBrowser, programLookup, toolProblem } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import { RenderError } from './types.js';
 
@@ -22,7 +24,8 @@ export const HEADLESS_SHELL_INSTALL = 'pnpm --filter @retake/runner-web exec pla
 export interface RenderBrowser {
   /** Executable path, or null when there is none (a render refuses: `note` says what to install). */
   path: string | null;
-  source: 'env' | 'bundled' | 'playwright' | 'none';
+  /** `tools`: the app's downloaded render browser. */
+  source: 'env' | 'tools' | 'playwright' | 'none';
   /** Why the preferred source was not used (shown as a warning), or why there is no render browser. */
   note?: string;
 }
@@ -32,25 +35,33 @@ export function playwrightHeadlessShell(): string | null {
   return playwrightBrowser(require, 'chromium-headless-shell', { installed: true });
 }
 
-/** Why there is no render browser: an app without its headless shell, else a machine without Playwright's. */
-function missingNote(bundle: BundleInfo | null): string {
-  return bundle
-    ? `the app's headless shell is missing (${bundle.paths.browsers}): reinstall Retake`
-    : `Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`;
+/** Why there is no render browser in a checkout: Playwright's headless shell is not installed. */
+function missingNote(): string {
+  return `Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`;
+}
+
+/**
+ * The render browser of this engine's copy, without `$RETAKE_CHROMIUM_HEADLESS_SHELL`: the app's downloaded one (none,
+ * with what to do, while it is not downloaded or its check fails), else Playwright's (a checkout).
+ */
+function ownRenderBrowser(env: NodeJS.ProcessEnv, bundle: BundleInfo | null, shell: () => string | null): RenderBrowser {
+  if (bundle) {
+    const problem = toolProblem('render-browser', env, bundle);
+    return problem ? { path: null, source: 'none', note: problem } : { path: appToolPath('render-browser', env, bundle), source: 'tools' };
+  }
+  const pw = shell();
+  return pw ? { path: pw, source: 'playwright' } : { path: null, source: 'none', note: missingNote() };
 }
 
 export function renderBrowser(env: NodeJS.ProcessEnv = process.env, bundle: BundleInfo | null = bundleInfo(), shell: () => string | null = playwrightHeadlessShell): RenderBrowser {
-  const found = (p: string): RenderBrowser['source'] => (insideBundle(p, bundle) ? 'bundled' : 'playwright');
   const fromEnv = env[HEADLESS_SHELL_ENV];
   if (fromEnv) {
     if (existsSync(fromEnv)) return { path: fromEnv, source: 'env' };
-    const pw = shell();
+    const own = ownRenderBrowser(env, bundle, shell);
     const note = `$${HEADLESS_SHELL_ENV} points to a missing file (${fromEnv})`;
-    return pw ? { path: pw, source: found(pw), note } : { path: null, source: 'none', note: `${note}; ${missingNote(bundle)}` };
+    return own.path ? { ...own, note } : { ...own, note: `${note}; ${own.note}` };
   }
-  const pw = shell();
-  if (pw) return { path: pw, source: found(pw) };
-  return { path: null, source: 'none', note: missingNote(bundle) };
+  return ownRenderBrowser(env, bundle, shell);
 }
 
 /**
@@ -59,8 +70,8 @@ export function renderBrowser(env: NodeJS.ProcessEnv = process.env, bundle: Bund
  * the worker), one outside the workspace. Returns the executable to start: under the policy, the real path that was
  * checked.
  */
-export function assertRenderBrowser(b: RenderBrowser, work: WorkPolicy, bundle: BundleInfo | null = bundleInfo()): string {
-  if (!b.path) throw new RenderError(`no browser to render with: ${b.note ?? missingNote(bundle)}`);
+export function assertRenderBrowser(b: RenderBrowser, work: WorkPolicy): string {
+  if (!b.path) throw new RenderError(`no browser to render with: ${b.note ?? missingNote()}`);
   const what = b.source === 'env' ? `$${HEADLESS_SHELL_ENV}` : b.source === 'playwright' && process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : 'the render browser';
   const checked = policyProgram(work, b.path, what, programLookup());
   if (checked.problem) throw new RenderError(checked.problem);

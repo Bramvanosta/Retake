@@ -17,7 +17,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { ArtefactRenderer } from '../src/artefacts/render.js';
 import { RunnerError, extractSite, kitConfigFor, openSession, probeChromium, recordSession, signIn } from '../src/index.js';
-import { launchOptions, playwrightExecutable } from '../src/launch.js';
+import { ENABLE_AUTOMATION, GUARD_DISABLED_FEATURES, PLAYWRIGHT_DISABLED_FEATURES, launchOptions, playwrightExecutable } from '../src/launch.js';
 import { launchTarget } from '../src/session.js';
 import { renderCursorAtlas } from '../src/raw/index.js';
 import { startAuthServer } from '@retake/test-support/auth';
@@ -30,6 +30,17 @@ import type { BrandSite } from '@retake/test-support/site';
 import { retakeHome } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
+
+/** What launchOptions appends to a launch that disables no feature itself: site isolation, the command line reported, Playwright's features off and the guard's. */
+const TAIL = ['--site-per-process', ENABLE_AUTOMATION, `--disable-features=${[...PLAYWRIGHT_DISABLED_FEATURES, ...GUARD_DISABLED_FEATURES].join(',')}`];
+
+/** The last `--disable-features=` list of a command line (the one Chromium reads), as its entries. */
+const lastDisabled = (argv: readonly string[]) =>
+  argv
+    .filter((a) => a.startsWith('--disable-features='))
+    .at(-1)
+    ?.slice('--disable-features='.length)
+    .split(',');
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -110,8 +121,13 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
   });
 
   it('launchOptions turns the sandbox on, asks for site isolation, and refuses a switch that turns either off', () => {
-    expect(launchOptions({ policy: policy, args: ['--hide-scrollbars'] })).toEqual({ chromiumSandbox: true, args: ['--hide-scrollbars', '--site-per-process'] });
-    expect(launchOptions({ policy: policy, args: ['--site-per-process', '--hide-scrollbars'] }).args).toEqual(['--site-per-process', '--hide-scrollbars']);
+    expect(launchOptions({ policy: policy, args: ['--hide-scrollbars'] })).toEqual({ chromiumSandbox: true, args: ['--hide-scrollbars', ...TAIL] });
+    expect(launchOptions({ policy: policy, args: ['--site-per-process', '--hide-scrollbars', ENABLE_AUTOMATION] }).args).toEqual([
+      '--site-per-process',
+      '--hide-scrollbars',
+      ENABLE_AUTOMATION,
+      TAIL[2],
+    ]);
     expect(() => launchOptions({ policy: policy, args: ['--remote-debugging-port=9222'] })).toThrow(/Chromium was not launched: --remote-debugging-port opens a debugging port/);
     expect(() => launchOptions({ policy: policy, args: ['--hide-scrollbars', '--no-sandbox'] })).toThrow(RunnerError);
     expect(() => launchOptions({ policy: policy, args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(
@@ -119,10 +135,35 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     );
   });
 
+  it("launchOptions ends with one --disable-features list (Chromium reads the last): the runner's and browser.args' together, else Playwright's, and the guard's (RenderDocument) always", () => {
+    expect(GUARD_DISABLED_FEATURES).toEqual(['RenderDocument']);
+    const both = launchOptions({
+      policy: policy,
+      args: ['--hide-scrollbars', '--disable-features=Translate,MediaRouter'],
+      browserArgs: ['--disable-features=PaintHolding,Translate', '--lang=fr'],
+    }).args;
+    expect(both).toEqual(['--hide-scrollbars', '--lang=fr', '--site-per-process', ENABLE_AUTOMATION, '--disable-features=Translate,MediaRouter,PaintHolding,RenderDocument']);
+    // browser.args alone, a short spelling Chromium reads the same, an empty list: merged, never replacing the guard's.
+    expect(launchOptions({ policy: policy, args: [], browserArgs: ['-disable-features=PaintHolding', '--disable-features='] }).args.at(-1)).toBe('--disable-features=PaintHolding,RenderDocument');
+    expect(launchOptions({ policy: policy, args: ['--disable-features=RenderDocument'] }).args.filter((a) => a.includes('disable-features'))).toEqual(['--disable-features=RenderDocument']);
+    expect(lastDisabled(launchOptions({ policy: policy, args: [] }).args)).toEqual([...PLAYWRIGHT_DISABLED_FEATURES, 'RenderDocument']);
+  });
+
+  it("PLAYWRIGHT_DISABLED_FEATURES is playwright-core's own list (read from a real launch's command line)", async () => {
+    const b = await chromium.launch({ headless: true, args: [ENABLE_AUTOMATION] });
+    try {
+      const cdp = await b.newBrowserCDPSession();
+      const { arguments: argv } = (await cdp.send('Browser.getBrowserCommandLine')) as { arguments: string[] };
+      expect(lastDisabled(argv)).toEqual([...PLAYWRIGHT_DISABLED_FEATURES]);
+    } finally {
+      await b.close();
+    }
+  }, 60_000);
+
   it('under the agent policy (a job of the worker): no argument that is not a switch, none that loads code or files, no executable inside the workspace', () => {
     const ws = '/ws-of-an-agent';
     const args = ['--hide-scrollbars', 'https://example.com/', '--user-data-dir=/tmp/p', '--proxy-server=http://127.0.0.1:1'];
-    expect(launchOptions({ policy: policy, args: [], browserArgs: args }).args).toEqual([...args, '--site-per-process']);
+    expect(launchOptions({ policy: policy, args: [], browserArgs: args }).args).toEqual([...args, ...TAIL]);
     expect(launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
     policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
@@ -131,7 +172,7 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
       );
       expect(launchOptions({ policy: policy, args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
       // The allow-list is for browser.args: the runner's own switches come first and are not judged by it.
-      expect(launchOptions({ policy: policy, args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', '--site-per-process']);
+      expect(launchOptions({ policy: policy, args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', ...TAIL]);
       expect(() => launchOptions({ policy: policy, args: ['--lang=fr'], browserArgs: ['--a-switch-of-the-runner'] })).toThrow(/--a-switch-of-the-runner is not one of the switches/);
       // The always-refused switches stay refused in either list.
       expect(() => launchOptions({ policy: policy, args: ['--no-sandbox'], browserArgs: [] })).toThrow(/--no-sandbox turns Chromium's sandbox off/);
@@ -151,7 +192,7 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     async () => {
       const shell = playwrightExecutable(undefined, true);
       const full = playwrightExecutable('chromium', true);
-      expect(shell).toMatch(/headless_shell/);
+      expect(shell).toMatch(/chrome-headless-shell/);
       expect(full).not.toBe(shell);
       expect(playwrightExecutable(undefined, false)).toBe(full);
       // A workspace that holds Playwright's browser folder (as when PLAYWRIGHT_BROWSERS_PATH points into it).
@@ -161,7 +202,9 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
       policy = workPolicyFrom([browsers], policy.ffmpeg, policy.render);
       try {
         const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
-        expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
+        expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(
+          new RegExp(`^Chromium was not launched: ${why} \\(.*chrome-headless-shell.*\\) lies inside the workspace`),
+        );
         expect(() => launchTarget({}, { policy: policy })).toThrow(/lies inside the workspace/);
         expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy, headless: false })).toThrow(/lies inside the workspace/);
       } finally {
@@ -407,6 +450,75 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     expect(off).toEqual([]);
     expect(isolated).toBe(true);
     expect(argv).toContain('--window-size=800,600');
+  }, 60_000);
+
+  it('every browser launched above was started with --enable-automation (it reports its command line) and RenderDocument off (the last --disable-features list)', () => {
+    const sites = [...new Set(launched.map((l) => l.site))];
+    expect(sites.length).toBeGreaterThanOrEqual(hasOpenssl() ? 9 : 8);
+    for (const l of launched) {
+      expect(l.argv, l.site).toContain(ENABLE_AUTOMATION);
+      expect(lastDisabled(l.argv), l.site).toContain('RenderDocument');
+    }
+    // The capture session keeps its own list (Translate, MediaRouter) beside the guard's.
+    expect(lastDisabled(launched.find((l) => l.site === 'session')!.argv)).toEqual(['Translate', 'MediaRouter', 'RenderDocument']);
+  });
+});
+
+describe('each launch site refuses a browser that does not report its command line (an executable that drops --enable-automation): it cannot be checked', () => {
+  let dir: string;
+  let app: TestServer;
+  let saved: string | undefined;
+  const REFUSED = /was refused: it does not report its command line, so its sandbox and site isolation cannot be checked/;
+
+  beforeAll(async () => {
+    dir = await tempDir('rw-launch-mute-');
+    const wrapper = join(dir, 'chromium-mute.sh');
+    const body = `#!/bin/sh\nfor a do shift; [ "$a" = ${ENABLE_AUTOMATION} ] || set -- "$@" "$a"; done\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`;
+    await writeFile(wrapper, body, { mode: 0o755 });
+    app = await startServer({ '/': '<!doctype html><title>App</title><h1>Orders</h1>' });
+    saved = process.env.RETAKE_CHROMIUM;
+    process.env.RETAKE_CHROMIUM = wrapper;
+  }, 60_000);
+
+  afterAll(async () => {
+    if (saved === undefined) delete process.env.RETAKE_CHROMIUM;
+    else process.env.RETAKE_CHROMIUM = saved;
+    await app?.close();
+    if (dir) await rm(dir, { recursive: true, force: true });
+  });
+
+  it('the capture session refuses it', async () => {
+    await expect(openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) })).rejects.toThrow(REFUSED);
+  }, 60_000);
+
+  it('the artefact renderer refuses it', async () => {
+    const r = new ArtefactRenderer({}, policy);
+    try {
+      await expect(r.email('<!doctype html><p>Your quote is ready.</p>', join(dir, 'mail.png'))).rejects.toThrow(REFUSED);
+    } finally {
+      await r.close();
+    }
+  }, 60_000);
+
+  it('the recording window refuses it', async () => {
+    const project = makeProject(await tempDir('rw-launch-mute-record-'), { app: app.url });
+    await expect(
+      recordSession({
+        policy: policy,
+        project,
+        env: resolveEnvironment(project, 'test'),
+        url: `${app.url}/`,
+        headless: true,
+        windowSize: { width: 800, height: 600 },
+        drive: async (page) => void (await page.close()),
+      }),
+    ).rejects.toThrow(REFUSED);
+  }, 60_000);
+
+  it("the doctor's probe launches it and says the sandbox was not reported (no refusal there)", async () => {
+    const probe = await probeChromium(undefined, { policy: policy });
+    expect(probe.launched, probe.error).toBe(true);
+    expect(probe.sandbox).toBeUndefined();
   }, 60_000);
 });
 

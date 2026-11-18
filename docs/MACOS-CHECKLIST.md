@@ -1851,10 +1851,12 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
    a scratch branch: it is refused before anything is built — delete that tag afterwards). Remove one secret of a set
    (on a scratch fork): the run fails in "What is configured", naming it. On a private scratch repository with the
    updater set, the run fails there too ("the repository is not public"), before `build`.
-2. `build`: "Node.js is the pinned binary" and `check-pins` pass — **if either fails with a digest, the runner's
-   download lays files out differently from this Mac's**: check the run's own install, then record the digest it
-   printed (`apps/desktop/bundle/node.json` / `browsers.json`, DESIGN §4p (e)) and tag again. Note the job's time
-   (cold: ffmpeg, cargo).
+2. `build`: "Node.js is the pinned binary" and "The Tools, downloaded from their publishers and checked against
+   tools.json" pass (BL-192: `check-tools --fetch` meets the publishers for the first time here) — **if Node.js fails
+   with a digest, the runner's download lays files out differently from this Mac's**: check the run's own install,
+   then record the digest it printed (`apps/desktop/bundle/node.json`, DESIGN §4p (e)) and tag again; if a Tool fails,
+   a published archive is not the one recorded: record tools.json again from the real archives (RELEASING step 1), see
+   what changed, and make a new version. Note the job's time (cold: ffmpeg, cargo).
 3. `sign`: no pnpm, no Homebrew, no cargo in its log; the artifact's sha256 check passes; the keychain import passes
    (its `security -i` commands meet the real `security` here for the first time); the log says it signed with the
    Developer ID (not "an ad hoc build"), the notarisation waits and both staples succeed; the last step removed the
@@ -2017,6 +2019,69 @@ scratch workspace (`RETAKE_ROOT` and `RETAKE_HOME` in a temp folder), with the n
 5. **Refusals worth seeing once.** `retake theme fetch-font fontsource:inter@1.0.0:400` (a version that may not exist,
    or without latin files) is refused with the reason; a family whose licence is neither OFL-1.1 nor Apache-2.0 is
    refused naming its licence. Delete the scratch workspace afterwards.
+
+## 21. The Tools: downloaded on a click, on your Mac (BL-192)
+
+The tests never reach the publishers: they install from small fixture archives, from the three real archives kept in a
+scratch folder (`--from-archives`) or from Playwright's cache. What only a real Mac and the real network show is here.
+Use an app built from this version (`pnpm desktop:bundle`, or the release), copied to /Applications, and a Retake home
+without a `tools/` folder (a new macOS account, or `RETAKE_HOME` pointing at an empty scratch folder for the app: then
+the Tools page's folder says "(the home RETAKE_HOME sets)").
+
+1. **The first download.** Open the app: the Set-up sheet's first item, "Browser and render tools", says "Needed: not
+   downloaded yet" with three rows (Render browser, Compositor, Browser: versions 159.0.8154.6 and 4.0.534, publishers
+   Google and Remotion) and **Download · 315 MB**. `retake doctor` says Tools, Browser, Render browser and Compositor
+   "not downloaded yet" (WARN, not FAIL). Click Download: three bars, the line "Downloading · N of 315 MB · about … left",
+   then each row "Checked". Click Done while it runs: the status bar shows "Downloading tools · N %" and the download goes
+   on. Note the time it took and the network. Then `retake doctor`: every line OK, "downloaded Tools", folder under
+   `~/.retake/tools/`; `ls -l ~/.retake/tools/browsers` shows read-only folders (`dr-xr-xr-x`).
+2. **A job asked before the Tools.** On a fresh home again, start a capture of the fixture (`quote`) from the Studio
+   before clicking Download: Shoot says "Waiting for the browser" and the status bar "a run waits for the browser to be
+   downloaded"; it does not fail. Click Download: the capture starts by itself once the browser is checked, without a
+   click. Do the same with a render (it waits for "the render tools"). Cancel one waiting job: it is cancelled at once.
+3. **Offline and resume.** During a download, turn Wi-Fi off: the item says "Stopped: no connection" after Retake
+   tried again for a while (up to about 10 minutes), with "What arrived is kept". Turn Wi-Fi on, click Resume: it goes
+   on from the megabytes it had, not from zero. Then Pause and quit the app mid-download; open it again and click
+   Download: it goes on from what arrived. Then Cancel: `~/.retake/tools/.partial/` is empty.
+4. **The same from a terminal.** On a fresh home: `/Applications/Retake.app/Contents/Resources/bin/retake tools
+   install`: one line of progress per part, then three "checked" lines. Start it again from a second terminal while
+   the first runs: it says the Tools are being downloaded by another `retake tools install` and follows it; open the
+   Studio meanwhile: its item shows the same progress. Ctrl-C in the first terminal pauses (exit 130).
+5. **Check again.** The Tools page (the item's Show details, or `#/setup/tools`): Check again says "Today …, every file
+   matches". Then make one file of a Tool writable and change it (`chmod u+w` a file of
+   `~/.retake/tools/compositor-4.0.534/`, append a byte), Check again: that Tool is "Damaged", doctor FAILs naming
+   `retake tools check, then retake tools install`, a render is refused or waits; Download again restores it with one download (the damaged folder is replaced). Click
+   Check again while a download runs: it says the Tools are busy and checks nothing.
+6. **Remove….** After an update across a Tools change (step 7), or with an older folder made by hand from another
+   revision: the Tools page shows "Older versions · N MB"; Remove… asks first, then says what was removed and what was
+   kept and why. **App Management**: when the app removes an old revision, macOS may ask whether Retake may "modify
+   apps on your Mac" (the folders hold `.app` bundles). Note whether the prompt appears, its words, and what happens
+   when you refuse it (the folder should stay, and the page should say it could not be removed).
+7. **An update across a Tools change.** With a version installed whose Tools are ready, update to one whose tools.json
+   names another revision (15d's feed, two builds): after the signature check the update sheet shows the step
+   "Download the Tools it needs · N MB" with its bar and the list of its Tools ("already here" for an unchanged one);
+   the current app keeps capturing meanwhile; then the restart. The new version needs no download (its item says
+   Ready) and, after its first start, the old revision is gone from `~/.retake/tools/browsers`. Turn Wi-Fi off during
+   the Tools step once: the update fails with `tools`, nothing is installed, the old version still works, Try again
+   goes on.
+8. **The headed windows on Chrome 159.** `retake login <project>` (a visible window) and a recording (`retake record`,
+   and the Studio's Record): look for an "is being controlled by automated test software" bar at the top of the
+   window (Retake passes `--enable-automation`; Playwright's own default switches include `--disable-infobars`); note it if it shows, and
+   check the recorded draft's frame size is right. Sign in once, then capture with that persona: no "profile is
+   newer" refusal.
+9. **A managed Mac.** On a Mac with an MDM profile or a binary-authorisation tool (Santa), run step 1: does any file
+   under `~/.retake/tools/` carry `com.apple.quarantine` (`xattr -r ~/.retake/tools | grep quarantine`)? Does the
+   browser start (a capture, `retake doctor`'s Browser line)? Note what blocks it and the exact message (BACKLOG
+   BL-194).
+10. **Two copies.** With two app versions whose Tools differ (two builds, each in its own folder) on one Retake home,
+   each started once: `retake tools prune` from either never removes the other's current Tools (the 30-day start
+   records); `--force` keeps only this version's Tools (a pending update's go too).
+11. **An update whose Tools this version cannot read.** When a release changes the Tools' format (RELEASING step 1),
+   update an older app to it: the update sheet's Tools step downloads nothing and the update goes on (the log says
+   `skip`); the new version's first start shows the Set-up item "Needed: not downloaded yet", and jobs wait.
+12. **A project on its own browser.** With the Tools not downloaded, a project whose `browser.executable` names an
+   installed Chrome (or `channel: chrome`): `retake run` and a capture from the Studio start at once; Shoot shows no
+   "Waiting for the browser".
 
 ## Results — first pass (L1.5, 2026-10-12)
 

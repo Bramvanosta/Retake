@@ -241,6 +241,28 @@ describe('recordSession: what is recorded', () => {
     expect(r.counts.actions).toBe(actions(r).length);
     expect(ev.at(-1)).toMatchObject({ kind: 'stop', reason: 'closed' });
   }, 90_000);
+
+  it("⚑ a wheel scroll from rest is the person's, recorded before the press it led to; the route's scroll to the top after it is the app's", async () => {
+    // A passive wheel listener runs after the compositor scrolled: its baseline is where the page was before the wheel's
+    // time stamp. Read when the listener runs, it was the scrolled position: the wheel was lost, and the route's scroll to
+    // the top recorded in its place when the press came within a second of the wheel (and nothing when it came later).
+    const { r } = await record(
+      async (page) => {
+        await page.mouse.wheel(0, 900);
+        await page.waitForTimeout(800);
+        await page.getByText('Selowa Ridge').first().click();
+        await page.getByRole('button', { name: 'Request a quote' }).waitFor();
+        await page.waitForTimeout(800);
+      },
+      { url: `${fixture.urls.shop}/` },
+    );
+    const ev = r.events;
+    const press = ev.findIndex((e) => e.kind === 'pointer');
+    const scrolls = ev.filter((e): e is Extract<RecordedEvent, { kind: 'scroll' }> => e.kind === 'scroll');
+    expect(scrolls.map((e) => [e.container, e.dy, ev.indexOf(e) < press])).toEqual([['document', 900, true]]);
+    const d = draftFromRecording(ev, { name: 'wheel', env: 'test', envIsDefault: true, pages: { shop: fixture.urls.shop, console: fixture.urls.console }, persona: null, access: 'read-write' });
+    expect(d.yaml).toMatch(/- scroll: \{to: .+\}\n\s+- click: /);
+  }, 60_000);
 });
 
 describe('recordSession: the page cannot see or feed the recorder', () => {

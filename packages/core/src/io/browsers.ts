@@ -1,7 +1,8 @@
 /**
  * Where playwright-core keeps its browsers (its private registry was read from two packages, each with its own
- * copy of the registry's shape): the one module that names playwright-core's browser registry. Its
- * path is private to playwright-core (`lib/server/registry`), so the registry's path and shape are written here once;
+ * copy of the registry's shape): the one module that names playwright-core's browser registry. It is private to
+ * playwright-core (since 1.57 its `exports` let only `lib/coreBundle` be loaded, the registry under its `registry` key;
+ * before, `lib/server/registry/index`), so the registry's path and shape are written here once;
  * the import-rules ratchet's `browser-registry` check counts the path named anywhere else in packages/*\/src.
  *
  * Core does not depend on playwright-core: each caller hands its own `require` (its `createRequire(import.meta.url)`),
@@ -11,15 +12,15 @@
  */
 import { existsSync } from 'node:fs';
 
-/** The private module of playwright-core that holds its browser registry. */
-export const PLAYWRIGHT_REGISTRY_MODULE = 'playwright-core/lib/server/registry/index';
+/** The private module of playwright-core that holds its browser registry (under its `registry` key). */
+export const PLAYWRIGHT_REGISTRY_MODULE = 'playwright-core/lib/coreBundle';
 
 /** The registry's names of the browsers Retake starts: Chromium (headed, a channel's default) and its headless shell. */
 export type PlaywrightBrowserName = 'chromium' | 'chromium-headless-shell' | (string & {});
 
 /** The part of the registry read here (playwright-core's own shape, private). */
-interface PlaywrightRegistry {
-  registry: { findExecutable(name: string): { executablePath(lang?: string): string | undefined } | undefined };
+interface PlaywrightCoreBundle {
+  registry: { registry: { findExecutable(name: string): { executablePath(lang?: string): string | undefined } | undefined } };
 }
 
 /** What loads a module for the caller (its `createRequire(import.meta.url)`). */
@@ -33,7 +34,7 @@ export type ModuleRequire = (id: string) => unknown;
  */
 export function playwrightBrowser(require: ModuleRequire, name: PlaywrightBrowserName, o: { installed?: boolean } = {}): string | null {
   try {
-    const { registry } = require(PLAYWRIGHT_REGISTRY_MODULE) as PlaywrightRegistry;
+    const { registry } = (require(PLAYWRIGHT_REGISTRY_MODULE) as PlaywrightCoreBundle).registry;
     const exe = registry.findExecutable(name)?.executablePath('javascript');
     if (!exe) return null;
     return o.installed && !existsSync(exe) ? null : exe;

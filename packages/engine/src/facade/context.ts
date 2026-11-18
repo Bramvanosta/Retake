@@ -34,6 +34,7 @@ import { RunThumbs } from '../run-thumbs.js';
 import { ScenarioViews } from '../views/scenario-view.js';
 import type { StoreScope } from '../store/store.js';
 import { openWorkspace } from '../workspace.js';
+import { cachedProjectBrowsers } from '../tools/tool-need.js';
 import { scenarioSessions } from './sessions.js';
 import type { EngineOptions, RunStatusWithJob, ScenarioSessions } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -173,6 +174,9 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
   const { queue, files: jobFiles } = ports.queues(ws.root, studio, ports.clock, ports.env);
+  // The queue's Tools waiting: each project's own browser (read through the WorkspaceReads port), and a fake app's
+  // Tools (tests: the queue's gate reads the same app as engine.tools).
+  queue.useTools({ browsers: cachedProjectBrowsers(async (slug) => (await openProjectBySlug(ws, slug)).config.browser), ...(opts.tools?.bundle !== undefined ? { app: opts.tools.bundle } : {}) });
   const caches = engineCaches();
   const commentIndex = new CommentIndex();
   const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };

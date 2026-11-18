@@ -257,7 +257,7 @@ describe('the heavy slot with a stand-in job process', () => {
       );
       expect(end.error?.message ?? '').not.toMatch(/approvals of job .* were taken by an earlier claim/);
       expect(end.supervisor?.pid ?? end.worker?.pid).not.toBe(process.pid);
-      expect(existsSync(used)).toBe(true);
+      expect(existsSync(used), `the job ended ${end.state}: ${end.error?.message ?? 'no error'}`).toBe(true);
       await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
     } finally {
       stopNext();

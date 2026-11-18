@@ -84,6 +84,8 @@ export interface JobView {
   state: string;
   pause_requested: boolean;
   cancel_requested: boolean;
+  /** A queued job the app's Tools hold: what it waits for (the browser; the render tools for the headless shell). */
+  waits_for?: 'browser' | 'render';
 }
 
 export interface LiveFrame {

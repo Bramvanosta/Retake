@@ -2,8 +2,9 @@
  * The release's last half and what the build pins (fast, no network, never a real identity, keychain
  * or notarisation): apps/desktop/scripts/release.mjs (`finishApp` from an ad hoc app: refusals first, the version the
  * app must carry, the update archive with no stale file, the DMG's folder, the Developer ID re-signature inside-out
- * through recording stand-ins; the `--out` folder; the command line), bundle.mjs's pins (the Node.js binary, the
- * browsers' tree digests), the Tauri CLI folder checked file by file and run from a fresh copy of its checked bytes
+ * through recording stand-ins; the `--out` folder; the command line), bundle.mjs's pins (the Node.js binary; the Tools
+ * the app downloads: tools.json recorded from archives by record-tools and checked by check-tools against the
+ * repository's playwright-core and lockfile, fixture archives and an injected fetch only), the Tauri CLI folder checked file by file and run from a fresh copy of its checked bytes
  * (made right before the update archive is signed, removed right after, HOME in it, its module lookup checked), the
  * build job's archive read member by member and unpacked to its two parts only (crafted archives: other members, `..`,
  * absolute names, AppleDouble names, hard links, devices, links out of the app, damaged headers), hdiutil tried again
@@ -11,12 +12,17 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
+import { readToolsManifest } from '@retake/core/io';
+import type { ToolEntry } from '@retake/core/io';
+import { installToolsFor } from '@retake/engine/tools';
+import { fakeToolsBundle, toolFixtures } from '@retake/test-support/tools';
+import type { FixtureTools } from '@retake/test-support/tools';
 
 // biome-ignore lint/suspicious/noExplicitAny: what this test reads (JSON, page globals, the repository's .mjs scripts) has no declared type
 type Untyped = any;
@@ -25,7 +31,13 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
 const RELEASE = join(APP, 'scripts', 'release.mjs');
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-release-sign-')));
-afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+afterAll(() => {
+  // Installed Tools are read-only.
+  spawnSync('/bin/chmod', ['-R', 'u+w', tmp]);
+  rmSync(tmp, { recursive: true, force: true });
+});
+const clock = { now: () => Date.now(), monotonic: () => performance.now() };
+const toolsModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'tools.mjs')).href)) as Untyped;
 const MAC = process.platform === 'darwin';
 
 const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as Untyped;
@@ -131,13 +143,13 @@ function miniApp({ version = '0.2.0', updates = 'off' } = {}) {
   );
   put(app, 'Contents/MacOS/retake-desktop', THIN, 0o755);
   put(app, 'Contents/Resources/node/bin/node', THIN, 0o755);
-  put(app, 'Contents/Resources/bundle.json', JSON.stringify({ v: 1, app: version, ffmpeg: null, paths: { node: 'node/bin/node', ffmpeg: null }, sha256: { node: 'stale' } }));
+  put(app, 'Contents/Resources/bundle.json', JSON.stringify({ v: 2, app: version, ffmpeg: null, paths: { node: 'node/bin/node', ffmpeg: null }, sha256: { node: 'stale' } }));
   put(app, 'Contents/Resources/launch.json', JSON.stringify({ version: 2, bundled: true, updates }));
   symlinkSync('node/bin/node', join(app, 'Contents', 'Resources', 'node-link'));
   return { appDir, app };
 }
 
-describe('the pins: the Node.js binary and the browsers the stage copies', () => {
+describe('the pins: the Node.js binary, and the Tools the app downloads (tools.json)', () => {
   it('checkNode: the pinned version and binary pass; another version, another binary or another platform is refused in one sentence that says what to do', async () => {
     const { checkNode, NODE_PIN } = await bundleModule();
     const bin = join(dir('node'), 'node');
@@ -164,59 +176,203 @@ describe('the pins: the Node.js binary and the browsers the stage copies', () =>
     expect(stageInto.indexOf('checkNode();')).toBeLessThan(stageInto.indexOf('cpSync(process.execPath, nodeBin);'));
   });
 
-  it("browserDigest: every path, link, size, executable bit and byte counts, Playwright's markers do not; checkBrowser refuses another tree or a revision with no pin", async () => {
-    const { browserDigest, checkBrowser, BROWSER_PINS } = await bundleModule();
-    const tree = () => {
-      const d = join(dir('browser'), 'chromium-9999');
-      put(d, 'chrome-mac/Chromium.app/Contents/MacOS/Chromium', THIN, 0o755);
-      put(d, 'chrome-mac/Chromium.app/Contents/Resources/en.lproj/locale.pak', 'words');
-      symlinkSync('Versions/A', join(d, 'chrome-mac', 'Current'));
-      put(d, 'INSTALLATION_COMPLETE');
-      return d;
-    };
-    const base = browserDigest(tree());
-    expect(base).toMatch(/^[0-9a-f]{64}$/);
-    const variants: Array<(d: string) => void> = [
-      (d) => writeFileSync(join(d, 'chrome-mac/Chromium.app/Contents/Resources/en.lproj/locale.pak'), 'wordz'),
-      (d) => chmodSync(join(d, 'chrome-mac/Chromium.app/Contents/Resources/en.lproj/locale.pak'), 0o755),
-      (d) => (rmSync(join(d, 'chrome-mac', 'Current')), symlinkSync('Versions/B', join(d, 'chrome-mac', 'Current'))),
-      (d) => put(d, 'chrome-mac/extra', ''),
-    ];
-    for (const change of variants) {
-      const d = tree();
-      change(d);
-      expect(browserDigest(d)).not.toBe(base);
+  /** What the fixture Tools (test-support toolFixtures, version 0.0.1) pin, in repoPins' shape. */
+  const fixturePins = (fx: FixtureTools) => {
+    const tgz = readFileSync(fx.byId('compositor').archive);
+    const browser = { revision: '001', version: '0.0.1' };
+    return { browser, 'render-browser': browser, compositor: { version: '0.0.1', integrity: `sha512-${createHash('sha512').update(tgz).digest('base64')}` } };
+  };
+  /** A fetch serving `files` (URL → bytes) as the publishers would; `over` answers some URLs another way. */
+  const serve =
+    (files: Map<string, Buffer>, over: (url: string) => Response | undefined = () => undefined) =>
+    async (url: string) =>
+      over(url) ?? (files.has(url) ? new Response(new Uint8Array(files.get(url)!), { status: 200, headers: { 'content-length': String(files.get(url)!.length) } }) : new Response('', { status: 404 }));
+  const filesOf = (fx: FixtureTools) => new Map(fx.tools.map((t) => [t.entry.url, t.bytes]));
+
+  it("record-tools from a folder of archives: each archive's size and sha256, extracted by the installer's own code, the browser's install.sh pruned, the tree digest of the rest — and the recorded file installs", async () => {
+    const { recordTools, TOOL_ORDER } = await toolsModule();
+    const fx = await toolFixtures(dir('fx'));
+    const out = join(dir('rec'), 'tools.json');
+    const before = Object.fromEntries(fx.tools.map((t) => [t.archive, createHash('sha256').update(readFileSync(t.archive)).digest('hex')]));
+    const entries = await recordTools({ from: fx.archives, pins: fixturePins(fx), out });
+    expect(entries.map((e: Untyped) => e.id)).toEqual(TOOL_ORDER);
+    for (const e of entries) {
+      const want = fx.byId(e.id).entry;
+      // The fixtures' digests are computed from their source trees (less the pruned script): record-tools finds the same.
+      for (const k of ['folder', 'url', 'archive', 'bytes', 'sha256', 'root', 'tree', 'disk', 'executable', 'prune', 'markers']) expect(e[k], `${e.id} ${k}`).toEqual(want[k as keyof typeof want]);
     }
-    const marked = tree();
-    put(marked, 'DEPENDENCIES_VALIDATED', '');
-    writeFileSync(join(marked, 'INSTALLATION_COMPLETE'), 'rewritten');
-    expect(browserDigest(marked)).toBe(base);
-    expect(() => checkBrowser(tree(), 'chromium-9999', { digests: { 'chromium-9999': base } })).not.toThrow();
-    const other = tree();
-    put(other, 'chrome-mac/extra', '');
-    expect(() => checkBrowser(other, 'chromium-9999', { digests: { 'chromium-9999': base } })).toThrow(
-      /is not the chromium-9999 apps\/desktop\/bundle\/browsers\.json pins \(digest [0-9a-f]{64}, pinned [0-9a-f]{64}\): reinstall it/,
+    expect(entries.find((e: Untyped) => e.id === 'browser').prune).toEqual(['chrome-mac-arm64/Fixture Browser.app/Contents/Frameworks/Fixture.framework/Versions/0.0.1/Resources/install.sh']);
+    expect(entries.find((e: Untyped) => e.id === 'compositor').integrity).toBe(fixturePins(fx).compositor.integrity);
+    // The file core reads, the archives untouched.
+    const file = JSON.parse(readFileSync(out, 'utf8'));
+    expect(Object.keys(file)).toEqual(['v', 'about', 'platforms']);
+    expect(readToolsManifest(out, 'darwin-arm64')).toEqual(entries);
+    for (const [a, sum] of Object.entries(before)) expect(createHash('sha256').update(readFileSync(a)).digest('hex')).toBe(sum);
+    // What it recorded is what the installer accepts: an install from the same archives is ready.
+    const home = dir('home');
+    const r = await installToolsFor({ env: { RETAKE_HOME: home }, clock, bundle: fakeToolsBundle(dir('app'), entries) }, { by: 'cli', source: { from: 'archives', dir: fx.archives } });
+    expect(r.outcome, r.message).toBe('ready');
+    // Refusals: a tarball that is not the lockfile's, an archive missing, a layout whose pruned script is gone.
+    const pins = fixturePins(fx);
+    await expect(recordTools({ from: fx.archives, pins: { ...pins, compositor: { ...pins.compositor, integrity: `sha512-${'A'.repeat(86)}==` } }, out })).rejects.toThrow(
+      /is not the @remotion\/compositor-darwin-arm64 pnpm-lock\.yaml pins \(integrity sha512-/,
     );
-    expect(() => checkBrowser(other, 'chromium-9999', { digests: {} })).toThrow(
-      /pins no digest for chromium-9999: record it from a checked install \(node apps\/desktop\/scripts\/bundle\.mjs browser-digest /,
-    );
-    // The committed pins cover exactly the revisions the repository's playwright-core pins; the stage checks each
-    // folder before it copies it.
-    const pw = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
-    const rev = (name: string) => pw.find((b: Untyped) => b.name === name).revision;
-    expect(Object.keys(BROWSER_PINS.digests).sort()).toEqual([`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`].sort());
-    for (const v of Object.values(BROWSER_PINS.digests)) expect(v).toMatch(/^[0-9a-f]{64}$/);
-    const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
-    expect(src).toMatch(/checkBrowser\(from, folder\);\n\s+run\('ditto', \[from, join\(browsers, folder\)\]\);/);
+    const partial = dir('partial');
+    copyFileSync(fx.byId('render-browser').archive, join(partial, 'chrome-headless-shell-mac-arm64.zip'));
+    await expect(recordTools({ from: partial, pins, out })).rejects.toThrow(/holds no compositor-darwin-arm64-0\.0\.1\.tgz \(the compositor of https:\/\/registry\.npmjs\.org\//);
+    const noScript = dir('no-script');
+    for (const t of fx.tools) copyFileSync(t.archive, join(noScript, basename(t.archive)));
+    const src = join(dir('src'), 'tree');
+    spawnSync('/usr/bin/ditto', [fx.byId('browser').source, src]);
+    rmSync(join(noScript, 'chrome-mac-arm64.zip'));
+    spawnSync('/usr/bin/ditto', ['-c', '-k', '--norsrc', '--noextattr', src, join(noScript, 'chrome-mac-arm64.zip')]);
+    await expect(recordTools({ from: noScript, pins, out })).rejects.toThrow(/nothing matches the pruned chrome-mac-arm64\/\*\.app\/.*install\.sh/);
   });
 
-  it("the command line: check-node, check-pins (what the release workflow's build job runs after the browsers' install) and browser-digest", () => {
+  it("record-tools from the publishers (an injected fetch, never the network): each hop on the Tools' hosts only, no content encoding; the redirect chain said", async () => {
+    const { recordTools } = await toolsModule();
+    const fx = await toolFixtures(dir('fx'));
+    const files = filesOf(fx);
+    const browserUrl = fx.byId('browser').entry.url;
+    const moved = 'https://storage.googleapis.com/elsewhere/chrome-mac-arm64.zip';
+    files.set(moved, fx.byId('browser').bytes);
+    const log: string[] = [];
+    const redirect = (to: string) => new Response(null, { status: 302, headers: { location: to } });
+    const ok = serve(files, (u) => (u === browserUrl ? redirect(moved) : undefined));
+    const entries = await recordTools({ fetchInto: dir('dl'), fetch: ok, pins: fixturePins(fx), out: join(dir('rec'), 'tools.json'), log: (l: string) => log.push(l) });
+    // The URL recorded is the publisher's, the archive the one it led to.
+    expect(entries.find((e: Untyped) => e.id === 'browser')).toMatchObject({ url: browserUrl, sha256: fx.byId('browser').entry.sha256 });
+    expect(log.join('\n')).toContain(`(through ${browserUrl} → ${moved})`);
+    const refused: Array<[(u: string) => Response | undefined, RegExp]> = [
+      [(u) => (u === browserUrl ? redirect('https://downloads.example.com/chrome-mac-arm64.zip') : undefined), /refused a redirect: url https:\/\/downloads\.example\.com\/.* is not one of the hosts/],
+      [(u) => (u === browserUrl ? redirect('http://storage.googleapis.com/x.zip') : undefined), /refused a redirect: url http:\/\/storage\.googleapis\.com\/x\.zip: https only/],
+      [(u) => (u === browserUrl ? new Response('zz', { status: 200, headers: { 'content-encoding': 'gzip' } }) : undefined), /came with Content-Encoding gzip/],
+      [(u) => (u === browserUrl ? new Response('', { status: 403 }) : undefined), /answered 403/],
+    ];
+    for (const [over, msg] of refused) await expect(recordTools({ fetchInto: dir('dl'), fetch: serve(files, over), pins: fixturePins(fx), out: join(dir('rec'), 'tools.json') })).rejects.toThrow(msg);
+    await expect(recordTools({ from: fx.archives, fetchInto: dir('dl'), pins: fixturePins(fx) })).rejects.toThrow(/--from <folder of archives> \| --fetch/);
+  });
+
+  it("check-tools: tools.json names exactly what the repository pins (playwright-core's revisions and browser version, the lockfile's compositor and integrity); any difference is refused", async () => {
+    const { readTools, repoPins, toolsProblems, wantedTools, TOOLS_FILE } = await toolsModule();
+    // The committed file, against the repository: the revisions of every playwright-core of the packages, the lockfile.
+    const pins = repoPins();
+    const entries = readTools();
+    expect(toolsProblems(entries, pins)).toEqual([]);
+    const pw = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
+    const rev = (name: string) => pw.find((b: Untyped) => b.name === name);
+    expect(entries.map((e: Untyped) => e.folder)).toEqual([
+      `browsers/chromium_headless_shell-${rev('chromium-headless-shell').revision}`,
+      `compositor-${pins.compositor.version}`,
+      `browsers/chromium-${rev('chromium').revision}`,
+    ]);
+    expect(entries.find((e: Untyped) => e.id === 'browser').url).toBe(`https://storage.googleapis.com/chrome-for-testing-public/${rev('chromium').browserVersion}/mac-arm64/chrome-mac-arm64.zip`);
+    const lock = readFileSync(join(REPO, 'pnpm-lock.yaml'), 'utf8');
+    expect(lock).toContain(`'@remotion/compositor-darwin-arm64@${pins.compositor.version}':\n    resolution: {integrity: ${entries[1].integrity}}`);
+    // Every recorded digest, the sizes (the Studio's "Download · N MB").
+    for (const e of entries) {
+      expect(e.sha256, e.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(e.tree, e.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(e.bytes, e.id).toBeGreaterThan(1e6);
+    }
+    expect(Math.round(entries.reduce((n: number, e: Untyped) => n + e.bytes, 0) / 1e6)).toBe(315);
+    // Each difference is one problem naming the field.
+    const cases: Array<[Untyped, RegExp]> = [
+      [{ ...pins, browser: { ...pins.browser, revision: '9999' } }, /tools\.json browser: folder is "browsers\/chromium-\d+", the repository pins "browsers\/chromium-9999"/],
+      [
+        { ...pins, 'render-browser': { ...pins['render-browser'], version: '160.0.0.1' } },
+        /render-browser: version is .*, the repository pins "160\.0\.0\.1"[\s\S]*render-browser: url is .*the repository pins "https:\/\/storage\.googleapis\.com\/chrome-for-testing-public\/160\.0\.0\.1\//,
+      ],
+      [{ ...pins, compositor: { ...pins.compositor, integrity: `sha512-${'A'.repeat(86)}==` } }, /compositor: integrity is "sha512-.*", the repository pins "sha512-AAAA/],
+      [{ ...pins, compositor: { ...pins.compositor, version: '4.0.1' } }, /compositor: folder is "compositor-[\d.]+", the repository pins "compositor-4\.0\.1"/],
+    ];
+    for (const [other, msg] of cases) expect(toolsProblems(entries, other).join('\n')).toMatch(msg);
+    // A field the repository does not pin but the app relies on (the archive's kind, the markers) is checked too.
+    expect(
+      toolsProblems(
+        entries.map((e: Untyped) => (e.id === 'browser' ? { ...e, markers: [] } : e)),
+        pins,
+      ).join('\n'),
+    ).toMatch(/browser: markers is \[\]/);
+    expect(toolsProblems([entries[2], entries[0], entries[1]], pins).join('\n')).toMatch(/lists browser, render-browser, compositor, not render-browser, compositor, browser/);
+    expect(wantedTools(pins).compositor.url).toBe(`https://registry.npmjs.org/@remotion/compositor-darwin-arm64/-/compositor-darwin-arm64-${pins.compositor.version}.tgz`);
+    // readTools refuses a file that does not match, saying how to record it again.
+    const bad = join(dir('bad'), 'tools.json');
+    const file = JSON.parse(readFileSync(TOOLS_FILE, 'utf8'));
+    file.platforms['darwin-arm64'][2].folder = 'browsers/chromium-1';
+    writeFileSync(bad, JSON.stringify(file));
+    expect(() => readTools(bad, pins)).toThrow(/does not match the repository's pins — record it again \(node apps\/desktop\/scripts\/bundle\.mjs record-tools --from <archives>\)/);
+    // Every playwright-core of the packages must pin the same browsers; the lockfile one compositor.
+    const pw2 = join(dir('pw'), 'playwright-core');
+    mkdirSync(pw2);
+    writeFileSync(join(pw2, 'browsers.json'), JSON.stringify({ browsers: [{ name: 'chromium', revision: '1', browserVersion: '1.0' }] }));
+    expect(() => repoPins({ playwright: pw2 })).toThrow(/pins no chromium-headless-shell/);
+    const lockless = join(dir('lock'), 'pnpm-lock.yaml');
+    writeFileSync(lockless, 'packages:\n');
+    expect(() => repoPins({ lockfile: lockless })).toThrow(/lists 0 @remotion\/compositor-darwin-arm64 packages, not one/);
+  });
+
+  it("check-tools with archives: each archive is the recorded one (size, sha256, integrity) and extracts to the recorded tree, as the installer checks it; --fetch downloads them with the installer's downloader first", async () => {
+    const { checkArchives, fetchAndCheck } = await toolsModule();
+    const fx = await toolFixtures(dir('fx'));
+    expect(await checkArchives(fx.entries, fx.archives)).toEqual([]);
+    const spoil = (id: string, change: Partial<ToolEntry>) => fx.entries.map((e) => (e.id === id ? { ...e, ...change } : e));
+    expect((await checkArchives(spoil('browser', { sha256: 'f'.repeat(64) }), fx.archives)).join('\n')).toMatch(/browser: .*chrome-mac-arm64\.zip has sha256 [0-9a-f]{64}, tools\.json records f{64}/);
+    expect((await checkArchives(spoil('render-browser', { bytes: 12 }), fx.archives)).join('\n')).toMatch(/render-browser: .* is \d+ bytes, tools\.json records 12/);
+    expect((await checkArchives(spoil('compositor', { tree: '0'.repeat(64) }), fx.archives)).join('\n')).toMatch(
+      /compositor: the extracted compositor is not the one this version records \(tree digest [0-9a-f]{64}, recorded 0{64}\)/,
+    );
+    expect((await checkArchives(spoil('compositor', { integrity: `sha512-${'A'.repeat(86)}==` }), fx.archives)).join('\n')).toMatch(/compositor: .* is not the tarball of integrity sha512-A/);
+    // The pruned script not pruned: its tree differs.
+    expect((await checkArchives(spoil('browser', { prune: [] }), fx.archives)).join('\n')).toMatch(/browser: the extracted browser is not the one this version records/);
+    expect((await checkArchives(fx.entries, dir('empty'))).join('\n')).toMatch(/render-browser: no chrome-headless-shell-mac-arm64\.zip in /);
+    // --fetch: the installer's downloader (the recorded size the cap, each hop on the hosts), then the same checks.
+    const files = filesOf(fx);
+    expect(await fetchAndCheck(fx.entries, dir('dl'), { fetch: serve(files) })).toEqual([]);
+    const bigger = serve(files, (u) => (u === fx.byId('compositor').entry.url ? new Response(new Uint8Array(fx.byId('compositor').bytes.length + 1), { status: 200 }) : undefined));
+    expect((await fetchAndCheck(fx.entries, dir('dl'), { fetch: bigger })).join('\n')).toMatch(/compositor: .* sent more than the \d+ bytes this version records/);
+    const away = serve(files, (u) => (u === fx.byId('browser').entry.url ? new Response(null, { status: 301, headers: { location: 'https://cdn.example.com/x.zip' } }) : undefined));
+    expect((await fetchAndCheck(fx.entries, dir('dl'), { fetch: away })).join('\n')).toMatch(/browser: refused a redirect/);
+    const tampered = new Map(files);
+    const evil = Buffer.from(fx.byId('render-browser').bytes);
+    evil[evil.length - 30]! ^= 1;
+    tampered.set(fx.byId('render-browser').entry.url, evil);
+    expect((await fetchAndCheck(fx.entries, dir('dl'), { fetch: serve(tampered) })).join('\n')).toMatch(/render-browser: .* has sha256 [0-9a-f]{64}, tools\.json records/);
+  });
+
+  // The committed tools.json against the real archives (a folder of the three, kept outside the repository): what the
+  // release workflow's check-tools --fetch checks against the publishers. Gated: the archives are 315 MB.
+  it.runIf(!!process.env.RETAKE_TEST_TOOL_ARCHIVES)(
+    'the committed tools.json is the real archives: sizes, sha256, integrity and trees (RETAKE_TEST_TOOL_ARCHIVES=<folder>)',
+    async () => {
+      const { checkArchives, readTools } = await toolsModule();
+      expect(await checkArchives(readTools(), process.env.RETAKE_TEST_TOOL_ARCHIVES)).toEqual([]);
+    },
+    120_000,
+  );
+
+  it("the command line: check-node, check-tools (what the release workflow's build job runs, with --fetch) and record-tools; one sentence on a failure, never a stack", () => {
     const run = (...args: string[]) => spawnSync(process.execPath, [join(APP, 'scripts', 'bundle.mjs'), ...args], { encoding: 'utf8' });
-    const d = join(dir('cli-browser'), 'chromium-1');
-    put(d, 'a', 'b');
-    const digest = run('browser-digest', d);
-    expect(digest.status).toBe(0);
-    expect(digest.stdout).toMatch(/^[0-9a-f]{64}\n$/);
+    const ok = run('check-tools');
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toMatch(/^apps\/desktop\/bundle\/tools\.json names the repository's pins \(render-browser [\d.]+, compositor [\d.]+, browser [\d.]+\)\n$/);
+    const file = JSON.parse(readFileSync(join(APP, 'bundle', 'tools.json'), 'utf8'));
+    file.platforms['darwin-arm64'][0].url = 'https://downloads.example.com/x.zip';
+    const bad = join(dir('cli-bad'), 'tools.json');
+    writeFileSync(bad, JSON.stringify(file));
+    const refused = run('check-tools', '--manifest', bad);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(
+      /^bundle: .*tools\.json \(darwin-arm64\): tools\[0\] \(render-browser\): url https:\/\/downloads\.example\.com\/x\.zip: downloads\.example\.com is not one of the hosts/,
+    );
+    expect(refused.stderr).not.toMatch(/\n\s+at /);
+    const missing = run('check-tools', '--archives', dir('cli-empty'));
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/^bundle: the Tools are not the ones apps\/desktop\/bundle\/tools\.json records:\n {2}render-browser: no chrome-headless-shell-mac-arm64\.zip/);
+    const usage = run('record-tools');
+    expect(usage.status).toBe(1);
+    expect(usage.stderr).toMatch(/^bundle: record-tools --from <folder of the archives> \| --fetch <folder to download them to> \[--out <file>\]\n$/);
+    expect(run('check-pins').stderr).toMatch(/^bundle: usage: .*check-tools/);
     const node = run('check-node');
     // The suite may run on another Node.js than the pinned one: either way one sentence, never a stack.
     expect(node.status === 0 ? node.stdout : node.stderr).toMatch(

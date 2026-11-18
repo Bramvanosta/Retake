@@ -17,7 +17,8 @@
 import type { EngineEnv } from '../env.js';
 import type { Clock } from '../clock.js';
 import type { JobInput, JobKind, JobState } from './job-input.js';
-import type { PlainFileProblem } from '@retake/core/io';
+import type { BundleInfo, PlainFileProblem, ToolNeed } from '@retake/core/io';
+import type { BrowserConfig } from '@retake/core/project';
 import type { ProcessIdentity } from './proc.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 
@@ -61,21 +62,31 @@ export interface JobFilter {
   /** Only jobs about this render (the render_id of a `render`, `review` or `export` job). */
   renderId?: string;
   limit?: number;
+  /** The Tools' gate the derive reads (default the queue's own, cached for a second): engine.tools.wake hands a fresh one. */
+  tools?: ToolsGate;
 }
 
-/** Where a queued job stands in its lane. */
+/** Where a queued job stands in its lane. `held_by: 'tools'`: it waits for the Tool it `needs`. */
 export interface JobPosition {
   ahead: number;
   running?: string;
-  held_by?: 'take';
+  held_by?: 'take' | 'tools';
+  needs?: ToolNeed;
 }
 
 /** What the worker of a running heavy job says while the job yields to a filming take (cleared with null). */
 export type YieldMark = { state: 'background'; since: string; cause: 'here' | 'elsewhere' } | { state: 'past_cap'; since: string; cause: 'here' | 'elsewhere'; cap_min: number };
 
-/** `hold`: what holds heavy work now, read once for a whole list (takeHold). */
+/** A project's `browser:` (`{}` when it sets none), or null when it cannot be read (tools/tool-need.ts). */
+export type ProjectBrowser = (project: string) => Promise<BrowserConfig | null>;
+
+/** The needs of the app's Tools missing now (tools/gate.ts makes one: the stamp and markers, read at most once a second). */
+export type ToolsGate = () => ReadonlySet<ToolNeed>;
+
+/** `hold`: what holds heavy work now, read once for a whole list (takeHold); `tools`: the needs missing now (tools/gate.ts). */
 export interface DeriveOptions {
   hold?: () => Promise<TakeHold>;
+  tools?: ToolsGate;
 }
 
 /** The queue as a reader and a client sees it: reads, a submit's files, the client's markers, holds and events. */
@@ -108,6 +119,11 @@ export interface JobQueueView {
   ofRender(project: string, renderId: string): Promise<JobRecord | undefined>;
   /** Where a queued job stands in its lane (undefined when it is not queued). */
   position(id: string): Promise<JobPosition | undefined>;
+  /**
+   * What a job needs of the app's Tools while `missing` are missing (jobs/tool-need.ts): its kind's need, none when its
+   * project launches a browser of its own, the render tools for the headless shell.
+   */
+  toolNeed(rec: { kind: string; input: unknown }, missing: ReadonlySet<ToolNeed>): Promise<ToolNeed | null>;
   /**
    * A file a submit added to the job (enqueue `files`: a render's edit snapshot), read as it was stored: `missing` when
    * there is none, another reason when it is not a plain file of at most `maxBytes` (never a link followed). A name that
@@ -159,6 +175,13 @@ export interface JobQueueView {
 /** The whole queue: the view, the submit (the engine's operations) and the writes of the worker that claimed a job. */
 export interface JobQueue extends JobQueueView {
   withOwnMemory(cli?: string): JobQueue;
+  /**
+   * What the queue's Tools waiting reads, handed by its engine (and the worker): `app`, the app whose Tools the gate
+   * reads (tools/gate.ts; default this engine's, core bundleInfoOrNull — a fake app, EngineOptions `tools.bundle` in
+   * tests, so the queue and engine.tools agree); `browsers`, the reader of a project's `browser:` (tools/tool-need.ts,
+   * through the WorkspaceReads port; default none: each kind's need).
+   */
+  useTools(o: { app?: BundleInfo | null; browsers?: ProjectBrowser }): void;
 
   // ── submit ──
   /**

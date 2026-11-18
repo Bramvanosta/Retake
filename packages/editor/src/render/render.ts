@@ -24,7 +24,7 @@ import { probeMedia } from './probe.js';
 import type { RenderRecord } from '../render-record.js';
 import { errorMessage } from '@retake/core/base';
 import { handedDriver } from './driver-guard.js';
-import { rendererLibrary } from './library.js';
+import { libraryBinaries, rendererLibrary } from './library.js';
 import type { RenderDriver } from './driver-types.js';
 import { COMMON, cancelled, guardEncoderPipe, openSession } from './render-session.js';
 import type { Session } from './render-session.js';
@@ -141,9 +141,11 @@ async function renderAttemptMedia(st: RenderRun, session: Session, a: Attempt): 
   const { renderMedia, selectComposition } = a.lib;
   const { n, encoder } = a;
   const own = st.ff?.used === 'own' && st.ff.binariesDirectory ? st.ff.binariesDirectory : undefined;
+  const bin = libraryBinaries();
   const inputProps = videoProps(session.served);
   const composition = await selectComposition({
     ...COMMON,
+    binariesDirectory: bin,
     serveUrl: session.serveUrl,
     id: COMPOSITION_IDS[opts.plan.variant],
     inputProps,
@@ -180,9 +182,11 @@ async function renderAttemptMedia(st: RenderRun, session: Session, a: Attempt): 
     browserExecutable: session.executable,
     ...(session.chromium.gl ? { chromiumOptions: session.chromium } : {}),
     ...session.remotion,
-    // Our ffmpeg encodes the frames (./encode-tools.ts): the folder that dispatches to it, its arguments rewritten,
-    // and frames over the pipe it reads (no shared-memory capture, which only the library's ffmpeg knows).
-    ...(own ? { binariesDirectory: own, ffmpegOverride: rewritePreStitcher, disableSharedMemoryCapture: true } : {}),
+    // The library's compositor (the app's downloaded one); our ffmpeg encodes the frames when it is used
+    // (./encode-tools.ts): the folder that dispatches to it, its arguments rewritten, and frames over the pipe it reads
+    // (no shared-memory capture, which only the library's ffmpeg knows).
+    binariesDirectory: own ?? bin,
+    ...(own ? { ffmpegOverride: rewritePreStitcher, disableSharedMemoryCapture: true } : {}),
     onProgress: (q) => onAttemptProgress(st, a, q),
   });
 }

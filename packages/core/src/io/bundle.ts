@@ -1,7 +1,8 @@
 /**
  * The app bundle (DESIGN §4p): where Retake finds its own tools when it runs from a staged tree or from
- * `Retake.app/Contents/Resources` — Node.js, the engine, the browsers, ffmpeg, the starter themes and the Claude plugin —
- * and the rules every resolver follows:
+ * `Retake.app/Contents/Resources` — Node.js, the engine, ffmpeg, the starter themes and the Claude plugin — and the
+ * rules every resolver follows. The browser, the render browser and the compositor are not in the app: they are the
+ * downloaded Tools (tools.ts), under `<RETAKE_HOME>/tools/`, which bundle.json's `tools` names.
  *
  * - **Order:** an explicit setting (retake.yaml `ffmpeg`, `browser.executable`) → an explicit variable
  *   (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the bundle's own →
@@ -13,14 +14,17 @@
  *   damaged manifest of this engine never throws at import: `bundleProblems` names it (doctor), and every resolver
  *   that needs the bundle throws it (a damaged app says so instead of falling back to the system's tools).
  * - **Browsers:** playwright-core reads PLAYWRIGHT_BROWSERS_PATH once, when it loads. `prepareBundle` (first thing in
- *   both entry points: the CLI's bin and the jobs worker's main) sets it to the bundle's browsers, loads playwright-core,
- *   and restores the inherited value — so it never reaches hooks, sandbox services, shells or workers.
+ *   both entry points: the CLI's bin and the jobs worker's main) sets it to the Tools' browsers folder
+ *   (`<RETAKE_HOME>/tools/browsers`, `toolsBrowsersDir`), loads playwright-core, and restores the inherited value — so it
+ *   never reaches hooks, sandbox services, shells or workers. The browsers may be downloaded after: playwright-core
+ *   looks for the executable when it launches.
  * - **Nothing writes inside the bundle** at run time (its signature seals every file): `assertOutsideBundle`.
  * - **The workspace's ffmpeg** (retake.yaml `ffmpeg`, made absolute against the workspace root when it names a path)
  *   comes first in resolveMediaTools; which ffmpeg and ffprobe a process runs, under the agent policy: media-tools.ts.
  */
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,19 +40,27 @@ const BUNDLE_DEPTH = 5;
 /** How many folders below core's dist (or src) this module sits: `io/`. */
 const MODULE_DEPTH = 1;
 
+/** The version of `bundle.json` this engine reads (2: the Tools are downloaded; 1 had `paths.browsers`). */
+export const BUNDLE_MANIFEST_VERSION = 2;
+
 /** `bundle.json`, as the stage step writes it (paths relative to the folder holding it). */
 export interface BundleManifest {
-  v: 1;
+  v: 2;
   /** The app's version (one number: package.json, RETAKE_VERSION, tauri.conf.json, Cargo.toml). */
   app: string;
   node: string;
-  playwright: { core: string; chromium: string; headless_shell: string };
+  playwright: { core: string };
   compositor: string;
+  /**
+   * The Tools this version downloads (apps/desktop/bundle/tools.json's entries for the app's platform, copied by the
+   * stage and sealed with the app): checked by tools.ts `bundleTools` (an array here; its entries there).
+   */
+  tools: unknown[];
   /** null: the bundle has no ffmpeg of its own (the system's is used). `libx264`: whether it has that encoder. */
   ffmpeg: { version: string; licence: string; libx264: boolean; sha256: Record<string, string> } | null;
   /** Lowest macOS the bundle runs on (Remotion's own libraries need 15). */
   minimum_macos: string;
-  paths: { node: string; engine: string; browsers: string; ffmpeg: string | null; templates: string; plugin: string };
+  paths: { node: string; engine: string; ffmpeg: string | null; templates: string; plugin: string };
 }
 
 /** A bundle found around the running engine: its folder, manifest and absolute paths. */
@@ -58,7 +70,7 @@ export interface BundleInfo {
   /** What nothing may write inside: the `.app` around `root` when there is one, else `root`. */
   sealed: string;
   manifest: BundleManifest;
-  paths: { node: string; engine: string; browsers: string; ffmpeg: string | null; templates: string; plugin: string };
+  paths: { node: string; engine: string; ffmpeg: string | null; templates: string; plugin: string };
 }
 
 export class BundleError extends Error {
@@ -92,7 +104,7 @@ function within(dir: string, p: string): boolean {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-const PATH_KEYS = ['node', 'engine', 'browsers', 'ffmpeg', 'templates', 'plugin'] as const;
+const PATH_KEYS = ['node', 'engine', 'ffmpeg', 'templates', 'plugin'] as const;
 
 /**
  * Read and check `<dir>/bundle.json`: every path relative and inside `dir` (once links are followed); BundleError
@@ -106,7 +118,9 @@ export function readBundleManifest(dir: string): BundleInfo {
   } catch (e) {
     throw new BundleError(`cannot read ${join(root, BUNDLE_FILE)}: ${errorMessage(e)}`);
   }
-  if (!m || typeof m !== 'object' || m.v !== 1 || !m.paths || typeof m.paths !== 'object') throw new BundleError(`${join(root, BUNDLE_FILE)} is not a version 1 bundle manifest`);
+  if (!m || typeof m !== 'object' || m.v !== BUNDLE_MANIFEST_VERSION || !m.paths || typeof m.paths !== 'object' || !Array.isArray(m.tools)) {
+    throw new BundleError(`${join(root, BUNDLE_FILE)} is not a version ${BUNDLE_MANIFEST_VERSION} bundle manifest`);
+  }
   const paths = {} as BundleInfo['paths'];
   for (const key of PATH_KEYS) {
     const rel = m.paths[key];
@@ -250,8 +264,37 @@ export function assertOutsideBundle(p: string, what: string, bundle: BundleInfo 
   }
 }
 
+// ── The Tools' folder ─────────────────────────────────────────────────
+
+/** The Retake home's folder of the downloaded Tools (`<RETAKE_HOME>/tools`). */
+export const TOOLS_DIR = 'tools';
+/** The Tools' browsers folder under it: Playwright's own layout (`chromium-<rev>`, `chromium_headless_shell-<rev>`). */
+export const TOOLS_BROWSERS_DIR = 'browsers';
+
 /**
- * Point playwright-core at the bundle's browsers for this process only (see the module comment). A no-op without a
+ * The Retake home of `env` — home.ts `retakeHome`'s rule, kept here as a copy: `$RETAKE_HOME` trimmed, `~` expanded
+ * (util.ts expandHome: `$HOME`), made absolute; else `~/.retake` (layout.ts defaultRetakeHome). This module imports
+ * nothing but node: builtins (it is the first module of the app bundle), and test/app-bundle.test.ts pins this copy
+ * against `retakeHome`. It does not refuse a home inside the app (retakeHome does, for every write).
+ */
+export function homeFolder(env: NodeJS.ProcessEnv = process.env): string {
+  const v = env.RETAKE_HOME?.trim();
+  if (v) return resolve(v === '~' || v.startsWith('~/') ? (process.env.HOME ?? '') + v.slice(1) : v);
+  return join(homedir(), '.retake');
+}
+
+/** `<RETAKE_HOME>/tools`: where the downloaded Tools live (tools.ts). */
+export function toolsFolder(env: NodeJS.ProcessEnv = process.env): string {
+  return join(homeFolder(env), TOOLS_DIR);
+}
+
+/** `<RETAKE_HOME>/tools/browsers`: what PLAYWRIGHT_BROWSERS_PATH names while the app's playwright-core loads. */
+export function toolsBrowsersDir(env: NodeJS.ProcessEnv = process.env): string {
+  return join(toolsFolder(env), TOOLS_BROWSERS_DIR);
+}
+
+/**
+ * Point playwright-core at the Tools' browsers for this process only (see the module comment). A no-op without a
  * bundle. Never throws (it runs first in both entry points): a damaged manifest, or a playwright-core that does not
  * load, is kept for `bundleProblems` (doctor) — a later import would otherwise quietly use the person's own Playwright
  * cache. `load` (tests) replaces the playwright-core import. First, the bundle's module lookup guard (BUNDLE_GUARD):
@@ -278,7 +321,7 @@ export function prepareBundle(
   const KEY = 'PLAYWRIGHT_BROWSERS_PATH';
   const had = Object.hasOwn(env, KEY);
   const before = env[KEY];
-  env[KEY] = b.paths.browsers;
+  env[KEY] = toolsBrowsersDir(env);
   try {
     if (load) load();
     else createRequire(join(b.paths.engine, 'package.json'))('playwright-core');

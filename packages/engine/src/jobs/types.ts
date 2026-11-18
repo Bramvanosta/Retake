@@ -5,6 +5,7 @@ import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { JobInput, JobKind, JobState } from './job-input.js';
 import type { EngineErrorCode } from '../errors.js';
 import type { ProcessIdentity } from './proc.js';
+import type { ToolNeed } from '@retake/core/io';
 
 export const JOB_RECORD_VERSION = 1;
 
@@ -460,10 +461,15 @@ export interface JobRecord {
   yield?: JobYield;
 }
 
-/** A heavy job held by a filming take (JobRecord.yield). */
+/**
+ * A heavy job held by a filming take (JobRecord.yield) — or any queued job whose kind needs a Tool that is not
+ * downloaded yet (`cause: 'tools'`, `needs`: job-input.ts JOB_TOOLS): it starts by itself once the Tools are checked.
+ */
 export interface JobYield {
   state: 'waiting' | 'background' | 'past_cap';
-  cause: 'here' | 'elsewhere';
+  cause: 'here' | 'elsewhere' | 'tools';
+  /** `cause: 'tools'`: what the job waits for (the browser, or the render browser and the compositor). */
+  needs?: ToolNeed;
   /** When it began (running only: when its worker lowered its priority, or let it go on past the cap). */
   since?: string;
   /** past_cap: the cap (minutes). */

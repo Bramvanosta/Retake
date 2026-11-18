@@ -2,7 +2,8 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-16, **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
+Last updated: 2026-11-18, **BL-192** (Playwright 1.65.1 and the app's downloaded Tools, a pull request against
+`main`, not merged), after **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
 v0.2.1 – v0.2.6, the lot log, the evidence per lot, the notes per lot and the trust rules in them, the cloud
@@ -18,11 +19,13 @@ container, the earlier heads of this file — under their original headings, so 
   The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`.
 - **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, the
   hotfixes v0.2.1 – v0.2.6 (their notes are in the archive), then v0.3.0 on 2026-11-16: the architecture series,
-  the Studio's large-screen pass, the native menu bar and the L8 chain. Playwright is still 1.56.1: RELEASING step 1
-  was deferred again for v0.3.0 (BACKLOG BL-192).
+  the Studio's large-screen pass, the native menu bar and the L8 chain (on Playwright 1.56.1). BL-192 brings
+  playwright-core 1.65.1 and the app's Tools ("State (after BL-192)"): the next release is the first without a browser
+  in the DMG.
 - **Branches.** `main`: the releases, the architecture series (fast-forwarded on 2026-11-15: pull request 8 merged,
   pull request 9 closed with nothing left to merge), the Studio's large-screen pass (`0131be7d`) and the native menu
   bar (`053baebc`), both 2026-11-15. Then the L8 chain, one commit per lot (pull request 20, 2026-11-16).
+  `claude/bl-192-playwright-b161b7`: BL-192, one commit, its pull request open (not merged, no tag).
   The branches of merged pull requests are deleted, locally and on `origin`.
 - **Guards** (each in the CI's `checks` job, `.github/workflows/ci.yml`): `pnpm build`, the test files' type check
   (`tsconfig.test.json`), `node scripts/audit/rules.mjs . --check` (the import-rules ratchet),
@@ -34,8 +37,9 @@ container, the earlier heads of this file — under their original headings, so 
   the Mac).
 
 ## Next steps
-1. **The app's browser** (BACKLOG BL-192): Playwright 1.56.1 → current, its own lot — v0.3.0 was released without
-   RELEASING step 1 (the new Chrome for Testing layout breaks the stage and the signer; a licence question first).
+1. **BL-192's pull request**: the person reviews and merges it, then checks MACOS-CHECKLIST §21 by hand (the first
+   real download from the publishers, a signed and notarised release's Tools step). The next release re-records
+   `apps/desktop/bundle/tools.json` (RELEASING step 1).
 2. **The two open Homebrew pull requests** (4 and 7) do the same job: one should land, the other be closed.
 3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §18 – §20 and the L8 notes' "left for the
    person"), then the older live runs under "Pending for the person".
@@ -87,6 +91,46 @@ automatically with themeable components, and let Claude operate everything throu
 Each lot adds its "State (after <lot>)" section here, above the previous one: newest first (the lead's register helper
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
+
+## State (after BL-192)
+- **BL-192 done (2026-11-18; branch `claude/bl-192-playwright-b161b7`, a pull request against `main`, not merged)** —
+  playwright-core 1.56.1 → 1.65.1 in ui, runner-web, editor and fixtures/wholesale (Chrome for Testing 159.0.8154.6,
+  revision 1255).
+  - **Licence.** Chrome for Testing's terms give no right to redistribute it, and Playwright ≥ 1.57 builds no Chromium
+    of its own. Decision (the person): the app no longer ships the browser, the render shell or Remotion's compositor.
+    They are its **Tools**, downloaded on the person's click from their publishers (storage.googleapis.com,
+    registry.npmjs.org) into `<Retake home>/tools/`, each archive checked against `apps/desktop/bundle/tools.json`
+    (replaces browsers.json; `bundle.mjs record-tools --from`, `check-tools --fetch` in release.yml). DESIGN §4p (f),
+    RELEASING step 1.
+  - **Product.** core `io/tools.ts`; engine `tools/*` (installer: host allow-list, ≤ 3 checked redirects, sha256
+    before extraction, our own archive listing check, read-only trees, atomic rename, a lock; prune after a new
+    version's first start, 30-day start records); the queue holds a job that needs a missing Tool (`held_by: 'tools'`,
+    a project with its own browser needs none) and wakes on install; `retake tools`, doctor's Tools / Compositor
+    lines, `engine_info.tools`; the Studio's Set-up item, status bar, Welcome card and Tools page (the approved
+    8-screen mockup); the updater downloads a new version's Tools before its restart (`update_tools`). The DMG went from
+    422 MB to ≈ 203 MB; the download is 315 MB, ≈ 620 MB on disk.
+  - **Playwright 1.65 changes met.** The registry read through `playwright-core/lib/coreBundle` (fail closed when it
+    moves); `--enable-automation` re-added; screencast frames stamped in the future (`frameWall = min(stamp,
+    arrival)`); unload keepalive requests no longer reported to `page.on('request')`; CfT plays H.264 (the Studio
+    tests stub it). Two bugs found by the final runs: Chrome 159 never releases `Response.blob()` bodies (renders
+    failed on a nearly full disk; workaround `editor remotion/response-blob.ts`, BL-200), and the recorder lost a
+    wheel scroll from rest (its baseline read after Chromium scrolled; `scrollTrail`, a bug from before the lot). Also
+    the bundle cache's prune race (`BUNDLE_IN_USE_MS`), and a race of studio-e2e-comments' console check (a removed
+    preview frame's last font fetch answered 404 after `timeline_leave`, reported by Chrome as a CORS error; the same
+    on Chromium 1194): `ui/test/console-errors.ts` excuses only that case. The other e2e files that frame the preview
+    and assert no console error can adopt it if they flake.
+  - **Runs (2026-11-18, the final tree).** `pnpm build`, lint, typecheck, the ratchets and `--check-cites` green; the
+    full suite (one intermittent failure of worker-heavy's exit-3 approvals case under load: 23 runs of it alone or in
+    parallel green, its message now says the job's state). The last full run: 7375 passed, 1 failed —
+    network-guard's leak check counted a render browser another file started at the same time; it now counts only
+    this process's descendants (the file green alone 4 times); `pnpm test:slow` 65/65 (three runs in a row
+    before); the gated bundle acceptance 11/11 (an ad hoc `desktop:bundle` built and run, Tools installed from local
+    archives), the update e2e 3/3, app-release-sign 30/30.
+  - **Left.** BL-193 – BL-200 (Spotlight/Time Machine, managed Macs, the worker's in-use record, the Tools' terms in
+    the app, the update sheet's list, a menu item, proxies, the blob workaround); headed windows show Chrome's
+    automation infobar (review B-M2). Open for the person: the publisher names "Google" and "Remotion" in tools.json and
+    the notices (licence attribution, like `apps/desktop/licenses/`), the release `sign` job's import guard loosened
+    for the Tools' checks, and MACOS-CHECKLIST §21 (a real download, a managed Mac, an update with new Tools).
 
 ## State (after L8.2b)
 - **L8.2b done (2026-11-16; branch `claude/l8-feedback2`)** — a project's environments by tool (field feedback 2,

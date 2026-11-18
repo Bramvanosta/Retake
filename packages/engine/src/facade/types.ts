@@ -3,6 +3,8 @@
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
 import type { EngineEnv } from '../env.js';
+import type { ToolEntry, ToolNeed } from '@retake/core/io';
+import type { InstallRequest, InstallResult, ToolCheck, ToolsPruneResult, ToolsStatus, ToolsWork } from '../tools-work.js';
 import type { ProjectFolder } from '../store/store.js';
 import type { ComponentKind } from '@retake/core/model';
 import type { RunMode } from '@retake/core/run';
@@ -93,6 +95,11 @@ export interface EngineOptions {
    * disk's stores). The MCP server and the Studio pass none. A worker this engine starts runs its own.
    */
   ports?: Partial<EnginePorts>;
+  /**
+   * Tests: what engine.tools uses instead of this engine's app and the system's download (tools-work.ts ToolsWork: a
+   * fake `bundle`, an injected `fetch`, no free-space read). The MCP server and the Studio pass none.
+   */
+  tools?: Partial<Pick<ToolsWork, 'bundle' | 'fetch' | 'hosts' | 'retry' | 'sleep' | 'freeBytes'>>;
 }
 
 /** A run's job as run_status shows it. */
@@ -100,7 +107,7 @@ export interface RunJobView {
   id: string;
   state: JobRecord['state'];
   /** Queued: how many jobs run or wait before it, and the one running. */
-  queue?: { ahead: number; running?: string; held_by?: 'take' };
+  queue?: { ahead: number; running?: string; held_by?: 'take' | 'tools'; needs?: ToolNeed };
   cancel_requested_at?: string;
   /** A pause was asked (the run pauses before its next step; `paused` says when it is). */
   pause_requested_at?: string;
@@ -348,7 +355,7 @@ export interface Engine {
     /** Wait until the job finishes or `timeoutMs` passes; returns it as it is then. */
     wait(id: string, opts: WaitOptions): Promise<JobRecord>;
     /** Where a queued job stands: jobs ahead of it in its lane, the one running, `held_by: 'take'` (a heavy job a take holds). */
-    position(id: string): Promise<{ ahead: number; running?: string; held_by?: 'take' } | undefined>;
+    position(id: string): Promise<{ ahead: number; running?: string; held_by?: 'take' | 'tools'; needs?: ToolNeed } | undefined>;
     /** The worker serving the workspace, when one runs. */
     worker(): Promise<WorkerLockRecord | null>;
   };
@@ -636,6 +643,41 @@ export interface Engine {
      * never over a file (no force), through the project store (journaled as the caller). Nothing is started.
      */
     init(project: string, env?: string): Promise<SandboxInitResultView>;
+  };
+  /**
+   * The app's downloaded Tools (tools-work.ts) under this engine's home: what the Studio's set-up item and Tools
+   * page call (the Studio's own ops) and engine_info reads. In a checkout `status()` says `checkout` and the
+   * others are refused. `install` resolves when the install ends (its progress through `onProgress` and `status()`),
+   * then starts the workspace's worker when it ended `ready` (jobs that waited for the Tools); MCP never calls it.
+   */
+  tools: {
+    status(): ToolsStatus;
+    install(req: Omit<InstallRequest, 'by'> & { by?: InstallRequest['by'] }): Promise<InstallResult>;
+    /** Pause or cancel the install under way (any process's); a cancel with none running clears what one left. */
+    control(action: 'pause' | 'cancel'): Promise<void>;
+    /** Check again, under the Tools folder's lock: an EngineError `busy` while another process installs. */
+    check(): Promise<ToolCheck[]>;
+    /** `keepPending`: the update under way, whose Tools a forced prune keeps. */
+    prune(o?: { force?: boolean; keepPending?: string }): Promise<ToolsPruneResult>;
+    /** At the Studio's start: record the start and prune, once every Tool is ready (null otherwise). */
+    started(): Promise<ToolsPruneResult | null>;
+    /**
+     * The updater's server side: the Tools of the version an update brings (`entries`, its own bundle.json's), kept by
+     * `.pending.json` until that version starts — while this one runs on its own (tools-work.ts installUpdateTools).
+     */
+    installUpdate(u: { app: string; entries: readonly ToolEntry[] } & Omit<InstallRequest, 'by' | 'only'>): Promise<InstallResult>;
+    /** An update given up: its pre-downloaded Tools are no longer kept. */
+    abandonUpdate(app: string): void;
+    /**
+     * The Tools an update brings, from the archive the desktop shell kept and verified (tools/update-archive.ts: the
+     * file checked against the SHA-256 the shell gave, its bundle.json read with /usr/bin/tar and checked); `skip`
+     * when this version cannot read that manifest whole (the new version downloads its Tools at its first start).
+     */
+    readUpdate(a: { version: string; path: string; sha256: string }): Promise<{ entries: ToolEntry[] } | { skip: string }>;
+    /** Each ready Tool's own licence files (relative to its folder). */
+    licences(): Partial<Record<ToolEntry['id'], string[]>>;
+    /** Start the workspace's worker when a queued job no longer waits for the Tools (true when one was started or runs). */
+    wake(): Promise<boolean>;
   };
 }
 

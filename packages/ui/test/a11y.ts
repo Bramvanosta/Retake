@@ -460,7 +460,7 @@ function install(): void {
   /** The state words a status colour may stand beside (the badges' and notices' vocabulary; a recording's
    * "recorded" and "discarded", a render's "rendered", beside the report's neutral mark). */
   const STATE_WORDS = new Set(
-    'failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing'.split(
+    'failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing needed downloading checked damaged refused'.split(
       ' ',
     ),
   );

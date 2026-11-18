@@ -157,6 +157,9 @@ const THREAD_CLI_READ = no('`retake comment list` shows the threads and their en
 const AGENT_ONLY = no('an aid for Claude, who writes the scenario: no Studio screen');
 const TERMINAL_ONLY_MCP = no('a command a person runs in a terminal');
 const TERMINAL_ONLY_STUDIO = no('a command a person runs in a terminal: no Studio screen');
+// the app's downloaded Tools. MCP never downloads them (engine_info says their state); the Studio serves them as its
+// own ops over engine.tools (ui tools-ops.ts: the set-up item, the status bar's control, the Tools page).
+const TOOLS_MCP = no("the person downloads the Tools (the Studio's set-up, or `retake tools install`): engine_info says whether they are ready");
 
 // The use cases served under more than one name (`useCase`): the MCP tool and the Studio op of one use case, each named
 // for its shell. Not linked, on purpose: a shell that splits one use case into two operations by an argument —
@@ -496,6 +499,13 @@ const ENTRIES = [
     mcp: no("engine_info says what Claude needs; the machine's checks are the person's"),
     studio: no("the Set-up sheet shows the installed app's state (setup_status)"),
   },
+  { name: 'tools_status', ...R, cli: ['tools status'], mcp: TOOLS_MCP, studio: STUDIO },
+  { name: 'tools_install', ...W, cli: ['tools install'], mcp: TOOLS_MCP, studio: STUDIO },
+  // Pause, resume and cancel: the CLI's Ctrl-C pauses its own download, `retake tools install` resumes it.
+  { name: 'tools_control', ...W, cli: no('Ctrl-C pauses `retake tools install`; running it again resumes'), mcp: TOOLS_MCP, studio: STUDIO },
+  { name: 'tools_check', ...W, cli: ['tools check'], mcp: TOOLS_MCP, studio: STUDIO },
+  { name: 'tools_prune', ...D('older Tools folders no copy of Retake keeps'), cli: ['tools prune'], mcp: TOOLS_MCP, studio: STUDIO },
+  { name: 'tools_reveal', ...W, cli: no('`retake tools` prints the folder'), mcp: DESKTOP_ONLY, studio: STUDIO },
   {
     name: 'journal',
     ...R,

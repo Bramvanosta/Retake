@@ -2187,6 +2187,14 @@ and `job_end` lines); what remains:
 ### BL-138 — Remotion's compositor ffmpeg before a sale (GPL source offer, fdk-aac)
 *S · found in L5.16a's review · builds on: L5.16a, BL-41 · before the first sale*
 
+- **BL-192: the app no longer distributes the compositor.** Since then the DMG carries neither
+  `@remotion/compositor-darwin-arm64` nor its GPL FFmpeg build with fdk-aac: the app downloads it, on the person's
+  click, from the npm registry, unmodified, as `pnpm install` does in a checkout
+  (`apps/desktop/licenses/tools/compositor.md` keeps its facts). The distribution risk below is gone for releases
+  from BL-192 on; v0.2.0 – v0.3.0, already published, did carry it. What is left before a sale: whether rendering with
+  a build that compiles in fdk-aac is acceptable for a sold product (Remotion's own licence question, the AAC track
+  rendered by our ffmpeg instead), and the licence the person accepts for each Tool when the app downloads it (BL-196).
+
 - **Accepted 2026-11-04 for own-use releases; resolve before any sale** (the person's decision with L5.16e: the
   public GitHub releases ship the compositor as it is; the licence note of `docs/guide/desktop-app.md` and the
   README's Licence section say so). A public release is still
@@ -2431,6 +2439,9 @@ attempt and count it as a GPU-path failure (one software retry, as for the other
 
 ### BL-160 — The bundled Chromium, bumped in one command
 *S · noted in a review of the release workflow · builds on: L5.16e*
+
+Since BL-192 the app downloads its browser (a Tool) and each release re-records `apps/desktop/bundle/tools.json`
+(`bundle.mjs record-tools`, RELEASING step 1); the bump itself is still by hand. The text below is the item as it was.
 
 The app ships Playwright's Chromium, so each release starts by bumping Playwright (`playwright-core` and every
 package that names it, one exact version), installing its browsers and re-recording `apps/desktop/bundle/browsers.json`
@@ -2899,7 +2910,16 @@ is given, so macOS shows no tab items and ⌘T does nothing (desktop-config.test
 identifier). Reopen only with a reason a second window gives that a second workspace or a browser tab does not.
 
 ### BL-192 — The app's browser: Playwright 1.56.1 → current
-*M–L · from the v0.3.0 release (2026-11-16) · builds on: RELEASING step 1, DESIGN §4p (e)*
+*M–L · from the v0.3.0 release (2026-11-16) · builds on: RELEASING step 1, DESIGN §4p (e) · **done in BL-192***
+
+*Done in BL-192:* playwright-core 1.65.1 (Chrome for Testing 159.0.8154.6, revision 1255). Chrome for Testing's terms
+give no right to redistribute it, so the app no longer carries a browser, the render shell or the rendering library's
+compositor: they are its **Tools**, downloaded on the person's click from their publishers into `<Retake home>/tools/`,
+each archive checked against `apps/desktop/bundle/tools.json` before it is opened and each folder after; jobs that
+need them wait in the queue; `retake tools`, doctor's lines, `engine_info.tools`, the Studio's set-up item, status bar,
+Welcome card and Tools page, and an updater step that downloads a new version's Tools before its restart. The DMG went
+from 422 MB to 202 MB. DESIGN §4p (f); RELEASING step 1 is now "record tools.json". What it left: BL-193 – BL-200. The
+text below is the item as it was.
 
 v0.3.0 shipped on playwright-core 1.56.1 (Chromium 1194, October 2025), like v0.2.0 – v0.2.6: RELEASING step 1 was
 deferred again, by decision. The bump is not a version change. From Playwright 1.57 the browser is Google Chrome for
@@ -2909,3 +2929,69 @@ browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium
 `chrome-mac/Chromium.app` and `headless_shell`. Its own lot: the new layout in the stage and the signer, the digests
 re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
 Testing's terms allow shipping it in a public DMG (with BL-138).
+
+### BL-193 — The Tools folder kept out of Spotlight and Time Machine
+*S · cut in BL-192 (critique L5) · builds on: BL-192*
+
+`<Retake home>/tools/` holds about 600 MB of browsers and the compositor that a click downloads again. Spotlight
+indexes it and Time Machine backs it up. A `.metadata_never_index` file and a Time Machine exclusion (`tmutil
+addexclusion`, a sticky attribute on the folder) would keep both out. Not done because the folder's layout is fixed
+facts of the Tools model (a new dot entry must be left out of every tree digest and listed in `TOOLS_FILES`), and
+`tmutil` is a system program a background install should not call unasked.
+
+### BL-194 — Downloaded Tools on a managed Mac (quarantine, Santa, MDM)
+*S · risk R4 of BL-192 · builds on: BL-192*
+
+Our fetch writes no quarantine attribute and `ditto --noqtn` adds none, so the browsers run as Playwright runs them
+from its cache. A managed Mac may still quarantine every downloaded file, or a binary-authorisation tool (Santa) may
+block an unknown executable. Not probed. When a first launch fails there: say so with the path (today the launch error
+names the browser), and, if a quarantine attribute is found on an extracted file, remove it from the temporary folder
+before the rename and log it (the plan's `xattr -dr com.apple.quarantine`). The person's check: MACOS-CHECKLIST 21.
+
+### BL-195 — The jobs worker records the Tools it uses
+*S · left by BL-192 · builds on: BL-192*
+
+Prune keeps a folder that a live process of another copy of Retake uses when that process has written
+`.in-use/<pid>.json` (`registerInUse`, engine `tools/prune.ts`). Nothing writes it yet: the app's jobs worker should
+at its start (and remove it at its exit). Today prune relies on the 30-day start records and the update's pending
+record, which covered every case measured; a long-lived worker of an old copy started more than 30 days ago is the gap.
+
+### BL-196 — The Tools' terms in the app
+*S · left by BL-192 · builds on: BL-192, BL-138*
+
+"Terms of each tool…" (the Set-up item, the Tools page) shows the manifest's words (publisher, licence, host, not
+redistributed) and each installed folder's own licence files. It does not show our notices of
+`apps/desktop/licenses/tools/`: the Studio's server cannot read the app's resources for that today. Show them, and
+decide whether the download asks the person to accept each Tool's terms before the click (a question for the sale,
+with BL-138).
+
+### BL-197 — The update sheet lists the new Tools before the click
+*S · left by BL-192 · builds on: BL-192, BL-143*
+
+The approved mockup lists an update's Tools (and their size) before Install and Restart. The feed carries no manifest,
+so the sheet knows them only once the archive is downloaded and verified (the Tools step). A small signed field in the
+platform file (the Tools' folders and bytes), checked against the archive's bundle.json afterwards, would allow it.
+
+### BL-198 — A menu item for the Tools page
+*S · decision Q1 of BL-192 · builds on: BL-192, BL-190*
+
+The Tools page (`#/setup/tools`) is reached from the Set-up item and the status bar only. A native menu item (Help ›
+Tools… or the app menu) would make it findable when everything is ready (the status bar then shows nothing).
+
+### BL-199 — The Tools through a proxy
+*S · risk R5 of BL-192 · builds on: BL-192*
+
+Node 22's `fetch` ignores `HTTPS_PROXY`, and the installer takes no proxy (nor cookie or credential) on purpose: a Mac
+that reaches the internet only through a proxy cannot download the Tools (the offline state). A proxy setting (the
+system's, or `HTTPS_PROXY`) through an agent that keeps the host allow-list on every hop, and the offline text saying
+a proxy is not supported until then.
+
+### BL-200 — Drop the Response.blob workaround when Chrome fixes its leak
+*S · left by BL-192 · builds on: BL-192*
+
+Chrome for Testing 159 keeps every body read with `Response.blob()` until the page closes (measured on the M4: a 60 s
+render's profile grew by 6.3 GB, against 29 MB on Chromium 141; without disk room it fails at the 2 GB blob limit).
+The render bundle replaces `Response.prototype.blob` (editor `remotion/response-blob.ts`, installed by `createRoot`).
+At each Playwright bump, measure a render's profile without it (a probe: a fetch → blob → object URL → revoke loop
+of 8 MB bodies in a context with no disk); drop the workaround once the native call is released again. Its browser test
+(`response-blob-browser.test.ts`) passes either way, so it will not say so itself.

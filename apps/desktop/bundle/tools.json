@@ -1,0 +1,69 @@
+{
+ "v": 1,
+ "about": "The Tools this version of the app downloads on the person's click into <RETAKE_HOME>/tools (DESIGN §4p) instead of carrying them: per platform, each archive's publisher URL, size and sha256 (checked before anything is extracted; the compositor's npm integrity is the lockfile's), and the tree digest of the extracted folder once its `prune` paths are removed (checked after extraction, and by Check again). Recorded from the real archives with `node apps/desktop/scripts/bundle.mjs record-tools --from <folder of archives>`; `check-tools` checks this file against the repository's playwright-core and pnpm-lock.yaml.",
+ "platforms": {
+  "darwin-arm64": [
+   {
+    "id": "render-browser",
+    "label": "Render browser",
+    "name": "Chrome Headless Shell",
+    "version": "159.0.8154.6",
+    "publisher": "Google",
+    "licence": "Google's terms for Chrome for Testing",
+    "folder": "browsers/chromium_headless_shell-1255",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/159.0.8154.6/mac-arm64/chrome-headless-shell-mac-arm64.zip",
+    "archive": "zip",
+    "bytes": 105717002,
+    "sha256": "b08e7beaf02a19e2ee5ed6955f9c3853ab9176cd5bb57ba87afbb82e9f81cc29",
+    "tree": "6e8653a2a4d1b327bae568147f2148508be61778f8a0b4d49d1b32e1563ab753",
+    "disk": 216095742,
+    "executable": "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    "markers": [
+     "INSTALLATION_COMPLETE",
+     "DEPENDENCIES_VALIDATED"
+    ]
+   },
+   {
+    "id": "compositor",
+    "label": "Compositor",
+    "name": "Remotion compositor",
+    "version": "4.0.534",
+    "publisher": "Remotion",
+    "licence": "Remotion's licence; its FFmpeg build: GPL v2 or later",
+    "folder": "compositor-4.0.534",
+    "url": "https://registry.npmjs.org/@remotion/compositor-darwin-arm64/-/compositor-darwin-arm64-4.0.534.tgz",
+    "archive": "tgz",
+    "bytes": 8389003,
+    "sha256": "32431d0529937024474ec6e84bfdb79b24c93430106977cf586736bfa16193ab",
+    "integrity": "sha512-q/FW5u8KaA/VIks8kPpOByIuJGaxH6myHG3Xyx5qAfxhiBjbimp2WEYmF09GivBdHp3CT/f5RrRLT+8Jrpi1ow==",
+    "root": "package",
+    "tree": "0e93ed5f3015fdf0f127fe32e0e75645b49b1c29b9e561e9d2676f2888bef3d5",
+    "disk": 18034429,
+    "executable": "."
+   },
+   {
+    "id": "browser",
+    "label": "Browser",
+    "name": "Chrome for Testing",
+    "version": "159.0.8154.6",
+    "publisher": "Google",
+    "licence": "Google's terms for Chrome for Testing",
+    "folder": "browsers/chromium-1255",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/159.0.8154.6/mac-arm64/chrome-mac-arm64.zip",
+    "archive": "zip",
+    "bytes": 201252789,
+    "sha256": "43609676a41e29d1c7667935eb914a422eca98b2e49dcbfd6f3e9794202de12a",
+    "prune": [
+     "chrome-mac-arm64/Google Chrome for Testing.app/Contents/Frameworks/Google Chrome for Testing Framework.framework/Versions/159.0.8154.6/Resources/install.sh"
+    ],
+    "tree": "54c4ea6721f7a680f20ed42b6c9c724f50dc48dbf3a9502a7c7dfef4f2c9afb0",
+    "disk": 394125410,
+    "executable": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    "markers": [
+     "INSTALLATION_COMPLETE",
+     "DEPENDENCIES_VALIDATED"
+    ]
+   }
+  ]
+ }
+}

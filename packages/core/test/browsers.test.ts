@@ -19,7 +19,7 @@ function fakeRequire(paths: Record<string, string | undefined>) {
   const asked: string[] = [];
   const require = (id: string) => {
     asked.push(id);
-    return { registry: { findExecutable: (name: string) => (name in paths ? { executablePath: (lang?: string) => (asked.push(`lang ${lang}`), paths[name]) } : undefined) } };
+    return { registry: { registry: { findExecutable: (name: string) => (name in paths ? { executablePath: (lang?: string) => (asked.push(`lang ${lang}`), paths[name]) } : undefined) } } };
   };
   return { require, asked };
 }
@@ -30,7 +30,7 @@ describe('playwrightBrowser: the browser registry of playwright-core, read once'
     expect(playwrightBrowser(require, 'chromium')).toBe('/x/chromium');
     expect(playwrightBrowser(require, 'chromium-headless-shell')).toBe('/x/shell');
     expect(asked).toEqual([PLAYWRIGHT_REGISTRY_MODULE, 'lang javascript', PLAYWRIGHT_REGISTRY_MODULE, 'lang javascript']);
-    expect(PLAYWRIGHT_REGISTRY_MODULE).toBe('playwright-core/lib/server/registry/index');
+    expect(PLAYWRIGHT_REGISTRY_MODULE).toBe('playwright-core/lib/coreBundle');
   });
 
   it('null when the registry does not say: an unknown browser, an empty path, a module that cannot be loaded', () => {

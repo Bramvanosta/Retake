@@ -102,7 +102,7 @@ function renderRecordSchemas(object: ObjectOf, lax: boolean) {
     }).optional(),
     concurrency: opt(z.number()),
     bundle: opt(object({ hash: z.string(), cached: z.boolean(), ms: z.number() })),
-    browser: opt(object({ path: z.string().nullable(), source: word(['env', 'bundled', 'playwright', 'none', 'remotion']) })),
+    browser: opt(object({ path: z.string().nullable(), source: word(['env', 'tools', 'bundled', 'playwright', 'none', 'remotion']) })),
     timings: opt(object({ plan_ms: z.number(), bundle_ms: z.number(), render_ms: z.number(), total_ms: z.number() })),
     warnings: z.array(z.string()),
     plan: opt(z.record(z.string(), z.unknown())),

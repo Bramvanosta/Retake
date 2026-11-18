@@ -4,12 +4,14 @@
  * colour that encodes n), so a rendered frame tells which source frame it shows.
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadProject } from '@retake/core/io';
 import { RETAKE_VERSION } from '@retake/core';
 import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
+import { workersDir } from '@retake/engine/testing';
 import { REPO, TEMPLATES } from './repo.js';
 import { synthTimeline } from './timeline.js';
 
@@ -170,4 +172,18 @@ export async function noRerender(): Promise<never> {
  */
 export function exportsPlace(projectDir: string): (name: string) => string {
   return (name) => join(projectDir, 'exports', name);
+}
+
+/**
+ * The message a test gives when a render it followed did not succeed: the tool's summary, the render's
+ * `untrusted.error` (the summary only says it is there) and the last lines of the workspace's worker log, so a failure
+ * of a slow run can be told from its log alone.
+ */
+export function renderFailure(root: string, summary: string | undefined, view: { untrusted?: { error?: unknown } } | undefined, lines = 40): string {
+  const parts = [summary ?? '(no summary)'];
+  const error = view?.untrusted?.error;
+  parts.push(`untrusted.error: ${error === undefined ? '(none)' : typeof error === 'string' ? error : JSON.stringify(error)}`);
+  const log = join(workersDir(root), 'worker.log');
+  if (existsSync(log)) parts.push(`worker.log (last ${lines} lines):\n${readFileSync(log, 'utf8').trimEnd().split('\n').slice(-lines).join('\n')}`);
+  return parts.join('\n');
 }

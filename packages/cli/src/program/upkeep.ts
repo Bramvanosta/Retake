@@ -24,7 +24,7 @@ export function registerUpkeepCommands({ program, action }: ProgramContext): voi
 
   program
     .command('doctor')
-    .description('check this machine for Retake: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, theme fonts')
+    .description('check this machine for Retake: Node, the browser (in the app: its downloaded Tools), ffmpeg, display, keychain, notifications, workspace, theme fonts')
     .option('--project <slug>', "also check a project: its personas' sessions (never signed in, expired, in use, inside a git work tree) and its environments' hosts (HEAD, 5 s timeout)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));

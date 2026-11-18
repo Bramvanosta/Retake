@@ -1,6 +1,6 @@
 /**
- * The preview sandbox end to end in headless Chromium (playwright-core's build; VP9 captures — that build
- * plays no H.264). A real Studio server and its player origin; a page of the Studio (its CSP: `frame-src` = the player
+ * The preview sandbox end to end in headless Chromium (playwright-core's build; VP9 captures — its build
+ * up to 1.56 played no H.264). A real Studio server and its player origin; a page of the Studio (its CSP: `frame-src` = the player
  * origin) embeds the preview frame the way the timeline screen will (parent.ts, PREVIEW_FRAME_ATTRS); the plans come
  * from engine.timeline.view through `player.publish`, the bundle is the real one (Player, PlanVideo, every component).
  *

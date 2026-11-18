@@ -33,7 +33,7 @@ import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 import { bundleInfoOrNull, ffmpegBin, programLookup, realTarget, retakeHome } from '@retake/core/io';
 import { ENCODE_TOOLS_DIR, EncodeToolsError, encodeFolder, fileId, ownEncodeFailedEarlier, ownFfmpeg, probeFrameEncode } from './encode-tools.js';
 import type { OwnFfmpeg } from './encode-tools.js';
-import { compositorDir, rendererLibrary } from './library.js';
+import { compositorDir, libraryBinaries, rendererLibrary } from './library.js';
 import type { RenderBrowserHandle } from './library.js';
 import { RenderCancelledError, RenderError, isDiskFullError } from './types.js';
 import { errorMessage } from '@retake/core/base';
@@ -261,7 +261,7 @@ async function runProbe(s: FrameSize, binariesDirectory: string | null): Promise
       args,
       indent: false,
       logLevel: 'error',
-      binariesDirectory,
+      binariesDirectory: binariesDirectory ?? libraryBinaries(),
       cancelSignal: undefined,
       options: { reject: false, timeout: 15_000, stdin: 'ignore' },
     });

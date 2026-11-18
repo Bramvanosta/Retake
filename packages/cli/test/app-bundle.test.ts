@@ -18,6 +18,7 @@ import type { BundleInfo } from '@retake/core/io';
 import { HEADLESS_SHELL_ENV, assertRenderBrowser, ensureBundle, planEdit, renderBrowser, renderBundleRestriction, renderComponentPreviews, renderStills } from '@retake/editor';
 import { loadComponentRegistry } from '@retake/components';
 import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
+import { fakeToolEntries } from '@retake/test-support/tools';
 import type { RenderPreviewsOptions } from '@retake/editor';
 import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { main, memoryIo } from '../src/index.js';
@@ -199,7 +200,9 @@ describe("the tests' shared helpers never ship", () => {
 
 interface StageModule {
   checkStage(dir: string, opts?: { machinePaths?: string[] }): { problems: string[]; machO: Array<{ path: string; kind: string }> };
-  bareInstallNames(otool: string): string[];
+  stageTools(engine: string, o?: { file?: string; notices?: string }): { tools: Array<Record<string, unknown>>; playwright: string; compositor: string };
+  prunedIn(root: string): string[];
+  PRUNED: string[];
   machOKind(file: string): string | null;
   deployEngine(repo: string, engine: string, filter?: string): { unlinked: number };
   breakHardLinks(dir: string): number;
@@ -230,6 +233,7 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     file('engine/dist/bin.js', '#!/usr/bin/env node\n');
     file('engine/package.json', JSON.stringify({ name: '@retake/cli', version: '0.2.0', dependencies: { '@retake/core': '0.2.0' } }));
     file('engine/node_modules/playwright-core/package.json', '{"name":"playwright-core"}');
+    file('engine/node_modules/sharp/lib/sharp.node', THIN);
     for (const [rel, want] of Object.entries(marks))
       file(
         `engine/node_modules/@remotion/renderer/${rel}`,
@@ -237,23 +241,32 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
           .map(([m, k]) => `// ${m}\n`.repeat(k))
           .join(''),
       );
-    file('engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', THIN);
     file('engine/templates/default/template.yaml', 'name: default\n');
+    symlinkSync('default/template.yaml', join(root, 'engine', 'templates', 'current.yaml'));
     file('plugin/.claude-plugin/marketplace.json', '{}');
-    for (const rev of ['chromium-1194', 'chromium_headless_shell-1194']) for (const m of ['INSTALLATION_COMPLETE', 'DEPENDENCIES_VALIDATED']) file(`browsers/${rev}/${m}`);
-    symlinkSync('Versions/Current/Resources', join(root, 'browsers', 'chromium-1194', 'Resources'));
+    // Our notices of the Tools, as the stage copies apps/desktop/licenses.
+    for (const f of readdirSync(NOTICES)) file(`licenses/tools/${f}`, readFileSync(join(NOTICES, f)));
     file(
       'bundle.json',
       JSON.stringify({
-        v: 1,
+        v: 2,
         app: '0.2.0',
-        playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' },
+        playwright: { core: '1.65.1' },
+        compositor: '4.0.534',
+        tools: TOOLS,
         ffmpeg: null,
-        paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
+        paths: { node: 'node/bin/node', engine: 'engine', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
       }),
     );
     return root;
   }
+  const NOTICES = join(REPO, 'apps', 'desktop', 'licenses', 'tools');
+  const TOOLS = JSON.parse(readFileSync(join(REPO, 'apps', 'desktop', 'bundle', 'tools.json'), 'utf8')).platforms['darwin-arm64'] as Array<Record<string, unknown>>;
+  const edit = (r: string, change: (m: Untyped) => void) => {
+    const m = JSON.parse(readFileSync(join(r, 'bundle.json'), 'utf8'));
+    change(m);
+    writeFileSync(join(r, 'bundle.json'), JSON.stringify(m));
+  };
   const machinePaths = ['/Users/someone/projects/retake'];
 
   it('a sound stage passes; its Mach-O files (thin and FAT) are listed', async () => {
@@ -264,13 +277,15 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     expect(r.machO).toEqual(
       expect.arrayContaining([
         { path: 'node/bin/node', kind: 'fat' },
-        { path: 'engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', kind: 'thin' },
+        { path: 'engine/node_modules/sharp/lib/sharp.node', kind: 'thin' },
       ]),
     );
+    // What core reads at the app's start: a version 2 manifest whose Tools parse.
     expect(readBundleManifest(fakeStage()).paths.ffmpeg).toBeNull();
+    expect(readBundleManifest(fakeStage()).manifest.tools).toEqual(TOOLS);
   });
 
-  it('each rule: links absolute or leaving, a machine path, a marker with content, two playwright-cores, a path out, the renderer unpatched', async () => {
+  it('each rule: links absolute or leaving, a machine path, two playwright-cores, a path out, the renderer unpatched, a version 1 manifest, a browser or a compositor carried, the Tools broken or their notices stale', async () => {
     const { checkStage, RENDERER_PATCH_MARKS } = await stageModule();
     marks = RENDERER_PATCH_MARKS;
     const cases: Array<[string, (root: string) => void, RegExp]> = [
@@ -281,7 +296,26 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
         (r) => writeFileSync(join(r, 'engine', 'package.json'), JSON.stringify({ dependencies: { x: `file://${machinePaths[0]}/packages/core` } })),
         /engine\/package\.json names a path of the build machine/,
       ],
-      ['marker', (r) => writeFileSync(join(r, 'browsers', 'chromium-1194', 'DEPENDENCIES_VALIDATED'), 'x'), /DEPENDENCIES_VALIDATED is not empty/],
+      ['version 1', (r) => edit(r, (m) => (m.v = 1)), /bundle\.json: v must be 2/],
+      ['paths.browsers', (r) => edit(r, (m) => (m.paths.browsers = 'engine')), /paths\.browsers — the app carries no browser/],
+      ['a browsers folder', (r) => mkdirSync(join(r, 'browsers', 'chromium-1255'), { recursive: true }), /^browsers\/: the app carries no browser/m],
+      [
+        'the compositor package',
+        (r) => {
+          mkdirSync(join(r, 'engine', 'node_modules', '@remotion', 'compositor-darwin-arm64'), { recursive: true });
+          writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'compositor-darwin-arm64', 'package.json'), '{}');
+        },
+        /engine\/node_modules\/@remotion\/compositor-darwin-arm64: the payload must not carry it \(PRUNED\)/,
+      ],
+      ['no Tools', (r) => edit(r, (m) => delete m.tools), /bundle\.json: tools must be a list/],
+      [
+        'a Tool from another host',
+        (r) => edit(r, (m) => (m.tools[2].url = 'https://downloads.example.com/chrome-mac-arm64.zip')),
+        /bundle\.json: tools\[2\] \(browser\): url .* is not one of the hosts/,
+      ],
+      ['a Tool without its digest', (r) => edit(r, (m) => (m.tools[0].sha256 = 'x')), /tools\[0\] \(render-browser\): sha256 must be a sha256/],
+      ['a notice gone', (r) => rmSync(join(r, 'licenses', 'tools', 'compositor.md')), /licenses\/tools\/compositor\.md is missing/],
+      ['a stale notice', (r) => edit(r, (m) => (m.tools[2].version = '160.0.0.1')), /licenses\/tools\/browser\.md does not name its version \(160\.0\.0\.1\)/],
       [
         'two playwright-cores',
         (r) => {
@@ -331,21 +365,65 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     }
   });
 
-  it("the compositor's licence notice names the Remotion compositor the engine deploys (the stage refuses a stale one)", () => {
-    const pkg = JSON.parse(readFileSync(join(realpathSync(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer')), '..', 'compositor-darwin-arm64', 'package.json'), 'utf8')) as {
-      version: string;
-    };
-    const notice = readFileSync(join(REPO, 'apps', 'desktop', 'licenses', 'remotion-compositor', 'README.md'), 'utf8');
-    expect(notice).toContain(`@remotion/compositor-darwin-arm64 ${pkg.version}`);
-    expect(notice).toMatch(/GNU General Public\s+License, version 2 or later/);
-    expect(notice).toContain('../ffmpeg/COPYING.GPLv2');
+  it('our notices of the Tools (apps/desktop/licenses/tools): one per Tool of tools.json, each naming what it is, its publisher, version and download host, and its licence; never fetched', async () => {
+    const { noticeProblems } = (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'tools.mjs')).href)) as Untyped;
+    expect(readdirSync(NOTICES).sort()).toEqual(TOOLS.map((t) => `${t.id}.md`).sort());
+    expect(noticeProblems(TOOLS)).toEqual([]);
+    for (const t of TOOLS) {
+      const text = readFileSync(join(NOTICES, `${t.id}.md`), 'utf8');
+      expect(text, String(t.id)).toContain(String(t.url));
+      expect(text, String(t.id)).toMatch(/does not carry it and does not redistribute it/);
+      expect(text, String(t.id)).toMatch(/never fetches these terms itself/);
+    }
+    const compositor = readFileSync(join(NOTICES, 'compositor.md'), 'utf8');
+    expect(compositor).toMatch(/GNU General Public License,\s+version 2 or later/);
+    expect(compositor).toContain('../ffmpeg/COPYING.GPLv2');
+    expect(compositor).toMatch(/fdk-aac/);
+    for (const id of ['browser', 'render-browser']) expect(readFileSync(join(NOTICES, `${id}.md`), 'utf8'), id).toMatch(/Google's Chrome\s+terms/);
+    // A Tool with no notice, or a notice for no Tool, is a problem.
+    expect(noticeProblems(TOOLS.slice(0, 2)).join('\n')).toMatch(/licenses\/tools\/browser\.md describes no Tool of tools\.json/);
+    const stale = TOOLS.map((t) => (t.id === 'compositor' ? { ...t, publisher: 'Someone else' } : t));
+    expect(noticeProblems(stale).join('\n')).toMatch(/licenses\/tools\/compositor\.md does not name its publisher \(Someone else\)/);
   });
 
-  it('install names: the bare ones (what @loader_path replaces) are found', async () => {
-    const { bareInstallNames } = await stageModule();
-    const otool =
-      'remotion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n\tlibavcodec.dylib (compatibility version 61.0.0)\n\t@loader_path/libavutil.dylib (compatibility version 59.0.0)\n';
-    expect(bareInstallNames(otool)).toEqual(['libavcodec.dylib']);
+  it('stageTools: the Tools of a stage are tools.json checked against the deployed playwright-core and compositor, and described by our notices', async () => {
+    const { stageTools, PRUNED, prunedIn } = await stageModule();
+    // What a deploy leaves: the repository's playwright-core and the compositor package (pruned right after).
+    const pwReal = realpathSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core'));
+    const compReal = join(realpathSync(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer')), '..', 'compositor-darwin-arm64');
+    const deployed = (pwJson: string | Buffer = readFileSync(join(pwReal, 'browsers.json')), compVersion?: string) => {
+      const engine = join(tmp, `deployed-${n++}`, 'engine');
+      const put = (rel: string, data: string | Buffer) => (mkdirSync(dirname(join(engine, rel)), { recursive: true }), writeFileSync(join(engine, rel), data));
+      put('node_modules/playwright-core/package.json', readFileSync(join(pwReal, 'package.json')));
+      put('node_modules/playwright-core/browsers.json', pwJson);
+      const comp = JSON.parse(readFileSync(join(compReal, 'package.json'), 'utf8'));
+      put('node_modules/@remotion/compositor-darwin-arm64/package.json', JSON.stringify({ ...comp, version: compVersion ?? comp.version }));
+      return engine;
+    };
+    const ok = stageTools(deployed());
+    expect(ok.tools.map((t) => t.id)).toEqual(['render-browser', 'compositor', 'browser']);
+    expect(ok.tools).toEqual(TOOLS);
+    expect(ok.playwright).toBe(JSON.parse(readFileSync(join(pwReal, 'package.json'), 'utf8')).version);
+    expect(ok.compositor).toBe(TOOLS[1]!.version);
+    // Another revision deployed than tools.json records: refused, saying to record it again.
+    const other = JSON.parse(readFileSync(join(pwReal, 'browsers.json'), 'utf8'));
+    for (const b of other.browsers) if (b.name === 'chromium') b.revision = '9999';
+    expect(() => stageTools(deployed(JSON.stringify(other)))).toThrow(
+      /tools\.json does not match the repository's pins — record it again .*\n.*browser: folder is "browsers\/chromium-1255", the repository pins "browsers\/chromium-9999"/s,
+    );
+    expect(() => stageTools(deployed(undefined, '4.0.1'))).toThrow(/the engine deployed @remotion\/compositor-darwin-arm64 4\.0\.1, pnpm-lock\.yaml pins/);
+    // Our notices stale: refused.
+    const notices = join(tmp, `notices-${n++}`);
+    mkdirSync(notices);
+    for (const f of readdirSync(NOTICES)) writeFileSync(join(notices, f), readFileSync(join(NOTICES, f), 'utf8').replaceAll('4.0.534', '4.0.1'));
+    expect(() => stageTools(deployed(), { notices })).toThrow(/our notices of the Tools are stale:\n.*compositor\.md does not name its version \(4\.0\.534\)/s);
+    // The compositor package is pruned from the stage (every call of the rendering library names its folder).
+    expect(PRUNED).toEqual(['engine/node_modules/playwright-core/bin', 'engine/node_modules/@remotion/compositor-darwin-arm64']);
+    const root = dirname(deployed());
+    expect(prunedIn(root).map((p) => p.slice(root.length + 1))).toEqual(['engine/node_modules/@remotion/compositor-darwin-arm64']);
+    const src = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs'), 'utf8');
+    expect(src).toMatch(/const \{ tools, playwright, compositor \} = stageTools\(engine\);\n\s+for \(const p of prunedIn\(dir\)\) rmSync\(p, \{ recursive: true, force: true \}\);/);
+    expect(src).toMatch(/v: 2,\n\s+app: cliPkg\.version,\n\s+node: process\.versions\.node,\n\s+playwright: \{ core: playwright \},\n\s+compositor,\n\s+tools,/);
   });
 });
 
@@ -558,11 +636,11 @@ describe('retake init (a workspace folder of your own)', () => {
 /** A fake app bundle (Retake.app/Contents/Resources) with its plugin folder. */
 function appBundle(): BundleInfo {
   const root = join(mkdtempSync(join(tmp, 'app-')), 'Retake.app', 'Contents', 'Resources');
-  for (const d of ['node/bin', 'engine/node_modules/@retake/components/library/studio/card', 'browsers', 'engine/templates', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin'])
+  for (const d of ['node/bin', 'engine/node_modules/@retake/components/library/studio/card', 'engine/templates', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin'])
     mkdirSync(join(root, d), { recursive: true });
   writeFileSync(
     join(root, 'bundle.json'),
-    JSON.stringify({ v: 1, app: '0.2.0', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' } }),
+    JSON.stringify({ v: 2, app: '0.2.0', ffmpeg: null, tools: fakeToolEntries(), paths: { node: 'node/bin/node', engine: 'engine', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' } }),
   );
   return readBundleManifest(root);
 }
@@ -585,20 +663,18 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
-  it("renders use the bundle's headless shell; without it a bundle refuses (no Remotion download, into the app or elsewhere)", () => {
+  it("renders use the app's downloaded render browser; while it is not downloaded an app refuses (no Remotion download, into the app or elsewhere)", () => {
     const app = appBundle();
-    const shell = join(app.paths.browsers, 'chromium_headless_shell-1194', 'chrome-mac', 'headless_shell');
-    expect(renderBrowser({}, app, () => shell)).toEqual({ path: shell, source: 'bundled' });
+    // Playwright's cache is never what an app renders with (packages/editor/test/tools-resolvers.test.ts: the ready case).
+    const missing = renderBrowser({ RETAKE_HOME: join(tmp, 'no-tools-home') }, app, () => '/cache/headless_shell');
+    expect(missing).toMatchObject({ path: null, source: 'none', note: expect.stringMatching(/the render browser is not downloaded yet .*retake tools install/) });
+    expect(() => assertRenderBrowser(missing, PERSON_POLICY)).toThrow(/no browser to render with: the render browser is not downloaded yet/);
     expect(renderBrowser({}, null, () => '/cache/headless_shell')).toEqual({ path: '/cache/headless_shell', source: 'playwright' });
-    const missing = renderBrowser({}, app, () => null);
-    expect(missing).toMatchObject({ path: null, source: 'none', note: expect.stringMatching(/reinstall Retake/) });
-    expect(() => assertRenderBrowser(missing, PERSON_POLICY, app)).toThrow(/headless shell is missing/);
     // Outside an app too: Remotion never downloads a browser of its own.
     expect(() =>
       assertRenderBrowser(
         renderBrowser({}, null, () => null),
         PERSON_POLICY,
-        null,
       ),
     ).toThrow(/playwright-core install chromium-headless-shell/);
   });

@@ -326,8 +326,10 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   file; never a loader variable such as `NODE_OPTIONS` or `LD_PRELOAD`: a validation error), or as a hook's or a
   service's own `env:` (`{{env:NAME}}`, masked in every log). A hook that fails there names the variables it got
   (names, never values) and how to pass another. A command typed in a terminal passes its whole environment on.
-- **Renders never download a browser.** Every render uses Playwright's Chromium headless shell (the app's own in the
-  app) or `$RETAKE_CHROMIUM_HEADLESS_SHELL`; without one no render starts and the message says how to install it.
+- **Renders never download a browser.** Every render uses Playwright's Chromium headless shell (in the app: the one the
+  app downloaded, on the person's click, into its Tools) or `$RETAKE_CHROMIUM_HEADLESS_SHELL`; without one no render
+  starts and the message says how to install it (in the app: `retake tools install`, or Download in the Set-up
+  sheet). Jobs never download: a render asked before the Tools are here waits in the queue.
 - **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
   (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
   renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves

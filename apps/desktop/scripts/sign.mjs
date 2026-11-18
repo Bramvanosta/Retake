@@ -4,7 +4,7 @@
  * (`tauri build` runs with no secret in its environment):
  *
  * - the payload (the stage, before Tauri copies it into Contents/Resources), inside-out — files before the bundle that
- *   holds them, helpers before the framework, the framework before Chromium.app — after a walk that fails on any Mach-O
+ *   holds them, a nested bundle before the one around it — after a walk that fails on any Mach-O
  *   (thin or FAT, by its magic) that apps/desktop/bundle/sign-table.json does not name;
  * - then the shell (Contents/MacOS) and the outer app, which seals Resources (launch.json, the launcher, the engine's
  *   JavaScript);
@@ -96,7 +96,7 @@ function bundleMain(bundle, file) {
  * What signing `root` (the payload) means, without signing: `{ items, machO, problems }`. `items` — what codesign is
  * run on, inside-out (deepest first), each with its entry — and `machO`, every Mach-O file of the payload with the
  * entry that covers it. `problems`: a Mach-O no entry covers (or two do), an entry (not optional) that matches
- * nothing, a bundle entry that is no bundle folder. Links are never followed (Chromium's framework links).
+ * nothing, a bundle entry that is no bundle folder. Links are never followed (a framework's links).
  */
 export function signPlan(root, entries = readTable()) {
   const problems = [];

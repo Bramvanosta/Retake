@@ -85,7 +85,11 @@
       "renders": 0,
       "entries": 0
      },
-     "held": null
+     "held": null,
+     "tools": {
+      "state": "checkout",
+      "missing": []
+     }
     }
    }
   },
@@ -1940,7 +1944,11 @@
        "renders": 0,
        "entries": 0
       },
-      "held": null
+      "held": null,
+      "tools": {
+       "state": "checkout",
+       "missing": []
+      }
      }
     }
    }

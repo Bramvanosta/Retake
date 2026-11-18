@@ -55,6 +55,8 @@ const SHAPE: Array<string | [string, string[]]> = [
   'folder',
   ['comments', ['list', 'get', 'add', 'reply', 'resolve', 'reopen', 'anchorAt', 'apply', 'proposal', 'counts']],
   ['sandbox', ['status', 'up', 'reset', 'init']],
+  // The app's downloaded Tools (BL-192): their status, install and control, the updater's Tools step, the queue's wake.
+  ['tools', ['status', 'install', 'control', 'check', 'prune', 'started', 'readUpdate', 'installUpdate', 'licences', 'abandonUpdate', 'wake']],
   // Read-only members, set last: the frozen caller and the Clock port of its composition root (the system clock
   // is a plain object of one method, so it reads as a sub-API here).
   'caller',

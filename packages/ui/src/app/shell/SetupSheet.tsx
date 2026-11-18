@@ -1,6 +1,6 @@
 /**
  * The installed app's Set-up sheet (shell/setup.ts; DESIGN §4p (c); docs/reference/studio-ui.md) — a kit Sheet
- * with one checklist: the workspace, the Retake home, the `retake` command, Claude Code, Claude Desktop, notifications,
+ * with one checklist: the Tools the app downloads (ToolsItem.tsx: "Browser and render tools", first), the workspace, the Retake home, the `retake` command, Claude Code, Claude Desktop, notifications,
  * screen recording (not needed: captures are headless) and the local network. Each step acts only on its own click
  * through the Studio's setup ops (never MCP tools; the desktop app's own server only); Done closes it and remembers it
  * for this version. Paths come from the server: the page never sends one — another folder for the command is picked in
@@ -25,6 +25,7 @@ import { SETUP_EVENT, parseSetupDetail, unavailableSentence } from './setup.js';
 import type { SetupStatus } from './setup.js';
 import { bestEffort } from '../best-effort.js';
 import { ClaudeCodeItem, CliItem, DesktopItem, NotificationsItem } from './setup-steps.js';
+import { ToolsItem } from './ToolsItem.js';
 import type { Act, Busy, Confirm, ConfirmTo, Said, StepProps } from './setup-steps.js';
 
 /** Where the focus goes after the next render: an item (its test id) and, first, one of its buttons (test ids). */
@@ -117,6 +118,8 @@ function useSetupState(route: Route) {
       setOpen(true);
       load();
     }
+    // The Tools item's Show details: the Tools page, the sheet put away (it opens again from Help or `#/setup`).
+    if (route.name === 'setup-tools') setOpen(false);
   }, [route.name, load]);
   return { open, setOpen, st, loadError, busy, setBusy, said, setSaid, confirm, setConfirm, polling, focusNext, desktopInView, load };
 }
@@ -228,7 +231,7 @@ export function SetupSheet({ route }: { route: Route }) {
       escapeAction="escape"
       actions={[{ id: 'done', label: 'Done', variant: 'primary', isDefault: true, testId: 'setup-done' }]}
       onAction={close}
-      content={<SetupBody st={st} loadError={loadError} busy={busy} confirm={confirm} said={said} act={act} confirmTo={confirmTo} />}
+      content={<SetupBody open={open} st={st} loadError={loadError} busy={busy} confirm={confirm} said={said} act={act} confirmTo={confirmTo} />}
     >
       {`Each step is optional and happens only when you click it. Help › Set Up ${APP_NAME}… brings this back.`}
     </Sheet>
@@ -236,7 +239,7 @@ export function SetupSheet({ route }: { route: Route }) {
 }
 
 /** The sheet's content: the status being read, why set-up is off, or the checklist of steps. */
-function SetupBody({ st, loadError, ...rest }: Omit<StepProps, 'st' | 'placed'> & { st: SetupStatus | null; loadError: string | null }) {
+function SetupBody({ open, st, loadError, ...rest }: Omit<StepProps, 'st' | 'placed'> & { open: boolean; st: SetupStatus | null; loadError: string | null }) {
   if (!st) return loadError ? <Callout state="fail" role="alert" title={<Txt text={loadError} />} /> : <p>Reading the set-up…</p>;
   if (!st.available) return <Callout state="idle" role="note" title={unavailableSentence(st.reason)} testId="setup-unavailable" />;
   const placed = st.location === 'ok';
@@ -245,6 +248,7 @@ function SetupBody({ st, loadError, ...rest }: Omit<StepProps, 'st' | 'placed'> 
     <>
       {!placed && <Callout state="attention" role="alert" title={<Txt text={st.location_words ?? ''} />} testId="setup-location" />}
       <Checklist label="Set-up steps">
+        <ToolsItem open={open} />
         <ChecklistItem state="ok" word="Open" title="Workspace" testId="setup-workspace">
           <Txt className="k-mono sh-setup-path" text={st.workspace ?? ''} />
           <p>Your projects live here. File › Open Workspace… changes it.</p>

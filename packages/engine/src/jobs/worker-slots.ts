@@ -73,9 +73,11 @@ export async function claimNext(w: Worker): Promise<boolean> {
   const room = !w.capture || (!w.heavy && !w.heavyInProcess && !w.capture.filming);
   if (room && !w.buildChanged && !w.newerJob && !(w.o.once && w.started > 0) && !w.stopping) {
     const records = await scanOpenJobs(w);
+    // The app's Tools missing now: their jobs stay queued, the others go on (pick.ts).
+    const blocked = w.tools();
     if (!w.capture) {
-      let id = pick(records, { slot: 'capture', filmingLive: w.filmingLive });
-      if (!id && w.heavyInProcess) id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive });
+      let id = pick(records, { slot: 'capture', filmingLive: w.filmingLive, blocked });
+      if (!id && w.heavyInProcess) id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive, blocked });
       const stored = id ? await claimJob(w, id) : undefined;
       if (stored) {
         startCapture(w, stored);
@@ -83,7 +85,7 @@ export async function claimNext(w: Worker): Promise<boolean> {
       }
     }
     if (!w.heavy && !w.heavyInProcess && !w.newerJob && !(w.o.once && w.started > 0)) {
-      const id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive || w.capture?.filming === true });
+      const id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive || w.capture?.filming === true, blocked });
       const stored = id ? await claimJob(w, id) : undefined;
       if (stored) {
         if (jobClass(stored.kind) !== 'heavy' || jobClass(stored.input?.kind) !== 'heavy') await unclaimJob(w, stored.id);

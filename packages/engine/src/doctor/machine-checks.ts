@@ -10,13 +10,14 @@ import { agentArgsProblems, agentProgramProblem, workspaceFolders } from '@retak
 import { UNSAFE_TEST_RESOLVE_ENV, unsafeTestResolve } from '@retake/core/theme';
 import { nodeFileFacts, resolveMediaTools } from '@retake/core/io';
 import type { BrowserConfig, WorkspaceConfig } from '@retake/core/project';
-import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
+import { TOOLS_INSTALL_COMMAND } from '@retake/core/io';
+import type { BundleInfo, MediaToolSource, MediaTools, ToolId } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web/types';
 import { formatMs } from '../format.js';
 import { NPM_TEST_REGISTRY_ENV, npmTestRegistry } from '../fonts/npm-registry.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import { firstLine } from './types.js';
-import type { DockerNeed, DoctorCheck, DoctorProbes, RendersProbe } from './types.js';
+import type { DockerNeed, DoctorCheck, DoctorProbes, DoctorToolsProbe, RendersProbe } from './types.js';
 
 export const MIN_NODE_MAJOR = 22;
 /** Oldest ffmpeg / ffprobe the tools work with (`-fps_mode`). */
@@ -88,44 +89,65 @@ export function nodeCheck(p: DoctorProbes): DoctorCheck {
     : { status: 'fail', name: 'Node.js', detail: `${p.nodeVersion} (needs ${MIN_NODE_MAJOR}+)`, hint: `install Node.js ${MIN_NODE_MAJOR} or later (e.g. nvm install ${MIN_NODE_MAJOR})` };
 }
 
-/** How a doctor line names a browser's source. */
+/** How a doctor line names a browser's source (`tools`: the app's downloaded Tools). */
 export function browserSource(source: string): string {
-  return source === 'playwright' ? 'Playwright cache' : source === 'env' ? 'RETAKE_CHROMIUM_HEADLESS_SHELL' : source;
+  return source === 'playwright' ? 'Playwright cache' : source === 'env' ? 'RETAKE_CHROMIUM_HEADLESS_SHELL' : source === 'tools' ? 'downloaded Tools' : source;
 }
 
-export function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bundle?: BundleInfo | null): DoctorCheck {
+/** The doctor line of the capture browser (it was "Chromium" before the app's browser is Chrome for Testing). */
+export const BROWSER_LINE = 'Browser';
+
+/**
+ * A line for an app's Tool that is not ready (core/io toolProblem's state): not downloaded yet is a WARN (jobs wait for
+ * it in the queue, a click downloads it), damaged a FAIL. Null when it is ready, or in a checkout.
+ */
+export function toolNotReady(t: DoctorToolsProbe | null | undefined, id: ToolId, name: string): DoctorCheck | null {
+  const tool = t?.tools.find((x) => x.id === id);
+  if (!tool || tool.state === 'ready') return null;
+  if (tool.state === 'missing') {
+    return { status: 'warn', name, detail: `not downloaded yet (${tool.path})`, hint: `run: ${TOOLS_INSTALL_COMMAND} (or Download in the Studio's set-up); jobs that need it wait in the queue` };
+  }
+  return { status: 'fail', name, detail: `damaged: ${tool.problem ?? 'its check fails'} (${tool.path})`, hint: `run: retake tools check, then ${TOOLS_INSTALL_COMMAND}` };
+}
+
+export function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bundle?: BundleInfo | null, tools?: DoctorToolsProbe | null): DoctorCheck {
   const src = browserSource(c.source);
-  const fromApp = !!bundle && c.source === 'bundled';
+  const fromApp = !!bundle && c.source === 'tools';
+  const name = BROWSER_LINE;
+  if (fromApp) {
+    const notReady = toolNotReady(tools, browser?.channel === 'headless-shell' ? 'render-browser' : 'browser', name);
+    if (notReady) return notReady;
+  }
   if (!c.path || !c.exists) {
     return {
       status: 'fail',
-      name: 'Chromium',
+      name,
       detail: c.path ? `not found at ${c.path} (${src})` : 'no Chromium known to Playwright',
       hint: fromApp
-        ? "the app's Chromium is missing: reinstall Retake — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary"
+        ? `run: retake tools check, then ${TOOLS_INSTALL_COMMAND} — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary`
         : bundle
-          ? "point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary that exists, or remove it to use the app's own"
+          ? "point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary that exists, or remove it to use the app's downloaded browser"
           : 'pnpm --filter @retake/runner-web exec playwright-core install chromium — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary',
     };
   }
   if (!c.launched) {
     return {
       status: 'fail',
-      name: 'Chromium',
+      name,
       detail: `${c.path} (${src}) did not launch headless: ${c.error ?? 'no page rendered'}`,
       hint: /as root|crbug\.com\/638180/i.test(c.error ?? '')
         ? 'Chromium does not run sandboxed as root, and Retake never turns its sandbox off: run Retake as a regular user (in a container, a USER that is not root)'
         : /sandbox/i.test(c.error ?? '')
           ? "Chromium's sandbox could not start (Retake always runs it sandboxed): on Linux it needs unprivileged user namespaces (kernel.unprivileged_userns_clone=1, or AppArmor's restriction lifted for that binary)"
           : fromApp
-            ? 'reinstall Retake (its Chromium did not start)'
+            ? `run: retake tools check (the downloaded browser did not start), then ${TOOLS_INSTALL_COMMAND}`
             : bundle
-              ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
+              ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's downloaded browser"
               : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
     };
   }
   const mode = browser?.channel === 'headless-shell' ? 'headless shell' : 'new headless';
-  return { status: 'ok', name: 'Chromium', detail: `${c.version ?? '?'} · ${c.path} · ${src} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
+  return { status: 'ok', name, detail: `${c.version ?? '?'} · ${c.path} · ${src} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
 }
 
 /**
@@ -135,8 +157,14 @@ export function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefin
 export function chromiumSandboxCheck(c: ChromiumProbe): DoctorCheck | null {
   if (!c.launched) return null;
   const name = 'Chromium sandbox';
+  // Captures refuse such a browser (runner-web refuseUnsandboxed: one that cannot be checked is not used): a FAIL here too.
   if (!c.sandbox)
-    return { status: 'warn', name, detail: 'the capture browser did not report its command line', hint: 'open chrome://version in that Chromium: its command line must not hold --no-sandbox' };
+    return {
+      status: 'fail',
+      name,
+      detail: 'the capture browser did not report its command line: captures, sign-ins and recordings refuse it (its sandbox cannot be checked)',
+      hint: 'the executable drops --enable-automation or is not a Chromium that answers it: point $RETAKE_CHROMIUM / browser.executable at one that starts Chromium as it is given (not a wrapper), or remove it',
+    };
   if (c.sandbox.on) return { status: 'ok', name, detail: "on · read from the capture browser's command line" };
   const own = c.source === 'browser.executable' || c.source === 'RETAKE_CHROMIUM';
   return {
@@ -145,17 +173,17 @@ export function chromiumSandboxCheck(c: ChromiumProbe): DoctorCheck | null {
     detail: `off: the capture browser runs with ${c.sandbox.off.join(' ')}`,
     hint: own
       ? `the executable of ${c.source === 'RETAKE_CHROMIUM' ? '$RETAKE_CHROMIUM' : 'browser.executable'} adds them itself: point it at a Chromium or Chrome binary (not a wrapper that adds switches), or remove it`
-      : 'reinstall Retake (its Chromium starts without its sandbox)',
+      : `run: retake tools check, then ${TOOLS_INSTALL_COMMAND} (the downloaded browser starts without its sandbox)`,
   };
 }
 
-/** The browser renders use: its source; an app without its headless shell is broken (FAIL). */
+/** The browser renders use: its source; the app's not downloaded yet (WARN) or damaged (FAIL), else none (FAIL). */
 export async function renderBrowserCheck(p: DoctorProbes): Promise<DoctorCheck | null> {
   const b = await p.renderBrowser?.();
   if (!b) return null;
   const name = 'Render browser';
   if (b.path) return { status: b.note ? 'warn' : 'ok', name, detail: `${b.path} · ${browserSource(b.source)}`, ...(b.note ? { hint: b.note } : {}) };
-  if (p.bundle) return { status: 'fail', name, detail: "the app's headless shell is missing", hint: 'reinstall Retake' };
+  if (p.bundle) return toolNotReady(p.tools?.(), 'render-browser', name) ?? { status: 'fail', name, detail: 'no render browser', hint: b.note ?? `run: ${TOOLS_INSTALL_COMMAND}` };
   // Remotion never downloads a browser of its own: no render starts without one.
   return {
     status: 'fail',
@@ -163,6 +191,44 @@ export async function renderBrowserCheck(p: DoctorProbes): Promise<DoctorCheck |
     detail: 'no headless shell: renders do not start',
     hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium-headless-shell — or point $RETAKE_CHROMIUM_HEADLESS_SHELL at one',
   };
+}
+
+/**
+ * The app's downloaded Tools: one line saying which home's Tools folder this engine uses, and whether they
+ * are all ready (OK), not all downloaded (WARN: jobs that need them wait) or damaged (FAIL). In a checkout: OK,
+ * "checkout: Playwright cache / node_modules" (never missing: a checkout uses those as before).
+ */
+export function toolsCheck(p: DoctorProbes): DoctorCheck | null {
+  if (!p.tools) return null;
+  const t = p.tools();
+  const name = 'Tools';
+  if (!t) return { status: 'ok', name, detail: 'checkout: Playwright cache / node_modules' };
+  const where = `${t.dir}${t.homeFromEnv ? ' ($RETAKE_HOME)' : ''}`;
+  if (t.problem) return { status: 'fail', name, detail: t.problem, hint: 'reinstall Retake' };
+  const damaged = t.tools.filter((x) => x.state === 'damaged');
+  const missing = t.tools.filter((x) => x.state === 'missing');
+  const names = (xs: typeof t.tools) => xs.map((x) => x.label.toLowerCase()).join(', ');
+  if (damaged.length) return { status: 'fail', name, detail: `damaged: ${names(damaged)} · ${where}`, hint: `run: retake tools check, then ${TOOLS_INSTALL_COMMAND}` };
+  if (missing.length) {
+    return {
+      status: 'warn',
+      name,
+      detail: `not downloaded yet: ${names(missing)} · ${where}`,
+      hint: `run: ${TOOLS_INSTALL_COMMAND} (or Download in the Studio's set-up); captures and renders wait in the queue until then${t.homeFromEnv ? ' — $RETAKE_HOME names this home: the Tools of ~/.retake are not used here' : ''}`,
+    };
+  }
+  return { status: 'ok', name, detail: `ready · ${t.tools.map((x) => `${x.label.toLowerCase()} ${x.version}`).join(', ')} · ${where}` };
+}
+
+/** The compositor renders use: the app's downloaded one (its version and folder), else the library's own (a checkout). */
+export function compositorCheck(p: DoctorProbes): DoctorCheck | null {
+  if (!p.tools) return null;
+  const t = p.tools();
+  const name = 'Compositor';
+  if (!t) return { status: 'ok', name, detail: "node_modules · the library's own" };
+  const c = t.tools.find((x) => x.id === 'compositor');
+  if (!c) return null;
+  return toolNotReady(t, 'compositor', name) ?? { status: 'ok', name, detail: `${c.version} · ${c.path} · downloaded Tools` };
 }
 
 /**

@@ -49,13 +49,16 @@ export function etaWords(s: number | undefined): string {
   return `about ${Math.round(s / 60)} min left`;
 }
 
-const WHERE: Record<JobYield['cause'], string> = { here: 'in this workspace', elsewhere: 'elsewhere on this Mac' };
+const WHERE: Record<JobYield['cause'], string> = { here: 'in this workspace', elsewhere: 'elsewhere on this Mac', tools: 'elsewhere on this Mac' };
+/** What a job held by the Tools waits for (engine needsWords). */
+const needsWords = (needs: JobYield['needs']) => (needs === 'browser' ? 'the browser' : 'the render tools');
 
 /**
  * What a take does to a heavy job, in words — as engine yieldWords says it to MCP and the
  * terminal ("waiting for a take to finish (in this workspace)", "slowed during a take (elsewhere on this Mac)").
  */
 export function yieldWords(y: JobYield): string {
+  if (y.cause === 'tools') return `waiting for ${needsWords(y.needs)} to be downloaded (it starts by itself once checked)`;
   const where = WHERE[y.cause] ?? WHERE.elsewhere;
   if (y.state === 'past_cap') return `going on: a take (${where}) has held heavy work for ${y.cap_min ? `over ${y.cap_min} min` : 'longer than the cap'}`;
   return `${y.state === 'waiting' ? 'waiting for a take to finish' : 'slowed during a take'} (${where})`;
@@ -64,6 +67,7 @@ export function yieldWords(y: JobYield): string {
 /** The status bar's segment (engine heldWorkWords): "a render is slowed during a take (in this workspace)". */
 export function heldWords(h: HeldWork): string {
   const what = h.count > 1 ? `${h.count} jobs` : `${/^[aeiou]/.test(h.kind) ? 'an' : 'a'} ${h.kind.replace(/_/g, ' ')}`;
+  if (h.cause === 'tools') return `${what} ${h.count > 1 ? 'wait' : 'waits'} for ${needsWords(h.needs)} to be downloaded`;
   if (h.state === 'background') return `${what} ${h.count > 1 ? 'are' : 'is'} slowed during a take (${WHERE[h.cause] ?? WHERE.elsewhere})`;
   if (h.state === 'past_cap') return `${what} ${h.count > 1 ? 'go' : 'goes'} on: a take (${WHERE[h.cause] ?? WHERE.elsewhere}) has held heavy work for longer than the cap`;
   return `${what} ${h.count > 1 ? 'wait' : 'waits'} for a take to finish (${WHERE[h.cause] ?? WHERE.elsewhere})`;
@@ -75,6 +79,7 @@ export function heldWords(h: HeldWork): string {
  */
 export function heldShortWords(h: HeldWork): string {
   const what = h.count > 1 ? `${h.count} jobs` : `${/^[aeiou]/.test(h.kind) ? 'an' : 'a'} ${h.kind.replace(/_/g, ' ')}`;
+  if (h.cause === 'tools') return `${what} ${h.count > 1 ? 'wait' : 'waits'} for ${h.needs === 'browser' ? 'the browser' : 'the render tools'}`;
   if (h.state === 'background') return `${what} slowed by a take`;
   if (h.state === 'past_cap') return `${what} past a take's cap`;
   return `${what} ${h.count > 1 ? 'wait' : 'waits'} for a take`;

@@ -880,7 +880,8 @@ describe('the import-rules ratchet', () => {
 
     it('holds today: the registry is named in its home only', () => {
       expect(ratchetOfRepo().filter((e) => e.startsWith('browser-registry '))).toEqual([]);
-      expect(readFileSync(join(ROOT, lib.BROWSER_REGISTRY_HOME), 'utf8')).toContain("'playwright-core/lib/server/registry/index'");
+      // playwright-core 1.57+ lets only lib/coreBundle be loaded (its registry under the `registry` key): BL-192.
+      expect(readFileSync(join(ROOT, lib.BROWSER_REGISTRY_HOME), 'utf8')).toContain("'playwright-core/lib/coreBundle'");
     });
   });
 
@@ -1233,9 +1234,10 @@ describe('the import-rules ratchet', () => {
       // MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
       // −6 / −8 (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune,
       // job_status; the Studio's scenario_edit and its seven record_* ops). Studio +1 (desktop.ts's desktop_menu: the
-      // desktop pipe's own op, like desktop_answer).
+      // desktop pipe's own op, like desktop_answer). Studio +6 (tools-ops.ts: the app's downloaded Tools, BL-192 —
+      // Studio-only own ops, never MCP tools).
       expect(total('packages/mcp/src/')).toBe(9 - 3 - 6);
-      expect(total('packages/ui/src/')).toBe(38 - 12 - 8 + 1);
+      expect(total('packages/ui/src/')).toBe(38 - 12 - 8 + 1 + 6);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });
