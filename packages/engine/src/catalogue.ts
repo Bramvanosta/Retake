@@ -182,6 +182,14 @@ const ENTRIES = [
   { name: 'project_env_set', ...W, cli: ['env add', 'env set'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
   { name: 'project_env_remove', ...D('an environment of project.yaml'), cli: ['env remove'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
   { name: 'project_prune', ...D('the runs, renders and reviews nothing needs any more'), cli: ['prune'], mcp: true, studio: no('no Studio screen frees disk space: `retake prune` in a terminal') },
+  { name: 'project_adopt', ...W, cli: ['project adopt'], mcp: true, studio: no('a person adopts workspace themes into a project from a terminal: retake project adopt') },
+  {
+    name: 'project_adopt_move',
+    ...D('the workspace theme or brand files moved into the project (set aside under .retake/adopted/, never deleted)'),
+    cli: ['project adopt'],
+    mcp: no('through MCP a workspace theme is only copied (project_adopt): a person moves it'),
+    studio: no('a person moves a workspace theme into a project from a terminal: retake project adopt'),
+  },
   { name: 'scenario_get', useCase: 'scenario.read', ...R, cli: no('a person opens scenarios/<name>.yaml'), mcp: true, studio: no('the scenario screen reads the file through scenario_blocks') },
   { name: 'scenario_validate', ...R, cli: ['validate'], mcp: true, studio: STUDIO },
   { name: 'scenario_save', useCase: 'scenario.save', ...W, cli: no('a person edits scenarios/<name>.yaml'), mcp: true, studio: no('one Studio write path for a scenario: scenario_edit') },
@@ -247,7 +255,7 @@ const ENTRIES = [
   { name: 'comments_list', useCase: 'comments.list', ...R, cli: ['comment list'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_reply', useCase: 'comments.reply', ...W, cli: ['comment reply'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_resolve', useCase: 'comments.resolve', ...W, cli: ['comment resolve'], mcp: true, studio: COMMENT_PAGE },
-  { name: 'template_list', useCase: 'themes.list', ...R, cli: ['list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
+  { name: 'template_list', useCase: 'themes.list', ...R, cli: ['list', 'theme list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
   {
     name: 'template_preview',
     useCase: 'themes.preview',

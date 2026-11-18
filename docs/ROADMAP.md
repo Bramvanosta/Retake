@@ -178,7 +178,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** (2026-11-16; `retake env` on a real project and a real app's route by hand: MACOS-CHECKLIST §19) |
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
 | L9.1 | Records with project-relative paths (field feedback 2, point 32): run, render and review records write the paths of the project's files relative to their own folder, older absolute records read where they now lie, render records at format version 2, MCP checks only the files each reader opens | M | **done** (2026-11-17) |
-| L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | todo |
+| L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | **done** (2026-11-18) |
 | L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | todo |
 | L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | todo |
 | L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | todo |
@@ -1460,6 +1460,18 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   where they now lie, never rewritten; a relative path climbing out of its bound reads as missing; render records at
   format version 2 (0.3.0 refuses them with its newer-format sentence); MCP checks only what each reader opens.
   Requirements R-SHR-01 – R-SHR-05.
+
+### L9.2 — Themes and brand files of a project (L; decided 2026-11-17)
+- **Goal:** a project folder carries its own themes and brand files (`projects/<slug>/templates/`, `brand/`), so it
+  no longer loses them when copied alone (point 32, the second of L9.1 – L9.5).
+- **Done (2026-11-18):** a theme name resolves project → workspace → starter, lists say each theme's origin and what
+  it shadows, a project theme's identity is project-relative (`/project:<path>`, older ids still read, an adopted
+  theme's earlier renders matched by `template_sha256`); theme writers (create, copy, update, edit, the Studio from a
+  project's screen) write into the project when one is named, and MCP refuses a project theme that takes a workspace
+  theme's name; brand files are looked up in the project first, then the workspace root; `retake project adopt`
+  moves (or `--copy` copies) themes and brand files into a project, refused while another project or a job uses them,
+  under the theme's write lock, the old folder set aside in `.retake/adopted/`; MCP `project_adopt` copies themes only.
+  Requirements R-SHR-10 – R-SHR-16; what is left: BL-193.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

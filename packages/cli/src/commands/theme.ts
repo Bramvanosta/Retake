@@ -1,7 +1,8 @@
 import { printableText } from '@retake/core/base';
-import { EngineError } from '@retake/engine';
+import { resolve } from 'node:path';
+import { EngineError, createEngine } from '@retake/engine';
 import { createThemeFromBrand, extractSiteForAuthor, fetchFonts, personScope, tokensDraft } from '@retake/engine/shell';
-import type { FontFetched, SiteJobResult, ThemeCreated, TokensDraft } from '@retake/engine';
+import type { FontFetched, SiteJobResult, TemplateListView, TemplateSummary, ThemeCreated, TokensDraft } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -29,6 +30,8 @@ export interface ThemeCreateOptions {
   param?: string[];
   adjust?: boolean;
   replace?: boolean;
+  /** The project whose own theme it is (projects/<slug>/templates/<name>/; its brand files looked for there first). */
+  project?: string;
   json?: boolean;
 }
 
@@ -100,7 +103,7 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
   ui.line(`next: ${k.bold(`retake render <project> <scenario> --theme ${c.name}`)} (or template_preview through MCP); change it with --replace while nobody edited it`);
 }
 
-/** `retake theme create <name> --accent <hex> --logo <file> …`: a new workspace theme from brand files (trust author). */
+/** `retake theme create <name> --accent <hex> --logo <file> [--project <slug>] …`: a new theme from brand files (trust author), the project's own with --project. */
 export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: string, opts: ThemeCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const components = componentsOption(opts.component, opts.param);
@@ -126,6 +129,7 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
       : {}),
     ...(components ? { components } : {}),
     ...(opts.replace ? { replace: true } : {}),
+    ...(opts.project ? { project: opts.project } : {}),
   };
   let created: ThemeCreated;
   try {
@@ -224,7 +228,9 @@ export async function themeFetchFontCommand(ui: Ui, global: GlobalOptions, refs:
   }
   const k = ui.c;
   for (const p of f.packages) {
-    ui.ok(`${p.downloaded ? 'fetched' : 'stored already:'} ${k.bold(`${p.package} ${p.version}`)} (${p.licence}, as its publisher declares it) from ${p.registry}${p.test_registry ? ' (a TEST registry)' : ''} into ${p.dir}`);
+    ui.ok(
+      `${p.downloaded ? 'fetched' : 'stored already:'} ${k.bold(`${p.package} ${p.version}`)} (${p.licence}, as its publisher declares it) from ${p.registry}${p.test_registry ? ' (a TEST registry)' : ''} into ${p.dir}`,
+    );
     ui.line(k.dim(`  integrity ${p.integrity}`));
     for (const x of p.faces) ui.line(`  ${x.ref} (${x.state})`);
   }
@@ -270,7 +276,11 @@ export async function themeFromTokensCommand(ui: Ui, global: GlobalOptions, file
   const map = mapOption(opts.map);
   let t: TokensDraft;
   try {
-    t = await tokensDraft(ws, { tokens: file, ...(map ? { map } : {}), ...(opts.base ? { base: opts.base } : {}), ...(opts.name ? { name: opts.name } : {}) }, { trust: 'author', clock: global.ports.clock, cwd: process.cwd() });
+    t = await tokensDraft(
+      ws,
+      { tokens: file, ...(map ? { map } : {}), ...(opts.base ? { base: opts.base } : {}), ...(opts.name ? { name: opts.name } : {}) },
+      { trust: 'author', clock: global.ports.clock, cwd: process.cwd() },
+    );
   } catch (e) {
     // A --map name the file lacks: its nearest token names (the file's text: printable only, said to be the file's).
     const near = e instanceof EngineError ? (e.details?.untrusted as { near?: unknown } | undefined)?.near : undefined;
@@ -289,5 +299,35 @@ export async function themeFromTokensCommand(ui: Ui, global: GlobalOptions, file
     return EXIT.ok;
   }
   printTokens(ui, t);
+  return EXIT.ok;
+}
+
+/** One row of `retake theme list`: name, origin (and what it hides), the project's default. */
+function themeRow(ui: Ui, t: TemplateSummary): string {
+  const k = ui.c;
+  const origin = t.by_path ? 'project, by its path' : t.shadows ? `${t.source}, instead of the ${t.shadows === 'workspace' ? "workspace's" : 'starter'}` : t.source;
+  return `  ${k.bold(t.name)} ${k.dim(`(${origin})`)}${t.default ? " — the project's theme" : ''}${t.issues.length ? ` ${k.red(`— ${t.issues[0]}`)}` : ''}`;
+}
+
+/** `retake theme list [--project <slug>] [--json]`: the themes a render can name, each with its origin (template_list). */
+export async function themeListCommand(ui: Ui, global: GlobalOptions, opts: { project?: string; json?: boolean }): Promise<ExitCode> {
+  const ws = await openWorkspace(global);
+  const engine = await createEngine({ root: resolve(ws.root), client: 'cli', autoStartWorker: false, ports: global.ports });
+  let v: TemplateListView;
+  try {
+    v = await engine.templates.list(opts.project !== undefined ? { project: opts.project } : {});
+  } catch (e) {
+    if (e instanceof EngineError) throw new CliError(e.message);
+    throw e;
+  }
+  if (opts.json) {
+    ui.result(JSON.stringify(v, null, 2));
+    return EXIT.ok;
+  }
+  const k = ui.c;
+  if (v.project_templates_dir !== undefined) ui.result(`${k.bold('Themes')} ${k.dim(`${ui.path(v.project_templates_dir)}, then ${ui.path(v.templates_dir)}, then the starters`)}`);
+  else ui.result(`${k.bold('Themes')} ${k.dim(`${ui.path(v.templates_dir)}, then the starters`)}`);
+  for (const t of v.templates) ui.result(themeRow(ui, t));
+  for (const n of v.notices ?? []) ui.line(k.dim(`  note: ${n}`));
   return EXIT.ok;
 }

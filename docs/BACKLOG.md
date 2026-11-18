@@ -2909,3 +2909,21 @@ browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium
 `chrome-mac/Chromium.app` and `headless_shell`. Its own lot: the new layout in the stage and the signer, the digests
 re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
 Testing's terms allow shipping it in a public DMG (with BL-138).
+
+### BL-193 — A project's themes and brand files: what L9.2 left
+*S–M each · from L9.2 (field feedback 2, point 32)*
+
+- **`retake prune` and `.retake/adopted/`:** a move sets the workspace folder aside there; prune neither lists nor
+  removes it yet (removing it stays a person's act).
+- **The Studio:** an Adopt button (adopt is the CLI's `retake project adopt` and MCP `project_adopt`), a "save in the
+  workspace" choice (a project's screen always makes a theme into that project), a brand-file upload.
+- **Undoing a move** by command; rewriting project.yaml or a theme's provenance after a move.
+- **Site extractions per project:** `site:` results stay workspace state (the created theme copies the logo);
+  moving existing extractions.
+- **Checks:** `retake validate` / doctor noting a project `templates/` subfolder without template.yaml, doctor
+  checking project themes.
+- **Case-only name clashes** (`Brand` vs `brand` on a case-insensitive disk): adopt and create compare without case,
+  resolution does not.
+- **A move's in-flight check** is workspace-wide (any queued or running job refuses it), not per theme.
+- **Adopted renders beyond the hash budget:** an old render matches its moved theme by `template_sha256`; a theme too
+  large for the hash budget has none, so its earlier renders read as another theme.

@@ -97,8 +97,9 @@ export interface RenderBase<P, O> {
   template: string;
   template_sha256?: string;
   /**
-   * The theme's folder as the editor loaded it (core io templateFolderId: `/starter:<name>`, or relative to the
-   * workspace root): what tells two folders of one name apart. An older record has none.
+   * The theme's folder as the editor loaded it (core io templateFolderId: `/starter:<name>`, `/project:<path>` for a
+   * folder inside the project, else relative to the workspace root): what tells two folders of one name apart. An older
+   * record has none (and one before projects had their own themes names a project folder workspace-relative).
    */
   template_folder?: string;
   overrides: O;

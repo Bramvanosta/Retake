@@ -9,7 +9,7 @@ import { Txt } from '../bits.js';
 import { okId } from '../words/library-words.js';
 import { ShellSlot } from '../shell/slots.js';
 import { SECTIONS, showSection } from './ThemeFields.js';
-import { EDITOR_KINDS, componentRow, kindLabel, usedByWords } from '../words/theme-words.js';
+import { EDITOR_KINDS, SOURCE_BADGE, componentRow, kindLabel, usedByWords } from '../words/theme-words.js';
 import { Button, Callout, LinkButton, SourceList, StatusMark, Tag } from '../ui-kit/index.js';
 
 export interface Status {
@@ -175,8 +175,10 @@ export function ThemeHead({ v, slug, editable }: { v: ThemeEditView; slug: strin
         <Txt text={v.name} />
       </h1>
       <span className="tm-tags">
-        <Tag>{editable ? 'Editable · in this workspace' : 'Read-only'}</Tag>
-        <Tag>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Tag>
+        <Tag>{editable ? (v.source === 'project' ? 'Editable · in this project' : 'Editable · in this workspace') : 'Read-only'}</Tag>
+        <Tag>
+          <Txt text={SOURCE_BADGE[v.source]} />
+        </Tag>
         <span className="tm-quiet" data-testid="theme-used-by">
           <Txt text={usedByWords(v.used_by, slug)} />
         </span>

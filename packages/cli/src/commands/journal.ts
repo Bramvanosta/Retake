@@ -39,7 +39,9 @@ export function journalLine(e: JournalEntry): string {
     return `${at}  ${whoText(e)}  hook ${txt(e.phase)} ${name}${e.kind ? ` (${txt(e.kind)})` : ''}${project}${e.run ? ` · run ${txt(e.run)}` : ''}  ${txt(e.outcome)}`;
   }
   const files = e.op === 'folder' && e.files ? ` (${e.files.length + (e.files_more ?? 0)} files)` : '';
-  return `${at}  ${whoText(e)}  ${e.op === 'folder' ? 'created' : 'wrote'} ${txt(e.what)} ${txt(e.path)}${files}  ${txt(e.outcome)}`;
+  // A move (a workspace theme or brand files a project adopted): where it was set aside.
+  const to = e.op === 'move' && e.to !== undefined ? ` → ${txt(e.to)}` : '';
+  return `${at}  ${whoText(e)}  ${e.op === 'folder' ? 'created' : e.op === 'move' ? 'moved' : 'wrote'} ${txt(e.what)} ${txt(e.path)}${to}${files}  ${txt(e.outcome)}`;
 }
 
 /** `retake journal [--project P] [--writes | --hooks] [--limit N] [--json]`: the newest lines of the workspace journal. */

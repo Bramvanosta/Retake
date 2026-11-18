@@ -5,8 +5,10 @@ description: Make a new Retake theme (the brand's logo, colours and fonts over a
 
 # Retake: themes
 
-A theme is a folder `templates/<name>/` of the workspace: `template.yaml` over a base theme, the logo, the fonts and
-their licences. Through MCP you create **new** themes and adjust one made through MCP that nobody edited since
+A theme is a folder `templates/<name>/`: `template.yaml` over a base theme, the logo, the fonts and their licences —
+the project's own in `projects/<slug>/templates/<name>/` (found first for that project's work, and carried with the
+project folder), else the workspace's `templates/`. Make a theme for a project **in that project**: pass `project` to
+`template_create_from_brand` (and to `template_update` for one of the project's). Through MCP you create **new** themes and adjust one made through MCP that nobody edited since
 (`template_update`); themes a person made or changed and project.yaml (but its environments: `project_env_set` /
 `project_env_remove`) are the user's (they edit a theme in the Studio's theme editor or by hand). This skill is the
 long form of the Retake server's instructions; when those instructions or a tool's description say something else,
@@ -23,13 +25,17 @@ they win.
    added to read it — is not a different workspace. If that root is the Retake
    repository itself (it holds `packages/` and `skills/`), stop and ask the user for their own workspace folder.
 2. `project_list`, `project_get {project}` (which project the video is for), and `template_list {project}`: the
-   themes that exist (the starters `default`, `editorial` and `motion`, and the workspace's own), the project's own
-   theme marked. `template_list {template: editorial}` shows one in detail.
-3. Pick the name with the user: lower-case letters, digits and `-`, never a starter's name or an existing folder's.
+   themes that exist, each with its origin — the project's own (`project`), the workspace's (`workspace`), the starters
+   `default`, `editorial` and `motion` (`starter`); a project theme hiding another of its name is in `notices`; the
+   project's theme marked. `template_list {template: editorial}` shows one in detail.
+3. Pick the name with the user: lower-case letters, digits and `-`, never a starter's name, an existing folder's, or —
+   for a project's theme — a workspace theme's. To give a project a workspace theme it already uses, copy it in:
+   `project_adopt {project, themes: [name]}` (a copy; to move one, the user runs `retake project adopt` in their own terminal).
 
 ## Entry A: brand files (preferred)
 
-1. Ask the user to put the files in the workspace's `brand/` folder, files they are allowed to use:
+1. Ask the user to put the files in the project's `brand/` folder (`projects/<slug>/brand/`; the workspace's `brand/`
+   is looked in next), files they are allowed to use:
    - a logo: SVG (plain: no script, links or external files), PNG, JPEG or WebP; optionally a wordmark image for the
      outro (without one, the brand name is drawn as text). A logo 3:1 or wider is the brand name itself (a wordmark):
      it is drawn alone, sized by its width, never followed by the name in text — `logo_kind: mark` keeps a wide
@@ -51,7 +57,8 @@ they win.
 3. Create it:
    `template_create_from_brand {name: acme, colors: {accent: "#1f6feb"}, logo: brand/logo.svg, fonts: {display:
    brand/display-bold.woff2, body: [brand/body-regular.woff2, brand/body-semibold.woff2]}, brand: {name: Acme,
-   url: example.com}}`. Paths are relative to the workspace root. `base` keeps another starter's components, frame,
+   url: example.com}, project: <slug>}`. With `project`, paths are looked for in the project folder first, then the
+   workspace root (without it: the workspace root); the theme lands in `projects/<slug>/templates/acme/`. `base` keeps another starter's components, frame,
    captions and motion (default `editorial`); `background` takes a hex or `{type: radial, from, to}`;
    `components: {outro: {params: {logo_size: 72}}}` sets a component's params (per kind `{id?, params?}`, checked
    against the component: `component_get` lists its params); `cursor: {style: arrow-light}` the filmed cursor (a dark

@@ -18,8 +18,8 @@
  */
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { copyFile, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { copyFile, cp, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join } from 'node:path';
 import { errorKindOf, bestEffort, pathInside } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
 import { callerOf } from '../caller.js';
@@ -95,6 +95,76 @@ class DiskProjectStore implements ProjectStore {
     return this.writeText(this.#storage.refOf(path), text, opts);
   }
 
+  async copyFileIn(ref: string, from: string, o: { what: JournalWhat }): Promise<WriteResult> {
+    const path = this.#storage.resolve(ref);
+    const journaled = this.journalPathOf(path);
+    try {
+      if (dirname(ref) !== '.') await this.makeFolder(dirname(ref));
+      // Never over a file (or a link) of that name: COPYFILE_EXCL fails with EEXIST.
+      try {
+        await copyFile(from, path, constants.COPYFILE_EXCL);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new EngineError('conflict', `${ref} already exists: not copied over`, { details: { current: ref } });
+        throw e;
+      }
+      const real = await realpath(path);
+      if (!pathInside(real, await realpath(this.#storage.root), { dotDotPrefix: true })) {
+        await rm(path, { force: true });
+        throw new EngineError('refused', `${path} leads out of ${this.#storage.root} (a symbolic link): not written`);
+      }
+    } catch (e) {
+      await this.journal({ op: 'write', what: o.what, path: journaled, if_match: null, outcome: outcomeOf(e) });
+      throw e;
+    }
+    const bytes = await readFile(path);
+    const res: WriteResult = { ref, path, sha256: sha256Hex(bytes), bytes: bytes.length };
+    await this.journal({ op: 'write', what: o.what, path: journaled, if_match: null, sha256: res.sha256, bytes: res.bytes, outcome: 'ok' });
+    return res;
+  }
+
+  async moveAside(ref: string, toRef: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    return this.move(this.#storage.resolve(ref), toRef, o);
+  }
+
+  async takeIn(from: string, toRef: string, o: { what: JournalWhat; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    if (!isAbsolute(from)) throw new EngineError('invalid', `takeIn: ${from} is not an absolute path`);
+    return this.move(from, toRef, o);
+  }
+
+  /** moveAside / takeIn: `from` (absolute) to the store's `toRef`, journaled. */
+  private async move(from: string, toRef: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    const to = this.#storage.resolve(toRef);
+    const entry = { op: 'move' as const, what: o.what, path: this.journalPathOf(from), to: this.journalPathOf(to) };
+    const move = async (): Promise<void> => {
+      await o.check?.();
+      if (dirname(toRef) !== '.') await this.makeFolder(dirname(toRef));
+      if (
+        await lstat(to).then(
+          () => true,
+          () => false,
+        )
+      )
+        throw new EngineError('conflict', `${toRef} already exists: not moved`);
+      try {
+        await rename(from, to);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
+        // Another volume: a copy (never over anything), then the original removed.
+        await cp(from, to, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+        await rm(from, { recursive: true, force: true });
+      }
+    };
+    try {
+      if (o.lockRef !== undefined) await this.#storage.withWriteLock(o.lockRef, move);
+      else await move();
+    } catch (e) {
+      await this.journal({ ...entry, outcome: outcomeOf(e) });
+      throw e;
+    }
+    await this.journal({ ...entry, outcome: 'ok' });
+    return { path: from, to };
+  }
+
   async makeFolder(ref: string): Promise<void> {
     const path = this.#storage.resolve(ref);
     // The store's own folder is made as it is named (a new workspace's); what lies under it is checked.
@@ -136,6 +206,16 @@ class DiskProjectStore implements ProjectStore {
   ): Promise<{ result: T; dir: string; replaced: boolean }> {
     const tmp = join(parent, `.tmp-${name}-${randomBytes(6).toString('hex')}`);
     const final = join(parent, name);
+    // The folder is made inside the store's own folder, never where a link leads (a project's templates/ linked out).
+    const contained = await Promise.all([realpath(parent), realpath(this.#storage.root)]).then(
+      ([p, r]) => pathInside(p, r, { dotDotPrefix: true }),
+      () => true,
+    );
+    if (!contained) {
+      const e = new EngineError('refused', `${parent} leads out of ${this.#storage.root} (a symbolic link): ${name} not made`);
+      await this.journal({ op: 'folder', what: o.what, path: this.journalPathOf(final), outcome: outcomeOf(e) });
+      throw e;
+    }
     const written: string[] = [];
     const stage: FolderStage = {
       dir: tmp,

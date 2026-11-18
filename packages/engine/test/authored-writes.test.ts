@@ -115,7 +115,7 @@ describe('the bytes of the authored writers', () => {
 
   it("a theme copied: the starter's files verbatim, its name spliced, the provenance file", async () => {
     const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
-    await copyTheme(ws, { from: 'default', name: 'mine' }, { scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
+    await copyTheme(ws, { from: 'default', name: 'mine' }, { scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }), trust: 'author' });
     expect(await tree(join(root, 'templates', 'mine'), noToolVersion)).toEqual({
       '.retake-theme.json': '7b275d8e5d2e3d99354224699037aea782a421a28bdeeb6c351de13450f05936',
       'LICENSES.md': '106843797aea0fff6c2a3b296b964c54039743211bd3585fe0f3f5e4ac40a166',

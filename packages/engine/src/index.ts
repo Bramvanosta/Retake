@@ -73,6 +73,8 @@ export type { InspectSourceDraft } from './jobs/inspect-job.js';
 export type { ComponentEntry, ComponentRef, RegistryNoticeView } from './components.js';
 export type { ThemeEditResult, ThemeEditView } from './theme-edit.js';
 export type { ThemeCopied } from './brand/copy.js';
+export type { AdoptResult } from './project-adopt.js';
+export type { TemplateListView, TemplateSummary } from './templates.js';
 export type { BrandFileList } from './brand/file-list.js';
 export type { ReviewFindingView, ReviewImageView, ReviewView } from './reviews.js';
 export type { PlanPreviewView, RenderReviewSummary, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';

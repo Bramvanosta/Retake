@@ -34,7 +34,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { zThemeName } from '@retake/core/ids';
-import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { PROJECT_SLUG_RE, projectLibraryDir } from '@retake/core/project';
 import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
 import { componentCalls } from '../registries/component-calls.js';
 import type { Engine } from '../engine.js';
@@ -116,7 +116,7 @@ export interface LibraryViewAnswer {
   project: string;
   theme: { name: string; hash: string; editorial_starter: boolean; project_default: boolean };
   /** The theme switcher: every theme the project may use (the project's own marked). */
-  themes: Array<{ name: string; source: TemplateSummary['source']; default: boolean }>;
+  themes: Array<{ name: string; source: TemplateSummary['source']; default: boolean; by_path?: true }>;
   items: LibraryItem[];
   /** Overrides of built-ins, invalid components, kit API mismatches: the command checks one. */
   notices: Array<{ severity: 'warning' | 'error'; id?: string; issues: number; command?: string; untrusted: { message: string } }>;
@@ -223,6 +223,8 @@ const viewSignature = async (engine: Engine, slug: string, asked: string | undef
     `theme ${t.name} ${t.dir} ${treeSignature(t.dir, budget)}`,
     `project ${statSignature(join(p.dir, 'project.yaml'))}`,
     `templates ${statSignature(ws.templatesDir)} ${[...(await themeSignatures(ws.templatesDir, budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
+    // The project's own themes: one made, copied or adopted there is listed and picks components too.
+    `project-templates ${statSignature(projectLibraryDir(p.dir, 'templates'))} ${[...(await themeSignatures(projectLibraryDir(p.dir, 'templates'), budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
     `builtin ${reg.builtinDir ? treeSignature(reg.builtinDir) : '-'}`,
     `components ${treeSignature(ws.componentsDir, budget)}`,
     `cache ${statSignature(libraryCacheDir(ws))}`,
@@ -292,7 +294,7 @@ export const libraryView = defineOperation({
     const data: LibraryViewAnswer = {
       project: a.project,
       theme: { ...m.states.theme, project_default: m.themes.project_theme === m.states.theme.name },
-      themes: m.themes.templates.map((t) => ({ name: t.name, source: t.source, default: t.default === true })),
+      themes: m.themes.templates.map((t) => ({ name: t.name, source: t.source, default: t.default === true, ...(t.by_path ? { by_path: true as const } : {}) })),
       items,
       notices: m.list.notices.map((n) => noticeOf(engine, n)),
       queued: queuedHere,

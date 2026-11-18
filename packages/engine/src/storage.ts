@@ -205,10 +205,21 @@ export class LocalStorage implements Storage {
     }
   }
 
-  /** The folder a write goes to, created if needed, and refused when a symbolic link takes it out of the project. */
-  private async writableDir(path: string): Promise<void> {
+  /**
+   * The folder a write goes to, created if needed — never for a write on a version read (`create: false`: a folder gone
+   * since, a theme moved aside, is a conflict, never made again empty) — and refused when a symbolic link takes it out
+   * of the project.
+   */
+  private async writableDir(path: string, ref: string, create = true): Promise<void> {
     const dir = dirname(path);
-    await mkdir(dir, { recursive: true });
+    if (create) await mkdir(dir, { recursive: true });
+    else if (
+      !(await lstat(dir).then(
+        () => true,
+        () => false,
+      ))
+    )
+      throw conflictError(ref, null, 'missing');
     const [realRoot, realDir] = await Promise.all([realpath(this.root), realpath(dir)]);
     if (!pathInside(realDir, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${dir} leads out of ${this.folder} (a symbolic link): not written`);
   }
@@ -268,9 +279,20 @@ export class LocalStorage implements Storage {
     });
   }
 
+  /** `fn` run under the write lock of the file `ref` (the one writeText takes on a version read): a move of its folder holds it. */
+  async withWriteLock<T>(ref: string, fn: () => Promise<T>): Promise<T> {
+    const target = await this.writeTarget(this.resolve(ref));
+    const lock = await this.lockWrite(ref, target);
+    try {
+      return await fn();
+    } finally {
+      await lock.release();
+    }
+  }
+
   async writeText(ref: string, text: string, opts: { ifMatch?: string | null; locked?: boolean } = {}): Promise<WriteResult> {
     const path = this.resolve(ref);
-    await this.writableDir(path);
+    await this.writableDir(path, ref, typeof opts.ifMatch !== 'string');
     const target = await this.writeTarget(path);
     const buf = Buffer.from(text, 'utf8');
     const written = { ref, path, sha256: sha256Hex(buf), bytes: buf.length };

@@ -291,7 +291,11 @@ describe('the record renderVideo writes, and the one a failure carries: their me
     expect(disk.plan.assets['retake-asset:capture.mp4']).toBe(`../runs/${RUN_ID}/capture.mp4`);
     // The starter theme's files lie outside the project: written absolute.
     expect(Object.values(disk.plan.assets).filter((f) => f.startsWith('/')).length).toBeGreaterThan(0);
-    expect([record.file, record.run_dir, record.plan.source.file]).toEqual([join(project.dir, 'renders', `${record.id}.mp4`), join(project.dir, 'runs', RUN_ID), join(project.dir, 'runs', RUN_ID, 'capture.mp4')]);
+    expect([record.file, record.run_dir, record.plan.source.file]).toEqual([
+      join(project.dir, 'renders', `${record.id}.mp4`),
+      join(project.dir, 'runs', RUN_ID),
+      join(project.dir, 'runs', RUN_ID, 'capture.mp4'),
+    ]);
     const read = await readNamedRender(record.record);
     expect(read.read.ok && [read.read.value.file, read.read.value.record, read.read.value.run_dir]).toEqual([record.file, record.record, record.run_dir]);
     // `--out` outside the project: every path absolute, as before.
@@ -344,7 +348,8 @@ describe("an export's re-rendered format uses the master's theme folder", () => 
     await writeFile(join(dir, 'project.yaml'), 'name: Pathy\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: ./themes/brand\n');
     const pathy = await loadProject('pathy', root);
     const master = await renderWork({ ...place, workPolicy: PERSON_POLICY, project: pathy, root, run: RUN_ID, renderer: driver() });
-    expect([master.template, master.template_folder]).toEqual(['brand', 'projects/pathy/themes/brand']);
+    // A folder inside the project: its id is project-relative.
+    expect([master.template, master.template_folder]).toEqual(['brand', '/project:themes/brand']);
     for (const trust of ['author', 'mcp'] as const) {
       const r = await exportWork({
         ...place,
@@ -361,7 +366,7 @@ describe("an export's re-rendered format uses the master's theme folder", () => 
       const out = r.outputs.find((o) => o.format === 'vertical_9x16');
       expect(out?.method).toBe('render');
       const rec = JSON.parse(await readFile(out!.record!, 'utf8')) as { template_folder?: string };
-      expect(rec.template_folder).toBe('projects/pathy/themes/brand');
+      expect(rec.template_folder).toBe('/project:themes/brand');
     }
   });
 });

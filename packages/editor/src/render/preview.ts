@@ -56,12 +56,13 @@ export type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedPos
 export { STARTER_TEMPLATES_DIR };
 
 /**
- * The theme of previews: a template of the workspace (name or path), else — for a bare name — the starter template of
+ * The theme of previews: a template of the project (`projectDir`: its own themes first), of the workspace (name or
+ * path), else — for a bare name — the starter template of
  * that name shipped with Retake (the committed previews use the starter `editorial`): `loadTemplate` falls back
  * to the starters itself.
  */
-export async function loadPreviewTheme(nameOrDir: string, root: string, files: WorkFileFacts): Promise<LoadedTemplate> {
-  return loadTemplate(nameOrDir, root, { files });
+export async function loadPreviewTheme(nameOrDir: string, root: string, files: WorkFileFacts, projectDir?: string): Promise<LoadedTemplate> {
+  return loadTemplate(nameOrDir, root, { files, ...(projectDir !== undefined ? { projectDir } : {}) });
 }
 
 /** Composition id of component previews (written once, in ../remotion/contract.ts). */

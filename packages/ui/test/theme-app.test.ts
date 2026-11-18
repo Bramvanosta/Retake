@@ -13,6 +13,9 @@
  * - New theme from a site extraction: its hex roles and first candidate, nothing else of the page;
  * - ⚑ no Studio op queues a site job (template_from_site is not a UI op), which events re-read what, the themes route.
  */
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { BRAND_BODY_FONTS_MAX, HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@retake/core';
 import type { ThemeEditView } from '@retake/engine';
@@ -312,6 +315,9 @@ describe('New theme, the list, events, the route', () => {
     expect((UI_OPS as readonly string[]).filter((op) => /site/.test(op))).toEqual(['site_list']);
     expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['mine'] }, 'p', 'mine')).toBe(true);
     expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['other'] }, 'p', 'mine')).toBe(false);
+    // a project's own theme moves as <slug>/<name>: this project's, never another's.
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['p/mine'] }, 'p', 'mine')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['q/mine'] }, 'p', 'mine')).toBe(false);
     expect(themeEventAction({ type: 'workspace', projects: [], readme: [], site: true }, 'p')).toBe(true);
     expect(themeEventAction({ type: 'workspace', projects: ['p'], readme: [] }, 'p')).toBe(true);
     expect(themeEventAction({ type: 'jobs', changed: ['x'] }, 'p')).toBe(false);
@@ -329,5 +335,19 @@ describe('New theme, the list, events, the route', () => {
       expect(href.startsWith('#/p/')).toBe(true);
       expect(parseRoute(href)).toEqual({ name: 'themes', slug: 'p/q', ...(theme ? { theme } : {}) });
     }
+  });
+});
+
+describe("⚑ a project's screen names its project to every theme op", () => {
+  it('each call of theme_view, theme_edit, theme_copy, theme_create and brand_files from the app passes `project` (the Library inspector included)', () => {
+    const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app');
+    const files = readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter((f) => /\.tsx?$/.test(f) && !f.startsWith(`data${sep}`));
+    const calls: string[] = [];
+    for (const f of files) {
+      const text = readFileSync(join(dir, f), 'utf8');
+      for (const m of text.matchAll(/\b(themeView|themeEdit|themeCopy|themeCreate|brandFiles)\(\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g)) calls.push(`${f}: ${m[1]}(${m[2].replace(/\s+/g, ' ').trim()})`);
+    }
+    expect(calls.length).toBeGreaterThanOrEqual(12);
+    expect(calls.filter((c) => !/\bproject\b/.test(c))).toEqual([]);
   });
 });

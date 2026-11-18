@@ -5,13 +5,53 @@ How a video looks: themes, the components that draw it, and your own media and m
 ## Themes
 
 A theme's files live in `templates/<name>/` (the folder and file keep their earlier name; see the
-[glossary](../GLOSSARY.md)).
+[glossary](../GLOSSARY.md)) — the project's own in `projects/<slug>/templates/<name>/`, the workspace's in its
+`templates/` (`templates_dir`).
 
 `templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
 captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
 defaults; start from a starter theme (`templates/README.md`). The starter themes `default`, `editorial` and
 `motion` are always available by name, also in a workspace without a `templates/` folder (`retake list` marks them
 "starter"); a workspace theme of the same name takes precedence.
+
+### A project's own themes
+
+A theme is a brand's, so it belongs with the project: a theme in `projects/<slug>/templates/<name>/` travels with the
+project folder (another Mac, a person you hand it to). A name is looked for in this order, for that project's work:
+
+1. the project's own `templates/<name>/`;
+2. the workspace's `templates/<name>/`;
+3. the starter of that name.
+
+A folder of a name takes precedence even without a `template.yaml` (its load error says so). A project theme that hides
+a workspace theme or a starter of its name is said once (`retake theme list --project <slug>`, MCP `template_list
+{project}`: `notices`; the Studio's card: "Used instead of the workspace's"). Other projects keep the workspace's. A
+project.yaml that names a folder by its path (`template: ./templates/brand`) keeps working; when that folder is one of
+`templates/`, it is the named theme (one row, editable). A render record holds a project theme's folder relative to the
+project (`/project:templates/brand`), so moving or renaming the project keeps its renders matched.
+
+- **Make one in the project**: `retake theme create <name> --project <slug> …`, MCP `template_create_from_brand
+  {project, …}`, the Studio's New theme and Copy to edit (a project's screen always makes into that project). Without
+  `--project` / `project` a theme is the workspace's, as before.
+- **List them**: `retake theme list [--project <slug>]` (each theme's origin: project, workspace, starter), `retake list`
+  (each project's own themes), MCP `template_list {project}`.
+- **Take a workspace theme into a project**: `retake project adopt <slug> --theme <name>` moves it into
+  `projects/<slug>/templates/<name>/` — refused while another project or scenario uses it (they are listed), while a
+  project does not open (whether it uses it cannot be told), while the project itself names the folder by its path
+  (name it by its name first: a path never finds the project's copy) or while a job is queued or running; the
+  workspace's folder is set aside under the workspace's `.retake/adopted/<stamp>-theme-<name>/` (from a templates_dir
+  outside the workspace too; never deleted: remove it once you no longer need it). Other projects' older renders of it
+  are named. A workspace theme of a starter's name keeps its name. `--copy` leaves the workspace's where it is; Claude's
+  `project_adopt {project, themes}` only copies. The copy keeps its provenance (a theme Claude made can still be
+  updated through `template_update {name, project}`). The project's renders made before still match it, on the board
+  and at an export (their theme name finds the project's copy, whose content hash is the one they hold; a theme with
+  files beyond the hash's byte budget is matched by size and date, so a copy of one reads as another theme).
+- **Brand files of a project**: `projects/<slug>/brand/` is looked for first (see below); `retake project adopt <slug>
+  --brand brand/logo.svg` (one brand file each — an image, a font or a token file —, repeatable; never from the
+  workspace's themes, components or state folders; `--copy` to leave the original) copies or moves the workspace's
+  into it. Claude never moves brand files.
+- A project's `templates/`, `components/` and `brand/` hold no code a scenario runs: a hook's `sql` / `js` file, an
+  `eval` file or a Lottie file a scenario names there is refused through MCP (`hooks/` and `assets/` are the places).
 
 ```yaml
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
@@ -55,8 +95,9 @@ retake theme create acme --accent '#0e7c66' --logo brand/logo.svg --wordmark bra
   --brand-name Acme --brand-url acme.example
 ```
 
-or ask Claude (MCP `template_create_from_brand`, same inputs, the files named relative to the workspace root). It writes
-one **new** folder `templates/acme/`: `template.yaml` over a base theme (`--base`, default `editorial`: its components,
+or ask Claude (MCP `template_create_from_brand`, same inputs, the files named relative to the workspace root — or, with
+`project`, to the project folder first). It writes one **new** folder `templates/acme/` (with `--project <slug>` /
+`project`: `projects/<slug>/templates/acme/`): `template.yaml` over a base theme (`--base`, default `editorial`: its components,
 frame, captions, motion and durations are kept), the logo and wordmark copied as `logo.<ext>` / `wordmark.<ext>`, the
 fonts as `fonts/display-<Weight>.<ext>` / `fonts/body-<Weight>[Italic].<ext>` (the renderer reads a face's weight from
 its file name; no fonts given: the base's are copied), `LICENSES.md` (where each file came from, what each font
@@ -106,8 +147,15 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   records who made it, `made_via`; a theme made before Retake recorded it is no longer replaced through MCP). Refused when the
   workspace's templates folder lies inside the Retake folder (the repository is not a workspace for your brand:
   set `RETAKE_ROOT` or a `retake.yaml`).
+- **Where a brand file is looked for**: with a project named, `brand/logo.svg` is the project's
+  `projects/<slug>/brand/logo.svg` when it exists, else the workspace's `brand/logo.svg` — at a terminal, a path that
+  is absolute or starts with `./` or `../` is read as you typed it. Through MCP a file of the project that leads out of
+  it (a link) is refused, never looked for again in the workspace. A project theme records where each input was found
+  (its provenance `found_in`): `template_update` reads an input again there (a theme without the record: the
+  workspace root). With a project, a new theme never takes a workspace theme's name through MCP (it would hide it for
+  the project: `retake project adopt` copies that one).
 - Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.retake/`),
-  `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` (case ignored), never through
+  `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`, `components/` (case ignored), never through
   a link leaving the workspace. A human typing `retake theme create` names any file. These rules hold against what
   Retake's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
   a file in `brand/` — the content checks above apply to it all the same.

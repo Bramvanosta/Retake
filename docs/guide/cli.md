@@ -6,7 +6,8 @@ Every `retake` command and its flags. Part of the [Retake guide](README.md).
 
 ```
 retake new <slug> [--name N] [--theme T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too); --template: the old name of --theme
-retake list [--json]                                  # projects (with scenarios) and themes
+retake list [--json]                                  # projects (with scenarios and their own themes) and themes
+retake project adopt <project> [--theme T]… [--brand FILE]… [--copy] [--json]   # take workspace themes / brand files into the project (moves; --copy leaves them)
 retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
 retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--yes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
@@ -29,11 +30,12 @@ retake components list [--kind K] [--json]            # workspace components, th
 retake components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 retake components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
 retake components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
+retake theme list [--project P] [--json]              # the themes a render can name, each with its origin (project, workspace, starter)
 retake theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
               [--wordmark FILE] [--display-font FILE|REF] [--body-font FILE|REF]… [--brand-name N] [--brand-url U]
               [--logo-kind mark|wordmark] [--cursor arrow-dark|arrow-light] [--cursor-size PX]
               [--component KIND=ID]… [--param KIND.NAME=VALUE]…
-              [--no-adjust] [--replace] [--json]   # a new workspace theme from brand files (Themes from your brand)
+              [--no-adjust] [--replace] [--project P] [--json]   # a new theme from brand files: the project's own with --project (Themes from your brand)
 retake theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
 retake theme from-tokens <file> [--map ROLE=TOKEN]… [--base T] [--name N] [--json]   # proposed colour roles and a draft from a design-token file; writes nothing (Themes from design tokens)
 retake theme fetch-font <fontsource:id[@version][:weight[italic]]>… [--json]   # open-licence fonts from registry.npmjs.org into the font store; REF above names them (Themes from your brand)

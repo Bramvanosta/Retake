@@ -51,20 +51,20 @@ import { Button, Callout, Segmented, Sheet, TextField } from '../ui-kit/index.js
 import { bestEffort } from '../best-effort.js';
 
 /** The theme as the editor reads it: theme_view, read again after each write (sequence-guarded). */
-function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
+function useThemeView(slug: string, theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
   const [v, setV] = useState<Loaded<ThemeEditView>>({ state: 'loading' });
   const seq = useRef(0);
   const load = useCallback(async () => {
     const n = ++seq.current;
     try {
-      const d = await themeView({ theme });
+      const d = await themeView({ theme, project: slug });
       if (n === seq.current) setV({ state: 'ready', data: d });
       return d;
     } catch (e) {
       if (n === seq.current && !(e instanceof SessionEnded)) setV({ state: 'error', error: errorText(e), ...(e instanceof CallError ? { code: e.error.code } : {}) });
       return null;
     }
-  }, [theme]);
+  }, [slug, theme]);
   useEffect(() => {
     setV({ state: 'loading' });
     void load();
@@ -115,6 +115,8 @@ function useLivePreview(slug: string, theme: string, target: PreviewTarget, show
 /** What the one write path reads and sets: the version shown, its history, the screen's state and the live frame. */
 interface WriteCtx {
   v: ThemeEditView | null;
+  /** The project whose screen it is: its own themes are found first. */
+  slug: string;
   theme: string;
   load: () => Promise<ThemeEditView | null>;
   history: { current: ThemeHistory };
@@ -128,7 +130,7 @@ interface WriteCtx {
 }
 
 /** The one write path: theme_edit on the version shown (if_match its sha256), an edit, an undo or a redo; the view read again. */
-function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender }: WriteCtx) {
+function makeWrite({ v, slug, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender }: WriteCtx) {
   return async (edit: ThemeEdit, mode: 'edit' | 'undo' | 'redo' = 'edit'): Promise<boolean> => {
     if (!v || busyRef.current) return false;
     busyRef.current = true;
@@ -137,7 +139,7 @@ function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDr
     const before = v.yaml !== null ? { text: v.yaml, sha256: v.sha256 } : null;
     const step = mode === 'undo' ? history.current.undoStep() : mode === 'redo' ? history.current.redoStep() : null;
     try {
-      const r = await themeEdit({ theme, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
+      const r = await themeEdit({ theme, project: slug, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
       const nv = await load();
       if (mode === 'undo') history.current.undone();
       else if (mode === 'redo') history.current.redone();
@@ -171,7 +173,7 @@ function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDr
 }
 
 export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
-  const [view, load] = useThemeView(theme);
+  const [view, load] = useThemeView(slug, theme);
   const history = useRef(new ThemeHistory());
   const [, rerender] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -192,7 +194,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   };
 
   // ── Writes ──
-  const write = makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender });
+  const write = makeWrite({ v, slug, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender });
   /** A control's plan: written, refused with why (said), or nothing to do (the draft dropped). */
   const send: Send = (plan) => {
     if (plan === null) {
@@ -307,7 +309,7 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
     if (problem) return setState({ error: problem });
     setState({ busy: true });
     try {
-      const c = await themeCopy({ from: theme, name });
+      const c = await themeCopy({ from: theme, name, project: slug });
       location.hash = hrefTo({ name: 'themes', slug, theme: c.name });
     } catch (e) {
       if (!(e instanceof SessionEnded)) setState({ error: errorText(e) });

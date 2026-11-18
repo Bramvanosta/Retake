@@ -52,9 +52,9 @@ export async function findRenderOf(renders: RenderOutputs, project: LoadedProjec
   return { ...found.render, record: withPlan(found.render.record).value };
 }
 
-/** The theme a shell's component previews are drawn with, read with the workspace's file facts. */
-export async function previewThemeOf(theme: string, root: string, facts: WorkFileFacts): Promise<LoadedTemplate> {
-  return (await editor()).loadPreviewTheme(theme, root, facts);
+/** The theme a shell's component previews are drawn with (a project's own first with `projectDir`), read with the workspace's file facts. */
+export async function previewThemeOf(theme: string, root: string, facts: WorkFileFacts, projectDir?: string): Promise<LoadedTemplate> {
+  return (await editor()).loadPreviewTheme(theme, root, facts, projectDir);
 }
 
 // ── exports and raw packages ──

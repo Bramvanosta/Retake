@@ -31,6 +31,31 @@ export const PROJECT_DIRS = {
 } as const;
 export type ProjectDir = keyof typeof PROJECT_DIRS;
 
+/**
+ * A project's own library: its themes, components and brand files, found before the workspace's of the same
+ * name (project → workspace → starters / built-in). Fixed names, apart from PROJECT_DIRS: a tool writes them (core
+ * agent-policy PROJECT_LIBRARY_PATHS: no code is run from them by reference).
+ */
+export const PROJECT_LIBRARY_DIRS = {
+  /** templates/<theme>/: the project's own themes. */
+  templates: 'templates',
+  /** components/<namespace>/<name>/: the project's own components. */
+  components: 'components',
+  /** brand/: the project's brand files (logos, fonts) a theme is made from. */
+  brand: 'brand',
+} as const;
+export type ProjectLibraryDir = keyof typeof PROJECT_LIBRARY_DIRS;
+
+/** `<project>/<library folder>[/<rest>…]`: a library folder of a project (PROJECT_LIBRARY_DIRS), or a path inside it. */
+export function projectLibraryDir(projectDir: string, dir: ProjectLibraryDir, ...rest: string[]): string {
+  return join(projectDir, PROJECT_LIBRARY_DIRS[dir], ...rest);
+}
+
+/** The project-relative POSIX ref of a path in a project's library folder (`templates/brand/template.yaml`). */
+export function projectLibraryRef(dir: ProjectLibraryDir, ...rest: string[]): string {
+  return posix.join(PROJECT_LIBRARY_DIRS[dir], ...rest);
+}
+
 /** The machine-local state folder of a workspace or a project (git-ignored). */
 export const STATE_DIR = '.retake';
 
@@ -60,6 +85,8 @@ export const STATE_DIRS = {
   cache: 'cache',
   /** A workspace's: the font store (fontsource packages fetched by font_fetch / `retake theme fetch-font`). */
   fonts: 'fonts',
+  /** A workspace's: the themes (and brand files) `retake project adopt` moved into a project, set aside (`<stamp>-<what>-<name>/`). */
+  adopted: 'adopted',
 } as const;
 export type StateDir = keyof typeof STATE_DIRS;
 

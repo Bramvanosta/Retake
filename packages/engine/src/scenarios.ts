@@ -455,11 +455,11 @@ async function fieldEdited(project: LoadedProject, base: ScenarioText, edit: Ext
   const registry = await o.registry();
   const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
   if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
-  // A scenario's theme is a theme the workspace lists (by name, never a path).
+  // A scenario's theme is a theme the project lists (its own, the workspace's, the starters: by name, never a path).
   if (edit.field === 'template' && typeof edit.to === 'string') {
-    const names = (await o.reads.listTemplates(project.root)).map((t) => t.name);
+    const names = (await o.reads.listTemplates(project.root, { projectDir: project.dir })).map((t) => t.name);
     if (!names.includes(edit.to)) {
-      throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this workspace (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
+      throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this project (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
     }
   }
   // Defence: every path of the allow-list is an edit value — a field edit never changes what a take films.

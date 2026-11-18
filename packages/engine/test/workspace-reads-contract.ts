@@ -222,7 +222,8 @@ export function workspaceReadsContract(name: string, make: () => Promise<ReadsFi
       expect(shown(none.message, a)).toBe('template "brnad" not found in <ws>/templates or the starter templates (did you mean "brand"?) (available: brand, default, editorial)');
       expect(await f.reads.projectTemplateFolderId(p, 'brand')).toBe(`templates/brand`);
       expect(await f.reads.projectTemplateFolderId(p, 'default')).toBe('/starter:default');
-      expect(await f.reads.projectTemplateFolderId(p, './themes/own')).toBe('projects/demo/themes/own');
+      // A folder inside the project: project-relative, so a moved project keeps it.
+      expect(await f.reads.projectTemplateFolderId(p, './themes/own')).toBe('/project:themes/own');
     });
 
     it('a new project planned: its files named, not written; a taken slug and a folder that is not empty refused', async () => {

@@ -235,6 +235,34 @@ Validation of template.yaml warns when a `components` entry contradicts a legacy
 motion) declare `brand` (fictional) and an explicit `components` map consistent with their legacy fields (tested).
 `FRAME_STYLE_LAYOUTS` (core) maps each FrameStyle to its built-in layout id.
 
+**Where a theme name is found (L9.2).** One rule (core io `template.ts` `folderOf`, its `ThemeScope`): a path-like
+reference resolved against the project folder (unchanged); a name, `<project>/templates/<name>/` when the work has a
+project and that folder exists, else `<templates_dir>/<name>/` when it exists, else the starter of that name — a folder
+of a name takes precedence with or without its template.yaml; a name never leaves the three folders. A project whose
+`templates/` is templates_dir or the starters' folder (real paths) has no theme of its own. Lists
+(`listTemplates(root, {projectDir})`) hold the winners only, each with its origin (`source: project | workspace |
+starter`) and, for a project theme hiding another, `shadows`; engine `templateList` adds `by_path` (the folder
+project.yaml names by its path — one row with the named theme when it is a folder of `templates/`), `notices` and
+`project_templates_dir`. Identity (`template_folder` of a render record): `/starter:<name>`, a folder inside the project
+`/project:<path relative to the project>` (moving or re-importing a project keeps it), else workspace-relative;
+`sameTemplateFolder` reads an older record's workspace-relative id of a project folder as the same (a board reads the
+real paths once: `templateFolderMatcher`). A theme adopted from the workspace: a record whose folder id is not the
+project's, whose theme name resolves today to `/project:…`, and whose `template_sha256` is that folder's content hash
+(a verbatim copy) is the same theme — on the board and at an export (`exportThemeRef`, both trusts: a name, never a
+record path). Writers (engine `theme-target.ts`): the named project's `templates/` through the project's store — refused
+when that folder is a link or leads out of the project, and the store's `createFolder` refuses a parent outside its own
+folder —, else templates_dir through its own (refused inside `PACKAGE_ROOT`); a project's library folders (`templates/`, `components/`, `brand/`: core
+`PROJECT_LIBRARY_PATHS`) are never code by reference (projectFileProblem, agent shell paths) — AGENT_WRITABLE_PATHS is
+unchanged. `retake project adopt` / MCP `project_adopt` (engine `project-adopt.ts`): copy keeps the source's provenance;
+a workspace theme of a starter's name keeps it. A move (a person only) is refused while another project uses the theme
+(`project-uses.ts`: the folder each reference loads), a project does not open, the adopting project names the folder
+by its path, or a job is queued or running; it sets the workspace folder aside under the workspace's
+`.retake/adopted/<stamp>-theme-<name>/` (store `moveAside` under the write lock of its template.yaml, the job queue read
+again and the folder re-hashed there — a job appeared: the copy removed; a templates_dir outside the workspace: the root
+store's `takeIn`, a rename or across volumes a copy then a removal; journal `op: 'move'`), and names other projects'
+renders of it. `--brand`: one regular file each, a brand file's extension, never from a project, templates_dir,
+components_dir or `.retake/`.
+
 ### 1.5 Scenario additions (additive, core types + schema)
 - `intro: false | { component?, params?, duration? }`, `outro: false | { component?, params?, tagline?, url?, duration? }`
 - `interstitial: { text, kicker?, duration?, style?, component?, params? }` (`style` = legacy override, ignored with
@@ -447,7 +475,12 @@ letter, a backslash, NUL, `..`, an empty / `.` / hidden segment) or `site:<site_
   = `brand.url` when the base writes one (removed otherwise); a header comment (date, base). Validated with
   `parseTemplateYaml` (no issue allowed), then in the build folder with the loader, `themeAssetProblems` and the
   registry's `resolveTheme`.
-- **Files** (engine `brand/files.ts`). Sources under trust `mcp` (`brandSourceProblem`, links followed): inside the
+- **Files** (engine `brand/files.ts`). With a project named (L9.2), a reference is looked for in the project folder
+  first, then the workspace root (`brandFileLocation`; at a terminal a shell path — absolute, `~`, `./`, `../` — as
+  typed); through MCP a project file whose real path leaves the project is refused with no fallback, and inside the
+  project hidden segments, agent-writable folders and `components/` are refused; the file read says `found_in`,
+  recorded in a project theme's provenance (`found_in`), which template_update follows (none: the root). Sources under
+  trust `mcp` (`brandSourceProblem`, links followed): inside the
   workspace root; no hidden segment (`.retake/`…); not in `components_dir`; not in an agent-writable folder of
   any project (`agentWritable`, case ignored). Caps: image 2 MB, SVG 512 KB, font 10 MB, 25 MB together. Raster:
   PNG IHDR / JPEG SOF / WebP VP8 / VP8L / VP8X sizes, format = extension, height ≥ 64 (core `BRAND_IMAGE_MIN_HEIGHT`),
@@ -477,7 +510,9 @@ letter, a backslash, NUL, `..`, an empty / `.` / hidden segment) or `site:<site_
   / C1 controls, DEL and bidirectional formatting characters out), ≤ 400 characters, `untrusted.fonts` in results;
   in LICENSES.md every Markdown / HTML breaker is backslash-escaped (`` \ ` * _ [ ] ( ) ! < > | # ~ & ``: no link,
   image or tag from a font), file references in code spans without backticks or pipes.
-- **Folder** (`brand/create.ts`): refused when templates_dir lies inside `PACKAGE_ROOT` (the folder holding the
+- **Folder** (`brand/create.ts`, its target from `theme-target.ts`: the input's `project` → `<project>/templates/`):
+  through MCP a project theme never takes a workspace theme's name (`projectShadowCheck`; a terminal is warned). A
+  workspace target is refused when templates_dir lies inside `PACKAGE_ROOT` (the folder holding the
   starters: the repository as workspace or any folder in it). Names compared without case against the starters
   (`readdir`) and every entry of templates_dir (any type: a file, an empty folder, a dangling link) — refused
   (`conflict`), or with `replace` checked by `replaceProblem(dir, trust)`: a real folder whose `.retake-theme.json`
@@ -623,8 +658,10 @@ transport; `template_list`'s wording stays true).
   the template warning) is removed by the same write and named (`removed`). Every edit applies only while the file
   holds `from` there.
 - **Editability by real path** (critique B15): the theme folder a real folder directly in templates_dir (inside the
-  workspace, outside the Retake package), its template.yaml a regular file with one name; starters, the
-  repository's starters listed as `workspace`, a project's folder theme, links and hard links are read-only with why.
+  workspace, outside the Retake package) — or, a project's own theme (L9.2), directly in `<project>/templates/` (written
+  through the project's store, journaled with its slug) —, its template.yaml a regular file with one name; starters,
+  the repository's starters listed as `workspace`, the folder project.yaml names by its path outside `templates/`,
+  links and hard links are read-only with why. `used_by` is by the folder each reference loads (`project-uses.ts`).
 - **Write** (engine `theme-edit.ts` `editTheme`): `if_match` (conflict naming the current sha256; a stale `from`
   is a conflict with `details.stale`), the splice verified, no hidden character added on a changed line, the theme
   re-parsed, every file it names a regular file of its own folder reached without a symbolic link and with one name
@@ -639,7 +676,9 @@ transport; `template_list`'s wording stays true).
 - **Copy to edit** (engine `brand/copy.ts`): a listed theme's regular files verbatim (dot entries left out; a link or a
   special file refuses the copy), `name:` spliced, this tool's provenance file (`copy_of`, trust `mcp`), validated,
   renamed into place; the L3.5 name rules; refused inside the package.
-- **Lists**: `templates.files(image | font)` — workspace files under brand/files.ts's source rules (no hidden,
+- **Lists**: `templates.files(image | font, {project?})` — with a project its own files first (`origin: project`, its
+  refs relative to it), then the workspace's (`origin: workspace`, one the project's of the same ref hides left out),
+  one budget — workspace files under brand/files.ts's source rules (no hidden,
   components or agent-writable folder, no node_modules, links neither followed nor listed), names and sizes, bounded;
   `templates.sites()` — the newest extractions of `.retake/site/` (real folders, site.json read plainly): hex
   colours with contrast checks and existing candidate PNGs as the tool's fields, the URL and host (re-parsed) and page

@@ -11,6 +11,11 @@ release — for the person about to click Install and Restart.
   folder copied to another workspace or another Mac renders, reviews and exports its copied captures and renders. Render
   records move to format version 2: Retake 0.3.0 refuses them and asks to be updated (L9.1).
 
+### Added
+- A project can hold its own themes and brand files (`projects/<slug>/templates/`, `brand/`), used before the
+  workspace's; lists say where each theme comes from, writers made from a project go into it, and
+  `retake project adopt` (MCP `project_adopt`, copy only) brings workspace themes and brand files into a project (L9.2).
+
 ## [0.3.0] — 2026-11-16
 
 The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,
