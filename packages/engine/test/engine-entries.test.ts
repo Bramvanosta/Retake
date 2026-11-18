@@ -85,8 +85,9 @@ describe("the engine's entries", () => {
     expect(unused).toEqual([]);
     for (const n of reached) expect(types, n).toContain(n);
     // 145: FontFetched, TokensDraft (the CLI's fetch-font and from-tokens print them) and FontsApprovalRequest (the MCP form);
-    // 146: ProjectChangeApprovalRequest (the MCP form of an environment change).
-    expect(types.length).toBeLessThanOrEqual(146);
+    // 146: ProjectChangeApprovalRequest (the MCP form of an environment change);
+    // 149: AdoptResult, TemplateListView, TemplateSummary (the CLI's project adopt and theme list print them).
+    expect(types.length).toBeLessThanOrEqual(149);
   });
 
   it('@retake/engine/shell holds values a shell source imports from it, and nothing else', () => {

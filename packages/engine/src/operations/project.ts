@@ -204,7 +204,11 @@ function envChangeSummary(r: EnvironmentChangeView): string {
       : []),
     `default environment (scenarios without env:): ${r.default_env.after ?? 'none'}${r.default_env.before !== r.default_env.after ? ` (was ${r.default_env.before ?? 'none'})` : ''}`,
     ...r.warnings.map((w) => `warning: ${w}`),
-    ...(r.removed?.scenarios.length ? [`${plural(r.removed.scenarios.length, 'scenario')} still name ${r.env} in env: (${r.removed.scenarios.join(', ')}): they no longer run until changed — offer to change them (scenario_get, scenario_save)`] : []),
+    ...(r.removed?.scenarios.length
+      ? [
+          `${plural(r.removed.scenarios.length, 'scenario')} still name ${r.env} in env: (${r.removed.scenarios.join(', ')}): they no longer run until changed — offer to change them (scenario_get, scenario_save)`,
+        ]
+      : []),
     // Persona names read from the Retake home's folders: under untrusted.sessions, a count here.
     ...(r.removed?.sessions
       ? [
@@ -219,7 +223,7 @@ function envChangeSummary(r: EnvironmentChangeView): string {
 const ENV_REMOVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
 const ENV_RULES =
-  'Only when the user asks. Free: pages on origins the project already has (another display, another path), marking an environment production or read-only, display URLs. Asked to the user in an approval form (a client that cannot ask gets needs_approval, a decline is refused — with the `retake env …` command a human runs; do not retry on your own): a page on an origin new to the project (where its captures and hooks may go), removing production or read-only (or a page of such an environment), making a production or read-only environment the one scenarios without env: use, sign-in details (user:password@) in a page URL. Also asked: a production environment that allows writes (access: read-write). Refused: a sandbox environment (its sandbox.yaml), a page of a read-write environment on a production or read-only host of any project, an environment left without pages, a result project.yaml with errors (each issue named). Only environments.<env> and default_env change: every other setting of project.yaml (read_only, auth…) stays the user\'s, and so do the comments outside that environment — an environment written on one line ({…}) is rewritten in block form.';
+  "Only when the user asks. Free: pages on origins the project already has (another display, another path), marking an environment production or read-only, display URLs. Asked to the user in an approval form (a client that cannot ask gets needs_approval, a decline is refused — with the `retake env …` command a human runs; do not retry on your own): a page on an origin new to the project (where its captures and hooks may go), removing production or read-only (or a page of such an environment), making a production or read-only environment the one scenarios without env: use, sign-in details (user:password@) in a page URL. Also asked: a production environment that allows writes (access: read-write). Refused: a sandbox environment (its sandbox.yaml), a page of a read-write environment on a production or read-only host of any project, an environment left without pages, a result project.yaml with errors (each issue named). Only environments.<env> and default_env change: every other setting of project.yaml (read_only, auth…) stays the user's, and so do the comments outside that environment — an environment written on one line ({…}) is rewritten in block form.";
 
 export const projectEnvSet = defineOperation({
   name: 'project_env_set',
@@ -326,6 +330,30 @@ export const projectPrune = defineOperation({
         ...r.problems.map((p) => `could not delete ${p}`),
       ].join('\n'),
       data: r,
+    };
+  },
+});
+
+export const projectAdopt = defineOperation({
+  name: 'project_adopt',
+  title: 'Copy a workspace theme into a project',
+  description:
+    "Make a project carry its own look: each workspace theme named (a folder of the workspace's templates/, by name: template_list says each one's origin) is copied whole into the project's own folder, projects/<slug>/templates/<name>/ — its files verbatim, its provenance kept — so the project folder alone holds it (another Mac, a person it is handed to). The project's copy is found before the workspace's theme of that name from then on (for that project only); project.yaml and the scenarios are not changed. Through this server a theme is only copied, never moved, and brand files are never adopted: a person runs retake project adopt <project> --theme <name> to move one (refused while another project uses it) or --brand <path> for brand files. Refused: a starter theme (no workspace theme: make the project's own with template_create_from_brand {project}), a name the project already has (conflict). The project's earlier renders made with it still match it (the copy has the same content).",
+  input: z.strictObject({
+    project: projectSlug,
+    themes: z.array(zThemeName('a theme name (template_list names them), never a path')).min(1).max(20).describe('Workspace themes to copy into the project, by name.'),
+    brand: z.array(z.string().max(1024)).max(20).optional().describe('Refused here (the answer says so): a person adopts brand files with retake project adopt --brand.'),
+  }),
+  annotations: WRITE_FILES,
+  async run({ project, themes, brand }, { engine }) {
+    const r = await engine.projects.adopt({ project, themes, ...(brand?.length ? { brand } : {}), mode: 'copy' });
+    return {
+      summary: [
+        `${plural(r.themes.length, 'theme')} copied into project ${r.project}: ${r.themes.map((t) => `${t.name} (templates/${t.name}/, ${plural(t.files.length, 'file')})`).join(', ')}`,
+        ...r.notes.map((n) => `note: ${n}`),
+        `next: template_list {project: "${r.project}"} shows them as the project's own`,
+      ].join('\n'),
+      data: { ...r, themes: r.themes.map(({ dir: _dir, ...t }) => t) },
     };
   },
 });

@@ -26,10 +26,10 @@
  */
 import { lstat, readFile, stat } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
-import { extname, join, relative, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { expandHome, printableText } from '@retake/core/base';
 import { agentWritable, realPathOf } from '@retake/core/policy';
-import { STATE_DIR, STATE_DIRS } from '@retake/core/project';
+import { PROJECT_LIBRARY_DIRS, STATE_DIR, STATE_DIRS } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, isFontsourceRef, rasterSize, siteRef, svgSize } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
@@ -65,17 +65,43 @@ export interface ResolvedBrandFile {
   /** Lower-case extension with its dot. */
   ext: string;
   bytes: Buffer;
+  /** With a project named: where it was found (a created theme's provenance records it). */
+  found_in?: BrandFileOrigin;
 }
 
 function refused(message: string, fix?: string): EngineError {
   return new EngineError('refused', message, fix ? { fix } : {});
 }
 
+/** The project a brand file is looked for in first (its folder), when the call names one. */
+export interface BrandProject {
+  dir: string;
+  slug: string;
+}
+
+/** Where a brand file was found: the named project's folder, or the workspace root (a shell path at a terminal: `workspace`). */
+export type BrandFileOrigin = 'project' | 'workspace';
+
 /**
- * Why a workspace file is not a brand source under trust `mcp`, or null. `real` is the file's path with links
- * followed; `ref` is as given (for messages).
+ * Why a file is not a brand source under trust `mcp`, or null. `real` is the file's path with links followed; `ref` is
+ * as given (for messages). A file of the named `project` (its folder, even when projects_dir lies outside the root) is
+ * judged inside it: never hidden, never its components/ (scaffolded code) nor a folder an agent writes; its brand/ and
+ * templates/ are sources.
  */
-export function brandSourceProblem(ws: OpenedWorkspace, ref: string, real: string): string | null {
+export function brandSourceProblem(ws: OpenedWorkspace, ref: string, real: string, project?: BrandProject): string | null {
+  if (project !== undefined) {
+    const own = realPathOf(resolve(project.dir), nodeFileFacts);
+    if (insideFolder(own, real, nodeFileFacts)) {
+      const rel = relative(own, real);
+      const hidden = rel.split(sep).find((s) => s.startsWith('.'));
+      if (hidden) return `${ref} lies in a hidden folder or file of project ${project.slug} (${hidden}, e.g. .retake/ — written by the tools): put brand files in its brand/`;
+      const posixRel = rel.split(sep).join('/');
+      if (agentWritable(posixRel) || posixRel.toLowerCase().startsWith(`${PROJECT_LIBRARY_DIRS.components}/`)) {
+        return `${ref} lies in ${posixRel.split('/')[0]}/ of project ${project.slug}, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in its brand/`;
+      }
+      return null;
+    }
+  }
   const root = realPathOf(resolve(ws.root), nodeFileFacts);
   if (!insideFolder(root, real, nodeFileFacts)) return `${ref} leaves the workspace (it resolves to ${real}): brand files are files of the workspace, e.g. brand/logo.svg`;
   const rel = relative(root, real);
@@ -84,28 +110,87 @@ export function brandSourceProblem(ws: OpenedWorkspace, ref: string, real: strin
   if (insideFolder(ws.componentsDir, real, nodeFileFacts)) return `${ref} lies in the components folder (${ws.componentsDir}), whose files an agent can scaffold: put brand files in brand/`;
   if (insideFolder(ws.projectsDir, real, nodeFileFacts)) {
     const segs = relative(realPathOf(resolve(ws.projectsDir), nodeFileFacts), real).split(sep);
-    if (segs.length >= 2 && agentWritable(segs.slice(1).join('/'))) {
-      return `${ref} lies in ${segs.slice(1, 2).join('')}/ of project ${segs[0]}, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/`;
+    const inProject = segs.slice(1).join('/');
+    if (segs.length >= 2 && (agentWritable(inProject) || inProject.toLowerCase().startsWith(`${PROJECT_LIBRARY_DIRS.components}/`))) {
+      return `${ref} lies in ${segs.slice(1, 2).join('')}/ of project ${segs[0]}, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/`;
     }
   }
   return null;
 }
 
+/** Whether a reference typed at a terminal is a shell path (absolute, `~`, `./…`, `../…`): read against the current folder. */
+const shellPath = (ref: string): boolean => isAbsolute(ref) || ref === '~' || ref.startsWith('~/') || ref.startsWith('./') || ref.startsWith('../') || ref === '.' || ref === '..';
+
+/** Whether a path exists (a dangling link counts: its refusal names it). */
+async function exists(p: string): Promise<boolean> {
+  try {
+    await lstat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The file a brand reference names, and where it was found (R-SHR-16): with a project, its folder first, then the
+ * workspace root — at a terminal (`author`) a shell path (absolute, `~`, `./`, `../`) is read against the current
+ * folder as typed, and a bare reference found in neither is read against it too; with no project, a terminal's
+ * reference is read as typed and MCP's against the workspace root (as before projects had brand files). Through MCP a file of
+ * the project that leaves it (a link) is refused, never looked for again in the workspace. `only` pins the place (a
+ * theme re-made from its recorded inputs: where they were found).
+ */
+async function brandFileLocation(
+  ws: OpenedWorkspace,
+  ref: string,
+  o: { trust: BrandTrust; cwd?: string; project?: BrandProject; only?: BrandFileOrigin },
+): Promise<{ abs: string; found_in: BrandFileOrigin }> {
+  const project = o.only === 'workspace' ? undefined : o.project;
+  const typed = (): { abs: string; found_in: BrandFileOrigin } => ({ abs: resolve(o.cwd ?? process.cwd(), expandHome(ref)), found_in: 'workspace' });
+  // At a terminal with no project named, or a shell path: as typed (today's rule).
+  if (o.trust === 'author' && (o.project === undefined || shellPath(ref))) return typed();
+  if (project !== undefined) {
+    const inProject = resolve(project.dir, ref);
+    if (await exists(inProject)) {
+      if (o.trust === 'mcp' && !insideFolder(realPathOf(resolve(project.dir), nodeFileFacts), realPathOf(inProject, nodeFileFacts), nodeFileFacts)) {
+        throw refused(`${ref} of project ${project.slug} leads out of the project folder (a symbolic link): brand files are files of the project or the workspace, e.g. brand/logo.svg`);
+      }
+      return { abs: inProject, found_in: 'project' };
+    }
+    if (o.only === 'project') return { abs: inProject, found_in: 'project' };
+  }
+  const inRoot = resolve(ws.root, ref);
+  if (o.trust === 'mcp' || (await exists(inRoot))) return { abs: inRoot, found_in: 'workspace' };
+  // At a terminal, a bare reference found in neither: against the current folder, as typed.
+  return typed();
+}
+
 /** A brand file reference resolved and read, after the source rules of its trust; the content is checked by the caller. */
-export async function readBrandFile(ws: OpenedWorkspace, ref: string, kind: BrandFileKind, o: { trust: BrandTrust; cwd?: string; budget?: { left: number } }): Promise<ResolvedBrandFile> {
+export async function readBrandFile(
+  ws: OpenedWorkspace,
+  ref: string,
+  kind: BrandFileKind,
+  o: { trust: BrandTrust; cwd?: string; budget?: { left: number }; project?: BrandProject; only?: BrandFileOrigin },
+): Promise<ResolvedBrandFile> {
   const what = kind === 'tokens' ? 'token file' : kind;
   // A font of the font store is read by its own reader (fontsource-store.ts), never as a path of any trust.
-  if (isFontsourceRef(ref)) throw refused(`${what}: ${ref} is a fontsource reference: ${kind === 'font' ? 'it is read from the font store' : `a ${what} is a file of the workspace (e.g. brand/${kind === 'tokens' ? 'tokens.json' : 'logo.svg'})`}`);
+  if (isFontsourceRef(ref))
+    throw refused(
+      `${what}: ${ref} is a fontsource reference: ${kind === 'font' ? 'it is read from the font store' : `a ${what} is a file of the workspace (e.g. brand/${kind === 'tokens' ? 'tokens.json' : 'logo.svg'})`}`,
+    );
   // A logo candidate of a site extraction (any trust): the only way into .retake/, and only to its PNGs.
   if (siteRef(ref) || (o.trust === 'author' && ref.startsWith('site:'))) return readSiteCandidate(ws, ref, kind, what, o.budget);
-  let abs: string;
   if (o.trust === 'mcp') {
     const syntax = brandRefSyntaxProblem(ref);
     if (syntax) throw refused(`${what}: ${syntax}`);
-    abs = resolve(ws.root, ref);
-  } else {
-    abs = resolve(o.cwd ?? process.cwd(), expandHome(ref));
   }
+  let at: { abs: string; found_in: BrandFileOrigin };
+  try {
+    at = await brandFileLocation(ws, ref, o);
+  } catch (e) {
+    if (e instanceof EngineError) throw refused(`${what}: ${e.message}`);
+    throw e;
+  }
+  const abs = at.abs;
   try {
     await lstat(abs);
   } catch {
@@ -113,7 +198,7 @@ export async function readBrandFile(ws: OpenedWorkspace, ref: string, kind: Bran
   }
   const real = realPathOf(abs, nodeFileFacts);
   if (o.trust === 'mcp') {
-    const p = brandSourceProblem(ws, ref, real);
+    const p = brandSourceProblem(ws, ref, real, at.found_in === 'project' ? o.project : undefined);
     if (p) throw refused(`${what}: ${p}`);
   }
   const ext = extname(real).toLowerCase() || extname(abs).toLowerCase();
@@ -130,7 +215,7 @@ export async function readBrandFile(ws: OpenedWorkspace, ref: string, kind: Bran
   }
   const bytes = await readFile(real);
   if (bytes.length > max) throw new EngineError('invalid', `${what}: ${ref} grew past ${max} bytes while it was read`);
-  return { ref, path: real, ext, bytes };
+  return { ref, path: real, ext, bytes, ...(o.project !== undefined ? { found_in: at.found_in } : {}) };
 }
 
 /**
@@ -142,7 +227,8 @@ async function readSiteCandidate(ws: OpenedWorkspace, ref: string, kind: BrandFi
   const syntax = brandRefSyntaxProblem(ref);
   const site = siteRef(ref);
   if (syntax || !site) throw refused(`${what}: ${syntax ?? `${ref}: a site reference is site:<site id>/logo-<n>`}`);
-  if (kind === 'font' || kind === 'tokens') throw refused(`${what}: ${ref} is a logo candidate of a site extraction: ${kind === 'font' ? 'fonts come from font files (brand/)' : 'tokens come from a token file (brand/)'}, never from a site`);
+  if (kind === 'font' || kind === 'tokens')
+    throw refused(`${what}: ${ref} is a logo candidate of a site extraction: ${kind === 'font' ? 'fonts come from font files (brand/)' : 'tokens come from a token file (brand/)'}, never from a site`);
   // No link on the way either: .retake/, site/ and the extraction's folder are real folders.
   let folder = ws.root;
   for (const seg of [STATE_DIR, STATE_DIRS.site, site.site_id]) {

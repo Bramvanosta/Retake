@@ -252,15 +252,16 @@ describe('the operation catalogue', () => {
     ]);
   });
 
-  it('counts 136 operations: 51 MCP tools, 84 Studio ops, 64 served by 55 CLI commands; 58 read, 64 write, 14 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    expect(CATALOGUE).toHaveLength(136);
-    expect(servedNames('mcp')).toHaveLength(51);
+  it('counts 138 operations: 52 MCP tools, 84 Studio ops, 66 served by 57 CLI commands; 58 read, 65 write, 15 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    // project_adopt (MCP copies, `retake project adopt --copy`), project_adopt_move (`retake project adopt`), `retake theme list`.
+    expect(CATALOGUE).toHaveLength(138);
+    expect(servedNames('mcp')).toHaveLength(52);
     expect(servedNames('studio')).toHaveLength(84);
-    expect(servedNames('cli')).toHaveLength(64);
-    expect(cliCommandsOf()).toHaveLength(55);
+    expect(servedNames('cli')).toHaveLength(66);
+    expect(cliCommandsOf()).toHaveLength(57);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 58, write: 64, destructive: 14 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 119, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 58, write: 65, destructive: 15 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 121, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect',
       'scenario_record',
@@ -297,6 +298,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => o.name)).toEqual([
       'project_env_remove',
       'project_prune',
+      'project_adopt_move',
       'template_create_from_brand',
       'template_update',
       'job_cancel',
@@ -313,7 +315,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([6, 51, 79]);
+    expect([by(3), by(2), by(1)]).toEqual([6, 52, 80]);
   });
 
   it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {

@@ -17,6 +17,10 @@ import type { BrandPatch } from '@retake/core/theme';
 import { EngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import { checkNewThemeName } from '../templates.js';
+import { openProjectBySlug } from '../projects.js';
+import { checkProjectSlug } from '../refs.js';
+import { projectThemeTarget, workspaceThemeTarget } from '../theme-target.js';
+import type { ThemeTarget } from '../theme-target.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { checkedProvenance, createThemeFromBrand, readThemeFile } from './create.js';
 import type { ThemeCreateOptions, ThemeCreated, ThemeReuse } from './create.js';
@@ -58,11 +62,24 @@ export function citedBaseLicences(own: string, base: string): string | undefined
   return `${cited.join('\n').trimEnd()}\n`;
 }
 
+/**
+ * Where template_update finds the theme: with a project, its own `templates/<name>/` when there (else the workspace's,
+ * which it hides nowhere else); without one, templates_dir.
+ */
+async function updateTarget(ws: OpenedWorkspace, projectSlug: string | undefined, name: string): Promise<ThemeTarget> {
+  if (projectSlug === undefined) return workspaceThemeTarget(ws, 'an updated theme');
+  const project = await openProjectBySlug(ws, checkProjectSlug(projectSlug));
+  const own = projectThemeTarget(ws, project, 'an updated theme');
+  return (await readdir(own.dir).catch(() => [] as string[])).includes(name) ? own : workspaceThemeTarget(ws, 'an updated theme');
+}
+
 /** Update a theme from a patch of its brand inputs (see the module comment). Throws EngineError: invalid, refused, not_found. */
 export async function updateThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o: Omit<ThemeCreateOptions, 'trust' | 'reuse'>): Promise<ThemeCreated> {
   const patch = parsePatch(raw);
   const name = checkNewThemeName(patch.name);
-  const templatesDir = ws.templatesDir;
+  // The theme's own place: the project's templates/ when the patch names a project that holds it, else templates_dir.
+  const target = await updateTarget(ws, patch.project, name);
+  const templatesDir = target.dir;
   let entries: string[] = [];
   try {
     entries = await readdir(templatesDir);
@@ -72,7 +89,10 @@ export async function updateThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   if (!entries.includes(name)) {
     const other = entries.find((e) => e.toLowerCase() === name.toLowerCase());
     if (other) throw new EngineError('refused', `"${other}" exists with another case than "${name}": it is not updated`);
-    throw new EngineError('not_found', `no theme ${name} in templates_dir: template_update changes a theme template_create_from_brand made (template_list names the themes)`);
+    throw new EngineError(
+      'not_found',
+      `no theme ${name} in ${target.noun}: template_update changes a theme template_create_from_brand made (template_list names the themes)${patch.project === undefined ? ` — a project's own theme is named with its project: template_update {name: "${name}", project}` : ''}`,
+    );
   }
   const dir = join(templatesDir, name);
   // The guard's own record: the one it checked, never a second read.
@@ -114,6 +134,10 @@ export async function updateThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
     ...(fontsource?.size ? { fontsource } : {}),
     created_at: prov.created_at,
     changed,
+    ...(prov.found_in ? { foundIn: prov.found_in } : {}),
+    // An input it was made from is read again where it was found (none recorded — a workspace theme, one made before
+    // projects had brand files, or adopted into a project — the workspace root); a reference the patch names is new.
+    placeOf: (ref) => (named.has(`logo:${ref}`) || named.has(`wordmark:${ref}`) || named.has(`font:${ref}`) ? undefined : (prov.found_in?.[ref] ?? 'workspace')),
   };
-  return createThemeFromBrand(ws, { ...merged, name, replace: true }, { ...o, trust: 'mcp', reuse });
+  return createThemeFromBrand(ws, { ...merged, name, replace: true }, { ...o, trust: 'mcp', reuse, target });
 }

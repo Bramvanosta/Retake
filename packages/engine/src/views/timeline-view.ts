@@ -350,6 +350,8 @@ function currentAt(entry: Obj | undefined, field: string): { value?: FieldValue;
 /** The themes the scenario's `template` switch offers: the workspace's listed names, and the project's own. */
 interface ThemeChoices {
   names: string[];
+  /** Each listed theme's folder, by name (a project theme shadowing a workspace one of that name: another folder, another view). */
+  folders: string[];
   /** Listed themes that cannot be used (why), offered disabled. */
   unusable: Record<string, string>;
   project?: string;
@@ -664,14 +666,14 @@ async function previewedProposal(ws: OpenedWorkspace, project: LoadedProject, re
 
 /** The themes the scenario's theme switch offers (a theme copied or created since: a new view). */
 async function themeChoicesOf(ws: OpenedWorkspace, project: LoadedProject, memos: TimelineMemos): Promise<ThemeChoices> {
-  const listed = await ws.reads.listTemplates(project.root);
+  const listed = await ws.reads.listTemplates(project.root, { projectDir: project.dir });
   const unusable: Record<string, string> = {};
   const reg = (await memos.registry.get(ws)).registry;
   for (const t of listed) {
     const why = await themeUnusable(t.dir, reg, ws);
     if (why !== null) unusable[t.name] = why;
   }
-  return { names: listed.map((t) => t.name), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };
+  return { names: listed.map((t) => t.name), folders: listed.map((t) => t.dir), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };
 }
 
 /** The view memoised under `key` (planned by `build` on a miss); a hit whose theme files or served files changed plans again. */
@@ -744,6 +746,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       projectStat,
       componentsSignature(ws.componentsDir),
       themes.names,
+      themes.folders,
       themes.unusable,
       proposal ? [proposal.comment_id, proposal.entry, proposal.result_sha256] : null,
     ]),

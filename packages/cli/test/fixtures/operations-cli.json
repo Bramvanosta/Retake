@@ -152,7 +152,7 @@
   ],
   "code": 1,
   "out": "",
-  "err": "✗ template \"ghost\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)\n",
+  "err": "✗ template \"ghost\" not found in <ws>/projects/film/templates, <repo>/templates or the starter templates (available: default, editorial, motion)\n",
   "history": [],
   "journal": [],
   "files": {},
@@ -2447,7 +2447,7 @@
   ],
   "code": 0,
   "out": "",
-  "err": "! the run's template could not be loaded (template \"ghost\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)): the cursor layer uses the default look\nraw export of 20260101-100000-signup → <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked <t>\n  h264 · 30 fps · cursor baked · sequence 6.00 s (180 frames)\n✓ 01-signup.mp4                      1920×1080 90 frames 3.00 s @ 00:00:00:00 2.0 MB · cut <t> page load\n✓ 02-inbox.mp4                       1920×1080 90 frames 3.00 s @ 00:00:03:00 2.0 MB (other page)\n  markers 2 scene, 3 step, 1 click: markers.fcpxml, markers.edl, markers.otio, markers.csv\n  cursor  cursor.json, cursor.csv, clicks.csv\n!   the cursor layer uses the default look\n  manifest <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/manifest.json · <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/README.md\n",
+  "err": "! the run's template could not be loaded (template \"ghost\" not found in <ws>/projects/film/templates, <repo>/templates or the starter templates (available: default, editorial, motion)): the cursor layer uses the default look\nraw export of 20260101-100000-signup → <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked <t>\n  h264 · 30 fps · cursor baked · sequence 6.00 s (180 frames)\n✓ 01-signup.mp4                      1920×1080 90 frames 3.00 s @ 00:00:00:00 2.0 MB · cut <t> page load\n✓ 02-inbox.mp4                       1920×1080 90 frames 3.00 s @ 00:00:03:00 2.0 MB (other page)\n  markers 2 scene, 3 step, 1 click: markers.fcpxml, markers.edl, markers.otio, markers.csv\n  cursor  cursor.json, cursor.csv, clicks.csv\n!   the cursor layer uses the default look\n  manifest <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/manifest.json · <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/README.md\n",
   "history": [],
   "journal": [],
   "files": {

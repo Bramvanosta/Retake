@@ -301,7 +301,7 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
   // the try below may throw and leave that version locked.
   const templateSha256 = themeContentHash(template.dir, NODE_THEME_FILES);
   const concurrency = await plannedConcurrency(o.workPolicy, o.settings, o.concurrency);
-  const templateFolder = o.ws.reads.templateFolderId(template.dir, project.root);
+  const templateFolder = o.ws.reads.templateFolderId(template.dir, project.root, project.dir);
   const { file, version, release } = await renderDestination({ o, dir, planned, reservedRelease });
   const recordFile = file.replace(/\.mp4$/i, '.json');
   const base: RecordBase = {

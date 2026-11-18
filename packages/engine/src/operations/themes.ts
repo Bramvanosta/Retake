@@ -17,7 +17,7 @@
  * - `theme_edit {theme, if_match, edit}`: engine templates.edit — one verified write (set_field over the allow-list,
  *   set_background, set_component, restore of a version shown or written), under the `ui` client's agent trust (a
  *   channel, not person presence: BL-106). The caller rule (`callers`: themeEditRefused — MCP is refused) is checked
- *   after the parse, before the theme is read. Writes of one theme run one at a time (`serialize`: `theme:<name>`, the
+ *   after the parse, before the theme is read. Writes of one theme run one at a time (`serialize`: `theme:<the folder the name resolves to>`, the
  *   engine's operation chain): a double click finds the new sha256 and gets its 409.
  * - `theme_copy {from, name}`: "Copy to edit" (engine templates.copy); `theme_create`: New theme — the brand form
  *   through engine templates.create under trust `mcp` exactly as MCP, `replace` never offered (pinned out). Both on
@@ -50,6 +50,7 @@ import { stillPlainFile } from '../views/site-list.js';
 import type { SiteList } from '../views/site-list.js';
 import type { TemplateDetail, TemplateSummary } from '../templates.js';
 import { themeEditRefused } from '../theme-edit.js';
+import { themeFolderKey } from '../templates.js';
 import type { ThemeEditList, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
 import { FONT_FETCH, PREVIEW_JOB, READ, SITE_JOB, THEME_WRITE, WRITE_FILES } from './annotations.js';
 import { defineOperation } from './define.js';
@@ -91,9 +92,9 @@ export const templateList = defineOperation({
   name: 'template_list',
   title: 'List themes',
   description:
-    "Themes (templates) a render can use, by name: the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; a theme a person made or changed is never edited here (a human edits it) — template_create_from_brand makes a new one, and template_update changes one it made through MCP that nobody changed.",
+    "Themes (templates) a render can use, by name: with project, the project's own themes first (projects/<slug>/templates/: a name of the project's hides the workspace's theme or the starter of that name, said in notices), then the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion) — each with its origin (project, workspace, starter) and the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; a theme a person made or changed is never edited here (a human edits it) — template_create_from_brand makes a new one, and template_update changes one it made through MCP that nobody changed.",
   input: z.strictObject({
-    project: projectSlug.optional().describe("Mark this project's theme (and list its own theme folder, when project.yaml names one)."),
+    project: projectSlug.optional().describe("List this project's own themes first and mark its theme (and its theme folder, when project.yaml names one by its path)."),
     template: templateName.optional().describe('Return this theme in detail instead of the list.'),
   }),
   annotations: READ,
@@ -153,7 +154,7 @@ export const templateCreateFromBrand = defineOperation({
   name: 'template_create_from_brand',
   title: 'Create a theme from brand files',
   description:
-    "Create a NEW workspace theme, templates/<name>/, from the brand's logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
+    "Create a NEW theme from the brand's logo, colours and fonts — the project's own, projects/<slug>/templates/<name>/, when project is named (recommended: a theme is a brand's, and the project's folder then carries it), else a workspace theme, templates/<name>/: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths the user put there, relative to the project folder when project is named (looked for there first, then the workspace root; recommended folder: brand/), else to the workspace root — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's (with project, never a workspace theme's either: a person copies that one into the project with retake project adopt); replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
   input: BrandInputSchema,
   annotations: THEME_WRITE,
   async run(input, { engine }) {
@@ -170,7 +171,7 @@ export const templateUpdate = defineOperation({
   name: 'template_update',
   title: 'Update a theme made from brand files',
   description:
-    "Change a theme template_create_from_brand made through MCP, giving only what changes: {name, colors?: {paper: …}, components?: {outro: {params: {logo_size: 72}}}, logo_kind?, cursor?, fonts?, brand?, logo?, wordmark?, background?, base?} — null removes an optional input (back to the derived or the base's value), components merge per kind and params per key. The theme is re-made from its recorded inputs with the patch applied (the same checks as create); the files the patch does not name are the theme's own copies (never read again from where they came). Refused for a theme a person made (retake theme create, the Studio), one whose files or recorded inputs changed since, a starter, an unknown name; invalid when nothing changes. Returns what create returns and the keys that changed; then template_preview {project, template: name}.",
+    "Change a theme template_create_from_brand made through MCP, giving only what changes: {name, project? (the project whose own theme it is), colors?: {paper: …}, components?: {outro: {params: {logo_size: 72}}}, logo_kind?, cursor?, fonts?, brand?, logo?, wordmark?, background?, base?} — null removes an optional input (back to the derived or the base's value), components merge per kind and params per key. The theme is re-made from its recorded inputs with the patch applied (the same checks as create); the files the patch does not name are the theme's own copies (never read again from where they came). Refused for a theme a person made (retake theme create, the Studio), one whose files or recorded inputs changed since, a starter, an unknown name; invalid when nothing changes. Returns what create returns and the keys that changed; then template_preview {project, template: name}.",
   input: BrandPatchSchema,
   annotations: THEME_WRITE,
   async run(input, { engine }) {
@@ -307,7 +308,7 @@ export const templateFromTokens = defineOperation({
   name: 'template_from_tokens',
   title: 'Draft a theme from a design-token file',
   description:
-    "Read a design-token file of the workspace (e.g. brand/tokens.json — a list format {<group>: {tokens: [{name, value}]}} or DTCG / W3C JSON with $value, $type and {alias} references; .json or .tokens, at most 1 MB; never in a hidden folder, components/ or a project's agent-writable folders) and propose the theme's colour roles — accent, paper, text, muted, dark — by token name first (primary / brand → accent, background / surface → paper, text / foreground → text, secondary / muted → muted, dark / inverse → dark), then by colour (an extreme neutral paper, the highest-contrast text, a saturated accent with 3:1 on the paper), with each role's contrast. map {role: \"<token name>\"} picks a token for a role instead. Returns the roles, the draft brand input for template_create_from_brand and the template.yaml it would make — nothing is written: show the roles to the user, let them confirm, then call template_create_from_brand. Token names and font family names come back under \"untrusted\" (the file's text); colours are named by index.",
+    'Read a design-token file of the workspace (e.g. brand/tokens.json — a list format {<group>: {tokens: [{name, value}]}} or DTCG / W3C JSON with $value, $type and {alias} references; .json or .tokens, at most 1 MB; never in a hidden folder, components/ or a project\'s agent-writable folders) and propose the theme\'s colour roles — accent, paper, text, muted, dark — by token name first (primary / brand → accent, background / surface → paper, text / foreground → text, secondary / muted → muted, dark / inverse → dark), then by colour (an extreme neutral paper, the highest-contrast text, a saturated accent with 3:1 on the paper), with each role\'s contrast. map {role: "<token name>"} picks a token for a role instead. Returns the roles, the draft brand input for template_create_from_brand and the template.yaml it would make — nothing is written: show the roles to the user, let them confirm, then call template_create_from_brand. Token names and font family names come back under "untrusted" (the file\'s text); colours are named by index.',
   input: TokensInputSchema,
   annotations: READ,
   async run(input, { engine }) {
@@ -390,15 +391,22 @@ const ThemeEditSchema = z.discriminatedUnion('kind', [
 export const THEME_ARGS = { project, theme, componentId, hex, background } as const;
 
 const ListInput = z.strictObject({ project });
-const ViewInput = z.strictObject({ theme });
+/** The project whose own themes are found first: the Studio's screen names it. */
+const inProject = project.optional().describe("The project whose own themes (projects/<slug>/templates/) are found first, and where a new or copied theme is made; omitted: the workspace's.");
+const ViewInput = z.strictObject({ theme, project: inProject });
 const EditInput = z.strictObject({
   theme,
+  project: inProject,
   if_match: sha256.describe('template.yaml as theme_view showed it (its sha256): refused (409) when it changed since.'),
   edit: ThemeEditSchema,
 });
-const CopyInput = z.strictObject({ from: theme.describe('The theme to copy (a starter, another workspace theme).'), name: newName.describe('The new theme folder of templates_dir.') });
+const CopyInput = z.strictObject({
+  from: theme.describe('The theme to copy (a starter, a workspace theme, a theme of the project).'),
+  name: newName.describe("The new theme folder (of the project's templates/ with project, else of templates_dir)."),
+  project: inProject,
+});
 const CreateInput = BrandInputSchema.omit({ replace: true });
-const FilesInput = z.strictObject({ kind: z.enum(['image', 'font']).describe('Image files (logos, wordmarks) or font files.') });
+const FilesInput = z.strictObject({ kind: z.enum(['image', 'font']).describe('Image files (logos, wordmarks) or font files.'), project: inProject });
 const SitesInput = z.strictObject({
   url: z.string().min(1).max(2048).optional().describe('A public page to extract colours and logos from: answered with the command to run (never queued from the Studio).'),
 });
@@ -430,7 +438,8 @@ function pathFreeDeep<T>(v: T, root: string, depth = 0): T {
   return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, pathFreeDeep(x, root, depth + 1)])) as T;
 }
 
-const themeKey = (name: string) => `theme:${name.toLowerCase()}`;
+/** The serialisation key of a theme's writes (templates.ts themeFolderKey: the folder the name resolves to). */
+export const themeKey = themeFolderKey;
 
 export const themeList = defineOperation({
   name: 'theme_list',
@@ -463,7 +472,7 @@ export const themeView = defineOperation({
   input: ViewInput,
   annotations: READ,
   async run(a, { engine }) {
-    const v: ThemeEditView = await engine.templates.view(a.theme);
+    const v: ThemeEditView = await engine.templates.view(a.theme, a.project !== undefined ? { project: a.project } : {});
     // template.yaml's text stays byte for byte (undo restores it by its sha256); every other string is path-free.
     const { yaml, ...rest } = v;
     return {
@@ -481,9 +490,9 @@ export const themeEdit = defineOperation({
   input: EditInput,
   annotations: WRITE_FILES,
   callers: (c) => themeEditRefused(c),
-  serialize: (a) => themeKey(a.theme),
+  serialize: (a, e) => themeKey(e.workspace, a.project, a.theme),
   async run(a, { engine }) {
-    const r: ThemeEditResult = await engine.templates.edit(a.theme, { if_match: a.if_match, edit: a.edit });
+    const r: ThemeEditResult = await engine.templates.edit(a.theme, { if_match: a.if_match, edit: a.edit }, a.project !== undefined ? { project: a.project } : {});
     return {
       summary: `${r.label}: ${r.name} (sha256 ${r.sha256.slice(0, 12)})${r.removed.length ? `, removed ${r.removed.join(', ')}` : ''}${r.warnings.length ? `, ${r.warnings.length} warnings` : ''}`,
       data: pathFreeDeep(r, engine.workspace.root),
@@ -497,9 +506,9 @@ export const themeCopy = defineOperation({
   description: 'A new workspace theme copied from a listed one (a starter, another theme): its files verbatim, only its name changed.',
   input: CopyInput,
   annotations: WRITE_FILES,
-  serialize: (a) => themeKey(a.name),
+  serialize: (a, e) => themeKey(e.workspace, a.project, a.name),
   async run(a, { engine }) {
-    const r = await engine.templates.copy({ from: a.from, name: a.name });
+    const r = await engine.templates.copy({ from: a.from, name: a.name, ...(a.project !== undefined ? { project: a.project } : {}) });
     return { summary: `theme ${r.name} copied from ${r.from} (${r.files.length} files)`, data: pathFreeDeep(r, engine.workspace.root) };
   },
 });
@@ -510,7 +519,7 @@ export const themeCreate = defineOperation({
   description: "A NEW workspace theme from the brand's colours, logo and fonts (workspace files or a site candidate), over a base theme — as template_create_from_brand makes it, never replacing one.",
   input: CreateInput,
   annotations: WRITE_FILES,
-  serialize: (a) => themeKey(a.name),
+  serialize: (a, e) => themeKey(e.workspace, a.project, a.name),
   async run(a, { engine }) {
     const c = await engine.templates.create(a);
     // Path-free: the folder is the theme's name; files are relative to it.
@@ -529,7 +538,7 @@ export const brandFiles = defineOperation({
   input: FilesInput,
   annotations: READ,
   async run(a, { engine }) {
-    const r = await engine.templates.files(a.kind);
+    const r = await engine.templates.files(a.kind, a.project !== undefined ? { project: a.project } : {});
     return { summary: `${r.files.length} ${a.kind} files${r.truncated ? ' (not all listed)' : ''}`, data: r };
   },
 });

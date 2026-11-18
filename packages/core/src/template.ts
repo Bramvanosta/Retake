@@ -157,9 +157,17 @@ export function parseTemplateYaml(text: string, opts: { dir?: string } & FilesWi
   return { template, issues };
 }
 
+/** Where a theme lies: the project's own `templates/`, the workspace's templates_dir, or the starters shipped with Retake. */
+export type ThemeOrigin = 'project' | 'workspace' | 'starter';
+
 export interface TemplateEntry {
   name: string;
   dir: string;
-  /** workspace: in the workspace's templates_dir; starter: shipped with Retake (no workspace template has its name). */
-  source: 'workspace' | 'starter';
+  /**
+   * project: in the project's own `templates/` (listed for a project only); workspace: in the workspace's templates_dir
+   * (no project folder has its name); starter: shipped with Retake (neither has its name).
+   */
+  source: ThemeOrigin;
+  /** A project theme hiding a theme of that name: the workspace's (a folder of templates_dir), else a starter. */
+  shadows?: 'workspace' | 'starter';
 }

@@ -93,7 +93,9 @@ function ThemeList({ slug, list, reload }: { slug: string; list: Loaded<ThemeLis
       {d && (
         <>
           <p className="tm-quiet">
-            <Txt text={`${plural(d.themes.length, 'theme')}. A workspace theme opens in the editor; a starter is copied first. The project's theme is the one project.yaml names`} />
+            <Txt
+              text={`${plural(d.themes.length, 'theme')}. A theme of this project or of the workspace opens in the editor; a starter is copied into this project first. The project's theme is the one project.yaml names`}
+            />
             {d.project_theme && (
               <>
                 {' ('}
@@ -109,7 +111,7 @@ function ThemeList({ slug, list, reload }: { slug: string; list: Loaded<ThemeLis
               slug={slug}
               initial={form}
               taken={taken}
-              themes={d.themes.filter((t) => t.source !== 'project').map((t) => t.name)}
+              themes={d.themes.filter((t) => t.by_path !== true).map((t) => t.name)}
               onClose={() => setForm(null)}
               onMade={reload}
             />
@@ -138,7 +140,8 @@ export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: s
     if (from === null || problem) return setError(problem);
     setBusy(true);
     try {
-      const c = await themeCopy({ from, name });
+      // From a project's screen, a copy is the project's own theme (the workspace's stays reachable from the CLI).
+      const c = await themeCopy({ from, name, project: slug });
       location.hash = hrefTo({ name: 'themes', slug, theme: c.name });
     } catch (e) {
       if (!(e instanceof SessionEnded)) setError(errorText(e));
@@ -279,18 +282,18 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
   const set = (k: keyof NewThemeForm) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => {
     let live = true;
-    brandFiles({ kind: 'image' }).then(
+    brandFiles({ kind: 'image', project: slug }).then(
       (d) => live && setImages(d),
       () => live && setImages({ files: [], truncated: false }),
     );
-    brandFiles({ kind: 'font' }).then(
+    brandFiles({ kind: 'font', project: slug }).then(
       (d) => live && setFontFiles(d),
       () => live && setFontFiles({ files: [], truncated: false }),
     );
     return () => {
       live = false;
     };
-  }, []);
+  }, [slug]);
   const logos = useMemo(() => {
     const refs = (images?.files ?? []).map((x) => x.ref);
     return initial.logo && !refs.includes(initial.logo) ? [initial.logo, ...refs] : refs;
@@ -301,7 +304,7 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
     if (problem) return setState({ error: problem });
     setState({ busy: true });
     try {
-      const made = await themeCreate(createInput(f));
+      const made = await themeCreate({ ...createInput(f), project: slug });
       setState({ made });
       onMade();
     } catch (e) {
@@ -317,7 +320,9 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
         <NewThemeMade slug={slug} made={state.made} onClose={onClose} />
       ) : (
         <div className="tm-panel-body">
-          <p className="tm-quiet">Made as Claude makes one (template_create_from_brand): files of this workspace, never an existing theme replaced.</p>
+          <p className="tm-quiet">
+            Made into this project as Claude makes one (template_create_from_brand with the project): files of this project first, then of the workspace; never an existing theme replaced.
+          </p>
           <NewThemeFields f={f} set={set} themes={themes} images={images} logos={logos} fonts={fonts} />
           <div className="tm-actions">
             <Button variant="primary" busy={state.busy} disabled={!!problem} onClick={() => void create()} data-testid="new-create">

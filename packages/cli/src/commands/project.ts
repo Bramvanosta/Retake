@@ -223,7 +223,10 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
     projects.map(async (p) => {
       try {
         const loaded = await openProject(ws, p.dir);
-        return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments), error: undefined };
+        // Its own themes (projects/<slug>/templates/): found before the workspace's of a name.
+        const own = (await ws.reads.listTemplates(ws.root, { projectDir: loaded.dir })).filter((t) => t.source === 'project').map((t) => t.name);
+        // `themes` only when it has its own (a workspace without project themes prints what it printed before).
+        return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments), ...(own.length ? { themes: own } : {}), error: undefined };
       } catch (e) {
         return { ...p, scenarios: [] as string[], environments: [] as string[], error: errorMessage(e).split('\n')[0] };
       }
@@ -240,6 +243,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
   for (const p of detailed) {
     const info = p.error ? c.red(p.error) : `${p.name}  ${c.dim(`${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? `: ${p.scenarios.join(', ')}` : ''}`)}`;
     ui.result(`  ${c.bold(p.slug.padEnd(width))}  ${info}`);
+    if ('themes' in p && p.themes?.length) ui.result(`  ${''.padEnd(width)}  ${c.dim(`its own themes: ${p.themes.join(', ')}`)}`);
   }
   ui.result(`${c.bold('Themes')} ${c.dim(ui.path(ws.templatesDir))}`);
   ui.result(templates.length ? `  ${templates.map((t) => (t.source === 'starter' ? `${t.name} ${c.dim('(starter)')}` : t.name)).join(', ')}` : c.dim('  none'));

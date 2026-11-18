@@ -164,7 +164,7 @@ export class Live {
       ({ keys, runs } = await this.scanWithoutIndex());
     }
     const changed = await this.jobs.poll();
-    const libNext = await libraryWatchScan({ root: this.o.ws.root, componentsDir: this.o.ws.componentsDir, templatesDir: this.o.ws.templatesDir });
+    const libNext = await libraryWatchScan({ root: this.o.ws.root, componentsDir: this.o.ws.componentsDir, templatesDir: this.o.ws.templatesDir, projectsDir: this.o.ws.projectsDir });
     const lib = this.libSources ? libraryChanges(this.libSources, libNext) : {};
     this.libSources = libNext;
     const recNext = recordsWatchScan(this.o.ws.projectsDir);

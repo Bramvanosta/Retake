@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { statePath } from '@retake/core/project';
+import { PROJECT_SLUG_RE, projectLibraryDir, statePath } from '@retake/core/project';
 import { NODE_THEME_HASHES } from './theme-files.js';
 
 /** Entries a tree signature looks at, at most (a component folder is a handful of files). */
@@ -144,6 +144,15 @@ const statSig = (p: string): string => {
   }
 };
 
+/** Whether a path is a real folder (no link). */
+function realFolder(p: string): boolean {
+  try {
+    return lstatSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /** The signature of `.retake/site/`: the folder, and each extraction folder's own stat and site.json's. */
 export function siteSignature(root: string): string {
   const dir = statePath(root, 'site');
@@ -152,13 +161,25 @@ export function siteSignature(root: string): string {
   return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
 }
 
-/** Everything the library / theme screens watch, as one map: `components:<ns>`, `themes:<name>`, `site`. */
-export async function libraryWatchScan(o: { root: string; componentsDir: string; templatesDir: string; budget?: number }): Promise<Map<string, string>> {
+/**
+ * Everything the library / theme screens watch, as one map: `components:<ns>`, `themes:<name>`, `site` — and, with
+ * `projectsDir`, each project's own themes (`themes:<slug>/<name>`: a project with a real `templates/` folder, at most
+ * WATCH_FOLDERS_MAX projects, within the same budget).
+ */
+export async function libraryWatchScan(o: { root: string; componentsDir: string; templatesDir: string; projectsDir?: string; budget?: number }): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   // One budget for the whole scan; site extractions are at most WATCH_FOLDERS_MAX stats, outside it.
   const budget = watchBudget(o.budget);
   for (const [ns, sig] of componentNamespaceSignatures(o.componentsDir, budget)) out.set(`components:${ns}`, sig);
   for (const [name, sig] of await themeSignatures(o.templatesDir, budget)) out.set(`themes:${name}`, sig);
+  if (o.projectsDir !== undefined) {
+    for (const slug of realFolders(o.projectsDir)) {
+      if (!PROJECT_SLUG_RE.test(slug)) continue;
+      const own = projectLibraryDir(join(o.projectsDir, slug), 'templates');
+      if (!realFolder(own)) continue;
+      for (const [name, sig] of await themeSignatures(own, budget)) out.set(`themes:${slug}/${name}`, sig);
+    }
+  }
   out.set('site', siteSignature(o.root));
   return out;
 }

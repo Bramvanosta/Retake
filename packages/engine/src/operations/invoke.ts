@@ -76,7 +76,7 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
     const refused = op.callers?.(e.caller, p.data);
     if (refused) return { ok: false, error: refused };
     const ctx: ToolContext = { engine: e, startedIn: o.startedIn, signal: o.signal, ...(o.progress ? { progress: o.progress } : {}), ...(o.approver ? { approver: o.approver } : {}) };
-    const key = op.serialize?.(p.data);
+    const key = op.serialize?.(p.data, e);
     if (key === undefined) return { ok: true, output: await op.run(p.data, ctx) };
     return { ok: true, output: await operationChain(e)(key, () => op.run(p.data, ctx)) };
   } catch (e) {

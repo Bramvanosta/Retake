@@ -8,6 +8,8 @@ import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
 /** engine.projects. */
+import { adoptIntoProject } from '../project-adopt.js';
+
 export function projectsApi(ctx: EngineContext): Engine['projects'] {
   const { opts, agent, ws, scope, project, studio, queue, boards, ports } = ctx;
   const envContext = (approver: EnvironmentChangeContext['approver']): EnvironmentChangeContext => ({
@@ -51,5 +53,12 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
     setEnvironment: async (slug, env, change, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'set', mode: o.mode ?? 'upsert', env, change }),
     removeEnvironment: async (slug, env, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'remove', env }),
     board: (slug) => boards.board(slug),
+    // MCP (agent trust) copies themes only; a person's CLI moves, copies and adopts brand files (project-adopt.ts).
+    adopt: (req) =>
+      adoptIntoProject(ws, req, {
+        scope,
+        trust: scope.caller.trust,
+        activeJobs: async () => (await queue.list({ states: ['queued', 'running'] })).map((j) => `${j.input.kind} ${j.id}`),
+      }),
   };
 }

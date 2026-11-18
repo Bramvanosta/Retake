@@ -111,7 +111,9 @@ describe('copy a theme', () => {
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
     const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs, registries: packageRegistries() });
-    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()) }))).message).toMatch(/lies inside the Retake folder/);
+    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()), trust: 'author' }))).message).toMatch(
+      /lies inside the Retake folder/,
+    );
   });
 
   it('⚑ a source holding a hard link is refused whole, nothing written', async () => {

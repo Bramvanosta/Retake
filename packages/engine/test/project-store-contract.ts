@@ -16,7 +16,7 @@ import { JOURNAL_FILES_MAX } from '../src/store/journal.js';
 import { ManualClock } from '../src/clock.js';
 import { callerOf } from '../src/caller.js';
 import { sha256Hex } from '../src/storage.js';
-import type { EngineError } from '../src/index.js';
+import { EngineError } from '../src/errors.js';
 import type { FolderStage, ProjectStores, StoreScope } from '../src/store/store.js';
 
 export interface StoreHarness {
@@ -365,6 +365,94 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
             line({ by: CLI, op: 'folder', what: 'component', path: 'components/card', outcome: 'conflict' }),
           ].sort(),
         );
+      });
+    });
+
+    it('copyFileIn: a file copied in, its folders made, never over one; one exact line each', async () => {
+      await withStore(async (h, scope) => {
+        const dir = join(h.root, 'projects', 'acme');
+        // The source is a person's file on the disk (the memory store reads it there too, as stage.copy does).
+        const tmp = await mkdtemp(join(tmpdir(), 'retake-copy-in-'));
+        const src = join(tmp, 'logo.svg');
+        await writeFile(src, '<svg/>');
+        const store = h.stores.of({ dir, slug: 'acme' }, scope('cli'));
+        const made = await store.copyFileIn('brand/logo.svg', src, { what: 'brand' });
+        expect(made).toEqual({ ref: 'brand/logo.svg', path: join(dir, 'brand', 'logo.svg'), sha256: sha256Hex('<svg/>'), bytes: 6 });
+        expect((await h.read(join(dir, 'brand', 'logo.svg')))?.toString('utf8')).toBe('<svg/>');
+        const again = await failure(store.copyFileIn('brand/logo.svg', src, { what: 'brand' }));
+        expect([again.code, again.message]).toEqual(['conflict', 'brand/logo.svg already exists: not copied over']);
+        expect(await h.lines()).toEqual([
+          line({ by: CLI, project: 'acme', op: 'write', what: 'brand', path: 'projects/acme/brand/logo.svg', if_match: null, sha256: sha256Hex('<svg/>'), bytes: 6, outcome: 'ok' }),
+          line({ by: CLI, project: 'acme', op: 'write', what: 'brand', path: 'projects/acme/brand/logo.svg', if_match: null, outcome: 'conflict' }),
+        ]);
+        await rm(tmp, { recursive: true, force: true });
+      });
+    });
+
+    it('moveAside: a folder moved under `to` whole, its parents made; refused by its check or over an existing `to`; one exact line each', async () => {
+      await withStore(async (h, scope) => {
+        await h.seed(join(h.root, 'templates', 'brand', 'template.yaml'), 'name: brand\n');
+        await h.seed(join(h.root, 'templates', 'brand', 'fonts', 'a.ttf'), 'x');
+        const store = h.stores.at(h.root, scope('cli'));
+        const moved = await store.moveAside('templates/brand', '.retake/adopted/s-theme-brand', { what: 'theme', lockRef: 'templates/brand/template.yaml' });
+        expect(moved).toEqual({ path: join(h.root, 'templates', 'brand'), to: join(h.root, '.retake', 'adopted', 's-theme-brand') });
+        expect(await h.read(join(h.root, 'templates', 'brand', 'template.yaml'))).toBeUndefined();
+        // A save on the version read before the move: a conflict, and the folder is never made again empty.
+        const late = await failure(store.writeText('templates/brand/template.yaml', 'name: late\n', { ifMatch: sha256Hex('name: brand\n'), what: 'theme' }));
+        expect(late.code).toBe('conflict');
+        expect(await h.list(join(h.root, 'templates'))).toEqual([]);
+        expect((await h.read(join(h.root, '.retake', 'adopted', 's-theme-brand', 'fonts', 'a.ttf')))?.toString('utf8')).toBe('x');
+        await h.seed(join(h.root, 'templates', 'two', 'template.yaml'), 'name: two\n');
+        const checked = await failure(
+          store.moveAside('templates/two', '.retake/adopted/s-theme-two', {
+            what: 'theme',
+            check: async () => {
+              throw new EngineError('conflict', 'changed');
+            },
+          }),
+        );
+        expect(checked.message).toBe('changed');
+        expect((await h.read(join(h.root, 'templates', 'two', 'template.yaml')))?.toString('utf8')).toBe('name: two\n');
+        const over = await failure(store.moveAside('templates/two', '.retake/adopted/s-theme-brand', { what: 'theme' }));
+        expect([over.code, over.message]).toEqual(['conflict', '.retake/adopted/s-theme-brand already exists: not moved']);
+        const lines = await h.lines();
+        expect(lines[0]).toBe(line({ by: CLI, op: 'move', what: 'theme', path: 'templates/brand', to: '.retake/adopted/s-theme-brand', outcome: 'ok' }));
+        expect(lines.slice(1).map((l) => `${JSON.parse(l).op}:${JSON.parse(l).outcome}`)).toEqual(['write:conflict', 'move:conflict', 'move:conflict']);
+      });
+    });
+
+    it('createFolder: a parent outside the store is refused (nothing made), and journaled', async () => {
+      await withStore(async (h, scope) => {
+        const dir = join(h.root, 'projects', 'acme');
+        await h.mkdir(dir);
+        await h.mkdir(h.outside);
+        const store = h.stores.of({ dir, slug: 'acme' }, scope());
+        let built = false;
+        const e = await failure(
+          store.createFolder(h.outside, 'theme', {
+            what: 'theme',
+            build: async () => {
+              built = true;
+            },
+            recheck: async () => ({ existing: false }),
+          }),
+        );
+        expect([e.code, built]).toEqual(['refused', false]);
+        expect(e.message).toMatch(/leads out of .* \(a symbolic link\): theme not made/);
+        expect(await h.list(h.outside)).toEqual([]);
+        expect((await h.lines()).map((l) => JSON.parse(l).outcome)).toEqual(['refused']);
+      });
+    });
+
+    it('takeIn: a folder from outside the store moved under `to` whole; one exact line', async () => {
+      await withStore(async (h, scope) => {
+        await h.seed(join(h.outside, 'brand', 'template.yaml'), 'name: brand\n');
+        const store = h.stores.at(h.root, scope());
+        const moved = await store.takeIn(join(h.outside, 'brand'), '.retake/adopted/s-theme-brand', { what: 'theme' });
+        expect(moved.to).toBe(join(h.root, '.retake', 'adopted', 's-theme-brand'));
+        expect(await h.read(join(h.outside, 'brand', 'template.yaml'))).toBeUndefined();
+        expect((await h.read(join(h.root, '.retake', 'adopted', 's-theme-brand', 'template.yaml')))?.toString('utf8')).toBe('name: brand\n');
+        expect(await h.lines()).toEqual([line({ by: CLI, op: 'move', what: 'theme', path: '<outside workspace>/brand', to: '.retake/adopted/s-theme-brand', outcome: 'ok' })]);
       });
     });
 

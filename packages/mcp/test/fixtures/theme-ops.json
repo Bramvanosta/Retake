@@ -94,6 +94,7 @@
     ],
     "data": {
      "templates_dir": "<ws>/templates",
+     "project_templates_dir": "<ws>/projects/northfield-fixture/templates",
      "templates": [
       {
        "name": "default",
@@ -160,7 +161,8 @@
        "issues": []
       }
      ],
-     "project_theme": "editorial"
+     "project_theme": "editorial",
+     "notices": []
     }
    }
   },
@@ -994,14 +996,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "refused: logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/",
+    "text": "refused: logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "refused",
-      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/"
+      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/"
      }
     }
    }
@@ -1266,14 +1268,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "not_found: template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+    "text": "not_found: template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+      "message": "template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }
@@ -3175,14 +3177,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "not_found: template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+    "text": "not_found: template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+      "message": "template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }
@@ -5281,7 +5283,7 @@
      "ok": false,
      "error": {
       "code": "refused",
-      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/"
+      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/"
      }
     }
    }
@@ -8387,7 +8389,7 @@
      "ok": false,
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in templates or the starter templates (available: brand-two, default, editorial, mine, motion)",
+      "message": "template \"no-such\" not found in projects/northfield-fixture/templates, templates or the starter templates (available: brand-two, default, editorial, mine, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }

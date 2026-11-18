@@ -34,11 +34,12 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
     fromTokens: (req) => tokensDraft(ws, req, { trust: ENGINE_TRUST, clock: scope.clock }),
     // An agent's fetch is asked of a person first (fontsource-approval.ts), before any network contact.
     fetchFonts: (req, o = {}) => fetchFonts(ws, req, { registry: ports.fontRegistry, clock: scope.clock, ask: agent, ...(o.approver ? { approver: o.approver } : {}), client: opts.client }),
-    view: (name) => themeEditView(ws, name, caches.themeEdit),
+    view: (name, o = {}) => themeEditView(ws, name, caches.themeEdit, o.project),
     editList: (project) => themeEditList(ws, project, caches.themeEdit),
-    edit: (name, req) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit }),
-    copy: (req) => copyTheme(ws, req, { scope }),
-    files: (kind) => brandFileList(ws, kind),
+    edit: (name, req, o = {}) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit, ...(o.project !== undefined ? { project: o.project } : {}) }),
+    // As create: the engine's agent trust (a copy into a project never hides a workspace theme of its name).
+    copy: (req) => copyTheme(ws, req, { scope, trust: ENGINE_TRUST }),
+    files: (kind, o = {}) => brandFileList(ws, kind, o.project),
     sites: () => siteList(ws),
     siteConflicts: (host) => siteHostConflicts(ws, ports.hosts, host),
     previewSpec: (req, o) => buildThemePreview(ws, req, { start: o.start, registry: caches.registry, samples: caches.previewSamples }),
