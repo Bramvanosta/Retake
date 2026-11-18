@@ -492,5 +492,31 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         expect(await h.lines()).toEqual([]);
       });
     });
+    it('createFolder: writeFrom streams a file into the stage — its sha256 and bytes answered, never over a file — and it lands with the folder', async () => {
+      await withStore(async (h, scope) => {
+        const parent = join(h.root, 'projects');
+        await h.mkdir(parent);
+        const store = h.stores.at(parent, scope());
+        const chunks = async function* () {
+          yield Buffer.from('name: ');
+          yield new Uint8Array(Buffer.from('imp\n'));
+        };
+        const made = await store.createFolder(parent, 'imp', {
+          what: 'project',
+          build: async (stage: FolderStage) => {
+            const a = await stage.writeFrom('project.yaml', chunks(), { mode: 0o644 });
+            expect(a).toEqual({ sha256: sha256Hex(Buffer.from('name: imp\n')), bytes: 10 });
+            await stage.writeFrom('hooks/deep/run.sh', chunks(), { mode: 0o755 });
+            const twice = await failure(stage.writeFrom('project.yaml', chunks(), { mode: 0o644 }));
+            expect(twice).toBeInstanceOf(Error);
+            return 'built';
+          },
+          recheck: async () => ({ existing: false }),
+        });
+        expect(made.dir).toBe(join(parent, 'imp'));
+        expect((await h.read(join(parent, 'imp', 'project.yaml')))?.toString('utf8')).toBe('name: imp\n');
+        expect((await h.read(join(parent, 'imp', 'hooks', 'deep', 'run.sh')))?.toString('utf8')).toBe('name: imp\n');
+      });
+    });
   });
 }

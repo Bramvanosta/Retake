@@ -37,6 +37,8 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | component | Components (the Library) | a reusable piece of a video (title card, caption, callout…): `components/<namespace>/<name>/` — a project's own in `projects/<slug>/components/<namespace>/<name>/`, found first for that project's work (source `project`, the Library's Project badge), then the workspace's, then the built-in library | — |
 | project theme · project library | Project (a theme's tag) | a theme in the project's own folder (`projects/<slug>/templates/<name>/`), found before the workspace's theme and the starter of its name for that project's work · the project's own `templates/`, `components/` and `brand/` folders (core layout `PROJECT_LIBRARY_DIRS`): they travel with the project folder, and no code a scenario names is run from them | — |
 | adopt | — | a project taking a workspace theme, a workspace component or brand files into its own folder (`retake project adopt --theme / --component / --brand`: moves, the workspace's set aside under `.retake/adopted/`; `--copy` and MCP `project_adopt`: copies, themes and components only) | — |
+| project archive | — | a project in one ZIP (`retake project export`, MCP `project_export`; `exports/<slug>-project-<stamp>.zip`): `project/<path>` for its files and the workspace themes and components it uses, and the manifest `retake-project.json` (engine `project-archive/`) | — |
+| import · imported project · trust (an imported project) | Imported — not trusted (the Project screen's banner) | `retake project import` makes a project archive a project of a workspace; an **imported project** is untrusted — inert: only reads, its authored files, its export, pruning and stopping a sandbox run on it (catalogue `allowedOnUntrusted`) — until a person runs `retake project trust <slug>` (its code files listed, a y/N at a terminal); its mark has two halves with one import id: the workspace's `.retake/imports/<slug>.json` (its signed `trusted` stanza) and the project's `.retake/import.json` | — |
 | thread | Thread | a conversation anchored on a moment (and optionally a region) of a render, open or resolved: `comments/<scenario>/<id>.json` | `retake comment …` and the MCP `comment_*` / `comments_list` tools act on threads |
 | comment | Comment | one message of a thread: its first one or a reply | — |
 | recording | Recording | a flow performed by hand in a browser window that becomes a draft scenario (`retake record`, `scenario_record`); never the filmed video | — |
@@ -81,7 +83,11 @@ Each of these words has several meanings: say which one (the qualified form on t
   its notice): the other theme is not changed, only not used by that project; never a CSS shadow (a layout's `shadow`
   param).
 - **export** — an *export* alone is a render in delivery formats; the footage of a run for an editing tool is a *raw
-  export*.
+  export*; a project in one ZIP is a *project archive* (`retake project export` writes one: never called an export
+  alone).
+- **trust** — always qualified: a person *trusting the hooks* of a scenario an agent wrote (`retake hooks trust`: they
+  run without asking until they change); a person *trusting an imported project* (`retake project trust`: its code runs
+  at all); a caller's *trust* (`author` or `mcp`, above).
 - **studio** — *the Studio* is the app; `studio/*` is the namespace of the built-in components; `studio` is also the
   name of the channel a request came through (from the Studio, as opposed to MCP) — the engine's word only: the domain
   is handed the channel's words as a *confinement* (core `Confinement`, L7.35).

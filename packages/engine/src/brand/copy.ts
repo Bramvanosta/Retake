@@ -10,6 +10,10 @@
  * holding a symbolic link, a hard link or a special file is refused whole (a copy would serve a file from elsewhere);
  * at most THEME_COPY_MAX_FILES files and THEME_COPY_MAX_BYTES bytes.
  */
+import { untrustedSourceRefusal } from '../project-archive/trust.js';
+import type { EngineEnv } from '../env.js';
+import { realPathOf } from '@retake/core/policy';
+import { nodeFileFacts } from '@retake/core/io';
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
@@ -84,7 +88,7 @@ function renamedText(text: string, name: string, from: string): string {
 }
 
 /** Copy a listed theme into a new theme `name` (see the header): the project's own when `project` is named, else the workspace's. */
-export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string; project?: string }, o: { scope: StoreScope; trust: BrandTrust }): Promise<ThemeCopied> {
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string; project?: string }, o: { scope: StoreScope; trust: BrandTrust; env?: EngineEnv }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
   const name = checkNewThemeName(req?.name);
   const target = await themeTarget(ws, req?.project, 'a copy');
@@ -98,7 +102,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
   const warnings: string[] = [];
   // The Studio's copy as its New theme: a project copy of a workspace theme's name is refused (trust mcp), a person's warned.
   await projectShadowCheck(ws, target, name, o.trust, warnings);
-  const files = await copyThemeFolder(ws, { source, from }, target, name, { provenance: 'new', scope: o.scope });
+  const files = await copyThemeFolder(ws, { source, from }, target, name, { provenance: 'new', scope: o.scope, ...(o.env ? { env: o.env } : {}) });
   return { name, from, files, ...(target.project ? { project: target.project.slug } : {}), ...(warnings.length ? { warnings } : {}) };
 }
 
@@ -107,16 +111,22 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
  * a hard link or a special file refuses it; size caps), template.yaml's `name:` set to `name`, validated as a render
  * will load it, through the target's store (staged, rechecked, journaled). `provenance`: `new` writes this tool's
  * record (`copy_of`, trust `author`: a person's copy); `keep` copies the source's own record as it is (an adopted
- * theme stays what it was: one MCP made can still be updated through MCP, a person's never). Returns the files written.
+ * theme stays what it was: one MCP made can still be updated through MCP, a person's never). A source folder inside an
+ * imported project not trusted is refused (project-archive/trust.ts). Returns the files written.
  */
 export async function copyThemeFolder(
   ws: OpenedWorkspace,
   src: { source: LoadedTemplate; from: string },
   target: ThemeTarget,
   name: NewThemeName,
-  o: { provenance: 'new' | 'keep'; scope: StoreScope; keepStarterName?: boolean },
+  o: { provenance: 'new' | 'keep'; scope: StoreScope; keepStarterName?: boolean; env?: EngineEnv },
 ): Promise<string[]> {
   const { source, from } = src;
+  // Nothing leaves an imported project not trusted (its Lottie, its code): judged by the folder's owner (`env`: whose home's key).
+  if (o.env) {
+    const refused = await untrustedSourceRefusal(ws, realPathOf(source.dir, nodeFileFacts), o.env);
+    if (refused) throw refused;
+  }
   // Stamped by the scope's clock (its provenance), which also dates the stale stages swept.
   const now = dateOf(o.scope.clock);
   const templatesDir = target.dir;

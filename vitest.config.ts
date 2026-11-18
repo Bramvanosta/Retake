@@ -121,6 +121,7 @@ export default defineConfig({
       '@retake/test-support/timing': fileURLToPath(new URL('./packages/test-support/src/timing.ts', import.meta.url)),
       '@retake/test-support/timeline': fileURLToPath(new URL('./packages/test-support/src/timeline.ts', import.meta.url)),
       '@retake/test-support/workspace': fileURLToPath(new URL('./packages/test-support/src/workspace.ts', import.meta.url)),
+      '@retake/test-support/zip-craft': fileURLToPath(new URL('./packages/test-support/src/zip-craft.ts', import.meta.url)),
     },
   },
   test: {

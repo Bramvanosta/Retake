@@ -101,13 +101,14 @@ const COMMENTS_STUDIO = [
   'thread_reopen',
   'thread_apply',
 ];
-/** The authoring, recording and project writes (MCP's eight — sandbox_init and the environment tools among them — and job_status; the Studio's scenario_edit and its seven record_* ops). */
+/** The authoring, recording and project writes (MCP's eight — sandbox_init and the environment tools among them —, a project's archive, and job_status; the Studio's scenario_edit and its seven record_* ops). */
 const AUTHORING_MCP = [
   'project_create',
   'project_env_set',
   'project_env_remove',
   'project_prune',
   'project_adopt',
+  'project_export',
   'scenario_save',
   'scenario_record',
   'scenario_from_script',

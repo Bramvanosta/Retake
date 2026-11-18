@@ -22,7 +22,8 @@ import { registerUpkeepCommands } from './program/upkeep.js';
 import { registerWorkspaceCommands } from './program/workspace.js';
 import { Ui } from './ui.js';
 import { bindProduct } from '@retake/compose';
-import { cliEnginePorts } from './workspace.js';
+import { cliEnginePorts, openWorkspace } from './workspace.js';
+import { untrustedCommandRefusal } from '@retake/engine/shell';
 import type { GlobalOptions, ProgramOptions } from './workspace.js';
 import type { EnginePorts } from '@retake/engine';
 
@@ -90,6 +91,17 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void, ports: () => En
     if (refusal) throw new EngineError('refused', refusal);
   });
 
+  // An imported project not trusted is inert (engine project-archive/trust.ts): a command whose operations are not all
+  // allowed on one is refused before it starts, whatever it is (a command added later included).
+  program.hook('preAction', async (_program, command) => {
+    const arg = projectArgOf(command);
+    if (arg === undefined) return;
+    // No workspace opens: a folder named by path is still judged by its own marker (fails closed).
+    const ws = await openWorkspace(globals()).catch(() => undefined);
+    const refused = await untrustedCommandRefusal(ws, commandPath(command), arg, globals().ports.env);
+    if (refused) throw refused;
+  });
+
   for (const register of FAMILIES) register({ program, action });
 
   return program;
@@ -103,6 +115,13 @@ function commandPath(c: Command): string {
   const names: string[] = [];
   for (let at: Command | null = c; at?.parent; at = at.parent) names.unshift(at.name());
   return names.join(' ');
+}
+
+/** The project a command names: its `<project>` argument, else its `--project` option. */
+function projectArgOf(c: Command): string | undefined {
+  const i = c.registeredArguments.findIndex((a) => a.name() === 'project');
+  const v = i >= 0 ? c.processedArgs[i] : c.opts<{ project?: unknown }>().project;
+  return typeof v === 'string' && v !== '' ? v : undefined;
 }
 
 /** The help of every command, the program's first and hidden ones included (the glossary's word guard reads it). */
