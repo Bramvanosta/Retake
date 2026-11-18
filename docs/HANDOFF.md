@@ -2,8 +2,10 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-23, **BL-192** (Playwright 1.65.1 and the app's downloaded Tools, a pull request against
-`main`); before it 2026-11-17, L8.4 and **L5.3**; **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
+Last updated: 2026-11-23, the **L9 chain** (lots L9.1 – L9.5, sharing one project: branch
+`claude/fb-32-project-share-cbf322`, rebased onto `main` after pull requests 22 – 26, one pull request, not merged);
+before it **BL-192** (Playwright 1.65.1 and the app's downloaded Tools, a pull request against `main`); before it
+2026-11-17, L8.4 and **L5.3**; **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
 v0.2.1 – v0.2.6, the lot log, the evidence per lot, the notes per lot and the trust rules in them, the cloud
@@ -16,7 +18,8 @@ container, the earlier heads of this file — under their original headings, so 
   app and its releases, captures first, renders on the GPU, the two hardening lots, the iOS Simulator runner). The architecture series
   (L6.1 – L6.13, L7.1 – L7.58) is on `main` since 2026-11-15; the **L8 chain** answers the second field feedback
   ([FIELD-FEEDBACK-2.md](FIELD-FEEDBACK-2.md): L8.1, L8.1b, L8.2, L8.2b) and finishes the app's native menus (L8.3).
-  The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`.
+  The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`. The **L9 chain** (2026-11-18)
+  answers field feedback 2's point 32: a project shared on its own (L9.1 – L9.5, "State (after L9.5)").
 - **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, the
   hotfixes v0.2.1 – v0.2.6 (their notes are in the archive), then v0.3.0 on 2026-11-16: the architecture series,
   the Studio's large-screen pass, the native menu bar and the L8 chain (on Playwright 1.56.1). BL-192 brings
@@ -26,6 +29,8 @@ container, the earlier heads of this file — under their original headings, so 
   pull request 9 closed with nothing left to merge), the Studio's large-screen pass (`0131be7d`) and the native menu
   bar (`053baebc`), both 2026-11-15. Then the L8 chain, one commit per lot (pull request 20, 2026-11-16).
   `claude/bl-192-playwright-b161b7`: BL-192, one commit, its pull request open (not merged, no tag).
+  `claude/fb-32-project-share-cbf322`: the L9 chain, one commit per lot, rebased onto `main` after pull requests
+  22 – 26, its pull request open (not merged).
   The branches of merged pull requests are deleted, locally and on `origin`.
 - **Guards** (each in the CI's `checks` job, `.github/workflows/ci.yml`): `pnpm build`, the test files' type check
   (`tsconfig.test.json`), `node scripts/audit/rules.mjs . --check` (the import-rules ratchet),
@@ -37,6 +42,8 @@ container, the earlier heads of this file — under their original headings, so 
   the Mac).
 
 ## Next steps
+0. **The L9 chain's pull request** (branch `claude/fb-32-project-share-cbf322`): review and merge it, then the hand
+   checks of "State (after L9.5)".
 1. **BL-192's pull request**: the person reviews and merges it, then checks MACOS-CHECKLIST §22 by hand (the first
    real download from the publishers, a signed and notarised release's Tools step). The next release re-records
    `apps/desktop/bundle/tools.json` (RELEASING step 1).
@@ -51,6 +58,11 @@ container, the earlier heads of this file — under their original headings, so 
 5. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Pending for the person
+- The L9 chain's hand checks: `retake project trust` of an imported project at a terminal, then a render and a review
+  of a copied render there (trusting is a person's act: the chain tested it in process only); `retake project adopt`
+  on a real workspace (a theme move, the folder set aside in `.retake/adopted/`); the Studio's Library and timeline
+  with a project component (held, then allowed); an export onto a real exFAT stick; `--with-sandbox` on a real
+  project's sandbox (it must fit the Compose subset of the sandbox guide).
 - The L8 chain's hand checks: the menus (MACOS-CHECKLIST 14h), one real font fetch from the npm registry (§20: the
   fontsource package layout is an unverified assumption), a real variable font at two weights and a real wide logo in a
   full render (L8.1), a real design-token export through `retake theme from-tokens` (L8.1b), one live take on a real
@@ -92,6 +104,32 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its newest "State (after …)" section (L7.57b's since 2026-11-16).
 
+## State (after L9.5)
+- **L9.1 – L9.5 done (2026-11-18; branch `claude/fb-32-project-share-cbf322`, one commit per lot, one pull request)**
+  — field feedback 2, point 32: a project can be shared on its own.
+  - L9.1 (`b73d0cd8`): run, render and review records write project-relative paths (DESIGN §3.5); render records at
+    format version 2.
+  - L9.2 (`1834e029`): `projects/<slug>/templates/` and `brand/` resolved before the workspace's, lists say the origin,
+    a project-relative theme identity (`/project:…`, adopted renders matched by `template_sha256`), writers target the
+    project, `retake project adopt` (moves; `--copy`) and MCP `project_adopt` (copies).
+  - L9.3 (`32496f15`): `projects/<slug>/components/` before the workspace's and the built-in library; a project's
+    components are its code (held in the Studio until allowed, per-project player bundle); adopt `--component`
+    (`studio/` ids refused).
+  - L9.4 (`ea29c7f2`): `retake project export` / MCP `project_export` (a ZIP, our own writer and reader) and
+    `retake project import` (CLI only); an imported project is inert — an allow-list gate in the engine, the jobs, the
+    CLI and the product adapters — until `retake project trust` at a terminal (no `--yes`), after the list of its code
+    files recomputed from the files; a two-half mark that fails closed.
+  - L9.5 (`2b4f31d9`): `--with-sandbox` (CLI only): compose files and images saved by id, loaded only at trust from a
+    fresh tar Retake writes (tags restored if anything moved), an allow-listed subset of Compose, env files never
+    (the sandbox's own `.env` only with `--with-env`).
+  - Requirements R-SHR-01 – R-SHR-48; what is left: BACKLOG BL-202 (themes, brand, components), BL-203 (export and
+    import), BL-204 (the sandbox).
+  - Method: each lot planned, critiqued, implemented by a sub-agent, reviewed twice (trust; regressions), fixed with
+    regression tests and mutation checks; L9.5 had two more passes on its security fixes (the Compose deny-list was
+    replaced by an allow-list). A second attacking pass on L9.5's final form was stopped by the model's safeguards; a
+    coverage check replaced it.
+  - Not run: `packages/cli/test/sandbox-docker.test.ts` (needs `node:22-alpine`, not pulled); the containerd image
+    store (refused for now); a real exFAT volume (an injected link failure only).
 ## State (after BL-192)
 - **BL-192 done (2026-11-18; branch `claude/bl-192-playwright-b161b7`, a pull request against `main`, not merged)** —
   playwright-core 1.56.1 → 1.65.1 in ui, runner-web, editor and fixtures/wholesale (Chrome for Testing 159.0.8154.6,
