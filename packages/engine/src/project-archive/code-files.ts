@@ -19,8 +19,10 @@
  *   step, `lottie:`);
  * - `named` — any file of the project (outputs included) that a scenario, a hooks file, project.yaml or a theme names by
  *   a file key (`file`, `lottie`, `script`, `path`, `src`): a sql hook's file in `data/`, a Lottie under `review/`.
- * Nothing in the folder is hidden from the walk but the state folder, `.env*` files and exports (never archived) and the
- * outputs (runs/, renders/, review/), whose named files only are listed. Links are listed as links, never followed.
+ * - an env file (`.env*`, `*.env`: never archived unless a person carries a sandbox's with `--with-env`) is listed as
+ *   `tool-config` (docker compose and the hooks read it); an export lists only the files it carries.
+ * Nothing in the folder is hidden from the walk but the state folder and exports (never archived) and the outputs
+ * (runs/, renders/, review/), whose named files only are listed. Links are listed as links, never followed.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -178,8 +180,8 @@ async function judged(projectDir: string, r: string, name: string, sandboxes: re
 
 /**
  * The code files of the project folder `projectDir`, sorted by path: what `retake project trust` lists and an import
- * records (from the files it wrote). The state folder, `.env*` files and exports are skipped, and the outputs but for
- * the files a project file names.
+ * records (from the files it wrote). The state folder and exports are skipped, and the outputs but for the files a
+ * project file names.
  */
 export async function projectCodeFiles(projectDir: string): Promise<CodeFile[]> {
   const sandboxes = await sandboxFolders(projectDir);
@@ -191,9 +193,14 @@ export async function projectCodeFiles(projectDir: string): Promise<CodeFile[]> 
     for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
       const r = rel ? `${rel}/${e.name}` : e.name;
       const never = neverArchived(r);
-      if (never === 'state' || never === 'env' || never === 'exports' || projectOutputPath(r)) continue;
+      if (never === 'state' || never === 'exports' || projectOutputPath(r)) continue;
       if (++seen > CODE_WALK_MAX) return;
-      if (e.isSymbolicLink()) out.set(r, { path: r, why: 'link', size: 0, sha256: '' });
+      // An env file (never archived unless a person carries a sandbox's): what docker compose and the hooks read.
+      if (never === 'env' && e.isFile()) {
+        const st = await lstat(join(projectDir, r));
+        out.set(r, { path: r, why: 'tool-config', size: st.size, sha256: await fileSha256(join(projectDir, r)) });
+      } else if (never === 'env') continue;
+      else if (e.isSymbolicLink()) out.set(r, { path: r, why: 'link', size: 0, sha256: '' });
       else if (e.isDirectory()) await walk(r);
       else if (e.isFile()) {
         if (/\.ya?ml$/i.test(e.name) && /^(scenarios|hooks|templates)\/|^project\.yaml$/i.test(r)) yamls.push(r);

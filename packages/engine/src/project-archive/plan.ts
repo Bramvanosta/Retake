@@ -29,11 +29,16 @@ import { EngineError } from '../errors.js';
 import { namesComponent, themeRefsOf } from '../project-uses.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { ArchiveExcluded, ArchiveNeeds, ArchiveOrigin, TokenWarning } from './manifest.js';
+import { planSandboxes } from './sandbox-part.js';
+import { readSandboxSubset } from './compose-read.js';
+import type { SandboxPlan, SandboxPlanOptions } from './sandbox-part.js';
 
 /** One file the archive takes: its project path, where it is read from, its size, mode and time, and its origin. */
 export interface PlannedFile {
   path: string;
   from: string;
+  /** Its bytes in the archive when they are not `from`'s (sandbox.yaml with its compose paths rewritten). */
+  data?: Buffer;
   size: number;
   mode: 0o644 | 0o755;
   mtime: Date;
@@ -51,6 +56,8 @@ export interface ArchivePlan {
   needs: ArchiveNeeds;
   excluded: ArchiveExcluded;
   warnings: { literal_tokens: TokenWarning[] };
+  /** `--with-sandbox`: what the archive carries of the sandboxes (sandbox-part.ts). */
+  sandbox?: SandboxPlan;
 }
 
 const posix = (p: string): string => p.split(sep).join('/');
@@ -114,7 +121,32 @@ function insideProject(project: LoadedProject, base: string, p: string): string 
   return pathInside(abs, project.dir) ? posix(relative(project.dir, abs)) : undefined;
 }
 
-/** The compose files' secrets, configs and env files, and sandbox.yaml's env file, as project paths. */
+/** The secrets, configs and env files a compose file names, with the files its `include:` and `extends` name followed. */
+async function composeFileSecrets(project: LoadedProject, cf: string, out: string[], seen: Set<string>): Promise<void> {
+  if (seen.has(cf) || seen.size > 200) return;
+  seen.add(cf);
+  const c = await yamlOf(cf);
+  if (!isObj(c)) return;
+  const dir = dirname(cf);
+  // (Services' env files: Retake's reader of the compose subset names them — subsetSecrets.)
+  const named = [...valuesOf(c.secrets, new Set(['file'])), ...valuesOf(c.configs, new Set(['file']))];
+  for (const n of named) out.push(insideProject(project, dir, n) ?? '');
+  const inc = c.include;
+  for (const i of typeof inc === 'string' ? [inc] : Array.isArray(inc) ? inc : []) {
+    const paths = typeof i === 'string' ? [i] : isObj(i) ? (typeof i.path === 'string' ? [i.path] : Array.isArray(i.path) ? i.path : []) : [];
+    for (const p of paths) if (typeof p === 'string') await composeFileSecrets(project, resolve(dir, p), out, seen);
+    if (isObj(i) && typeof i.env_file === 'string') out.push(insideProject(project, dir, i.env_file) ?? '');
+  }
+  if (isObj(c.services))
+    for (const svc of Object.values(c.services))
+      if (isObj(svc) && isObj(svc.extends) && typeof svc.extends.file === 'string') await composeFileSecrets(project, resolve(dir, svc.extends.file), out, seen);
+}
+
+/**
+ * The compose files' secrets, configs and env files — following `include:` and `extends` — and sandbox.yaml's env file,
+ * as project paths; a path holding `${…}` (docker compose fills it in) is kept as written: namedSecrets matches it as a
+ * pattern.
+ */
 async function composeSecrets(project: LoadedProject): Promise<string[]> {
   const out: string[] = [];
   const sandboxes = isObj(project.config.sandboxes) ? Object.values(project.config.sandboxes) : [];
@@ -125,26 +157,69 @@ async function composeSecrets(project: LoadedProject): Promise<string[]> {
     const compose = isObj(sb) && isObj(sb.compose) ? sb.compose : {};
     if (typeof compose.env_file === 'string') out.push(insideProject(project, dirname(file), compose.env_file) ?? '');
     const files = Array.isArray(compose.files) ? compose.files.filter((f): f is string => typeof f === 'string') : ['compose.yaml'];
-    for (const f of files) {
-      const cf = resolve(dirname(file), f);
-      const c = await yamlOf(cf);
-      if (!isObj(c)) continue;
-      const named = [...valuesOf(c.secrets, new Set(['file'])), ...valuesOf(c.configs, new Set(['file'])), ...valuesOf(c.services, new Set(['env_file', 'path']))];
-      if (isObj(c.services)) for (const svc of Object.values(c.services)) if (isObj(svc) && Array.isArray(svc.env_file)) named.push(...svc.env_file.filter((x): x is string => typeof x === 'string'));
-      for (const n of named) out.push(insideProject(project, dirname(cf), n) ?? '');
-    }
+    const seen = new Set<string>();
+    for (const f of files) await composeFileSecrets(project, resolve(dirname(file), f), out, seen);
   }
   return out.filter(Boolean);
+}
+
+/**
+ * The env files the project's compose sandboxes read, by Retake's reader of the compose subset (compose-read.ts; never
+ * docker compose config, which drops them): every literal `env_file`. A sandbox whose compose files are outside the
+ * subset cannot be read that way: every file of its compose folders is left out but the compose files, sandbox.yaml
+ * files and the `seed/` folder (`folders`); one whose compose folder is the project's root is refused (nothing there can
+ * be left out whole).
+ */
+async function subsetSecrets(project: LoadedProject): Promise<{ files: string[]; folders: Array<{ dir: string; keep: string[] }> }> {
+  const out = { files: [] as string[], folders: [] as Array<{ dir: string; keep: string[] }> };
+  const sandboxes = isObj(project.config.sandboxes) ? Object.entries(project.config.sandboxes) : [];
+  const yamls = sandboxes.flatMap(([, s]) => (typeof s === 'string' ? [insideProject(project, project.dir, s) ?? ''] : [])).filter(Boolean);
+  for (const [env, s] of sandboxes) {
+    if (typeof s !== 'string') continue;
+    const file = resolve(project.dir, s);
+    const read = await readSandboxSubset(project.dir, env, file, { mode: 'export' });
+    if (!read) continue;
+    // Every env file the reader names, whatever else the files hold.
+    for (const sv of read.services) out.files.push(...sv.env_here);
+    if (!read.problems.length) continue;
+    for (const dir of new Set([dirname(file), ...read.files.map((f) => resolve(project.dir, f)).map(dirname)])) {
+      const rel = insideProject(project, project.dir, dir);
+      // At the project's root nothing can be left out whole: refused, the fix said.
+      if (rel === '' || rel === '.')
+        throw new EngineError(
+          'refused',
+          `sandbox ${showHiddenCharsLine(env)}: its compose files are at the project's root and outside the compose subset an archive hands over (${read.problems.slice(0, 6).map(showHiddenCharsLine).join('; ')}): an archive cannot tell what they read — move sandbox.yaml and its compose files into a folder of their own (sandbox/), then export again`,
+        );
+      if (rel !== undefined) out.folders.push({ dir: rel, keep: [...read.files, ...yamls] });
+    }
+  }
+  return out;
+}
+
+/** A project path holding `${…}` / `$VAR` as a pattern of folded keys: each variable any text within one segment. */
+function secretPattern(folded: string): RegExp | undefined {
+  if (!/\$/.test(folded)) return undefined;
+  const parts = folded.split(/\$\{[^}]*\}|\$[a-z_][a-z0-9_]*/);
+  // A last segment that is a variable alone would match every file of its folder: docker compose config resolves it
+  // (--with-sandbox), not this pattern.
+  const last = parts.at(-1) ?? '';
+  if (last.replace(/^.*\//, '').length < 3 && !(parts.at(-2) ?? '').replace(/^.*\//, '')) return undefined;
+  return new RegExp(`^${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}(/.*)?$`);
 }
 
 /** The project paths the never-list misses but a project file names as secret: a sign-in's saved state or profile, the sandboxes' secrets. */
 async function namedSecrets(project: LoadedProject): Promise<(rel: string) => boolean> {
   const yaml = await yamlOf(join(project.dir, 'project.yaml'));
   const auth = valuesOf(yaml, new Set(['storage_state', 'profile'])).map((p) => insideProject(project, project.dir, p.replace(/^~(?=\/)/, '/nonexistent')) ?? '');
-  const all = [...auth, ...(await composeSecrets(project))].filter(Boolean).map(foldedArchiveKey);
+  const sub = await subsetSecrets(project);
+  const all = [...auth, ...(await composeSecrets(project)), ...sub.files].filter(Boolean).map(foldedArchiveKey);
+  const patterns = all.map(secretPattern).filter((r): r is RegExp => r !== undefined);
+  const folders = sub.folders.map((f) => ({ dir: foldedArchiveKey(f.dir), keep: new Set(f.keep.map(foldedArchiveKey)) }));
   return (rel) => {
     const k = foldedArchiveKey(rel);
-    return all.some((s) => k === s || k.startsWith(`${s}/`));
+    // (A folder holding a file kept — a compose file, a seed — is walked, not left out whole.)
+    if (folders.some((f) => k.startsWith(`${f.dir}/`) && !f.keep.has(k) && k !== `${f.dir}/seed` && !k.startsWith(`${f.dir}/seed/`) && ![...f.keep].some((x) => x.startsWith(`${k}/`)))) return true;
+    return all.some((s) => k === s || k.startsWith(`${s}/`)) || patterns.some((r) => r.test(k));
   };
 }
 
@@ -279,8 +354,33 @@ async function withoutOutsideRenders(files: PlannedFile[], excluded: ArchiveExcl
   return prefixes.length ? files.filter((f) => !prefixes.some((p) => f.path.startsWith(p))) : files;
 }
 
-/** The plan of a project's archive (the module's header). */
-export async function planProjectArchive(ws: OpenedWorkspace, project: LoadedProject, o: { withRuns: boolean; env: EngineEnv }): Promise<ArchivePlan> {
+/** The sandbox part applied to the walked files: sandbox.yaml's bytes replaced, the copies and the env file a person asked for added. */
+async function withSandbox(files: PlannedFile[], excluded: ArchiveExcluded, sb: SandboxPlan): Promise<PlannedFile[]> {
+  const out = files.map((f) => {
+    const data = sb.replace.get(f.path);
+    return data ? { ...f, data, size: data.length } : f;
+  });
+  // What docker compose resolved as env, secret or config files (wherever the compose files reach them): left out.
+  const left = out.filter((f) => sb.exclude.has(f.path) && f.origin === 'project');
+  for (const f of left) if (!excluded.sensitive.includes(f.path)) excluded.sensitive.push(f.path);
+  const kept = out.filter((f) => !(sb.exclude.has(f.path) && f.origin === 'project'));
+  out.length = 0;
+  out.push(...kept);
+  for (const a of sb.add) {
+    const st = await lstat(a.from).catch(() => undefined);
+    if (!st?.isFile()) throw new EngineError('refused', `${showHiddenCharsLine(a.path)}: its source is not a file this export can read (${a.origin === 'env' ? 'the env file' : 'a compose file'})`);
+    out.push({ path: a.path, from: a.from, size: st.size, mode: st.mode & 0o111 ? 0o755 : 0o644, mtime: st.mtime, origin: a.origin });
+    if (a.origin === 'env') for (const k of ['env', 'sensitive'] as const) excluded[k] = excluded[k].filter((p) => p !== a.path);
+  }
+  // The last word: no file docker compose reads as env, secret or config is in the archive but the env file a person carries.
+  for (const f of out)
+    if (sb.exclude.has(f.path) && f.origin !== 'env')
+      throw new EngineError('refused', `${showHiddenCharsLine(f.path)} is a file the sandbox's compose files read as env, secret or config: it is never in an archive`);
+  return out;
+}
+
+/** The plan of a project's archive (the module's header; `sandbox`: --with-sandbox, sandbox-part.ts). */
+export async function planProjectArchive(ws: OpenedWorkspace, project: LoadedProject, o: { withRuns: boolean; env: EngineEnv; sandbox?: Omit<SandboxPlanOptions, 'taken'> }): Promise<ArchivePlan> {
   const excluded: ArchiveExcluded = { env: [], sensitive: [], links: [], special: [], outside_renders: [] };
   const w: Walk = { files: [], excluded, skip: await namedSecrets(project), withRuns: o.withRuns };
   await walkInto(w, project.dir, '', 'project');
@@ -288,7 +388,10 @@ export async function planProjectArchive(ws: OpenedWorkspace, project: LoadedPro
   for (const t of themes.embed) await walkInto(w, t.dir, `templates/${t.name}`, 'workspace-theme');
   const components = await componentsOf(ws, project, themes.dirs);
   for (const c of components.embed) await walkInto(w, c.dir, `components/${c.id}`, 'workspace-component');
-  const files = (await withoutOutsideRenders(w.files, excluded)).sort(byPath);
+  let files = await withoutOutsideRenders(w.files, excluded);
+  const sandbox = o.sandbox ? await planSandboxes(project, { ...o.sandbox, taken: new Set(files.map((f) => f.path)) }) : undefined;
+  if (sandbox) files = await withSandbox(files, excluded, sandbox);
+  files.sort(byPath);
   for (let i = 1; i < files.length; i++)
     if (foldedArchiveKey(files[i]!.path) === foldedArchiveKey(files[i - 1]!.path))
       throw new EngineError('refused', `two files of the archive would be one on a Mac's disk: ${showHiddenCharsLine(files[i - 1]!.path)} and ${showHiddenCharsLine(files[i]!.path)} — rename one`);
@@ -304,5 +407,6 @@ export async function planProjectArchive(ws: OpenedWorkspace, project: LoadedPro
     needs: await needsOf(project, files, o.env),
     excluded,
     warnings: { literal_tokens: await tokenWarnings(files) },
+    ...(sandbox ? { sandbox } : {}),
   };
 }

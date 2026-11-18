@@ -9,6 +9,9 @@
  * (none runs or is recorded: `recordSeedRun` is never called), the mailbox (cleared when there is one), a
  * docker-compose sandbox's image ids, a call's progress lines. Its stamps come from its clock.
  */
+import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { relativeInside } from '@retake/core/base';
 import { sandboxPaths, serviceLog } from '@retake/core/project';
 import { SandboxError, sandboxNames } from '@retake/core/sandbox';
@@ -25,8 +28,12 @@ import type {
   ProviderCapabilities,
   ResetResult,
   SandboxCallOptions,
+  DockerFacts,
+  ImageFacts,
   SandboxLogs,
+  SandboxShare,
   SandboxStatus,
+  ShareFacts,
   SandboxUpResult,
   ServiceStatus,
   Take,
@@ -60,15 +67,19 @@ export interface MemorySandboxCall {
 export interface MemorySandboxesOptions {
   /** What the seed's, the reset's and the lock's stamps read (default a manual clock at 2026-11-12T12:00:00Z). */
   clock?: Clock;
+  /** A memory `share` (a project archive's compose facts and images); absent: the port hands over no image. */
+  share?: MemorySandboxShare;
 }
 
 export class MemorySandboxes implements Sandboxes {
   readonly calls: MemorySandboxCall[] = [];
   readonly #states = new Map<string, MemorySandboxState>();
   readonly #clock: Clock;
+  readonly share?: MemorySandboxShare;
 
   constructor(o: MemorySandboxesOptions = {}) {
     this.#clock = o.clock ?? new ManualClock('2026-11-12T12:00:00.000Z');
+    if (o.share) this.share = o.share;
   }
 
   async open(project: LoadedProject, env: string | undefined, _policy: WorkPolicy): Promise<SandboxHandle> {
@@ -332,5 +343,80 @@ class MemorySandbox implements SandboxHandle {
 
   killStartedSync(): void {
     this.#calls.push({ op: 'killStartedSync', env: this.env });
+  }
+}
+
+/** What a memory share answers: the compose facts by environment, the images this "machine" holds by name, docker's facts. */
+export interface MemoryShareOptions {
+  compose?: Record<string, ShareFacts>;
+  images?: Record<string, ImageFacts>;
+  /** Docker's facts, or the refusal docker gives (not running). */
+  docker?: DockerFacts | Error;
+  /** The ids a load answers it loaded (default: those expected). */
+  loads?: (expect: readonly string[]) => string[];
+  /** A tag fails with these words. */
+  tagFails?: string;
+  /** An inspect fails with these words (Docker gone mid-way). */
+  inspectFails?: string;
+}
+
+/**
+ * An in-memory `share` of the Sandboxes port (sandbox package share.ts), for the project archive's tests: what it
+ * answers is given; a save writes a small gzip file of its own (`memory image <id>`), a load reads nothing but checks
+ * the ids it is told it loaded against those expected (the package's rule), a tag is recorded. Not modelled: the tar's
+ * own check (the sandbox package's tests hold it).
+ */
+export class MemorySandboxShare implements SandboxShare {
+  readonly calls: Array<{ op: 'docker' | 'compose' | 'inspect' | 'save' | 'load' | 'tag'; args: unknown[] }> = [];
+  readonly tags = new Map<string, string>();
+  readonly loaded = new Set<string>();
+  constructor(readonly o: MemoryShareOptions = {}) {}
+
+  async docker(_policy: WorkPolicy): Promise<DockerFacts> {
+    this.calls.push({ op: 'docker', args: [] });
+    const d = this.o.docker ?? { compose: '5.5.0', server: '29.8.2', platform: 'linux/arm64', savePlatform: true };
+    if (d instanceof Error) throw d;
+    return d;
+  }
+
+  async compose(project: LoadedProject, env: string, _policy: WorkPolicy): Promise<ShareFacts> {
+    this.calls.push({ op: 'compose', args: [project.slug, env] });
+    const f = this.o.compose?.[env];
+    if (!f) throw new SandboxError(`sandbox ${env}: docker compose config: the memory share holds no compose facts for it`);
+    return f;
+  }
+
+  async inspect(names: readonly string[], _policy: WorkPolicy): Promise<Record<string, ImageFacts | null>> {
+    this.calls.push({ op: 'inspect', args: [...names] });
+    if (this.o.inspectFails) throw new SandboxError(`docker image inspect: ${this.o.inspectFails}`);
+    return Object.fromEntries(names.map((n) => [n, this.o.images?.[n] ?? null]));
+  }
+
+  async save(id: string, o: { platform?: string; file: string }): Promise<{ bytes: number; sha256: string }> {
+    this.calls.push({ op: 'save', args: [id, o.platform] });
+    const bytes = gzipSync(Buffer.from(`memory image ${id}\n`));
+    await writeFile(o.file, bytes, { flag: 'wx', mode: 0o600 });
+    return { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+  }
+
+  async load(file: string, o: { expect: readonly string[]; sha256?: string }): Promise<{ loaded: string[] }> {
+    this.calls.push({ op: 'load', args: [file, [...o.expect]] });
+    // The package reads the file once and checks its sha256 (the import's) before docker sees a byte: so does this one.
+    const bytes = await readFile(file).catch(() => undefined);
+    if (o.sha256 !== undefined && (!bytes || createHash('sha256').update(bytes).digest('hex') !== o.sha256))
+      throw new SandboxError('the image file is refused, nothing loaded: the file does not hold the bytes recorded at import (sha256)');
+    const loaded = (this.o.loads ?? ((e) => [...e]))(o.expect);
+    const want = [...o.expect].sort();
+    if (loaded.length !== want.length || [...loaded].sort().some((x, i) => x !== want[i]))
+      throw new SandboxError(`docker load refused: it loaded ${loaded.join(', ') || 'nothing'}, not ${want.join(', ')}`);
+    for (const id of loaded) this.loaded.add(id);
+    return { loaded };
+  }
+
+  async tag(id: string, tag: string, _policy: WorkPolicy): Promise<void> {
+    this.calls.push({ op: 'tag', args: [id, tag] });
+    if (this.o.tagFails) throw new SandboxError(`docker tag ${tag}: ${this.o.tagFails}`);
+    if (!this.loaded.has(id) && !Object.values(this.o.images ?? {}).some((i) => i.id === id)) throw new SandboxError(`docker tag ${tag}: no such image ${id}`);
+    this.tags.set(tag, id);
   }
 }

@@ -317,3 +317,39 @@ export function indent(text: string, by = '    '): string {
     .map((l) => `${by}${l}`)
     .join('\n');
 }
+
+/** What a project archive needs of one compose service (share.ts): its image, its build context, its bind mounts and env files. */
+export interface ShareService {
+  name: string;
+  /** `image:`, else the name a build gives it (`<project>-<service>`). */
+  image: string;
+  /** Its build context, absolute, when it is built (never copied: the image is saved instead). */
+  build?: string;
+  /** Its bind mounts: host source (absolute, as compose resolved it) and container target. */
+  binds: Array<{ source: string; target: string }>;
+  /** Its `env_file`s, absolute. */
+  envFiles: string[];
+}
+
+/** `docker compose config --format json` → what a project archive needs of it: the services, and the files of its secrets and configs. */
+export function parseShareConfig(text: string, projectName: string): { services: ShareService[]; secretFiles: string[]; configFiles: string[] } {
+  type Svc = {
+    image?: string;
+    build?: string | { context?: string };
+    volumes?: Array<{ type?: string; source?: string; target?: string }>;
+    env_file?: Array<string | { path?: string }>;
+  };
+  const doc = JSON.parse(text) as { services?: Record<string, Svc>; secrets?: Record<string, { file?: string }>; configs?: Record<string, { file?: string }> };
+  const services: ShareService[] = [];
+  for (const [name, svc] of Object.entries(doc.services ?? {})) {
+    const build = typeof svc.build === 'string' ? svc.build : svc.build?.context;
+    const binds = (svc.volumes ?? []).filter((v) => v.type === 'bind' && typeof v.source === 'string').map((v) => ({ source: String(v.source), target: String(v.target ?? '') }));
+    const envFiles = (svc.env_file ?? []).map((e) => (typeof e === 'string' ? e : e?.path)).filter((p): p is string => typeof p === 'string' && p !== '');
+    services.push({ name, image: svc.image ?? `${projectName}-${name}`, ...(build ? { build } : {}), binds, envFiles });
+  }
+  const files = (m: Record<string, { file?: string }> | undefined) =>
+    Object.values(m ?? {})
+      .map((x) => x?.file)
+      .filter((f): f is string => typeof f === 'string' && f !== '');
+  return { services, secretFiles: files(doc.secrets), configFiles: files(doc.configs) };
+}

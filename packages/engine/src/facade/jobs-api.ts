@@ -131,7 +131,10 @@ export function sandboxApi(ctx: EngineContext): Engine['sandbox'] {
         // The scaffold's refusals in this tool's words: its argument is `env`, and it never passes --force (the user
         // decides about their files). A name the scaffold cannot use is an invalid argument, not a conflict.
         const message = e.message
-          .replace(/: --force writes the scaffold over (its files|it|them)/, ': sandbox_init never writes over a file — the user moves $1 away, or runs retake sandbox init with --force in their terminal')
+          .replace(
+            /: --force writes the scaffold over (its files|it|them)/,
+            ': sandbox_init never writes over a file — the user moves $1 away, or runs retake sandbox init with --force in their terminal',
+          )
           .replace(/ \(--env\)/g, ' (env)');
         throw new EngineError(/cannot name an environment/.test(e.message) ? 'invalid' : 'conflict', message);
       }

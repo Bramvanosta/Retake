@@ -6,10 +6,11 @@
  * multi-call binary picks its role from argv[0]: OrbStack's `docker`). An account's `{{compose_env:NAME}}` password:
  * the value of the sandbox's compose env file.
  */
+import { createHash } from 'node:crypto';
 import { resolveSecretRef } from '@retake/core/io';
 import { packageHooks } from './hook-runner.js';
 import { realpathSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -120,6 +121,50 @@ describe('compose files outside the folder of sandbox.yaml (v0.2.1)', () => {
     await expect(psFrom(ref.sandboxDir!)).resolves.toHaveLength(1);
     await expect(psFrom(join(tmp, 'another-checkout'))).rejects.toThrow(SandboxError);
     await expect(psFrom(join(tmp, 'another-checkout'))).rejects.toThrow(/belongs to another folder/);
+  });
+});
+
+describe('compose runs from a fixed folder, the trust override on its standard input', () => {
+  it("every compose call runs with the compose folder as its cwd (never the caller's), the override text as its input", async () => {
+    const p = await project('fixed', [], { 'compose.yaml': COMPOSE });
+    const seen: Array<{ args: string[]; cwd?: string; input?: string }> = [];
+    const exec: DockerExec = async (args, o) => {
+      seen.push({ args, ...(o?.cwd ? { cwd: o.cwd } : {}), ...(o?.input !== undefined ? { input: o.input } : {}) });
+      return { code: 0, stdout: '', stderr: '', ms: 1 };
+    };
+    const ref = composeProject(p, p.sandboxes!.stage);
+    await new ComposeProvider({ policy: PERSON_POLICY, exec }).ps(ctxOf(p));
+    expect(seen.at(-1)).toMatchObject({ cwd: ref.dir });
+    expect(seen.at(-1)?.input).toBeUndefined();
+    const text = 'services: {}\n';
+    const sha256 = createHash('sha256').update(text).digest('hex');
+    const withOverride = { ...p, sandboxes: { stage: { ...p.sandboxes!.stage!, imagesOverride: { file: '/never-read', sha256, text } } } };
+    await new ComposeProvider({ policy: PERSON_POLICY, exec }).ps(ctxOf(withOverride as typeof p));
+    expect(seen.at(-1)).toMatchObject({ cwd: ref.dir, input: text });
+    expect(seen.at(-1)?.args.join(' ')).toContain('-f -');
+    expect(seen.at(-1)?.args).not.toContain('/never-read');
+  });
+
+  it("a second Ctrl-C's synchronous kill runs docker from the compose folder too, the override on its input", async () => {
+    const p = await project('kill', [], { 'compose.yaml': COMPOSE });
+    const bin = join(tmp, 'kill-bin');
+    await mkdir(bin, { recursive: true });
+    const log = join(tmp, 'kill.log');
+    const fake = join(bin, 'docker');
+    await writeFile(fake, `#!/bin/sh\necho "cwd=$(pwd) args=$*" >> ${log}\ncat >> ${log}\n`, { mode: 0o755 });
+    const text = 'services: {app: {pull_policy: never}}\n';
+    const sha256 = createHash('sha256').update(text).digest('hex');
+    const withOverride = { ...p, sandboxes: { stage: { ...p.sandboxes!.stage!, imagesOverride: { file: '/never-read', sha256, text } } } } as typeof p;
+    const provider = new ComposeProvider({ policy: PERSON_POLICY, docker: fake });
+    const ctx = ctxOf(withOverride);
+    const ref = composeProject(withOverride, withOverride.sandboxes!.stage!);
+    Object.assign(provider as unknown as { started: string[]; lastRef: unknown }, { started: ['app'], lastRef: ref });
+    provider.killStartedSync(ctx);
+    const out = await readFile(log, 'utf8');
+    expect(out).toContain(`cwd=${ref.dir} `);
+    expect(out).toContain('-f - ');
+    expect(out).toContain('kill app');
+    expect(out).toContain('pull_policy: never');
   });
 });
 

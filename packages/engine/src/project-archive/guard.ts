@@ -12,15 +12,21 @@
  * its registry's project components, the plan's capture and assets, a preview's component folders — each checked
  * against the import marks of the project folder holding it (a folder with a project.yaml or an import marker).
  */
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { showHiddenCharsLine } from '@retake/core/base';
+import { PROJECT_SLUG_RE, sandboxImagesOverride } from '@retake/core/project';
+import { sandboxNames } from '@retake/core/sandbox';
 import type { LoadedProject } from '@retake/core/project';
 import type { EngineEnv } from '../env.js';
+import { EngineError } from '../errors.js';
 import type { ProductAdapters } from '../ports.js';
 import type { Renderer, RenderRequestBase } from '../render/renderer.js';
 import type { SandboxHandle } from '../sandboxes/sandboxes.js';
-import { checkProjectTrusted, importMarkFile, importMarkerFile, importTrust, untrustedError } from './trust.js';
+import { checkProjectTrusted, importMarkFile, importMarkerFile, importTrust, signedLoaded, untrustedError } from './trust.js';
+import type { ImportMark } from './trust.js';
+import { readSandboxSubset, subsetProblems } from './compose-read.js';
 
 type Project = Pick<LoadedProject, 'root' | 'dir' | 'slug'>;
 
@@ -101,13 +107,16 @@ function guardRenderer(r: Renderer, env: EngineEnv): Renderer {
 
 /** The members of a sandbox that only stop what runs (allowed on an untrusted project). */
 const SANDBOX_STOPS: readonly (string | symbol)[] = ['down', 'killStartedSync'];
+/** The members that start a sandbox's services (refused while its images wait to be loaded). */
+const SANDBOX_STARTS: readonly (string | symbol)[] = ['up', 'prepareTake', 'reset'];
 
-function refusingHandle(h: SandboxHandle, error: Error): SandboxHandle {
+/** The handle with its members refused (`refused` says which: every one but the stops by default). */
+function refusingHandle(h: SandboxHandle, error: Error, refused: (k: string | symbol) => boolean = (k) => !SANDBOX_STOPS.includes(k)): SandboxHandle {
   return new Proxy(h, {
     get(t, k, r) {
       const v = Reflect.get(t, k, r) as unknown;
       if (typeof v !== 'function') return v;
-      if (SANDBOX_STOPS.includes(k)) return (v as (...a: unknown[]) => unknown).bind(t);
+      if (!refused(k)) return (v as (...a: unknown[]) => unknown).bind(t);
       return async () => {
         throw error;
       };
@@ -115,14 +124,100 @@ function refusingHandle(h: SandboxHandle, error: Error): SandboxHandle {
   });
 }
 
+/** The refusal of starting a trusted import's sandbox whose images the archive carried and trust has not loaded yet. */
+export function imagesWaitError(slug: string, env: string): EngineError {
+  return new EngineError(
+    'refused',
+    `sandbox ${showHiddenCharsLine(env)} of ${showHiddenCharsLine(slug)} runs the images its project archive carried, and they are not loaded yet: start Docker, then run \`retake project trust ${showHiddenCharsLine(slug)} --images\` in a terminal`,
+    { fix: `retake project trust ${showHiddenCharsLine(slug)} --images` },
+  );
+}
+
+/**
+ * What a trusted import's sandbox `env` may do with the images its archive carried: nothing to say (none carried), the
+ * override to read (its file and the sha256 the signed mark records), or why its starts are refused — images not
+ * loaded, a service whose image is missing, an override gone or changed since trust (it is then not read).
+ */
+export async function importedSandbox(
+  mark: ImportMark,
+  project: Pick<LoadedProject, 'dir' | 'slug'>,
+  sbEnv: string,
+  env: EngineEnv,
+  sbFile?: string,
+): Promise<{ override?: { file: string; sha256: string; text: string }; refused?: EngineError }> {
+  const images = (mark.images ?? []).filter((i) => i.uses.some((u) => u.env === sbEnv));
+  // Every imported sandbox runs only within the compose subset, read from its files now (compose-read.ts).
+  const sbRel = sbFile;
+  if (sbRel) {
+    const carried = (e: string, sv: string) => (mark.images ?? []).some((i) => i.uses.some((u) => u.env === e && u.service === sv));
+    const read = await readSandboxSubset(project.dir, sbEnv, sbRel, { mode: 'import', carried });
+    const p = read ? subsetProblems([read]) : undefined;
+    if (p)
+      return {
+        refused: new EngineError(
+          'refused',
+          `sandbox ${showHiddenCharsLine(sbEnv)} of ${showHiddenCharsLine(project.slug)} was imported and its compose files are outside the compose subset an archive hands over: it never starts through Retake (${p})`,
+        ),
+      };
+  }
+  if (!mark.images?.length) return {};
+  const loaded = await signedLoaded(mark, env);
+  if (images.some((i) => !loaded?.images[i.id])) return { refused: imagesWaitError(project.slug, sbEnv) };
+  const missing = (loaded?.missing ?? []).filter((m) => m.env === sbEnv);
+  const slug = showHiddenCharsLine(project.slug);
+  if (missing.length)
+    return {
+      refused: new EngineError(
+        'refused',
+        `sandbox ${showHiddenCharsLine(sbEnv)} of ${slug} does not start: ${missing.map((m) => `service ${showHiddenCharsLine(m.service)} — ${showHiddenCharsLine(m.why)}`).join('; ')} — build or pull it yourself, then run \`retake project trust ${slug} --images\` again`,
+        { fix: `retake project trust ${slug} --images` },
+      ),
+    };
+  const sha256 = loaded?.overrides[sbEnv];
+  const file = sandboxImagesOverride(project.dir, sbEnv);
+  if (!sha256) return {};
+  const text = verifiedOverride(file, sha256);
+  if (text === undefined)
+    return {
+      refused: new EngineError(
+        'refused',
+        `the compose override of sandbox ${showHiddenCharsLine(sbEnv)} of ${slug} is gone or changed since trust wrote it (it is not read): run \`retake project trust ${slug} --images\` to write it again`,
+        { fix: `retake project trust ${slug} --images` },
+      ),
+    };
+  return { override: { file, sha256, text } };
+}
+
+/** The file's text when its bytes hash to `sha256` (read once: that very text goes to docker, never the file). */
+function verifiedOverride(file: string, sha256: string): string | undefined {
+  try {
+    const bytes = readFileSync(file);
+    return createHash('sha256').update(bytes).digest('hex') === sha256 ? bytes.toString('utf8') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function guardSandboxes(s: ProductAdapters['sandboxes'], env: EngineEnv): ProductAdapters['sandboxes'] {
+  const share = s.share ? overlay(s.share, { compose: checked(s.share, s.share.compose, (project) => checkProject(project, env)) }) : undefined;
   return overlay(s, {
     open: async (project: LoadedProject, name: string | undefined, policy: Parameters<typeof s.open>[2]) => {
-      const handle = await s.open(project, name, policy);
       const t = await importTrust({ root: project.root, dir: project.dir, slug: project.slug }, env);
-      return t.state === 'untrusted' ? refusingHandle(handle, untrustedError(project.slug, t.why)) : handle;
+      if (t.state !== 'trusted') {
+        const handle = await s.open(project, name, policy);
+        return t.state === 'untrusted' ? refusingHandle(handle, untrustedError(project.slug, t.why)) : handle;
+      }
+      // A trusted import: its override handed to the provider only from the signed mark, and only while it matches.
+      const sbEnv = name ?? sandboxNames(project)[0] ?? '';
+      const rel = project.config?.sandboxes?.[sbEnv];
+      const at = await importedSandbox(t.mark, project, sbEnv, env, typeof rel === 'string' ? resolve(project.dir, rel) : undefined);
+      const sb = project.sandboxes?.[sbEnv];
+      const given = at.override && sb ? { ...project, sandboxes: { ...project.sandboxes, [sbEnv]: { ...sb, imagesOverride: at.override } } } : project;
+      const handle = await s.open(given, name, policy);
+      return at.refused ? refusingHandle(handle, at.refused, (k) => SANDBOX_STARTS.includes(k)) : handle;
     },
     init: checked(s, s.init, (project) => checkProject(project, env)),
+    share,
   });
 }
 

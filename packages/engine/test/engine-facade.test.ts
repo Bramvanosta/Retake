@@ -36,7 +36,7 @@ const SHAPE: Array<string | [string, string[]]> = [
   'cli',
   'info',
   'usage',
-  ['projects', ['list', 'get', 'create', 'updateReadme', 'prune', 'setEnvironment', 'removeEnvironment', 'board', 'adopt', 'exportArchive', 'importArchive', 'trustView', 'trust', 'discardImport']],
+  ['projects', ['list', 'get', 'create', 'updateReadme', 'prune', 'setEnvironment', 'removeEnvironment', 'board', 'adopt', 'exportArchive', 'importArchive', 'trustView', 'trust', 'loadImages', 'discardImport']],
   ['scenarios', ['get', 'validate', 'check', 'view', 'actions', 'save', 'edit', 'fromScript']],
   ['runs', ['list', 'status', 'submit', 'cancel', 'pause', 'thumbs', 'poster']],
   ['jobs', ['get', 'list', 'events', 'cancel', 'wait', 'position', 'worker']],

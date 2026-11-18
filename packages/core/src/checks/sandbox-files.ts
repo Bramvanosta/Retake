@@ -26,12 +26,32 @@ export function checkRelative(p: unknown, path: IssuePath, what: string, ctx: Ch
   return true;
 }
 
-/** The names an env file sets (`NAME=value`, `export NAME=value`; comments and blank lines skipped). */
+/**
+ * The names an env file sets (`NAME=value`, `export NAME=value`; comments and blank lines skipped), as a dotenv reader
+ * takes them: a value in quotes that runs over several lines is one value (its lines are never read as names), and
+ * only names of letters, digits and `_` (not starting with a digit) are kept — a fragment of a multi-line secret never
+ * becomes a "name".
+ */
 export function envFileKeys(text: string): string[] {
   const out: string[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/.exec(line);
-    if (m && !out.includes(m[1])) out.push(m[1]);
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*(?:export\s+)?([^\s=#]+)\s*=\s*(.*)$/.exec(lines[i]!);
+    if (!m) continue;
+    const value = m[2]!;
+    const q = value[0];
+    if (q === '"' || q === "'") {
+      // The closing quote (not escaped, for "…") on this line or a later one: the lines between are its value.
+      const closes = (t: string, from: number) => {
+        for (let k = from; k < t.length; k++) {
+          if (q === '"' && t[k] === '\\') k++;
+          else if (t[k] === q) return true;
+        }
+        return false;
+      };
+      if (!closes(value, 1)) while (i + 1 < lines.length && !closes(lines[++i]!, 0));
+    }
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(m[1]!) && !out.includes(m[1]!)) out.push(m[1]!);
   }
   return out;
 }

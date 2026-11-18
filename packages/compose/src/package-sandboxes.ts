@@ -23,5 +23,13 @@ export function packageSandboxes(secrets: Secrets, hooks: HookRunner): Sandboxes
     open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy, (ref) => secrets.resolve(ref), hooks),
     init: async (project, o) => (await sandbox()).initSandbox(project, o),
     dockerPlaces: async (home) => (await sandbox()).dockerPlaces(home),
+    share: {
+      docker: async (policy, signal) => (await sandbox()).createSandboxShare().docker(policy, signal),
+      compose: async (project, env, policy) => (await sandbox()).createSandboxShare().compose(project, env, policy),
+      inspect: async (names, policy) => (await sandbox()).createSandboxShare().inspect(names, policy),
+      save: async (id, o) => (await sandbox()).createSandboxShare().save(id, o),
+      load: async (file, o) => (await sandbox()).createSandboxShare().load(file, o),
+      tag: async (id, tag, policy) => (await sandbox()).createSandboxShare().tag(id, tag, policy),
+    },
   };
 }

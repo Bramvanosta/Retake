@@ -10,6 +10,17 @@ export const ZIP_ENTRIES_MAX = 100_000;
 export const ZIP_MANIFEST_MAX_BYTES = 64 * 1024 * 1024;
 /** One entry's bytes, at most, unless the caller's `entryMax` says otherwise for its name. */
 export const ZIP_ENTRY_MAX_BYTES = 8 * 1024 * 1024 * 1024;
+/**
+ * The entries of a sandbox's images (`images/sha256-<hex>.tar.gz`): bound by the free space only (an import's
+ * `totalMax`), not by ZIP_ENTRY_MAX_BYTES — an image may be larger.
+ */
+export const ZIP_IMAGES_PREFIX = 'images/';
+
+/** One entry's cap by its name: an image's the free space, any other ZIP_ENTRY_MAX_BYTES. */
+export function archiveEntryMax(name: string): number {
+  return name.startsWith(ZIP_IMAGES_PREFIX) ? Number.MAX_SAFE_INTEGER : ZIP_ENTRY_MAX_BYTES;
+}
+
 /** The largest ratio of an entry's bytes to its compressed bytes, for an entry declared over ZIP_RATIO_FLOOR. */
 export const ZIP_RATIO_MAX = 1000;
 /** The size from which an entry's compression ratio is checked. */
