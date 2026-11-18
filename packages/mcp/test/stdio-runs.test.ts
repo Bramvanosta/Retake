@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -158,9 +158,11 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
     }
     expect(job?.state, JSON.stringify(job)).toBe('succeeded');
     expect(job?.result).toMatchObject({ status: 'succeeded', mode: 'capture' });
-    const run = JSON.parse(await readFile(join(ws, 'projects', 'northfield-fixture', 'runs', runId, 'run.json'), 'utf8')) as { status: string; capture?: string };
+    const runDir = join(ws, 'projects', 'northfield-fixture', 'runs', runId);
+    const run = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8')) as { status: string; capture?: string };
     expect(run.status).toBe('succeeded');
-    expect(run.capture && existsSync(run.capture)).toBe(true);
+    // Since L9.1 the record's paths are relative to its own folder.
+    expect(run.capture && existsSync(resolve(runDir, run.capture))).toBe(true);
     // Idle for 1.5 s: the worker releases its lock and exits.
     const idleBy = Date.now() + 15_000;
     while ((await liveWorker(ws)) && Date.now() < idleBy) await new Promise((res) => setTimeout(res, 200));
