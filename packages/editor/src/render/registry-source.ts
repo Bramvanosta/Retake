@@ -1,6 +1,6 @@
 /**
  * The registry a plan or a render reads, from what its caller handed (components RegistrySource): the registry itself,
- * or its loader, called here with the workspace root. This package loads no registry by itself: work handed neither —
+ * or its loader, called here with the workspace root and the project the work is for. This package loads no registry by itself: work handed neither —
  * a caller outside the type checker — is refused with NO_REGISTRY, never served by a silent load of its own.
  */
 import { NO_REGISTRY_HANDED } from '@retake/components/geometry';
@@ -16,9 +16,12 @@ function isRegistry(v: unknown): v is ComponentRegistry {
   return typeof r === 'object' && r !== null && typeof r.get === 'function' && typeof r.list === 'function';
 }
 
-/** The registry of `source` for `root` (a loader is called once, here); RenderError when none was handed. */
-export async function registryFrom(source: RegistrySource | undefined, root: string, work: string): Promise<ComponentRegistry> {
-  if (typeof source === 'function') return source(root);
+/**
+ * The registry of `source` for `root` — a project's when `projectDir` is given (its own components first) — a loader
+ * called once, here; RenderError when none was handed.
+ */
+export async function registryFrom(source: RegistrySource | undefined, root: string, work: string, projectDir?: string): Promise<ComponentRegistry> {
+  if (typeof source === 'function') return projectDir === undefined ? source(root) : source(root, { projectDir });
   return handedRegistry(source, work);
 }
 

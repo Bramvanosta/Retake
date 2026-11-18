@@ -53,7 +53,7 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
     setEnvironment: async (slug, env, change, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'set', mode: o.mode ?? 'upsert', env, change }),
     removeEnvironment: async (slug, env, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'remove', env }),
     board: (slug) => boards.board(slug),
-    // MCP (agent trust) copies themes only; a person's CLI moves, copies and adopts brand files (project-adopt.ts).
+    // MCP (agent trust) copies themes and components only; a person's CLI moves, copies and adopts brand files (project-adopt.ts).
     adopt: (req) =>
       adoptIntoProject(ws, req, {
         scope,

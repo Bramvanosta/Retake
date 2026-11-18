@@ -278,9 +278,9 @@ export interface Engine {
      */
     board(project: string): Promise<ProjectBoardView>;
     /**
-     * The project adopts workspace themes and brand files (project-adopt.ts, R-SHR-14): `copy` leaves the workspace's,
-     * `move` sets it aside under `.retake/adopted/` (refused while another project uses it or a job is queued or
-     * running). Under agent trust (MCP) copy only, themes only.
+     * The project adopts workspace themes, components and brand files (project-adopt.ts, R-SHR-14, R-SHR-25): `copy`
+     * leaves the workspace's, `move` sets it aside under `.retake/adopted/` (refused while another project uses it or a
+     * job is queued or running). Under agent trust (MCP) copy only, themes and components only.
      */
     adopt(req: AdoptRequest): Promise<AdoptResult>;
   };
@@ -538,13 +538,20 @@ export interface Engine {
     previewSpec(req: ThemePreviewRequest, o: { start: () => ThemePreviewServe }): Promise<ThemePreviewBuild>;
   };
   components: {
-    /** The workspace's component registry, held by this engine while its components' folders are unchanged. */
-    registry(): Promise<ComponentRegistry>;
-    list(kind?: string): Promise<ComponentListView>;
-    get(id: string): Promise<ComponentView>;
+    /**
+     * The workspace's component registry — a project's (its own components/ first) with `o.project` — held by this
+     * engine while its components' folders are unchanged.
+     */
+    registry(o?: { project?: string }): Promise<ComponentRegistry>;
+    /** Every usable component; with `o.project`, the project's own first (`source: 'project'`). */
+    list(kind?: string, o?: { project?: string }): Promise<ComponentListView>;
+    get(id: string, o?: { project?: string }): Promise<ComponentView>;
     /** Manifest, entry and compile check (nothing executed). */
-    validate(id: string): Promise<ComponentValidationView>;
-    /** Scaffold a workspace component (refuses the built-in namespace and built-in ids; no preview rendered). */
+    validate(id: string, o?: { project?: string }): Promise<ComponentValidationView>;
+    /**
+     * Scaffold a component — the workspace's, or a project's (`req.project`) — refusing the built-in namespace and
+     * built-in ids, and for a project a workspace component's id; no preview rendered.
+     */
     create(req: ComponentCreateRequest): Promise<ComponentCreated>;
     /** Queue a still of a component with a theme, slot values and params into .retake/previews/ (never its folder). */
     preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;

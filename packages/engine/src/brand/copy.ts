@@ -16,7 +16,7 @@ import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
 import { setMapPath, StepEditError } from '@retake/core/scenario';
 import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
 import type { LoadedTemplate } from '@retake/core/theme';
-import { workspaceRegistry } from '../components.js';
+import { projectRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import type { StoreScope } from '../store/store.js';
@@ -157,7 +157,8 @@ export async function copyThemeFolder(
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('refused', outside.join('; '));
         try {
-          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+          // A project's copy picks among the project's own components too.
+          (await projectRegistry(ws, target.project)).resolveTheme(loaded.template);
         } catch (e) {
           throw new EngineError('invalid', `the copy's components do not resolve: ${toEngineError(e).message}`);
         }

@@ -1,11 +1,12 @@
 /**
  * Component registry: every component a workspace can use, by id.
  *
- * Resolution order (SPEC §11): the workspace `components/` folder (retake.yaml `components_dir`) → the built-in
- * library (packages/components/library) → (V2) the marketplace cache. A workspace component with the id of a built-in
- * one overrides it (with a warning).
+ * Resolution order (SPEC §11): a project's own `components/` folder (`projects/<slug>/components/`, when the registry
+ * is loaded for a project) → the workspace `components/` folder (retake.yaml `components_dir`) → the built-in library
+ * (packages/components/library) → (V2) the marketplace cache. A component with the id of one further down the order
+ * overrides it (with a warning notice): a project's over the workspace's or a built-in, a workspace's over a built-in.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { errorMessage, errorsOf, formatPath, suggestion } from '@retake/core/base';
@@ -31,6 +32,12 @@ export interface LoadComponentRegistryOptions {
   root: string;
   /** Override the workspace components directory. */
   componentsDir?: string;
+  /**
+   * A project's own components folder (`<project>/components`), scanned first. Ignored when it is not there, or when it
+   * is the workspace's components folder or the built-in library itself (then its components are those, never
+   * shadowing themselves).
+   */
+  projectComponentsDir?: string;
   /** Override the built-in library directory; `null` = no built-ins. */
   builtinDir?: string | null;
 }
@@ -51,6 +58,8 @@ export interface RegistryNotice {
 export interface ComponentRegistry {
   /** Workspace components directory scanned. */
   readonly componentsDir: string;
+  /** The project's own components directory scanned first (undefined: the registry of the workspace alone). */
+  readonly projectComponentsDir?: string;
   /** Built-in library directory scanned (undefined when disabled). */
   readonly builtinDir?: string;
   /** Overrides, invalid and misplaced components found while scanning. */
@@ -74,7 +83,13 @@ export interface ComponentRegistry {
  * point the work reads it, so a broken components folder is said where it always was. Handed by the work's caller
  * (the engine's ComponentRegistries port); work that is handed neither refuses, it never loads one by itself.
  */
-export type RegistrySource = ComponentRegistry | ((root: string) => Promise<ComponentRegistry>);
+export type RegistrySource = ComponentRegistry | ((root: string, o?: RegistryScope) => Promise<ComponentRegistry>);
+
+/** Whose registry a loader loads: the workspace's, or a project's (its own `components/` first). */
+export interface RegistryScope {
+  /** The project folder (`projects/<slug>`): its `components/<namespace>/<name>/` is found first. */
+  projectDir?: string;
+}
 
 interface Found {
   info?: ComponentInfo;
@@ -186,6 +201,7 @@ class Registry implements ComponentRegistry {
     readonly builtinDir: string | undefined,
     private readonly found: Map<string, Found>,
     readonly notices: RegistryNotice[],
+    readonly projectComponentsDir?: string,
   ) {}
 
   list(kind?: ComponentKind): ComponentInfo[] {
@@ -200,7 +216,8 @@ class Registry implements ComponentRegistry {
   }
 
   private where(): string {
-    return this.builtinDir ? `${this.componentsDir} or the built-in library` : this.componentsDir;
+    const places = [...(this.projectComponentsDir ? [this.projectComponentsDir] : []), this.componentsDir, ...(this.builtinDir ? ['the built-in library'] : [])];
+    return places.length === 1 ? places[0] : `${places.slice(0, -1).join(', ')} or ${places[places.length - 1]}`;
   }
 
   private notFound(id: string, kind?: ComponentKind): ComponentError {
@@ -274,33 +291,62 @@ class Registry implements ComponentRegistry {
   }
 }
 
+/** Whether a path is a folder (a link to one counts). */
+function isFolder(p: string): boolean {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether two folders are the same one (real paths when both exist, else the resolved paths). */
+function sameFolder(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
+/** What a component of `source` overriding one of `under` is called in a notice. */
+const OVERRIDDEN: Record<Exclude<ComponentSource, 'project'>, string> = { workspace: 'the workspace one', builtin: 'the built-in one' };
+
 /**
- * Scan `<componentsDir>/<namespace>/<name>/component.yaml` (workspace) then the built-in library. Invalid component
- * folders are kept out of `list()` and reported in `notices` (and by `get`/`resolve` with their issues); a workspace
- * id overriding a built-in one wins with a warning notice.
+ * Scan `<projectComponentsDir>/<namespace>/<name>/component.yaml` (a project's, when given), then the workspace's
+ * (`<componentsDir>/…`), then the built-in library. Invalid component folders are kept out of `list()` and reported in
+ * `notices` (and by `get`/`resolve` with their issues); an id found earlier in that order wins with a warning notice
+ * (an invalid folder too: it shadows with its error, as the person's own folder).
  */
 export async function loadComponentRegistry(opts: LoadComponentRegistryOptions): Promise<ComponentRegistry> {
   const componentsDir = opts.componentsDir ? resolve(opts.componentsDir) : (await loadWorkspaceConfig(opts.root)).componentsDir;
   const builtinDir = opts.builtinDir === null ? undefined : resolve(opts.builtinDir ?? LIBRARY_DIR);
+  const projectDir = opts.projectComponentsDir === undefined ? undefined : resolve(opts.projectComponentsDir);
+  // Only a folder that is there: a project without its own components/ answers as the workspace does, word for word.
+  const projectComponentsDir =
+    projectDir !== undefined && isFolder(projectDir) && !sameFolder(projectDir, componentsDir) && !(builtinDir && sameFolder(projectDir, builtinDir)) ? projectDir : undefined;
   const notices: RegistryNotice[] = [];
-  const workspace = await scan(componentsDir, 'workspace', notices);
-  const found = new Map(workspace);
-  if (builtinDir) {
-    const builtin = await scan(builtinDir, 'builtin', notices);
-    for (const [id, f] of builtin) {
-      const own = workspace.get(id);
+  const layers: Array<{ source: ComponentSource; dir: string }> = [
+    ...(projectComponentsDir ? [{ source: 'project' as const, dir: projectComponentsDir }] : []),
+    { source: 'workspace', dir: componentsDir },
+    ...(builtinDir ? [{ source: 'builtin' as const, dir: builtinDir }] : []),
+  ];
+  const found = new Map<string, Found & { source: ComponentSource; base: string }>();
+  for (const layer of layers) {
+    for (const [id, f] of await scan(layer.dir, layer.source, notices)) {
+      const own = found.get(id);
       if (own) {
         notices.push({
           severity: 'warning',
-          message: `workspace component ${id} overrides the built-in one`,
-          source: 'workspace',
-          dir: own.info?.dir ?? own.broken?.dir ?? join(componentsDir, id),
+          message: `${own.source} component ${id} overrides ${OVERRIDDEN[layer.source as Exclude<ComponentSource, 'project'>]}`,
+          source: own.source,
+          dir: own.info?.dir ?? own.broken?.dir ?? join(own.base, id),
           id,
         });
         continue;
       }
-      found.set(id, f);
+      found.set(id, { ...f, source: layer.source, base: layer.dir });
     }
   }
-  return new Registry(componentsDir, builtinDir, found, notices);
+  return new Registry(componentsDir, builtinDir, found, notices, projectComponentsDir);
 }

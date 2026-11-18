@@ -330,7 +330,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     ...(opts.theme ? { template: opts.theme } : {}),
     overrides,
     root: ws.root,
-    registry: (root) => ws.registries.load(root),
+    registry: (root, o) => ws.registries.load(root, o),
     measureMusic: false,
   });
   warnLatest(ui, run, { scenario, json: opts.json });

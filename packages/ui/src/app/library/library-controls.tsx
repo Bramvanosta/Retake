@@ -2,7 +2,7 @@
 import { useId } from 'react';
 import type { LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import { Txt, plural } from '../bits.js';
-import { KIND_ORDER, SOURCE_WORDS, filterCounts, isKind, kindHeading } from '../words/library-words.js';
+import { KIND_ORDER, SOURCE_WORDS, filterCounts, isKind, kindHeading, sourceChoices } from '../words/library-words.js';
 import type { LibraryFilter, SourceFilter } from '../words/library-words.js';
 import { hrefTo } from '../route.js';
 import { ChoiceChips, Disclosure, Segmented, Select, StatusMark, TextField } from '../ui-kit/index.js';
@@ -63,7 +63,7 @@ export function Filters({ items, filter, set }: { items: LibraryItem[]; filter: 
           size="sm"
           value={filter.source}
           onChange={(s) => set({ ...filter, source: s })}
-          options={(['all', 'builtin', 'workspace'] as const).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
+          options={sourceChoices(items, filter.source).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
         />
         <div className="lb-search">
           <TextField

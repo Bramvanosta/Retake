@@ -345,9 +345,12 @@ describe("⚑ a project's screen names its project to every theme op", () => {
     const calls: string[] = [];
     for (const f of files) {
       const text = readFileSync(join(dir, f), 'utf8');
-      for (const m of text.matchAll(/\b(themeView|themeEdit|themeCopy|themeCreate|brandFiles)\(\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g)) calls.push(`${f}: ${m[1]}(${m[2].replace(/\s+/g, ' ').trim()})`);
+      for (const m of text.matchAll(/\b(themeView|themeEdit|themeCopy|themeCreate|brandFiles|previewAllow)\(\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g))
+        calls.push(`${f}: ${m[1]}(${m[2].replace(/\s+/g, ' ').trim()})`);
     }
     expect(calls.length).toBeGreaterThanOrEqual(12);
+    // preview_allow too: a project's component is looked up in the project's registry (both Allow buttons).
+    expect(calls.filter((c) => /previewAllow\(/.test(c))).toHaveLength(2);
     expect(calls.filter((c) => !/\bproject\b/.test(c))).toEqual([]);
   });
 });

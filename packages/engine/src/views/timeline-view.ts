@@ -27,7 +27,7 @@ import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, 
 import { join } from 'node:path';
 import { canonicalJson, errorMessage, parseYaml } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isRenderId } from '@retake/core/ids';
-import { projectPath, scenarioRef } from '@retake/core/project';
+import { projectLibraryDir, projectPath, scenarioRef } from '@retake/core/project';
 import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
 import { locateAnchorStep } from '@retake/core/comments';
 import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
@@ -152,30 +152,45 @@ const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !
 // ── Memo ─────────────────────────────────────────────────────
 
 const VIEW_MEMO_MAX = 4;
+/** How many projects' registries one engine holds (the workspace's is one of them). */
+const REGISTRY_MEMO_MAX = 16;
+
 /**
- * The workspace's component registry, held by one engine (its context's caches) and reused while its components'
- * folders are unchanged: the timeline views, a scenario's field edits, the comments' proposals, the library and the
- * theme previews of that engine.
+ * The component registries of a workspace and of its projects (each its own `components/` first), held by one engine
+ * (its context's caches) and reused while their components' folders are unchanged: the timeline views, a scenario's
+ * field edits, the comments' proposals, the library and the theme previews of that engine. One per project folder
+ * (the workspace's under ''), the oldest dropped past REGISTRY_MEMO_MAX.
  */
 export class RegistryMemo {
-  #held: { sig: string; registry: Promise<ComponentRegistry> } | undefined;
+  readonly #held = new Map<string, { sig: string; registry: Promise<ComponentRegistry> }>();
 
-  /** The registry of `ws`'s components, loaded again when their folders changed. */
-  async get(ws: OpenedWorkspace): Promise<{ sig: string; registry: ComponentRegistry }> {
-    const sig = componentsSignature(ws.componentsDir);
-    if (!this.#held || this.#held.sig !== sig) {
-      const held = { sig, registry: registryLoader(ws.registries)(ws.root) };
-      this.#held = held;
-      held.registry.catch(() => {
-        if (this.#held === held) this.#held = undefined;
+  /** The registry of `ws`'s components — of `project`'s, its own first, when given — loaded again when their folders changed. */
+  async get(ws: OpenedWorkspace, project?: Pick<LoadedProject, 'dir'>): Promise<{ sig: string; registry: ComponentRegistry }> {
+    const key = project?.dir ?? '';
+    const sig = registrySignature(ws, project);
+    let held = this.#held.get(key);
+    if (!held || held.sig !== sig) {
+      const now = { sig, registry: registryLoader(ws.registries)(ws.root, project ? { projectDir: project.dir } : undefined) };
+      held = now;
+      this.#held.delete(key);
+      this.#held.set(key, now);
+      if (this.#held.size > REGISTRY_MEMO_MAX) this.#held.delete(this.#held.keys().next().value!);
+      now.registry.catch(() => {
+        if (this.#held.get(key) === now) this.#held.delete(key);
       });
     }
-    return { sig, registry: await this.#held.registry };
+    return { sig, registry: await held.registry };
   }
 
   clear(): void {
-    this.#held = undefined;
+    this.#held.clear();
   }
+}
+
+/** The signature of the components a registry reads: the workspace's folder, and the project's own when given. */
+export function registrySignature(ws: Pick<OpenedWorkspace, 'componentsDir'>, project?: Pick<LoadedProject, 'dir'>): string {
+  const own = componentsSignature(ws.componentsDir);
+  return project ? `${own}|${componentsSignature(projectLibraryDir(project.dir, 'components'))}` : own;
 }
 
 /** The timeline view's memos of one engine (its context's caches): bounded as each map says. */
@@ -543,7 +558,7 @@ function editableOf(planned: PlannedRun, file: BuildViewOptions['file'], scenari
 
 async function buildView(memos: TimelineMemos, ws: OpenedWorkspace, opts: BuildViewOptions): Promise<TimelineViewResult> {
   const { stores, cli, project, req, file, t0, themes, proposal, defaulted = false } = opts;
-  const { registry } = await memos.registry.get(ws);
+  const { registry } = await memos.registry.get(ws, project);
   let planned: PlannedRun;
   let source: RenderEditSource;
   try {
@@ -651,7 +666,7 @@ async function previewedProposal(ws: OpenedWorkspace, project: LoadedProject, re
       throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
     }
     proposal = await proposalForPreview(project, req.scenario, pr, {
-      registry: async () => (await memos.registry.get(ws)).registry,
+      registry: async () => (await memos.registry.get(ws, project)).registry,
       files: ws.reads.fileFacts(ws.policy),
       reads: ws.reads,
       stores: o.stores,
@@ -668,7 +683,7 @@ async function previewedProposal(ws: OpenedWorkspace, project: LoadedProject, re
 async function themeChoicesOf(ws: OpenedWorkspace, project: LoadedProject, memos: TimelineMemos): Promise<ThemeChoices> {
   const listed = await ws.reads.listTemplates(project.root, { projectDir: project.dir });
   const unusable: Record<string, string> = {};
-  const reg = (await memos.registry.get(ws)).registry;
+  const reg = (await memos.registry.get(ws, project)).registry;
   for (const t of listed) {
     const why = await themeUnusable(t.dir, reg, ws);
     if (why !== null) unusable[t.name] = why;
@@ -744,7 +759,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       timelineStat,
       commentsStat,
       projectStat,
-      componentsSignature(ws.componentsDir),
+      registrySignature(ws, project),
       themes.names,
       themes.folders,
       themes.unusable,

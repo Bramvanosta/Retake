@@ -160,6 +160,23 @@ describe('theme_copy, theme_view, theme_edit', () => {
     expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ themes: ['mine'] });
   });
 
+  it("the watch names a project's own components <slug>/<namespace>: a file of one changed is that namespace only", async () => {
+    const own = join(ws, 'projects', P, 'components', 'acme', 'own');
+    await mkdir(own, { recursive: true });
+    try {
+      await writeFile(join(own, 'component.yaml'), 'id: acme/own\n');
+      const o = { root: ws, componentsDir: join(ws, 'components'), templatesDir: join(ws, 'templates'), projectsDir: join(ws, 'projects') };
+      const before = await libraryWatchScan(o);
+      expect([...before.keys()]).toContain(`components:${P}/acme`);
+      await writeFile(join(own, 'index.tsx'), 'export default function C() { return null; }\n');
+      expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ components: [`${P}/acme`] });
+      // Without projectsDir the project's are not watched (the workspace's scan as before).
+      expect([...(await libraryWatchScan({ ...o, projectsDir: undefined })).keys()].some((k) => k.startsWith(`components:${P}/`))).toBe(false);
+    } finally {
+      await rm(join(ws, 'projects', P, 'components'), { recursive: true, force: true });
+    }
+  });
+
   it("a project's own theme through the Studio's ops — listed as the project's, viewed, edited and copied in the project; the watch names it <slug>/<name>", async () => {
     const own = join(ws, 'projects', P, 'templates', 'brand-own');
     await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), own, { recursive: true });
@@ -305,7 +322,7 @@ describe('theme_preview', () => {
   it('⚑ a workspace component the preview renders is held until the person allows it (preview_allow)', async () => {
     await mine();
     const d = await previewOf({ theme: 'mine', target: { component: 'acme/held' } });
-    expect(d.preview_held).toEqual([{ id: 'acme/held', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/) }]);
+    expect(d.preview_held).toEqual([{ id: 'acme/held', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/), source: 'workspace' }]);
     const allowed = await call('preview_allow', { id: 'acme/held', hash: d.preview_held![0].hash });
     expect(allowed.status).toBe(200);
     expect((await previewOf({ theme: 'mine', target: { component: 'acme/held' } })).preview_held).toBeUndefined();

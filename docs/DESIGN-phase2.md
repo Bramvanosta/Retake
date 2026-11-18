@@ -132,18 +132,25 @@ Reference-look rules shared by the six (all values design px × unit, every colo
 
 ### 1.3 Registry (`@retake/components`, implemented in L2.2)
 ```ts
-loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
-//  scans <components_dir>/<ns>/<name>/component.yaml (retake.yaml components_dir, default <root>/components) then
-//  packages/components/library/<ns>/<name>/; workspace ids override built-ins (warning notice); invalid folders are
-//  kept out of list() and reported in `notices` (get/resolve throw with their positioned issues)
+loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; projectComponentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
+//  scans a project's own <project>/components/<ns>/<name>/ first (projectComponentsDir, L9.3: ignored when it is the
+//  workspace's folder or the library), then <components_dir>/<ns>/<name>/component.yaml (retake.yaml components_dir,
+//  default <root>/components), then packages/components/library/<ns>/<name>/; an id found earlier wins with a warning
+//  notice ("project component X overrides the workspace one / the built-in one", "workspace component X overrides the
+//  built-in one"; a broken folder wins with its error); invalid folders are kept out of list() and reported in
+//  `notices` (get/resolve throw with their positioned issues)
 ComponentRegistry = {
   list(kind?): ComponentInfo[]; has(id); get(id): ComponentInfo /* ComponentError: not found + did you mean | invalid */;
   resolve(ref, kind): ResolvedComponentRef  /* {id, version, kind, params (schema defaults under the given params,
                                                validated), manifest, dir, entry, source}; kind mismatch → error */;
   resolveTheme(template): Record<ComponentKind, ResolvedComponentRef | null>  /* via core resolveThemeComponents */;
-  notices: RegistryNotice[]; componentsDir; builtinDir?
+  notices: RegistryNotice[]; componentsDir; projectComponentsDir?; builtinDir?
 }
-ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
+ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'project' | 'workspace' | 'builtin' }
+isOwnComponent(source)   // project or workspace: the person's code (held from the Studio's preview until allowed)
+RegistrySource = ComponentRegistry | (root, { projectDir? }?) => Promise<ComponentRegistry>
+//  a project's work (plan, render, review, preview, a theme's picks) loads with its project folder: the engine's
+//  ComponentRegistries port `load(root, { projectDir })`; the engine's RegistryMemo holds one per project
 evalLayoutGeometry(spec, params, { aspect? }): LayoutGeometry   // geometry expressions → design px (see below)
 DESIGN_SPACE / VARIANTS / GEOMETRY_KEYS   // landscape 1920×1080 `geometry`, vertical 1080×1920 `geometry_vertical`,
                                           // square 1080×1080 `geometry_square` (L2.8)

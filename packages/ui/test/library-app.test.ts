@@ -12,7 +12,10 @@
  * - ⚑ the image loader: cards on screen only, at most 12 keys per call, every image re-checked (format of its kind, the
  *   component asked, imageDataUrl) — a mismatched or non-image answer is never shown.
  */
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { SourceTag } from '../src/app/library/LibraryCards.js';
 import { ANY_THEME_NAME_RE, COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, NEW_THEME_NAME_RE, PROJECT_SLUG_RE } from '@retake/core';
 import type { LibraryImagesAnswer, LibraryItem } from '../src/server/library-ops.js';
 import { ANY_THEME_NAME, PROJECT_SLUG } from '../src/app/id-words.js';
@@ -37,6 +40,8 @@ import {
   posterWords,
   setDefaultPlan,
   setDefaultWords,
+  overrideWords,
+  sourceChoices,
   themeNameProblem,
 } from '../src/app/words/library-words.js';
 
@@ -135,6 +140,25 @@ describe('mirrors, filters, groups, words', () => {
     expect(loopWords({ key: K(1), state: 'too_large' }, false)).toMatch(/too large to loop/i);
     expect(loopWords({ key: K(1), state: 'missing' }, false)).toBeNull();
     expect(loopWords({ key: K(1), state: 'missing', queued: true }, true)).toMatch(/waiting for the worker/);
+  });
+
+  it("a project's own components: the Project badge and its words, a Project source filter only when there is one (or it is chosen)", () => {
+    expect(SOURCE_WORDS.project.badge).toBe('Project');
+    expect(SOURCE_WORDS.project.title).toMatch(/this project's components folder.*never in the Studio unless you allow it/);
+    const list = [mk('acme/a'), mk('studio/b'), mk('acme/mine', { source: 'project' })];
+    expect(filterItems(list, { kind: 'all', source: 'project', text: '' }).map((i) => i.component)).toEqual(['acme/mine']);
+    expect(filterItems(list, { kind: 'all', source: 'workspace', text: '' }).map((i) => i.component)).toEqual(['acme/a']);
+    expect(sourceChoices(list, 'all')).toEqual(['all', 'builtin', 'workspace', 'project']);
+    expect(sourceChoices(list.slice(0, 2), 'all')).toEqual(['all', 'builtin', 'workspace']);
+    expect(sourceChoices([], 'project')).toEqual(['all', 'builtin', 'workspace', 'project']);
+    expect(libraryEventAction({ type: 'workspace', projects: [], readme: [], components: ['p/acme'] }, 'p', { busy: false })).toBe(true);
+  });
+
+  it("a project's component that hides another says so in words, beside its Project tag (cards, inspector, detail)", () => {
+    expect([overrideWords('workspace'), overrideWords('builtin'), overrideWords(undefined)]).toEqual(["Used instead of the workspace's", 'Used instead of the built-in one', null]);
+    const html = renderToStaticMarkup(createElement(SourceTag, { source: 'project', overrides: 'workspace' })).replace(/&#x27;/g, "'");
+    expect(html).toMatch(/data-testid="lib-source"[^>]*>.*Project.*data-testid="lib-overrides"[^>]*>.*Used instead of the workspace's/s);
+    expect(renderToStaticMarkup(createElement(SourceTag, { source: 'workspace' }))).not.toContain('lib-overrides');
   });
 
   it('libraryEventAction: themes, components, the project, a resync; jobs only while busy; never another project or a README', () => {

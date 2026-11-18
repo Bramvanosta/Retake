@@ -286,6 +286,31 @@ describe('the player origin', () => {
     player.release('proj-b');
   });
 
+  it("⚑ a bundle per scope: each project's frame and scripts are its own bundle's (its own components), never another's", async () => {
+    const asked: string[] = [];
+    const byScope = (scope: string): PlayerBundle => ({ ...BUNDLE, hash: scope === 'proj-a' ? 'aaaaaaaaaaaaaaaa' : 'bbbbbbbbbbbbbbbb', js: Buffer.from(`/* ${scope || 'workspace'} */`) });
+    const p2 = await startPlayerServer({ studioPort: STUDIO_PORT, bundle: async (scope) => (asked.push(scope), byScope(scope)) });
+    try {
+      const frameA = new URL(p2.frameUrl('proj-a')).pathname;
+      const frameB = new URL(p2.frameUrl('proj-b')).pathname;
+      const html = (await raw(p2.port, 'GET', frameA)).body;
+      expect(html).toContain('aaaaaaaaaaaaaaaa');
+      expect(html).not.toContain('bbbbbbbbbbbbbbbb');
+      expect((await raw(p2.port, 'GET', frameB)).body).toContain('bbbbbbbbbbbbbbbb');
+      const capA = capOf(p2.frameUrl('proj-a'));
+      const capB = capOf(p2.frameUrl('proj-b'));
+      const a = await raw(p2.port, 'GET', `/s/${capA}/b.aaaaaaaaaaaaaaaa.js`);
+      expect([a.status, a.body]).toEqual([200, '/* proj-a */']);
+      // Another scope's bundle under this scope's capability: 404.
+      expect((await raw(p2.port, 'GET', `/s/${capA}/b.bbbbbbbbbbbbbbbb.js`)).status).toBe(404);
+      expect((await raw(p2.port, 'GET', `/s/${capB}/b.bbbbbbbbbbbbbbbb.js`)).status).toBe(200);
+      expect(asked).toEqual(expect.arrayContaining(['proj-a', 'proj-b']));
+      expect(asked.every((x) => x === 'proj-a' || x === 'proj-b')).toBe(true);
+    } finally {
+      await p2.close();
+    }
+  });
+
   it('rotate and close revoke every URL', async () => {
     const before = player.frameUrl();
     const media = player.register(join(dirs.run, 'capture.mp4'), [dirs.run])!;

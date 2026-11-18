@@ -5,11 +5,13 @@
  * answers and its refusals are the package's, unchanged. Made by the composition package only (ports.ts productPorts).
  */
 import type { ComponentRegistries } from '@retake/engine/composition';
+import { projectLibraryDir } from '@retake/core/project';
 import { components } from './lazy.js';
 
 export function packageRegistries(): ComponentRegistries {
   return {
-    load: async (root) => (await components()).loadComponentRegistry({ root }),
+    // A project's registry: its own components/ (projects/<slug>/components) first.
+    load: async (root, o) => (await components()).loadComponentRegistry({ root, ...(o?.projectDir !== undefined ? { projectComponentsDir: projectLibraryDir(o.projectDir, 'components') } : {}) }),
     catalogue: {
       validate: async (dir) => (await components()).validateComponentDir(dir),
       create: async (root, opts) => (await components()).createComponent(root, opts),

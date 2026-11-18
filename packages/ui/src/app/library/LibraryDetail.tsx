@@ -25,7 +25,7 @@ function About({ d, item }: { d: LibraryComponentAnswer; item: LibraryItem }) {
           label: 'Source',
           value: (
             <>
-              <SourceTag source={d.source} /> <Txt text={SOURCE_WORDS[d.source].title} />
+              <SourceTag source={d.source} overrides={d.overrides} /> <Txt text={SOURCE_WORDS[d.source].title} />
               {d.overrides_builtin && ' It replaces the built-in of the same id in every render.'}
             </>
           ),
@@ -131,7 +131,7 @@ export function LibraryDetail({ item, view, d, playing }: { item: LibraryItem; v
         <p className="lb-detail-meta">
           <Txt className="k-mono" text={item.component} />
           <Txt text={` · ${kindHeading(item.kind, 1)} · in ${view.theme.name}`} />
-          <SourceTag source={item.source} />
+          <SourceTag source={item.source} overrides={item.overrides} />
           <DefaultTag item={item} />
         </p>
       </header>

@@ -23,7 +23,10 @@ export function scenariosApi(ctx: EngineContext): Engine['scenarios'] {
     view: (slug, name, o = {}) => views.view(slug, name, o),
     actions: (slug, name, o = {}) => views.actions(slug, name, o),
     save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via, scope, files, reads: ws.reads, seen }),
-    edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await caches.registry.get(ws)).registry, scope, files, reads: ws.reads, seen }),
+    edit: async (slug, name, req) => {
+      const p = await project(slug);
+      return editScenario(p, name, req, { agent, via, registry: async () => (await caches.registry.get(ws, p)).registry, scope, files, reads: ws.reads, seen });
+    },
     fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent, files, reads: ws.reads }),
   };
 }

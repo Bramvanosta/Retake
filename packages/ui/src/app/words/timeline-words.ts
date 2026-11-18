@@ -212,3 +212,38 @@ export function zoomFactor(frames: number, fps: number): number {
   const seconds = frames / (fps > 0 ? fps : 30);
   return Math.min(50, Math.max(2, seconds / 10));
 }
+
+/** A component the preview holds until the person allows it (preview_held), as its callout words it. */
+export interface HeldWordsItem {
+  kind: string;
+  hash: string;
+  source?: 'project' | 'workspace';
+  overrides?: 'workspace' | 'builtin';
+}
+
+/** Whose code the held components are: the workspace's, this project's, or both. */
+function heldWhose(held: readonly HeldWordsItem[]): 'workspace' | 'project' | 'both' {
+  const project = held.some((c) => c.source === 'project');
+  const workspace = held.some((c) => c.source !== 'project');
+  return project && workspace ? 'both' : project ? 'project' : 'workspace';
+}
+
+/** The held callout's title, by the components' origin ("A component of this project is not run in the preview"). */
+export function heldTitle(held: readonly HeldWordsItem[]): string {
+  const whose = heldWhose(held);
+  if (held.length === 1) return whose === 'project' ? 'A component of this project is not run in the preview' : 'A workspace component is not run in the preview';
+  const noun = whose === 'project' ? 'components of this project' : whose === 'both' ? 'components of this workspace and project' : 'workspace components';
+  return `${held.length} ${noun} are not run in the preview`;
+}
+
+/** The subject of the callout's explanation ("Components of this workspace are code: …"). */
+export function heldSubject(held: readonly HeldWordsItem[]): string {
+  const whose = heldWhose(held);
+  return whose === 'project' ? "This project's components" : whose === 'both' ? "This workspace's and this project's components" : 'Components of this workspace';
+}
+
+/** One held component's words after its id: its origin, what it replaces, its kind and folder hash. */
+export function heldItemWords(c: HeldWordsItem): string {
+  const hides = c.overrides === undefined ? '' : `, used instead of the ${c.overrides === 'builtin' ? 'built-in' : "workspace's"} one`;
+  return c.source === 'project' ? ` (this project's own ${c.kind}${hides}, folder ${c.hash}) ` : ` (${c.kind}${hides}, folder ${c.hash}) `;
+}

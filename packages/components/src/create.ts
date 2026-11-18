@@ -9,7 +9,7 @@ import type { ComponentKind } from '@retake/core/model';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { MANIFEST_FILE, parseManifest } from './manifest.js';
 import { COMPONENT_SCHEMA_FILE, LIBRARY_DIR, scaffoldDir } from './paths.js';
-import type { ComponentInfo, ComponentIssue } from './types.js';
+import type { ComponentInfo, ComponentIssue, ComponentSource } from './types.js';
 import { validateComponentDir } from './validate.js';
 
 export interface CreateComponentOptions {
@@ -24,6 +24,11 @@ export interface CreateComponentOptions {
   componentsDir?: string;
   /** Built-in library checked for an id clash (default: the package library; null = none). */
   builtinDir?: string | null;
+  /**
+   * Whose components folder `componentsDir` is (default `workspace`): a project's (`<project>/components`) never takes
+   * the built-in namespace, whoever scaffolds (a project's folder is shared with the project: its ids stay its own).
+   */
+  source?: Exclude<ComponentSource, 'builtin'>;
   /**
    * Refuse the built-in namespace (`studio/`) and any id of a built-in component instead of overriding it with a
    * warning (an MCP client's scaffold: a workspace id silently replaces the built-in in every render).
@@ -72,7 +77,8 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   if (!(COMPONENT_KINDS as readonly string[]).includes(kind)) {
     throw new ComponentError(`unknown component kind "${kind}"${suggestion(kind, COMPONENT_KINDS)} (kinds: ${COMPONENT_KINDS.join(', ')})`);
   }
-  if (opts.noOverride && id.split('/')[0] === BUILTIN_NAMESPACE) {
+  const source: Exclude<ComponentSource, 'builtin'> = opts.source ?? 'workspace';
+  if ((opts.noOverride || source === 'project') && id.split('/')[0] === BUILTIN_NAMESPACE) {
     throw new ComponentError(`component id "${id}": the "${BUILTIN_NAMESPACE}/" namespace belongs to the built-in library — pick your own namespace (e.g. acme/${id.split('/')[1]})`);
   }
   const componentsDir = opts.componentsDir ? resolve(opts.componentsDir) : (await loadWorkspaceConfig(root)).componentsDir;
@@ -80,15 +86,15 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   const dir = join(componentsDir, ns, name);
   if (existsSync(dir)) throw new ComponentError(`${dir} already exists: pick another id or edit that component`);
 
-  const source = scaffoldDir(kind);
+  const scaffold = scaffoldDir(kind);
   const builtinDir = opts.builtinDir === null ? undefined : resolve(opts.builtinDir ?? LIBRARY_DIR);
   const overrides = builtinDir && existsSync(join(builtinDir, ns, name, MANIFEST_FILE)) ? join(builtinDir, ns, name) : undefined;
   if (overrides && opts.noOverride) {
-    throw new ComponentError(`component id "${id}" is a built-in component's: a workspace component of that id would replace it in every render — pick another id`);
+    throw new ComponentError(`component id "${id}" is a built-in component's: a ${source} component of that id would replace it in every render — pick another id`);
   }
 
   // component.yaml: the scaffold's, with id/name/description replaced (comments kept) and the schema path rewritten.
-  const yamlText = await readFile(join(source, MANIFEST_FILE), 'utf8');
+  const yamlText = await readFile(join(scaffold, MANIFEST_FILE), 'utf8');
   const doc = parseDocument(yamlText);
   doc.set('id', id);
   doc.set('name', opts.name ?? componentDisplayName(id));
@@ -108,11 +114,11 @@ export async function createComponent(root: string, opts: CreateComponentOptions
     files.push(p);
   };
   await write(MANIFEST_FILE, manifestText);
-  for (const entry of (await readdir(source, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of (await readdir(scaffold, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
     // The scaffold's own generated preview (preview.png / preview.json) is not copied: `retake components create`
     // renders the new component's preview.
     if (!entry.isFile() || [MANIFEST_FILE, 'README.md', 'preview.png', 'preview.json'].includes(entry.name)) continue;
-    await write(entry.name, await readFile(join(source, entry.name), 'utf8'));
+    await write(entry.name, await readFile(join(scaffold, entry.name), 'utf8'));
   }
   await write('README.md', readme(id, kind, opts.description));
 
@@ -124,7 +130,7 @@ export async function createComponent(root: string, opts: CreateComponentOptions
     manifest: validation.manifest,
     dir,
     entry: resolve(dir, validation.manifest.entry ?? 'index.tsx'),
-    source: 'workspace',
+    source,
     files,
     issues: validation.issues,
   };

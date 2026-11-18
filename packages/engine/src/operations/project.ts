@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zThemeName } from '@retake/core/ids';
+import { COMPONENT_ID_RE } from '@retake/core/model';
 import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
 import { outsideWorkspace, staleThisEngine, workerOfAnotherCopy } from '../engine-copy.js';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
@@ -336,24 +337,38 @@ export const projectPrune = defineOperation({
 
 export const projectAdopt = defineOperation({
   name: 'project_adopt',
-  title: 'Copy a workspace theme into a project',
+  title: 'Copy a workspace theme or component into a project',
   description:
-    "Make a project carry its own look: each workspace theme named (a folder of the workspace's templates/, by name: template_list says each one's origin) is copied whole into the project's own folder, projects/<slug>/templates/<name>/ — its files verbatim, its provenance kept — so the project folder alone holds it (another Mac, a person it is handed to). The project's copy is found before the workspace's theme of that name from then on (for that project only); project.yaml and the scenarios are not changed. Through this server a theme is only copied, never moved, and brand files are never adopted: a person runs retake project adopt <project> --theme <name> to move one (refused while another project uses it) or --brand <path> for brand files. Refused: a starter theme (no workspace theme: make the project's own with template_create_from_brand {project}), a name the project already has (conflict). The project's earlier renders made with it still match it (the copy has the same content).",
+    "Make a project carry its own look: each workspace theme named (a folder of the workspace's templates/, by name: template_list says each one's origin) is copied whole into the project's own folder, projects/<slug>/templates/<name>/ — its files verbatim, its provenance kept — so the project folder alone holds it (another Mac, a person it is handed to). Each workspace component named (by id: component_list says each one's source) is copied the same way into projects/<slug>/components/<namespace>/<name>/. The project's copy is found before the workspace's theme or component of that name from then on (for that project only); project.yaml and the scenarios are not changed. Through this server a theme or a component is only copied, never moved, and brand files are never adopted: a person runs retake project adopt <project> --theme <name> / --component <id> to move one (refused while another project uses it) or --brand <path> for brand files. Refused: a starter theme (no workspace theme: make the project's own with template_create_from_brand {project}), a built-in component, a component that does not validate, a name the project already has (conflict). The project's earlier renders made with a theme still match it (the copy has the same content).",
+  // Themes, components or both (none named: the engine's own refusal says what to name).
   input: z.strictObject({
     project: projectSlug,
-    themes: z.array(zThemeName('a theme name (template_list names them), never a path')).min(1).max(20).describe('Workspace themes to copy into the project, by name.'),
+    themes: z.array(zThemeName('a theme name (template_list names them), never a path')).max(20).optional().describe('Workspace themes to copy into the project, by name.'),
+    components: z
+      .array(z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name" (component_list names them), never a path'))
+      .max(20)
+      .optional()
+      .describe('Workspace components to copy into the project, by id.'),
     brand: z.array(z.string().max(1024)).max(20).optional().describe('Refused here (the answer says so): a person adopts brand files with retake project adopt --brand.'),
   }),
   annotations: WRITE_FILES,
-  async run({ project, themes, brand }, { engine }) {
-    const r = await engine.projects.adopt({ project, themes, ...(brand?.length ? { brand } : {}), mode: 'copy' });
+  async run({ project, themes, components, brand }, { engine }) {
+    const r = await engine.projects.adopt({ project, themes: themes ?? [], ...(components?.length ? { components } : {}), ...(brand?.length ? { brand } : {}), mode: 'copy' });
+    const comps = r.components ?? [];
     return {
       summary: [
-        `${plural(r.themes.length, 'theme')} copied into project ${r.project}: ${r.themes.map((t) => `${t.name} (templates/${t.name}/, ${plural(t.files.length, 'file')})`).join(', ')}`,
+        ...(r.themes.length || !comps.length
+          ? [`${plural(r.themes.length, 'theme')} copied into project ${r.project}: ${r.themes.map((t) => `${t.name} (templates/${t.name}/, ${plural(t.files.length, 'file')})`).join(', ')}`]
+          : []),
+        ...(comps.length
+          ? [`${plural(comps.length, 'component')} copied into project ${r.project}: ${comps.map((c) => `${c.id} (components/${c.id}/, ${plural(c.files.length, 'file')})`).join(', ')}`]
+          : []),
         ...r.notes.map((n) => `note: ${n}`),
-        `next: template_list {project: "${r.project}"} shows them as the project's own`,
+        comps.length
+          ? `next: ${[...(r.themes.length ? [`template_list {project: "${r.project}"}`] : []), `component_list {project: "${r.project}"}`].join(' and ')} show them as the project's own`
+          : `next: template_list {project: "${r.project}"} shows them as the project's own`,
       ].join('\n'),
-      data: { ...r, themes: r.themes.map(({ dir: _dir, ...t }) => t) },
+      data: { ...r, themes: r.themes.map(({ dir: _dir, ...t }) => t), ...(r.components ? { components: r.components.map(({ dir: _dir, ...c }) => c) } : {}) },
     };
   },
 });

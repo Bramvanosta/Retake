@@ -1575,7 +1575,7 @@
   {
    "name": "preview_allow",
    "title": "Allow a workspace component in the preview",
-   "description": "The person allows one workspace component, at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).",
+   "description": "The person allows one workspace component — or, with project, one of the project's own — at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).",
    "annotations": {
     "readOnlyHint": false,
     "destructiveHint": false,
@@ -1593,6 +1593,12 @@
      "hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{16}$"
+     },
+     "project": {
+      "description": "The project whose preview held it: its own components first (a project's component of a workspace id is its own folder).",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      }
     },
     "required": [

@@ -543,7 +543,7 @@ scenes:
       expect(p.proposal).toMatchObject({ comment_id: id, entry_id: w.entry, shown: true });
       expect(p.editable).toEqual({ why: 'Previewing a proposal: apply it to edit' });
       expect('text' in p).toBe(false);
-      expect(p.preview_held).toEqual([{ id: 'acme/marked', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/) }]);
+      expect(p.preview_held).toEqual([{ id: 'acme/marked', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/), source: 'workspace' }]);
       // Pinned: another key in proposal, a path for an id → 400.
       for (const bad of [
         { comment_id: id, entry_id: w.entry, text: T },

@@ -9,7 +9,7 @@ import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { SCENARIO_COMPARE_MAX_BYTES } from '@retake/core/scenario';
 import { readPlainFile } from '@retake/core/io';
@@ -212,8 +212,26 @@ export class LocalStorage implements Storage {
    */
   private async writableDir(path: string, ref: string, create = true): Promise<void> {
     const dir = dirname(path);
-    if (create) await mkdir(dir, { recursive: true });
-    else if (
+    if (create) {
+      // The nearest folder that exists is checked first: a link leading out of the root never gets an empty folder made
+      // beyond it before the refusal.
+      let near = dir;
+      while (
+        !(await lstat(near).then(
+          () => true,
+          () => false,
+        )) &&
+        dirname(near) !== near
+      )
+        near = dirname(near);
+      // A root not made yet holds no link: only a folder below it is checked.
+      const rel = relative(resolve(this.root), near);
+      if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))) {
+        const [realRoot, realNear] = await Promise.all([realpath(this.root), realpath(near)]);
+        if (!pathInside(realNear, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${dir} leads out of ${this.folder} (a symbolic link): not written`);
+      }
+      await mkdir(dir, { recursive: true });
+    } else if (
       !(await lstat(dir).then(
         () => true,
         () => false,

@@ -30,7 +30,7 @@ import type { LibraryItem } from '../../server/library-ops.js';
 import { SlotContext } from '../shell/slots.js';
 import { Txt, shown } from '../bits.js';
 import type { ImageEntry, ImageWant, LibraryImages, RenderPump } from './library-load.js';
-import { SOURCE_WORDS, canPlay, loopWords, pictureAlt, posterWords } from '../words/library-words.js';
+import { SOURCE_WORDS, canPlay, overrideWords, loopWords, pictureAlt, posterWords } from '../words/library-words.js';
 import { Picture } from '../Thumb.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX } from '../thumbs.js';
 import { Button, LinkButton, PosterCard, StatusMark, Tag } from '../ui-kit/index.js';
@@ -234,11 +234,22 @@ export function PlayControls({
 }
 
 /** The source as a tag in words (never "made with Claude": nobody can tell who wrote one). */
-export function SourceTag({ source }: { source: LibraryItem['source'] }) {
+export function SourceTag({ source, overrides }: { source: LibraryItem['source']; overrides?: LibraryItem['overrides'] }) {
+  const hides = overrideWords(overrides);
   return (
-    <Tag testId="lib-source">
-      <Txt text={SOURCE_WORDS[source].badge} />
-    </Tag>
+    <>
+      <Tag testId="lib-source">
+        <Txt text={SOURCE_WORDS[source].badge} />
+      </Tag>
+      {hides !== null && (
+        <>
+          {' '}
+          <Tag testId="lib-overrides">
+            <Txt text={hides} />
+          </Tag>
+        </>
+      )}
+    </>
   );
 }
 
@@ -309,7 +320,7 @@ export const LibraryCard = memo(function LibraryCard({ item, selected, playing, 
         meta={
           <span className="lb-card-meta" id={metaId}>
             <Txt className="k-mono lb-id" text={item.component} />
-            <SourceTag source={item.source} />
+            <SourceTag source={item.source} overrides={item.overrides} />
             <DefaultTag item={item} />
             {(item.poster.queued || item.loop.queued) && <Tag>queued</Tag>}
           </span>

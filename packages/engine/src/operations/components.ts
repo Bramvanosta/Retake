@@ -3,6 +3,7 @@
  * component_create (the tool's own scaffold) — by id, never a folder (engine components.ts).
  */
 import { z } from 'zod';
+import { showHiddenCharsLine } from '@retake/core/base';
 import { COMPONENT_KINDS, KEY_RE } from '@retake/core/model';
 import { PREVIEW_JOB, READ, WRITE_FILES } from './annotations.js';
 import { defineOperation } from './define.js';
@@ -18,17 +19,21 @@ export const componentList = defineOperation({
   name: 'component_list',
   title: 'List components',
   description:
-    "Components a theme or a render can use, by id: the workspace's components/ (they win over a built-in of the same id) and the built-in library (studio/…). Each with its kind (intro, outro, card, interstitial, caption, layout, overlay, transition), version, source, description, slot names and its committed preview image with whether it is fresh or stale. Registry notices list invalid or overriding components. Use an id in render {overrides: {components: {<kind or scene id>: <id>}}}; component_get has its slots and params.",
-  input: z.strictObject({ kind: kind.optional().describe('Only components usable as this kind.') }),
+    "Components a theme or a render can use, by id: with project, the project's own components/ first (they win over a workspace or built-in one of the same id), then the workspace's components/ (they win over a built-in of the same id) and the built-in library (studio/…). Each with its kind (intro, outro, card, interstitial, caption, layout, overlay, transition), version, source, description, slot names and its committed preview image with whether it is fresh or stale. Registry notices list invalid or overriding components. Use an id in render {overrides: {components: {<kind or scene id>: <id>}}}; component_get has its slots and params.",
+  input: z.strictObject({
+    kind: kind.optional().describe('Only components usable as this kind.'),
+    project: projectSlug.optional().describe('A project: its own components (source project) listed first, as its renders resolve them.'),
+  }),
   annotations: READ,
-  async run({ kind: k }, { engine }) {
-    const v = await engine.components.list(k);
-    const lines = v.components.map((c) => `- ${c.id} (${c.kind}, ${c.source} ${c.version}): ${c.description.split('\n')[0].slice(0, 120)}${c.preview ? '' : ' — no preview'}`);
+  async run({ kind: k, project }, { engine }) {
+    const v = await engine.components.list(k, project !== undefined ? { project } : {});
+    // A manifest's words and a folder's name are anyone's text (a project handed over): one line each, hidden characters shown.
+    const lines = v.components.map((c) => `- ${c.id} (${c.kind}, ${c.source} ${c.version}): ${showHiddenCharsLine(c.description.split('\n')[0].slice(0, 120))}${c.preview ? '' : ' — no preview'}`);
     return {
       summary: [
         `${plural(v.components.length, 'component')}${k ? ` usable as ${k}` : ''}:`,
         ...lines,
-        ...(v.notices.length ? [`${plural(v.notices.length, 'registry notice')}: ${v.notices.map((n) => n.message).join('; ')}`] : []),
+        ...(v.notices.length ? [`${plural(v.notices.length, 'registry notice')}: ${v.notices.map((n) => showHiddenCharsLine(n.message)).join('; ')}`] : []),
       ].join('\n'),
       data: v,
     };
@@ -40,10 +45,10 @@ export const componentGet = defineOperation({
   title: 'Read a component',
   description:
     'One component: its manifest (slots with their types, params as JSON Schema with defaults, duration, layout geometry, preview samples), the param values with defaults applied, its source files, README and committed preview. Read it before choosing params for a render or a preview. Component code is not edited through this server: the user (or you, with your own file tools when the user allows it) edits the files in its folder.',
-  input: z.strictObject({ component: componentId }),
+  input: z.strictObject({ component: componentId, project: projectSlug.optional().describe('A project: its own component of that id first, as its renders resolve it.') }),
   annotations: READ,
-  async run({ component }, { engine }) {
-    const c = await engine.components.get(component);
+  async run({ component, project }, { engine }) {
+    const c = await engine.components.get(component, project !== undefined ? { project } : {});
     const slots = Object.entries(c.manifest.slots).map(([n, s]) => `${n} (${s.type}${s.required ? ', required' : ''})`);
     return {
       summary: [
@@ -52,6 +57,7 @@ export const componentGet = defineOperation({
         `params: ${Object.keys(c.param_defaults).length ? JSON.stringify(c.param_defaults) : 'none'}`,
         ...(c.preview ? [`preview: ${c.preview} (${c.preview_status})`] : []),
         ...(c.overrides_builtin ? ['it replaces the built-in component of the same id'] : []),
+        ...(c.overrides ? [`it replaces the ${c.overrides === 'builtin' ? 'built-in' : 'workspace'} component of the same id in this project`] : []),
       ].join('\n'),
       data: c,
     };
@@ -63,10 +69,10 @@ export const componentValidate = defineOperation({
   title: 'Validate a component',
   description:
     "Validate a component of the registry (workspace or built-in, valid or not): its component.yaml (schema, params JSON Schema and defaults, preview samples, geometry), the id matching its folder, the entry file, and a compile of the code with esbuild that allows only react, remotion and the kit (nothing is executed). Issues are positioned (file, line, col). Run it after a component's files were edited.",
-  input: z.strictObject({ component: componentId }),
+  input: z.strictObject({ component: componentId, project: projectSlug.optional().describe('A project: its own component of that id first.') }),
   annotations: READ,
-  async run({ component }, { engine }) {
-    const v = await engine.components.validate(component);
+  async run({ component, project }, { engine }) {
+    const v = await engine.components.validate(component, project !== undefined ? { project } : {});
     return {
       summary: [
         `${v.id}: ${v.ok ? 'valid' : 'invalid'}${v.errors || v.warnings ? ` (${plural(v.errors, 'error')}, ${plural(v.warnings, 'warning')})` : ''} — ${v.dir}`,
@@ -117,21 +123,21 @@ export const componentPreview = defineOperation({
 export const componentCreate = defineOperation({
   name: 'component_create',
   title: 'Scaffold a component',
-  description:
-    'Scaffold a new workspace component, components/<namespace>/<name>/, from the template of its kind: component.yaml (manifest: slots, params, duration, preview samples), index.tsx (an implementation using the kit, theme tokens and frame-driven animation) and README.md, then validated. The id must not use the built-in "studio/" namespace or an id of a built-in component. This writes the tool\'s own scaffold only: the code is then edited by the user (or by you with your own file tools, when the user allows it) — never through this server. Follow with component_validate and component_preview.',
+  description: `Scaffold a new component from the template of its kind — the workspace's, components/<namespace>/<name>/, or with project the project's own, projects/<slug>/components/<namespace>/<name>/ (used by that project's renders only): component.yaml (manifest: slots, params, duration, preview samples), index.tsx (an implementation using the kit, theme tokens and frame-driven animation) and README.md, then validated. The id must not use the built-in "studio/" namespace or an id of a built-in component; into a project, not an id of a workspace component either (project_adopt copies that one). This writes the tool's own scaffold only: the code is then edited by the user (or by you with your own file tools, when the user allows it) — never through this server. Follow with component_validate and component_preview.`,
   input: z.strictObject({
     id: componentId.describe('New component id "namespace/name", e.g. acme/intro-split (not studio/…).'),
     kind: kind.describe('Its kind.'),
     description: z.string().min(1).max(500).describe('One or two sentences: what it looks like and when to use it (written into component.yaml and README.md as text).'),
     name: z.string().min(1).max(80).optional().describe('Display name (default from the id).'),
+    project: projectSlug.optional().describe("A project: the component is made in its own components/ folder (default: the workspace's)."),
   }),
   annotations: WRITE_FILES,
-  async run({ id, kind: k, description, name }, { engine }) {
-    const c = await engine.components.create({ id, kind: k, description, ...(name ? { name } : {}) });
+  async run({ id, kind: k, description, name, project }, { engine }) {
+    const c = await engine.components.create({ id, kind: k, description, ...(name ? { name } : {}), ...(project !== undefined ? { project } : {}) });
     return {
       summary: [
         `created ${c.kind} component ${c.id} in ${c.dir} (validated): ${c.files.map((f) => f.slice(c.dir.length + 1)).join(', ')}`,
-        `next: the code is edited outside this server (the user, or your own file tools with the user's permission); then component_validate {component: "${c.id}"} and component_preview {project, component: "${c.id}"}`,
+        `next: the code is edited outside this server (the user, or your own file tools with the user's permission); then component_validate {component: "${c.id}"} and component_preview {project, component: "${c.id}"}${project !== undefined ? ` (with project ${project}: component_validate {component, project})` : ''}`,
       ].join('\n'),
       data: c,
     };

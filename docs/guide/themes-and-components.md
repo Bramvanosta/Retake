@@ -285,9 +285,11 @@ components/<namespace>/<name>/     # in your workspace (retake.yaml components_d
   README.md                        # your notes + a generated block showing the preview, slots and params
 ```
 
-**Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. Ids
-resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
-marketplace cache: a workspace component with a built-in id overrides it (`retake components list` warns). The built-in
+**Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. For a
+project's work, ids resolve from the project's own `projects/<slug>/components/` first, then the workspace
+`components/` folder, then the built-in library (`studio/…`), then — later — a marketplace cache: a component with an
+id found further down overrides it (`retake components list` warns: "project component X overrides the workspace
+one", "workspace component X overrides the built-in one"; see [a project's own components](#a-projects-own-components)). The built-in
 library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
 fields of `template.yaml` use, plus a tablet layout — every one theme-driven, in the family of the **reference look** of
 `docs/reference/look.md` (the six measured on renders carry the tag `reference-look`), each with its committed preview:
@@ -456,6 +458,29 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `<Picture media>`, `pictureAspect` | a `PictureMedia`: an image, or a frame of the capture video frozen at its time |
 | `placeBeside({target, w, h, bounds, gap, order})` | a box beside a target, inside bounds, never over it (badges, the loupe) |
 
+### A project's own components
+
+A component made for one brand belongs with its project: `projects/<slug>/components/<namespace>/<name>/` travels with
+the project folder and is found first for that project's renders, previews, theme picks and timeline (other projects
+keep the workspace's). A project's components are its code: they run in the render browser only, never from a hook, and
+the Studio's preview holds each one until you allow it, as a workspace one.
+
+- **Make one in the project**: `retake components create <id> --kind <kind> --project <slug>`, MCP `component_create
+  {…, project}`. The `studio/` namespace is never a project's. Through MCP an id of a workspace component is refused
+  (copy that one in with `project_adopt`); at a terminal it is made and the hidden workspace folder is said.
+- **List, check, preview**: `retake components list|validate|preview --project <slug>` (each component's origin:
+  project, workspace, built-in; `preview --project` writes the preview and the README block into the project's folder),
+  MCP `component_list|component_get|component_validate {project}`, the Studio's Library (a **Project** badge and source
+  filter).
+- **Take a workspace component into a project**: `retake project adopt <slug> --component <id>` moves its folder into
+  `projects/<slug>/components/<id>/` — refused while a workspace theme picks it, while another project's themes,
+  project.yaml or scenarios name it (and that project has no component of its own of that id), while a project does not
+  open, or while a job is queued or running; the workspace's folder is set aside under `.retake/adopted/<stamp>-component-<namespace>-<name>/`.
+  `--copy` leaves the workspace's; Claude's `project_adopt {project, components}` only copies. A `studio/` id (a
+  workspace override of a built-in stays the workspace's), an id the project already holds or a component that does
+  not validate is refused. Every item of one adopt is checked before any is moved; should one still fail midway, the
+  refusal names what was already done (`--json`: `done`).
+
 ### Creating, checking and previewing components
 
 ```
@@ -477,7 +502,7 @@ params schema and defaults, preview samples, layout geometry inside the design s
 and compiles the entry with esbuild: syntax errors, imports other than react / remotion / the kit (named), misspelt
 named imports (`"remotion" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`), and
 non-deterministic or networked APIs — every message as `file:line:col`. Without an argument it validates every
-workspace component (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
+workspace component — and with `--project <slug>` the project's own too (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
 `resolve(ref, kind)`, `resolveTheme(template)`), `validateComponent(dir)`, `createComponent(root, {id, kind,
 description})`, `themeTokens(template, urls)` from `@retake/components`.
 

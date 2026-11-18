@@ -85,7 +85,7 @@ export async function loadReview(opts: ReviewOptions) {
   let registry: ComponentRegistry | undefined = typeof source === 'function' ? undefined : source;
   if (typeof source === 'function') {
     try {
-      registry = await source(project.root);
+      registry = await source(project.root, { projectDir: project.dir });
     } catch (e) {
       notes.push({ severity: 'info', code: 'registry-unavailable', message: `component registry not loaded (${errorMessage(e)}): text slot limits not checked` });
     }
