@@ -227,8 +227,12 @@ export function renderRecordRead<T extends object>(value: T, file: string): T {
  * written in). Nothing reads these paths back (the review's files are found from its folder).
  */
 export function reportOnDisk<T extends object>(result: T, at: RecordPlace): T {
-  const f = (p: string): string => pathOnDisk(p, at);
-  let out = result as T & Record<string, unknown>;
+  return reportPaths(result as T & Record<string, unknown>, (p) => pathOnDisk(p, at));
+}
+
+/** Every path of a review's result, mapped by `f`: the render's, the previous render's, its files and the diff sheet. */
+function reportPaths<T extends Record<string, unknown>>(result: T, f: (p: string) => string): T {
+  let out = result;
   out = withMember(out, 'render', (r) => (isPlain(r) ? mapped(r, ['file', 'record'], f) : r));
   out = withMember(out, 'diff', (d) => (isPlain(d) ? mapped(d, ['previous_file', 'sheet'], f) : d));
   out = withMember(out, 'files', (files) => {
@@ -244,5 +248,28 @@ export function reportOnDisk<T extends object>(result: T, at: RecordPlace): T {
     });
     return x;
   });
+  return out;
+}
+
+// ── The paths a record holds, as written ─────────────────────────────────────
+
+/** The kinds of record whose paths this module maps. */
+export type RecordKind = 'run' | 'render' | 'report';
+
+/**
+ * Every path a record holds as its file writes it (`''` left out), the members this module maps — run.json's `dir`
+ * and a render record's `record` included: what an import checks before it takes a record in (each one relative and
+ * inside its bound). A value that is no object holds none.
+ */
+export function writtenRecordPaths(kind: RecordKind, value: unknown): string[] {
+  if (!isPlain(value)) return [];
+  const out: string[] = [];
+  const f = (p: string): string => {
+    if (p !== '') out.push(p);
+    return p;
+  };
+  if (kind === 'run') mapped(runPaths(value, f), ['dir'], f);
+  else if (kind === 'render') mapped(renderPaths(value, f), ['record'], f);
+  else reportPaths(value, f);
   return out;
 }

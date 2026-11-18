@@ -31,6 +31,8 @@ they win.
 3. Pick the name with the user: lower-case letters, digits and `-`, never a starter's name, an existing folder's, or —
    for a project's theme — a workspace theme's. To give a project a workspace theme it already uses, copy it in:
    `project_adopt {project, themes: [name]}` (a copy; to move one, the user runs `retake project adopt` in their own terminal).
+   To hand the whole project over, its themes and components in it: `project_export {project}` (one ZIP in its
+   exports/); the user imports and trusts it in a terminal (`retake project import`, `retake project trust`).
 
 ## Entry A: brand files (preferred)
 

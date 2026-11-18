@@ -101,6 +101,7 @@ describe('retake mcp over stdio', () => {
       'project_env_remove',
       'project_prune',
       'project_adopt',
+      'project_export',
       'scenario_get',
       'scenario_validate',
       'scenario_save',
@@ -157,6 +158,7 @@ describe('retake mcp over stdio', () => {
           'project_env_remove',
           'project_prune',
           'project_adopt',
+          'project_export',
           'scenario_save',
           'page_inspect',
           'scenario_record',
@@ -488,7 +490,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(52);
+    expect(TOOLS).toHaveLength(53);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

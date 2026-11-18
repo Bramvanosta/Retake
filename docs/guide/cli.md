@@ -8,6 +8,9 @@ Every `retake` command and its flags. Part of the [Retake guide](README.md).
 retake new <slug> [--name N] [--theme T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too); --template: the old name of --theme
 retake list [--json]                                  # projects (with scenarios and their own themes) and themes
 retake project adopt <project> [--theme T]… [--component ID]… [--brand FILE]… [--copy] [--json]   # take workspace themes / components / brand files into the project (moves; --copy leaves them)
+retake project export <project> [--with-runs] [--out FILE|DIR] [--dry-run] [--json]   # the project in one ZIP (exports/<slug>-project-<stamp>.zip): its files, the workspace themes / components it uses, a manifest
+retake project import <archive> [--as SLUG] [--json]  # a project archive made a project here, untrusted: nothing of it runs until trusted
+retake project trust <project> [--list] [--discard] [--json]   # list what of an imported project runs, then trust it (a y/N at a terminal, always) or discard the import or discard the import
 retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
 retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--yes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)

@@ -6,10 +6,12 @@ import { validateCommand } from '../commands/validate.js';
 import { projectAdoptCommand } from '../commands/adopt.js';
 import type { AdoptOptions } from '../commands/adopt.js';
 import type { ValidateOptions } from '../commands/validate.js';
+import { projectExportCommand, projectImportCommand, projectTrustCommand } from '../commands/project-archive.js';
+import type { ProjectExportOptions, ProjectImportOptions, ProjectTrustOptions } from '../commands/project-archive.js';
 import { collect } from './context.js';
 import type { ProgramContext } from './context.js';
 
-/** The workspace and its projects: init, new, list, validate, project adopt. */
+/** The workspace and its projects: init, new, list, validate, project adopt / export / import / trust. */
 export function registerWorkspaceCommands({ program, action }: ProgramContext): void {
   program
     .command('init')
@@ -34,7 +36,9 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: { json?: boolean }) => listCommand(u, g, o)));
 
-  const project = program.command('project').description("a project's own library: themes, components and brand files taken from the workspace into the project folder");
+  const project = program
+    .command('project')
+    .description("a project's own library (themes, components and brand files taken from the workspace into the project folder), and a project in one ZIP: export, import, trust");
   project
     .command('adopt')
     .description(
@@ -47,6 +51,32 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .option('--copy', "copy: the workspace's stay where they are")
     .option('--json', 'machine-readable output')
     .action(action((u, g, slug: string, o: AdoptOptions) => projectAdoptCommand(u, g, slug, o)));
+  project
+    .command('export')
+    .description(
+      "write the project as one ZIP, a project archive (default: its exports/<slug>-project-<stamp>.zip): its files, its own themes and components and the workspace's it uses, a manifest; never .retake/, .env files, sessions, exports/ or key files",
+    )
+    .argument('<project>', 'project slug')
+    .option('--with-runs', 'also its runs, renders and reviews')
+    .option('--out <path>', 'the archive file, or a folder for it (never inside the project but its exports/)')
+    .option('--dry-run', 'say what would go in, write nothing')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, slug: string, o: ProjectExportOptions) => projectExportCommand(u, g, slug, o)));
+  project
+    .command('import')
+    .description('make a project archive a project of this workspace: imported untrusted, nothing of it runs until `retake project trust`')
+    .argument('<archive>', 'the .zip file retake project export wrote')
+    .option('--as <slug>', 'the project slug here (default: the one it was exported as)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, archive: string, o: ProjectImportOptions) => projectImportCommand(u, g, archive, o)));
+  project
+    .command('trust')
+    .description("list what of an imported project runs (its code files, what project.yaml asks of this machine), then trust it on a person's yes at a terminal — or discard the import")
+    .argument('<project>', 'project slug')
+    .option('--list', 'list only')
+    .option('--discard', 'set the folder of an import nobody trusted aside under .retake/imports/discarded/ and forget the import')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, slug: string, o: ProjectTrustOptions) => projectTrustCommand(u, g, slug, o)));
 
   program
     .command('validate')

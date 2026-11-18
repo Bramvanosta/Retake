@@ -25,7 +25,7 @@ export const RETAKE_REPOSITORY = 'https://github.com/Bramvanosta/Retake';
  * reads version 1. run.json stays version 1: its relative paths read in every version that reads it (they are only
  * ever joined to its folder).
  */
-export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 2 } as const;
+export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 2, project_archive: 1 } as const;
 
 /** A file's format, for the newer-version check: how messages name it and the highest version this Retake reads. */
 export interface FormatVersion {

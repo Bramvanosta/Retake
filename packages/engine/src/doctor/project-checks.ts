@@ -13,6 +13,7 @@ import type { WorkPolicy } from '@retake/core/policy';
 import { checkedText, loginCommandAt, projectPersonaStates, tildePath } from '../auth.js';
 import type { PersonaState, PersonaStateReads } from '../auth.js';
 import { formatMs } from '../format.js';
+import { importTrust } from '../project-archive/trust.js';
 import { openProject } from '../workspace.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { HOST_TIMEOUT_MS, agentJobsCheck } from './machine-checks.js';
@@ -57,6 +58,12 @@ export async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: 
   // while the sandbox runs, so neither gets a line of its own.
   const x: ProjectContext = { p, ws, project, slug, retake, loginCommand, ports, envNames, defaultEnv: defaultEnvOf(project, envNames), sandboxes: new Set(sandboxNames(project)) };
   const out: DoctorCheck[] = [{ status: 'ok', name: `Project ${slug}`, detail: project.dir }];
+  // An import not trusted: nothing of it is reached (no request to the hosts it names, no session or sandbox read).
+  const imported = await importTrust({ root: project.root, dir: project.dir, slug: project.slug }, p.env);
+  if (imported.state === 'untrusted') {
+    out.push({ status: 'warn', name: 'Imported project', detail: `not checked: imported, not trusted (${imported.why})`, hint: `retake project trust ${project.slug}, in a terminal, after reading its code files` });
+    return out;
+  }
   const browser = projectBrowserCheck(x);
   if (browser) out.push(browser);
   const profiles = await profileChecks(x);

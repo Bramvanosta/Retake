@@ -6,8 +6,8 @@
  * server, the jobs worker and its job processes) calls `productPorts`, which binds the product into the engine first.
  */
 import { fileURLToPath } from 'node:url';
-import { bindProduct as bindEngineProduct, enginePorts, productBound } from '@retake/engine/composition';
-import type { EnginePorts, Product, ProductAdapters, Secrets } from '@retake/engine/composition';
+import { bindProduct as bindEngineProduct, enginePorts, guardUntrusted, productBound } from '@retake/engine/composition';
+import type { EngineEnv, EnginePorts, Product, ProductAdapters, Secrets } from '@retake/engine/composition';
 import { editorRenderer } from './editor-renderer.js';
 import { components, editor } from './lazy.js';
 import { packageHookRunner } from './package-hooks.js';
@@ -16,16 +16,25 @@ import { packageSandboxes } from './package-sandboxes.js';
 import { packageReviewer } from './review-package.js';
 import { runnerWebCapture } from './runner-web-capture.js';
 
-/** The product's adapters of the package ports, the given ones kept: the sandboxes on the bag's secrets and hook runner. */
-export function productAdapters(given: Partial<EnginePorts>, secrets: Secrets): ProductAdapters {
+/**
+ * The product's adapters of the package ports, the given ones kept: the sandboxes on the bag's secrets and hook runner.
+ * The ones made here refuse an imported project not trusted on every member that runs its code (the engine's
+ * guardUntrusted, judged with `env`'s Retake home): a gate below the operations', whoever calls them.
+ */
+export function productAdapters(given: Partial<EnginePorts>, secrets: Secrets, env: EngineEnv = {}): ProductAdapters {
   const hooks = given.hooks ?? packageHookRunner();
+  const g = guardUntrusted(
+    { hooks, reviewer: packageReviewer(), capture: runnerWebCapture(), sandboxes: packageSandboxes(secrets, hooks), renderer: editorRenderer(), registries: packageRegistries() },
+    env,
+  );
+  // The ports handed are kept as they are (a test's, a root's own); only the ones made here are guarded.
   return {
-    hooks,
-    reviewer: given.reviewer ?? packageReviewer(),
-    capture: given.capture ?? runnerWebCapture(),
-    sandboxes: given.sandboxes ?? packageSandboxes(secrets, hooks),
-    renderer: given.renderer ?? editorRenderer(),
-    registries: given.registries ?? packageRegistries(),
+    hooks: given.hooks ?? g.hooks,
+    reviewer: given.reviewer ?? g.reviewer,
+    capture: given.capture ?? g.capture,
+    sandboxes: given.sandboxes ?? g.sandboxes,
+    renderer: given.renderer ?? g.renderer,
+    registries: given.registries ?? g.registries,
   };
 }
 

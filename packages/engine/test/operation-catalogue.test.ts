@@ -180,6 +180,8 @@ describe('the operation catalogue', () => {
       'CODE_RUNS',
       'EFFECTS',
       'SHELLS',
+      'UNTRUSTED_WRITES',
+      'allowedOnUntrusted',
       'annotationProblem',
       'catalogueOperation',
       'cliCommandsOf',
@@ -252,16 +254,17 @@ describe('the operation catalogue', () => {
     ]);
   });
 
-  it('counts 138 operations: 52 MCP tools, 84 Studio ops, 66 served by 57 CLI commands; 58 read, 65 write, 15 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    // project_adopt (MCP copies, `retake project adopt --copy`), project_adopt_move (`retake project adopt`), `retake theme list`.
-    expect(CATALOGUE).toHaveLength(138);
-    expect(servedNames('mcp')).toHaveLength(52);
+  it('counts 142 operations: 53 MCP tools, 84 Studio ops, 70 served by 60 CLI commands; 58 read, 68 write, 16 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    // project_adopt (MCP copies, `retake project adopt --copy`), project_adopt_move (`retake project adopt`), `retake theme list`;
+    // a project archive: project_export (MCP, `retake project export`), project_import, project_trust and project_trust_discard (CLI).
+    expect(CATALOGUE).toHaveLength(142);
+    expect(servedNames('mcp')).toHaveLength(53);
     expect(servedNames('studio')).toHaveLength(84);
-    expect(servedNames('cli')).toHaveLength(66);
-    expect(cliCommandsOf()).toHaveLength(57);
+    expect(servedNames('cli')).toHaveLength(70);
+    expect(cliCommandsOf()).toHaveLength(60);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 58, write: 65, destructive: 15 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 121, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 58, write: 68, destructive: 16 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 125, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect',
       'scenario_record',
@@ -309,13 +312,14 @@ describe('the operation catalogue', () => {
       'record_discard',
       'setup_cli_remove',
       'hooks_rollback',
+      'project_trust_discard',
       'sandbox_down',
       'tools_prune',
     ]);
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([6, 52, 80]);
+    expect([by(3), by(2), by(1)]).toEqual([6, 53, 83]);
   });
 
   it('links 18 use cases served under two names (nothing renamed), one name per shell, and names each', () => {

@@ -87,7 +87,8 @@ export type ProductAdapters = Pick<EnginePorts, 'hooks' | 'reviewer' | 'capture'
  */
 export interface Product {
   modules: AdapterModules;
-  adapters(given: Partial<EnginePorts>, secrets: Secrets): ProductAdapters;
+  /** `env`: the bag's environment (its Retake home judges an imported project's trust: the adapters' gate). */
+  adapters(given: Partial<EnginePorts>, secrets: Secrets, env: EngineEnv): ProductAdapters;
   workerEntry: string;
 }
 
@@ -134,7 +135,7 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
   // The one place the engine reads this process's environment (the import-rules ratchet's `env-read` check).
   const env = given.env ?? process.env;
   const secrets = given.secrets ?? systemSecrets(env);
-  const adapters: ProductAdapters = PRODUCT_PORTS.every((k) => given[k] !== undefined) ? (given as ProductAdapters) : boundProduct("the engine's ports").adapters(given, secrets);
+  const adapters: ProductAdapters = PRODUCT_PORTS.every((k) => given[k] !== undefined) ? (given as ProductAdapters) : boundProduct("the engine's ports").adapters(given, secrets, env);
   return {
     clock: given.clock ?? systemClock,
     stores: given.stores ?? diskProjectStores,

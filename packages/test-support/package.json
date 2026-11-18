@@ -28,6 +28,7 @@
     "./tools": "./src/tools.ts",
     "./timeline": "./src/timeline.ts",
     "./timing": "./src/timing.ts",
-    "./workspace": "./src/workspace.ts"
+    "./workspace": "./src/workspace.ts",
+    "./zip-craft": "./src/zip-craft.ts"
   }
 }

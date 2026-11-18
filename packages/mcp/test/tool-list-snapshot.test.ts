@@ -28,6 +28,6 @@ describe('the MCP tool list (snapshot)', () => {
     const text = toolListText();
     recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
-    expect(TOOLS).toHaveLength(52);
+    expect(TOOLS).toHaveLength(53);
   });
 });

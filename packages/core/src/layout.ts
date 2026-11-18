@@ -87,8 +87,16 @@ export const STATE_DIRS = {
   fonts: 'fonts',
   /** A workspace's: the themes (and brand files) `retake project adopt` moved into a project, set aside (`<stamp>-<what>-<name>/`). */
   adopted: 'adopted',
+  /** A workspace's: the marks of the projects imported from a project archive (`<slug>.json`: untrusted until a person trusts it). */
+  imports: 'imports',
 } as const;
 export type StateDir = keyof typeof STATE_DIRS;
+
+/**
+ * The file a project imported from a project archive holds in its own state folder (`<project>/.retake/import.json`):
+ * its import id, which the workspace's mark (`.retake/imports/<slug>.json`) must name too. Never archived.
+ */
+export const IMPORT_MARKER_FILE = 'import.json';
 
 /** `<project>/<folder>[/<rest>…]`: a folder of a project, or a path inside it. */
 export function projectPath(projectDir: string, dir: ProjectDir, ...rest: string[]): string {

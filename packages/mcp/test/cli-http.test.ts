@@ -2,7 +2,7 @@
  * `retake mcp --http` from the built entry point (`pnpm build` first; skipped without dist): `--print-config --http`
  * prints the HTTP registration (the URL; the stable token of the Retake home, 0600, only by reference — its file in
  * the `claude mcp add` line, $RETAKE_MCP_TOKEN in the .mcp.json block — never the token itself); `--http --port 0
- * --json` prints one JSON line, nothing on stderr, serves the 52 tools to the SDK's Streamable HTTP client holding that
+ * --json` prints one JSON line, nothing on stderr, serves the 53 tools to the SDK's Streamable HTTP client holding that
  * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error. --print-config --http says
  * stdio is the safe default; a fixed port held by a listener that is not a Retake MCP server is refused with the
  * rotate-token advice, one held by this account's own `retake mcp --http` keeps the port-busy answer (use it or stop it).
@@ -88,7 +88,7 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     expect(rotated.err).toContain('register the server again');
   });
 
-  it('--http --port 0 --json: one JSON line, nothing on stderr; the 52 tools over HTTP with the token; SIGTERM → exit 0', async () => {
+  it('--http --port 0 --json: one JSON line, nothing on stderr; the 53 tools over HTTP with the token; SIGTERM → exit 0', async () => {
     const s = retake(['--root', ws, 'mcp', '--http', '--port', '0', '--json']);
     const line = JSON.parse(await s.line) as { type: string; url: string; port: number; pid: number };
     expect(line).toMatchObject({ type: 'mcp-http', url: `http://127.0.0.1:${line.port}/mcp`, pid: s.child.pid });
@@ -96,7 +96,7 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
     const transport = new StreamableHTTPClientTransport(new URL(line.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } });
     await client.connect(transport);
-    expect((await client.listTools()).tools).toHaveLength(52);
+    expect((await client.listTools()).tools).toHaveLength(53);
     const r = await client.callTool({ name: 'project_list', arguments: {} });
     expect((r.structuredContent as { projects: Array<{ slug: string }> }).projects.map((p) => p.slug)).toEqual(['northfield-fixture']);
     await transport.terminateSession();

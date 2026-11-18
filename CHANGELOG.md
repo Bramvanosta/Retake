@@ -27,6 +27,9 @@ release — for the person about to click Install and Restart.
 - A project can hold its own components (`projects/<slug>/components/`), used before the workspace's and the
   built-in library; the Studio holds them until you allow them, and `retake project adopt --component` brings a
   workspace component into a project (L9.3).
+- `retake project export` writes a whole project to one ZIP file (themes and components it uses included, secrets
+  never), and `retake project import` installs it in another workspace; an imported project runs none of its code until
+  you review its code files and run `retake project trust` (L9.4).
 
 ### Changed
 - An up that would build with an empty build secret is refused before anything is built, naming the service, the

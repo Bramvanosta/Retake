@@ -9,6 +9,10 @@ import type { Engine } from './types.js';
 
 /** engine.projects. */
 import { adoptIntoProject } from '../project-adopt.js';
+import { fileSha256 } from '../project-archive/code-files.js';
+import { exportProjectArchive } from '../project-archive/export.js';
+import { importProjectArchive } from '../project-archive/import.js';
+import { discardImport, projectTrustView, trustImportedProject } from '../project-archive/trust-work.js';
 
 export function projectsApi(ctx: EngineContext): Engine['projects'] {
   const { opts, agent, ws, scope, project, studio, queue, boards, ports } = ctx;
@@ -59,6 +63,22 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
         scope,
         trust: scope.caller.trust,
         activeJobs: async () => (await queue.list({ states: ['queued', 'running'] })).map((j) => `${j.input.kind} ${j.id}`),
+        env: ports.env,
       }),
+    // A project archive (project-archive/): export by anyone (MCP: no runs, no --out), import and trust by a person only.
+    exportArchive: async (req, o = {}) =>
+      exportProjectArchive(ws, await project(req.project), req, { trust: scope.caller.trust, env: ports.env, now: new Date(ports.clock.now()), ...(o.onFile ? { onFile: o.onFile } : {}) }),
+    importArchive: async (file, o = {}) =>
+      importProjectArchive(ws, file, {
+        ...(o.as !== undefined ? { as: o.as } : {}),
+        trust: scope.caller.trust,
+        scope,
+        env: ports.env,
+        now: new Date(ports.clock.now()).toISOString(),
+        archiveSha256: await fileSha256(file),
+      }),
+    trustView: (slug) => projectTrustView(ws, slug, { trust: scope.caller.trust, env: ports.env }),
+    trust: (slug, listed) => trustImportedProject(ws, slug, listed, { trust: scope.caller.trust, env: ports.env, now: new Date(ports.clock.now()).toISOString() }),
+    discardImport: (slug) => discardImport(ws, slug, { trust: scope.caller.trust, env: ports.env, now: new Date(ports.clock.now()).toISOString(), scope }),
   };
 }
