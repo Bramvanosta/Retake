@@ -58,6 +58,12 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     )
     .argument('<project>', 'project slug')
     .option('--with-runs', 'also its runs, renders and reviews')
+    .option(
+      '--with-sandbox',
+      'also its sandboxes: the compose files sandbox.yaml names (copied in from outside the project, its paths rewritten) and the images the services run, saved by id (their sizes and platform said first); never a build context, a bind mount, a compose secret or the env file',
+    )
+    .option('--no-images', 'with --with-sandbox: the files only, no image (the importer builds or pulls them)')
+    .option('--with-env', "with --with-sandbox: the sandbox's env file too, with its values (asks first, naming it and its key count)")
     .option('--out <path>', 'the archive file, or a folder for it (never inside the project but its exports/)')
     .option('--dry-run', 'say what would go in, write nothing')
     .option('--json', 'machine-readable output')
@@ -74,7 +80,9 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .description("list what of an imported project runs (its code files, what project.yaml asks of this machine), then trust it on a person's yes at a terminal — or discard the import")
     .argument('<project>', 'project slug')
     .option('--list', 'list only')
-    .option('--discard', 'set the folder of an import nobody trusted aside under .retake/imports/discarded/ and forget the import')
+    .option('--discard', 'set the folder of an import nobody trusted aside under .retake/imports/discarded/, remove the images it extracted, and forget the import')
+    .option('--images', 'load the sandbox images a trusted import waits for (asks first)')
+    .option('--no-images', "trust without loading the sandbox's images (load them later with --images)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, slug: string, o: ProjectTrustOptions) => projectTrustCommand(u, g, slug, o)));
 

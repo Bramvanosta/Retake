@@ -41,6 +41,40 @@ const hex64 = z.string().regex(/^[0-9a-f]{64}$/);
 const importId = z.string().regex(/^[0-9a-f]{32}$/);
 const codeTable = z.record(z.string(), z.string());
 
+/** A name a share tag is made of (an environment, a service): validated before it is written into a mark or a tag. */
+export const SHARE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
+
+/**
+ * An image an import extracted from its archive (`<root>/.retake/imports/images/<slug>/<file>`), loaded only at trust:
+ * its id (checked against the tar and docker load's answer), the file's sha256 and bytes and its bytes once
+ * decompressed (`tar_bytes`) as measured at import, its platform and size as the archive says, the services that run
+ * it (with the image name the exporter's compose files gave them). Signed with the trust (trustedText).
+ */
+const MarkImageSchema = z.object({
+  id: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  file: z.string().regex(/^sha256-[0-9a-f]{64}\.tar\.gz$/),
+  sha256: hex64,
+  bytes: z.number().int().nonnegative(),
+  tar_bytes: z.number().int().nonnegative(),
+  platform: z.string().max(100),
+  size: z.number().int().nonnegative(),
+  uses: z.array(z.object({ env: z.string().regex(SHARE_NAME_RE), service: z.string().regex(SHARE_NAME_RE), name: z.string().max(300) })).max(1000),
+});
+export type MarkImage = z.infer<typeof MarkImageSchema>;
+
+/**
+ * What `retake project trust` loaded, signed with the home's key (loadedText): when each image was loaded, the sha256
+ * of each sandbox's compose override written, and the services whose image is neither carried nor on this machine.
+ */
+const LoadedSchema = z.object({
+  at: z.string(),
+  images: z.record(z.string().regex(/^sha256:[0-9a-f]{64}$/), z.string()),
+  overrides: z.record(z.string().regex(SHARE_NAME_RE), hex64),
+  missing: z.array(z.object({ env: z.string().regex(SHARE_NAME_RE), service: z.string().max(200), image: z.string().max(300), why: z.string().max(500) })).max(1000),
+  sig: hex64,
+});
+export type ImagesLoaded = Omit<z.infer<typeof LoadedSchema>, 'sig'>;
+
 /** The workspace's half of an import's mark. */
 const MarkSchema = z.object({
   v: z.literal(MARK_VERSION),
@@ -51,6 +85,11 @@ const MarkSchema = z.object({
   from_retake: z.string(),
   code_files: codeTable,
   trusted: z.object({ at: z.string(), files: codeTable, sig: hex64 }).optional(),
+  /** The sandbox's images the archive carried (signed with the trust), and what its manifest says of the sandbox (shown lines: never believed). */
+  images: z.array(MarkImageSchema).max(1000).optional(),
+  sandbox_notes: z.array(z.string().max(2000)).max(1000).optional(),
+  /** What trust loaded (its own signature). */
+  loaded: LoadedSchema.optional(),
 });
 export type ImportMark = z.infer<typeof MarkSchema>;
 
@@ -95,8 +134,30 @@ async function textOf(file: string): Promise<string | 'missing' | 'unreadable'> 
 }
 
 /** What the signature of a trust covers. */
-function trustedText(mark: Pick<ImportMark, 'slug' | 'import_id'>, at: string, files: Record<string, string>): string {
-  return canonicalJson({ v: MARK_VERSION, what: 'project-trust', slug: mark.slug, import_id: mark.import_id, at, files });
+function trustedText(mark: Pick<ImportMark, 'slug' | 'import_id' | 'images'>, at: string, files: Record<string, string>): string {
+  return canonicalJson({ v: MARK_VERSION, what: 'project-trust', slug: mark.slug, import_id: mark.import_id, at, files, images: mark.images ?? [] });
+}
+
+/** What the signature of a load covers. */
+function loadedText(mark: Pick<ImportMark, 'slug' | 'import_id'>, l: ImagesLoaded): string {
+  return canonicalJson({ v: MARK_VERSION, what: 'project-images', slug: mark.slug, import_id: mark.import_id, ...l });
+}
+
+/** The loaded stanza of a trusted mark when this home signed it; undefined otherwise (as if nothing was loaded). */
+export async function signedLoaded(mark: ImportMark, env: EngineEnv): Promise<ImagesLoaded | undefined> {
+  if (!mark.loaded) return undefined;
+  const { sig, ...l } = mark.loaded;
+  const key = await readHomeKey(homeKeyFile(env));
+  return homeSigned(key, loadedText(mark, l), sig) ? l : undefined;
+}
+
+/** Record what a load did, signed (the mark read afresh; refused when its trust no longer holds). */
+export async function writeLoaded(root: string, slug: string, l: ImagesLoaded, env: EngineEnv): Promise<void> {
+  const mark = await readImportMark(root, slug);
+  if (typeof mark !== 'object' || !mark.trusted || !(await signedTrust(mark, env)))
+    throw new EngineError('conflict', `the trust of ${showHiddenCharsLine(slug)} changed while its images loaded: nothing recorded`);
+  const key = await homeKey(homeKeyFile(env));
+  await writeWhole(importMarkFile(root, slug), `${JSON.stringify({ ...mark, loaded: { ...l, sig: homeSign(key, loadedText(mark, l)) } }, null, 2)}\n`);
 }
 
 /** The workspace's mark of `slug`, or `missing`, or `unreadable` (bad JSON, another shape, another slug). */
@@ -203,8 +264,14 @@ async function writeWhole(file: string, text: string): Promise<void> {
   }
 }
 
+/** Where an import keeps the images it extracted, until trust loads them: `<root>/.retake/imports/images/<slug>/`. */
+export function importImagesDir(root: string, slug: string): string {
+  importMarkFile(root, slug);
+  return statePath(root, 'imports', 'images', slug);
+}
+
 /** The workspace's mark of a new import (untrusted): written by the import before its folder is renamed into place. */
-export async function writeImportMark(root: string, mark: Omit<ImportMark, 'v' | 'trusted'>): Promise<void> {
+export async function writeImportMark(root: string, mark: Omit<ImportMark, 'v' | 'trusted' | 'loaded'>): Promise<void> {
   await writeWhole(importMarkFile(root, mark.slug), `${JSON.stringify({ v: MARK_VERSION, ...mark }, null, 2)}\n`);
 }
 
@@ -250,7 +317,14 @@ export async function untrustedCommandRefusal(
   if (ops.length && ops.every((o) => allowedOnUntrusted(o))) return undefined;
   const named = ws && PROJECT_SLUG_RE.test(projectArg) ? join(ws.projectsDir, projectArg) : resolve(projectArg);
   const real = await realpath(named).catch(() => undefined);
-  if (!real || !(await stat(real).then((st) => st.isDirectory(), () => false))) return undefined;
+  if (
+    !real ||
+    !(await stat(real).then(
+      (st) => st.isDirectory(),
+      () => false,
+    ))
+  )
+    return undefined;
   const slug = basename(real);
   if (!ws) {
     const marker = await readImportMarker(real);

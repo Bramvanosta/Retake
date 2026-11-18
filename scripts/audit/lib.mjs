@@ -621,7 +621,7 @@ export const CORE_CONTEXTS = [
     ],
   },
   { name: 'project', files: ['types/project', 'workspace', 'project', 'layout', 'checks/project', 'schemas/project', 'schemas/settings', 'project-env-edit', 'project-archive'] },
-  { name: 'sandbox', files: ['types/sandbox', 'sandbox', 'sandbox-error', 'checks/sandbox', 'checks/sandbox-files', 'checks/sandbox-accounts', 'checks/sandbox-steps', 'schemas/sandbox'] },
+  { name: 'sandbox', files: ['types/sandbox', 'sandbox', 'sandbox-error', 'compose-subset', 'checks/sandbox', 'checks/sandbox-files', 'checks/sandbox-accounts', 'checks/sandbox-steps', 'schemas/sandbox'] },
   {
     name: 'scenario',
     files: [

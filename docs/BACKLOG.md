@@ -2946,3 +2946,20 @@ Testing's terms allow shipping it in a public DMG (with BL-138).
 - **Embedding workspace brand inputs** (themes hold their copies) and rewriting a path theme (refused now: adopt it).
 - **Signing archives;** a compose project name collision warning at import.
 - **Doctor checks** of imported projects; an automated out-tier test of the whole round trip (done by hand).
+
+### BL-195 — The sandbox in a shared project: what L9.5 left
+*S–M each · from L9.5 (field feedback 2, point 32)*
+
+- **More of Compose:** the handed-over sandbox accepts only a documented subset of Compose (sandbox guide, "Handing
+  a sandbox over"); keys are added on demand, each with its refusal tests.
+- **The containerd image store** (the default for new Docker installs): saving with images and loading are refused
+  until it is supported and tested; Docker before 25 (another save layout) is refused at trust.
+- **Copying bind-mount sources** into the archive (today the importer is told where to put them); a service's own
+  `env_file`s through `--with-env`; `--with-sandbox <env>` for one environment.
+- **Pulling public images** on the importer's side instead of saving them; copying build contexts.
+- **Cleanup:** `retake prune` for abandoned imports' extracted images (today `project trust --discard`), removing
+  loaded `retake-share-*` images when the project is removed, an image listing in the Studio.
+- **Data:** Postgres snapshots or volume data in the archive; podman.
+- **MCP** `with_sandbox` through a queued job (decided: CLI only for now).
+- **A sandbox.yaml outside the project** (refused now); one `docker save` for images that share a platform; a doctor
+  minimum for Compose 2.24.

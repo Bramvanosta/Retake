@@ -181,7 +181,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | **done** (2026-11-18) |
 | L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | **done** (2026-11-18) |
 | L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | **done** (2026-11-18) |
-| L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | todo |
+| L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | **done** (2026-11-18) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1498,6 +1498,18 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   `retake project trust` at a terminal after the list of its code files (recomputed from the files, never the
   manifest); the mark has two halves sharing one import id and fails closed; `--discard` sets an import aside.
   The Studio shows a banner. Requirements R-SHR-30 – R-SHR-39; what is left: BL-194.
+
+### L9.5 — The sandbox in the export (M; decided 2026-11-17)
+- **Goal:** a shared project brings its sandbox along (point 32, the last of L9.1 – L9.5).
+- **Done (2026-11-18):** `retake project export --with-sandbox` (CLI only) carries the compose files sandbox.yaml
+  names, with its paths rewritten, and the images it uses saved by id (`docker save`, gzip, no tags; size and
+  platform said, disk estimated); env, secret and config files never, the sandbox's own `.env` only with `--with-env`
+  after a y/N (its key names in the manifest). A handed-over sandbox must fit a documented subset of Compose (an
+  allow-list read by Retake itself: binds only into the sandbox's `data/`, no privileged or host settings, no
+  includes, tags or merge keys), checked at export, import and trust. Import extracts the images and loads nothing;
+  `project trust` loads them after the yes from a fresh tar Retake writes itself, checks the loaded ids, restores any
+  tag that moved, tags them `retake-share-<slug>-…` and hands Compose a signed override (`build: !reset null`,
+  `pull_policy: never`) on stdin. Requirements R-SHR-40 – R-SHR-48; what is left: BL-195.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

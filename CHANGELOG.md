@@ -21,6 +21,9 @@ release — for the person about to click Install and Restart.
 - `retake project export` writes a whole project to one ZIP file (themes and components it uses included, secrets
   never), and `retake project import` installs it in another workspace; an imported project runs none of its code until
   you review its code files and run `retake project trust` (L9.4).
+- `retake project export --with-sandbox` brings the project's sandbox along: its compose files and its images, saved
+  and loaded only once you trust the project; a sandbox's env files are never included unless you ask with
+  `--with-env` (L9.5).
 
 ## [0.3.0] — 2026-11-16
 

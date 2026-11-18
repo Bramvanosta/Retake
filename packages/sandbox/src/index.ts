@@ -14,3 +14,4 @@ export { sandboxPaths } from './paths.js';
 export { probePort } from './ports.js';
 export type { ProcInfo } from './proc.js';
 export { initSandbox } from './init.js';
+export { createSandboxShare } from './share.js';

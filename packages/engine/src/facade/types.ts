@@ -39,6 +39,7 @@ import type { AdoptRequest, AdoptResult } from '../project-adopt.js';
 import type { ProjectExportRequest, ProjectExportResult } from '../project-archive/export.js';
 import type { ProjectImportResult } from '../project-archive/import.js';
 import type { ProjectTrustView } from '../project-archive/trust-work.js';
+import type { ImagesLoadResult } from '../project-archive/images-work.js';
 import type { ThemePreviewBuild, ThemePreviewRequest, ThemePreviewServe } from '../views/theme-preview.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ThemeCopied } from '../brand/copy.js';
@@ -283,13 +284,23 @@ export interface Engine {
      * A project in one ZIP, a project archive (project-archive/export.ts): its files, the workspace themes and components
      * it uses, a manifest. Through MCP without runs, into the project's exports/ only, at most 1 GB; `dryRun` plans.
      */
-    exportArchive(req: ProjectExportRequest, o?: { onFile?: (done: number, total: number) => void }): Promise<ProjectExportResult>;
+    exportArchive(
+      req: ProjectExportRequest,
+      o?: {
+        onFile?: (done: number, total: number) => void;
+        onImage?: (done: number, total: number) => void;
+        onImageBytes?: (n: number, total: number, bytes: number) => void;
+        beforeWrite?: (r: ProjectExportResult) => Promise<void>;
+      },
+    ): Promise<ProjectExportResult>;
     /** A project archive made a project of this workspace, untrusted (project-archive/import.ts): a person only. */
     importArchive(file: string, o?: { as?: string }): Promise<ProjectImportResult>;
     /** What of an imported project runs, as a person reads it before trusting it (project-archive/trust-work.ts): a person only. */
     trustView(project: string): Promise<ProjectTrustView>;
     /** Trust an imported project as listed (`listed`: the view read; refused when its code files changed since): a person only. */
     trust(project: string, listed: ProjectTrustView): Promise<ProjectTrustView>;
+    /** Load the sandbox images a trusted import waits for (project-archive/images-work.ts): a person only. */
+    loadImages(project: string, o?: { onProgress?: (line: string) => void }): Promise<ImagesLoadResult>;
     /** Set aside an import nobody trusted, and remove its mark: a person only. */
     discardImport(project: string): Promise<{ project: string; moved_to: string }>;
   };

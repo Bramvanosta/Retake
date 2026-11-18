@@ -438,9 +438,15 @@ export class Sandbox {
     const { snap } = opened;
     const from = plan.kind === 'from-base' ? 'base' : 'snapshot';
     const owner = recorded?.owner ?? (ctx.state.provider_state?.base as BaseState | undefined)?.owner;
-    ctx.progress?.step('snapshot', `outdated (${outdatedText(plan.why)}): restoring ${from === 'base' ? 'the base (the database before its first seed)' : 'the outdated snapshot'} of ${describeDatabase(snap.target)}`);
+    ctx.progress?.step(
+      'snapshot',
+      `outdated (${outdatedText(plan.why)}): restoring ${from === 'base' ? 'the base (the database before its first seed)' : 'the outdated snapshot'} of ${describeDatabase(snap.target)}`,
+    );
     const r = await snap.restore(owner, from);
-    ctx.log('info', `sandbox ${this.env}: snapshot outdated (${outdatedText(plan.why)}): ${from === 'base' ? 'base' : 'outdated snapshot'} of ${describeDatabase(snap.target)} restored in ${r.ms} ms before the seed`);
+    ctx.log(
+      'info',
+      `sandbox ${this.env}: snapshot outdated (${outdatedText(plan.why)}): ${from === 'base' ? 'base' : 'outdated snapshot'} of ${describeDatabase(snap.target)} restored in ${r.ms} ms before the seed`,
+    );
     const around = await this.provider.servicesAround(ctx, opened.service);
     const restarted = restartAfterRestore({ running: around.running, depends: around.depends, database: opened.service });
     for (const name of restarted) {
@@ -639,7 +645,11 @@ export class Sandbox {
       const storage = opts.volumes && this.strategy === 'snapshot' && this.provider.capabilities.snapshots ? await bestEffort(this.dataStorage(ctx), 'not known counts as kept', null) : null;
       const res = await this.provider.down(ctx, { volumes: opts.volumes });
       const kept = opts.volumes === true && this.strategy === 'snapshot' && this.provider.capabilities.snapshots && storage?.kind !== 'volume';
-      if (kept && res.dataGone) ctx.log('info', `sandbox ${this.env}: ${storage ? `its database's data is not in a volume of the sandbox (${storage.kind}${storage.where ? ` ${storage.where}` : ''})` : 'where its database keeps its data is not known (it was not running)'}: its seed is kept as recorded`);
+      if (kept && res.dataGone)
+        ctx.log(
+          'info',
+          `sandbox ${this.env}: ${storage ? `its database's data is not in a volume of the sandbox (${storage.kind}${storage.where ? ` ${storage.where}` : ''})` : 'where its database keeps its data is not known (it was not running)'}: its seed is kept as recorded`,
+        );
       // The data really went: nothing seeded, reset or used since (reset-plan.ts freshDatabase).
       if (res.dataGone && !kept && (ctx.state.seed || ctx.state.unseeded_at || (opts.volumes && ctx.state.last_reset))) {
         delete ctx.state.seed;

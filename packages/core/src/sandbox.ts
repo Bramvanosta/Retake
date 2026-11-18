@@ -8,7 +8,7 @@
  */
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isMap, isScalar, parseDocument } from 'yaml';
+import { isMap, isScalar, isSeq, parseDocument } from 'yaml';
 import { checkSandbox, composeEnvRef } from './checks/sandbox.js';
 export { composeEnvFilePath, composeEnvRef, envFileKeys, envFileValues } from './checks/sandbox.js';
 import { normalizeDisplay } from './display.js';
@@ -202,6 +202,40 @@ export function databasesFor(project: Pick<LoadedProject, 'config'>, env: string
 /** Where a project's databases are declared, for messages: "sandbox.yaml of sandbox X" or "project.yaml". */
 export function databasesSource(project: Pick<LoadedProject, 'config'>, env: string | undefined): string {
   return sandboxOf(project, env) ? `the sandbox.yaml of sandbox ${env}` : 'project.yaml';
+}
+
+/**
+ * sandbox.yaml's text with the paths of `compose.files` and `compose.env_file` replaced — `files[i]` for the i-th
+ * file, `envFile` for the env file: the copy a project archive holds of a sandbox whose compose files lay outside the
+ * project (engine project-archive). Only those scalars are rewritten, in place (the rest of the text — comments,
+ * line endings, flow or block lists, long lines — byte for byte); a new value keeps the old one's quoting when it can
+ * (plain, single or double quotes), else it is double-quoted. Throws when the text is not a YAML mapping, or a value
+ * to change is not a scalar that is there (the counts must match).
+ */
+export function rewriteSandboxCompose(text: string, change: { files?: readonly string[]; envFile?: string }): string {
+  const doc = parseDocument(text, { keepSourceTokens: true });
+  if (doc.errors.length) throw new Error(`sandbox.yaml cannot be read: ${doc.errors[0].message}`);
+  if (!isMap(doc.contents)) throw new Error('sandbox.yaml is not a mapping');
+  const edits: Array<{ from: number; to: number; value: string; style: string }> = [];
+  const at = (node: unknown, value: string, what: string) => {
+    if (!isScalar(node) || !node.range) throw new Error(`sandbox.yaml: ${what} is not a value this rewrite can change`);
+    edits.push({ from: node.range[0], to: node.range[1], value, style: String(node.type ?? 'PLAIN') });
+  };
+  if (change.files) {
+    const seq = doc.getIn(['compose', 'files'], true);
+    if (!isSeq(seq) || seq.items.length !== change.files.length) throw new Error('sandbox.yaml: compose.files does not list as many files as the rewrite gives');
+    change.files.forEach((f, i) => at(seq.items[i], f, `compose.files[${i}]`));
+  }
+  if (change.envFile !== undefined) at(doc.getIn(['compose', 'env_file'], true), change.envFile, 'compose.env_file');
+  let out = text;
+  for (const e of edits.sort((x, y) => y.from - x.from)) {
+    const plain = /^[A-Za-z0-9_./][A-Za-z0-9_./-]*$/.test(e.value);
+    const v = e.style === 'PLAIN' && plain ? e.value : e.style === 'QUOTE_SINGLE' && !e.value.includes("'") && !/[\r\n]/.test(e.value) ? `'${e.value}'` : JSON.stringify(e.value);
+    out = out.slice(0, e.from) + v + out.slice(e.to);
+  }
+  const again = parseDocument(out);
+  if (again.errors.length) throw new Error(`sandbox.yaml rewrite does not read back: ${again.errors[0].message}`);
+  return out;
 }
 
 /**

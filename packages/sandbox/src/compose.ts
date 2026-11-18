@@ -371,14 +371,21 @@ export class ComposeProvider extends ComposeRunner implements Provider {
         ...argv0,
         env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass),
         timeout: 10_000,
-        stdio: 'ignore',
+        cwd: exec.ref.dir,
+        ...(exec.ref.overrideText !== undefined ? { input: exec.ref.overrideText, stdio: ['pipe', 'ignore', 'ignore'] as const } : { stdio: 'ignore' as const }),
       });
     }
     const names = this.started;
     this.started = [];
     if (!names.length || !bin || bin.problem) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { ...argv0, env: dockerEnv(this.policy, process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], {
+      ...argv0,
+      env: dockerEnv(this.policy, process.env, ref.envKeys, ref.pass),
+      timeout: 10_000,
+      cwd: ref.dir,
+      ...(ref.overrideText !== undefined ? { input: ref.overrideText, stdio: ['pipe', 'ignore', 'ignore'] as const } : { stdio: 'ignore' as const }),
+    });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */

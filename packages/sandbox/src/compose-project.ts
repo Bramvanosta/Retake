@@ -31,6 +31,11 @@ export interface ComposeProjectRef {
   envKeys?: string[];
   /** project.yaml `pass_env:`: passed on to docker under the agent policy besides core childEnv's base. */
   pass?: string[];
+  /**
+   * The trust override's verified text (a trusted import whose archive carried its images): given to docker compose as
+   * `-f -` on its standard input — docker never reads a file that could be swapped after it was checked.
+   */
+  overrideText?: string;
 }
 
 /**
@@ -70,13 +75,21 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
   return c && typeof c.project === 'string' ? { project: c.project, dir: typeof c.dir === 'string' ? c.dir : '', ...(Array.isArray(c.previous) ? { previous: c.previous } : {}) } : undefined;
 }
 
-/** The compose project a sandbox runs as. */
+/**
+ * The compose project a sandbox runs as. The compose override `retake project trust` wrote for a trusted import's
+ * images (`sandbox.imagesOverride`: its text, read and checked by the engine's gate against the sha256 the signed mark
+ * records) comes last, as `-f -` (composeArgs; its text on docker's standard input) — only while that text still
+ * hashes to the sha256; otherwise it is left out (the gate refuses a start then, in words). No file is ever added: an
+ * override planted in a project's state is never read by docker.
+ */
 export function composeProject(
   project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> },
-  sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>,
+  sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest' | 'imagesOverride'>,
 ): ComposeProjectRef {
   const sandboxDir = realpathOr(sandbox.dir, resolve(sandbox.dir));
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(sandboxDir, f));
+  const o = sandbox.imagesOverride;
+  const overrideText = o && createHash('sha256').update(o.text).digest('hex') === o.sha256 ? o.text : undefined;
   const dir = realpathOr(dirname(files[0]), resolve(dirname(files[0])));
   const envFile = composeEnvFile({ dir: sandboxDir, manifest: sandbox.manifest });
   let envKeys: string[] = [];
@@ -95,6 +108,7 @@ export function composeProject(
     files,
     ...(envFile ? { envFile, envKeys } : {}),
     ...(pass?.length ? { pass: [...pass] } : {}),
+    ...(overrideText !== undefined ? { overrideText } : {}),
   };
 }
 
@@ -106,7 +120,18 @@ export function ownFolder(ref: ComposeProjectRef, dir: string): boolean {
 
 /** `compose --ansi never -p <name> --project-directory <dir> -f <file>… [--env-file <file>]`: the start of every compose call. */
 export function composeArgs(ref: ComposeProjectRef): string[] {
-  return ['compose', '--ansi', 'never', '-p', ref.name, '--project-directory', ref.dir, ...ref.files.flatMap((f) => ['-f', f]), ...(ref.envFile ? ['--env-file', ref.envFile] : [])];
+  return [
+    'compose',
+    '--ansi',
+    'never',
+    '-p',
+    ref.name,
+    '--project-directory',
+    ref.dir,
+    ...ref.files.flatMap((f) => ['-f', f]),
+    ...(ref.overrideText !== undefined ? ['-f', '-'] : []),
+    ...(ref.envFile ? ['--env-file', ref.envFile] : []),
+  ];
 }
 
 /** A program checked by the agent policy: the file to start, and the name to start it under when they differ. */

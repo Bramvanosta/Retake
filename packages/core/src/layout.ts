@@ -166,6 +166,18 @@ export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
   return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
 }
 
+/**
+ * The compose override `retake project trust` writes for a sandbox of an imported project whose archive carried its
+ * images: each service's image the `retake-share-*` tag given here, never built nor pulled. compose-project.ts adds it
+ * to the sandbox's compose files when it is there.
+ */
+export const SANDBOX_IMAGES_OVERRIDE = 'compose.retake-images.yaml';
+
+/** `<project>/.retake/sandbox/<env>/compose.retake-images.yaml` (SANDBOX_IMAGES_OVERRIDE). */
+export function sandboxImagesOverride(projectDir: string, env: string): string {
+  return join(sandboxPaths(projectDir, env).dir, SANDBOX_IMAGES_OVERRIDE);
+}
+
 /** A service's log file (the previous one is `<file>.1`). */
 export function serviceLog(paths: SandboxPaths, service: string): string {
   return join(paths.logs, `${service}.log`);
