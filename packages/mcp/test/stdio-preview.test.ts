@@ -182,6 +182,25 @@ describe.skipIf(!can)('retake mcp: themes and components', () => {
   });
 
   it(
+    "a project's own component: component_create {project} into projects/demo/components, listed as the project's, previewed with the project",
+    async () => {
+      const created = await call('component_create', { id: 'acme/proj-intro', kind: 'intro', description: 'The project intro.', project: 'demo' });
+      expect(created.isError, JSON.stringify(created)).toBeFalsy();
+      expect(created.structuredContent).toMatchObject({ id: 'acme/proj-intro', dir: join(root, 'projects', 'demo', 'components', 'acme', 'proj-intro') });
+      expect((await call('component_list', { kind: 'intro', project: 'demo' })).content[0].text).toContain('acme/proj-intro (intro, project');
+      expect((await call('component_list', { kind: 'intro' })).content[0].text).not.toContain('acme/proj-intro');
+      // The preview job reads the project's registry: its own component renders.
+      let r = await call('component_preview', { project: 'demo', component: 'acme/proj-intro', wait_s: 25 });
+      expect(r.isError, JSON.stringify(r)).toBeFalsy();
+      const jobId = (r.structuredContent as { job: { id: string } }).job.id;
+      for (let i = 0; i < 4 && !imagesOf(r).length; i++) r = await call('job_status', { job_id: jobId, wait_s: 25 });
+      expect(imagesOf(r)).toHaveLength(1);
+      expect(existsSync(join(root, 'projects', 'demo', 'components', 'acme', 'proj-intro', 'preview.png'))).toBe(false);
+    },
+    LONG,
+  );
+
+  it(
     'component_preview of a still running job answers queued/running and job_status follows it',
     async () => {
       const r = await call('component_preview', { project: 'demo', component: 'acme/intro-split', wait_s: 0 });

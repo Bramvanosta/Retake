@@ -35,6 +35,7 @@ import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
 import { zNewThemeName, zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { BRAND_BODY_FONTS_MAX, BrandInputSchema, BrandPatchSchema, HEX_COLOR_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS } from '@retake/core/theme';
+import type { ComponentSource } from '@retake/components/geometry';
 import type { ComponentKind } from '@retake/core/model';
 import type { ThemeCreated } from '../brand/create.js';
 import { FontFetchInputSchema } from '../brand/fontsource-fetch.js';
@@ -418,7 +419,7 @@ const SitesInput = z.strictObject({
  */
 export type ThemeListAnswer = ThemeEditList & {
   project: string;
-  components: Array<{ id: string; kind: ComponentKind; kinds?: ComponentKind[]; source: 'builtin' | 'workspace' }>;
+  components: Array<{ id: string; kind: ComponentKind; kinds?: ComponentKind[]; source: ComponentSource }>;
   scenarios: string[];
 };
 
@@ -450,7 +451,7 @@ export const themeList = defineOperation({
   annotations: READ,
   async run(a, { engine }) {
     const ws = engine.workspace;
-    const [themes, comps, p] = await Promise.all([engine.templates.editList(a.project), engine.components.list(), openProjectBySlug(ws, a.project)]);
+    const [themes, comps, p] = await Promise.all([engine.templates.editList(a.project), engine.components.list(undefined, { project: a.project }), openProjectBySlug(ws, a.project)]);
     const data: ThemeListAnswer = {
       project: a.project,
       ...pathFreeDeep(themes, ws.root),

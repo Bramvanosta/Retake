@@ -34,14 +34,15 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: { json?: boolean }) => listCommand(u, g, o)));
 
-  const project = program.command('project').description("a project's own library: themes and brand files taken from the workspace into the project folder");
+  const project = program.command('project').description("a project's own library: themes, components and brand files taken from the workspace into the project folder");
   project
     .command('adopt')
     .description(
-      "take workspace themes into the project's templates/ and brand files into its brand/, so the project folder alone carries its look; moves them (the workspace's set aside under .retake/adopted/), refused while another project uses a theme or a job is queued or running — --copy leaves the workspace's",
+      "take workspace themes into the project's templates/, workspace components into its components/ and brand files into its brand/, so the project folder alone carries its look; moves them (the workspace's set aside under .retake/adopted/), refused while another project uses a theme or component or a job is queued or running — --copy leaves the workspace's",
     )
     .argument('<project>', 'project slug')
     .option('--theme <name>', 'a workspace theme, by name (repeatable)', collect)
+    .option('--component <id>', 'a workspace component, by id "namespace/name" (repeatable)', collect)
     .option('--brand <path>', "a brand file (an image, a font, a token file) relative to the workspace root, e.g. brand/logo.svg (repeatable, one file each): into the project's brand/", collect)
     .option('--copy', "copy: the workspace's stay where they are")
     .option('--json', 'machine-readable output')

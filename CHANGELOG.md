@@ -15,6 +15,9 @@ release — for the person about to click Install and Restart.
 - A project can hold its own themes and brand files (`projects/<slug>/templates/`, `brand/`), used before the
   workspace's; lists say where each theme comes from, writers made from a project go into it, and
   `retake project adopt` (MCP `project_adopt`, copy only) brings workspace themes and brand files into a project (L9.2).
+- A project can hold its own components (`projects/<slug>/components/`), used before the workspace's and the
+  built-in library; the Studio holds them until you allow them, and `retake project adopt --component` brings a
+  workspace component into a project (L9.3).
 
 ## [0.3.0] — 2026-11-16
 

@@ -179,7 +179,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
 | L9.1 | Records with project-relative paths (field feedback 2, point 32): run, render and review records write the paths of the project's files relative to their own folder, older absolute records read where they now lie, render records at format version 2, MCP checks only the files each reader opens | M | **done** (2026-11-17) |
 | L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | **done** (2026-11-18) |
-| L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | todo |
+| L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | **done** (2026-11-18) |
 | L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | todo |
 | L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | todo |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
@@ -1472,6 +1472,18 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   moves (or `--copy` copies) themes and brand files into a project, refused while another project or a job uses them,
   under the theme's write lock, the old folder set aside in `.retake/adopted/`; MCP `project_adopt` copies themes only.
   Requirements R-SHR-10 – R-SHR-16; what is left: BL-193.
+
+### L9.3 — Components of a project (M; decided 2026-11-17)
+- **Goal:** a project folder carries its own components (`projects/<slug>/components/<ns>/<name>/`), the third of
+  L9.1 – L9.5 (point 32).
+- **Done (2026-11-18):** a component id resolves project → workspace → built-in library with a notice for each
+  override; every plan, render, review, preview and Studio view reads the project's registry (memo and view keys per
+  project); lists and the Library say the origin and what a component is used instead of; `component_create` /
+  `retake components create|preview --project` write into the project; a project's components are its code: held in
+  the Studio until the person allows them (`preview_allow {project}`, the callout names the origin), the player's
+  bundle per project; `retake project adopt --component` moves (or copies), checking every item before acting, and
+  `studio/` ids are refused; MCP `project_adopt {components}` copies. Requirements R-SHR-20 – R-SHR-25; what is left:
+  BL-193.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

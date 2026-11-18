@@ -516,8 +516,42 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   direction?: 'entering' | 'exiting';
 }
 
-/** Where a registered component comes from (resolution order: workspace → built-in → (V2) marketplace cache). */
-export type ComponentSource = 'workspace' | 'builtin';
+/**
+ * Where a registered component comes from (resolution order: the project's own `components/` → the workspace's →
+ * built-in → (V2) marketplace cache). A project's and a workspace's are the person's code (`isOwnComponent`).
+ */
+export type ComponentSource = 'project' | 'workspace' | 'builtin';
+
+/** Whether a component is the person's own code (a project's or the workspace's), not the built-in library's. */
+export function isOwnComponent(source: ComponentSource): boolean {
+  switch (source) {
+    case 'project':
+    case 'workspace':
+      return true;
+    case 'builtin':
+      return false;
+    default: {
+      const never: never = source;
+      return never;
+    }
+  }
+}
+
+/**
+ * What an own component hides, from its registry's override notices ("project component X overrides the workspace one
+ * / the built-in one", "workspace component X overrides the built-in one"): the first place further down the order
+ * holding its id, or undefined.
+ */
+export function componentOverride(
+  notices: ReadonlyArray<{ severity: string; message: string; source: ComponentSource; id?: string }>,
+  c: { source: ComponentSource; id: string },
+): 'workspace' | 'builtin' | undefined {
+  if (!isOwnComponent(c.source)) return undefined;
+  const said = notices.filter((n) => n.id === c.id && n.severity === 'warning' && n.source === c.source).map((n) => n.message);
+  if (said.some((m) => m.endsWith('overrides the workspace one'))) return 'workspace';
+  if (said.some((m) => m.endsWith('overrides the built-in one'))) return 'builtin';
+  return undefined;
+}
 
 /** A component known to the registry. */
 export interface ComponentInfo {

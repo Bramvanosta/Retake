@@ -35,7 +35,7 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
 import type { Palette } from '@retake/components/geometry';
-import { workspaceRegistry } from '../components.js';
+import { projectRegistry } from '../components.js';
 import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -535,7 +535,8 @@ async function buildThemeFolder(
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('internal', outside.join('; '));
         try {
-          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+          // A project's theme picks among the project's own components too.
+          (await projectRegistry(ws, target.project)).resolveTheme(loaded.template);
         } catch (e) {
           throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
         }

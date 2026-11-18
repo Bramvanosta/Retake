@@ -12,6 +12,7 @@
  * - Play / Pause (the GIF loop, then the poster again); Play of a loop not rendered → one library job (≤ 12 items) with
  *   the view's key; the "worker" writes it → the loop shows; Retry of a failed loop → `retry: true`;
  * - filters (kind, source, words); live re-read on the `workspace` event (a new component folder appears as a card);
+ *   a project's own component (projects/<slug>/components/) shows as Project, with a Project source filter;
  * - the detail: kit compatibility, slots, params, README as text; "Set as theme default" on the starter → copied first
  *   (theme_copy) then written (theme_edit), Undo → the copy's exact bytes; again on the copy (confirm), Undo exact;
  * - "Create with Claude": the prompt from checked names and the person's words, copied to the clipboard;
@@ -309,7 +310,7 @@ describe('the component library in Chromium', () => {
     expect(await page.getByTestId('lib-set-state').innerText()).toMatch(/the project still uses its own/);
     // The next step — the copy in the theme editor, where "Use in this scenario" lives.
     expect(await page.getByTestId('lib-set-next').getAttribute('href')).toBe(`#/p/${P}/themes/editorial-copy`);
-    const file = join(ws, 'templates', 'editorial-copy', 'template.yaml');
+    const file = join(ws, 'projects', P, 'templates', 'editorial-copy', 'template.yaml');
     const written = await readFile(file, 'utf8');
     expect(written).toMatch(/card: acme\/hostile/);
     await expect.poll(() => page.locator('[data-testid="lib-detail"] [data-testid="lib-default"]').count(), POLL).toBe(1);
@@ -382,18 +383,19 @@ describe('the component library in Chromium', () => {
     for (const l of [cta.locator('.k-card'), cta.getByTestId('lib-play'), page.getByTestId('lib-inspector-play'), page.getByTestId('lib-open'), page.getByTestId('lib-set-start')])
       expect((await l.boundingBox())!.height).toBeGreaterThanOrEqual(24);
     // A starter: the copy-first sheet; Escape cancels — nothing copied, nothing written.
-    const themesBefore = (await readdir(join(ws, 'templates'))).sort();
+    // A copy from a project's screen lands in the project's own templates/.
+    const themesBefore = (await readdir(join(ws, 'projects', P, 'templates')).catch(() => [] as string[])).sort();
     await page.getByTestId('lib-set-start').click();
     await page.locator('[data-testid="lib-set-copy"][open]').waitFor();
     expect(await page.getByTestId('lib-set-copy-yes').innerText()).toBe('Copy as editorial-copy-2 and set');
     await page.keyboard.press('Escape');
     await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
-    expect(await readFile(join(ws, 'templates', 'editorial-copy-2', 'template.yaml'), 'utf8').catch(() => null)).toBeNull();
-    expect((await readdir(join(ws, 'templates'))).sort()).toEqual(themesBefore);
+    expect(await readFile(join(ws, 'projects', P, 'templates', 'editorial-copy-2', 'template.yaml'), 'utf8').catch(() => null)).toBeNull();
+    expect((await readdir(join(ws, 'projects', P, 'templates')).catch(() => [] as string[])).sort()).toEqual(themesBefore);
     // On the editable copy: the confirm sheet holds the focus on "Set as default" — Return sets; Undo restores the bytes.
     await page.getByTestId('lib-theme').selectOption('editorial-copy');
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('editorial-copy');
-    const file = join(ws, 'templates', 'editorial-copy', 'template.yaml');
+    const file = join(ws, 'projects', P, 'templates', 'editorial-copy', 'template.yaml');
     const original = await readFile(file, 'utf8');
     await expect.poll(() => page.getByTestId('lib-inspector').innerText(), POLL).toMatch(/studio\/card-cta/);
     await page.getByTestId('lib-set-start').click();
@@ -447,7 +449,7 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.getByTestId('lib-set-state').innerText(), POLL).toMatch(/^Set the card component to acme\/hostile/);
     expect(await page.getByTestId('lib-set-state').innerText()).toMatch(/The copy motion-set is a new theme: the project still uses its own/);
     expect(await page.getByTestId('lib-set-next').getAttribute('href')).toBe(`#/p/${P}/themes/motion-set`);
-    const file = join(ws, 'templates', 'motion-set', 'template.yaml');
+    const file = join(ws, 'projects', P, 'templates', 'motion-set', 'template.yaml');
     expect(await readFile(file, 'utf8')).toMatch(/card: acme\/hostile/);
     await page.getByTestId('lib-set-undo').click();
     await expect.poll(() => page.getByTestId('lib-set-state').innerText(), POLL).toMatch(/^Undone: motion-set is back/);
@@ -698,5 +700,26 @@ describe('the component library in Chromium', () => {
     await page.reload();
     await expect.poll(() => page.getByTestId('lib-job-error').innerText(), POLL).toMatch(/^the disk has 300 MB free: library previews need at least 1 GB free/);
     expect(dialogs).toEqual([]);
+  });
+  it("a project's own component: its card says Project (live, from projects/<slug>/components/), the Source filter offers Project and narrows to it", async () => {
+    await page.goto(`${studio.url}#/p/${P}/library`);
+    await page.getByRole('heading', { level: 1, name: 'Components' }).waitFor();
+    expect(await page.getByRole('radio', { name: 'Project', exact: true }).count()).toBe(0);
+    const own = join(ws, 'projects', P, 'components', 'acme', 'own-card');
+    await mkdir(own, { recursive: true });
+    await cp(scaffoldDir('card'), own, { recursive: true });
+    await writeFile(join(own, 'component.yaml'), (await readFile(join(own, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/own-card').replace(/^name: .*$/m, 'name: Our own card'));
+    try {
+      await expect.poll(() => card('acme/own-card').count(), POLL).toBe(1);
+      expect(await card('acme/own-card').getByTestId('lib-source').innerText()).toBe('Project');
+      await page.getByRole('radio', { name: 'Project', exact: true }).check();
+      expect(await page.getByTestId('lib-card').evaluateAll((els) => els.map((e) => e.getAttribute('data-component')))).toEqual(['acme/own-card']);
+      await shot('library-project-component', 1280);
+      await page.getByRole('radio', { name: 'All', exact: true }).check();
+      expect(await card('acme/hostile').getByTestId('lib-source').innerText()).toBe('Workspace');
+      expect(consoleErrors).toEqual([]);
+    } finally {
+      await rm(join(ws, 'projects', P, 'components'), { recursive: true, force: true });
+    }
   });
 });

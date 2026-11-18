@@ -38,7 +38,7 @@ import type { z } from 'zod';
 import { buildUi } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
 import { Live } from './live.js';
-import { startPlayerServer } from './player.js';
+import { DEFAULT_SCOPE, startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
 import { indexOps, timelineOps } from './ops.js';
@@ -310,7 +310,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     player: playerNow,
     forbid,
     allow: previewAllow,
-    registry: () => engine.components.registry(),
+    // A project's registry (its own components first): what its preview bundles and holds.
+    registry: (project) => engine.components.registry(project !== undefined ? { project } : {}),
     leases,
     unsaved,
     desktop,
@@ -341,8 +342,9 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     counters.port = await listenLoopback(server, o.port ?? 0);
     player = await startPlayerServer({
       studioPort: counters.port,
-      // Built-in components, and the workspace components the person allowed (by content) in this session.
-      bundle: async () => bundles.get(await engine.components.registry(), (id, hash) => previewAllow.has(id, hash)),
+      // Built-in components, and the own components (the workspace's; a project scope's, its own too) the person allowed
+      // (by content) in this session — one bundle per project scope (DEFAULT_SCOPE: the workspace's registry).
+      bundle: async (scope) => bundles.get(await engine.components.registry(scope === DEFAULT_SCOPE ? {} : { project: scope }), (id, hash) => previewAllow.has(id, hash)),
       log,
       ...(o.playerPort ? { port: o.playerPort } : {}),
     });

@@ -31,7 +31,8 @@ export type Effect = (typeof EFFECTS)[number];
 
 /**
  * Whose code it may run in a process of Retake: `project` — the project's own commands (hooks, sandbox seed steps and
- * services); `workspace` — the workspace's components and themes, rendered (a render, a still, a component preview);
+ * services); `workspace` — the components and themes rendered (a render, a still, a component preview): the built-in
+ * ones, the workspace's and a project's own (`projects/<slug>/components/`: a project's components are its code too);
  * `none` — neither (a browser on the filmed site runs that site's code, a preview frame runs in the person's browser).
  */
 export const CODE_RUNS = ['none', 'project', 'workspace'] as const;

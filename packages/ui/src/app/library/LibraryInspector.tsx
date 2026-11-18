@@ -210,7 +210,7 @@ export function ComponentInspector({
         )}
         <p className="lb-insp-id">
           <Txt className="k-mono" text={item.component} />
-          <SourceTag source={item.source} />
+          <SourceTag source={item.source} overrides={item.overrides} />
           <DefaultTag item={item} />
         </p>
         <ComponentFacts item={item} d={d} />

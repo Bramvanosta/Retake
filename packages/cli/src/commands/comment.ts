@@ -231,7 +231,7 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, args: {
         renders: ws.outputs.renders,
         files: fileFacts(ws.policy),
         reads: ws.reads,
-        registry: () => ws.registries.load(ws.root),
+        registry: () => ws.registries.load(ws.root, { projectDir: project.dir }),
         seen: undefined,
       }),
     ),

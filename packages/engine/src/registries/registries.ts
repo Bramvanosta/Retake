@@ -8,7 +8,7 @@
  * the composition package's package-registries.ts) and an in-memory one for tests (`MemoryRegistries`, memory-registries.ts); one contract
  * (engine/test/registries-contract.ts).
  */
-import type { ComponentRegistry, ComponentValidation, CreateComponentOptions, CreatedComponent, PreviewStatus } from '@retake/components/geometry';
+import type { ComponentRegistry, ComponentValidation, CreateComponentOptions, CreatedComponent, PreviewStatus, RegistryScope } from '@retake/components/geometry';
 import { EngineError } from '../errors.js';
 
 /**
@@ -28,20 +28,22 @@ export interface ComponentCatalogue {
 
 export interface ComponentRegistries {
   /**
-   * The registry of the workspace at `root`, read now (a call reads the folders again: holding one is the caller's).
+   * The registry of the workspace at `root`, read now (a call reads the folders again: holding one is the caller's);
+   * with `o.projectDir`, a project's: its own `components/` first, then the workspace's, then the built-in library.
    * Rejects with the reader's own error when the workspace's settings cannot be read.
    */
-  load(root: string): Promise<ComponentRegistry>;
+  load(root: string, o?: RegistryScope): Promise<ComponentRegistry>;
   /** The catalogue's disk work (validate, scaffold, preview status, source files). */
   readonly catalogue: ComponentCatalogue;
 }
 
 /**
  * The loader a plan or a review is handed (components RegistrySource): the port's `load`, called by that work with the
- * root it works in, at the point it reads the registry — so a broken components folder is said where it always was.
+ * root it works in and the project it works for, at the point it reads the registry — so a broken components folder is
+ * said where it always was, and a project's own components come first.
  */
-export function registryLoader(registries: ComponentRegistries): (root: string) => Promise<ComponentRegistry> {
+export function registryLoader(registries: ComponentRegistries): (root: string, o?: RegistryScope) => Promise<ComponentRegistry> {
   // A caller outside the type checker that handed no port is refused here, before any work: never a load of the work's own.
   if (typeof (registries as Partial<ComponentRegistries> | undefined)?.load !== 'function') throw new EngineError('internal', 'no component registries were handed to the engine');
-  return (root) => registries.load(root);
+  return (root, o) => (o?.projectDir === undefined ? registries.load(root) : registries.load(root, { projectDir: o.projectDir }));
 }

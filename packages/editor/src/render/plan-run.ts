@@ -184,8 +184,9 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
     files: fileFacts(o.workPolicy),
   });
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
-  // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests.
-  const registry = await registryFrom(o.registry, root, 'plan');
+  // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests. The
+  // project's: its own components/ before the workspace's.
+  const registry = await registryFrom(o.registry, root, 'plan', project.dir);
   if (trust === 'mcp') {
     const problems = preReadProblems(project, timeline, video, { ...o, registry });
     if (problems.length) throw new PlanTrustError(problems);

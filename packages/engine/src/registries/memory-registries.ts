@@ -1,6 +1,7 @@
 /**
- * The ComponentRegistries port in memory (registries.ts), for tests: the registries it is given, by workspace root;
- * a root it was not given is refused (an Error naming it), as the package's reader refuses a workspace it cannot read.
+ * The ComponentRegistries port in memory (registries.ts), for tests: the registries it is given, by workspace root —
+ * and by project folder (a project's registry, `load(root, {projectDir})`: the one given for that folder, else the
+ * root's); a root it was not given is refused (an Error naming it), as the package's reader refuses a workspace it cannot read.
  * Every load is listed (`loads`), and the same registry object comes back each time (the package's reads the folders
  * again). Its catalogue answers what it was given by folder (`catalogue`: validations, preview states, source files);
  * a folder it was not given is no component (`validate`: not ok, one error), has no preview (`missing`) and no source
@@ -12,7 +13,7 @@
 import { join, resolve } from 'node:path';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import type { ComponentCatalogue, ComponentRegistries } from './registries.js';
-import type { ComponentManifest, ComponentRegistry, ComponentValidation, CreatedComponent, PreviewStatus } from '@retake/components/geometry';
+import type { ComponentManifest, ComponentRegistry, ComponentValidation, CreatedComponent, PreviewStatus, RegistryScope } from '@retake/components/geometry';
 
 /** What a MemoryRegistries' catalogue answers, by component folder. */
 export interface MemoryCatalogueSeed {
@@ -24,6 +25,8 @@ export interface MemoryCatalogueSeed {
 export class MemoryRegistries implements ComponentRegistries {
   /** The roots asked, in order (resolved). */
   readonly loads: string[] = [];
+  /** The project folders asked with them, in order (resolved; '' for a workspace's registry). */
+  readonly projects: string[] = [];
   /** The catalogue's calls, in order (`<member> <folder or root>`). */
   readonly asked: string[] = [];
   readonly #byRoot = new Map<string, ComponentRegistry>();
@@ -73,16 +76,18 @@ export class MemoryRegistries implements ComponentRegistries {
           await opts.write(join(dir, file), text);
           files.push(join(dir, file));
         }
-        const created: CreatedComponent = { manifest, dir, entry: join(dir, 'index.tsx'), source: 'workspace', files, issues: [] };
+        const created: CreatedComponent = { manifest, dir, entry: join(dir, 'index.tsx'), source: opts.source ?? 'workspace', files, issues: [] };
         return created;
       },
     };
   }
 
-  async load(root: string): Promise<ComponentRegistry> {
+  async load(root: string, o?: RegistryScope): Promise<ComponentRegistry> {
     const at = resolve(root);
     this.loads.push(at);
-    const registry = this.#byRoot.get(at);
+    const project = o?.projectDir === undefined ? '' : resolve(o.projectDir);
+    this.projects.push(project);
+    const registry = (project ? this.#byRoot.get(project) : undefined) ?? this.#byRoot.get(at);
     if (!registry) throw new Error(`no component registry for the workspace ${at} (not among the test's registries)`);
     return registry;
   }

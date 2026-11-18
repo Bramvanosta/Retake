@@ -19,6 +19,9 @@ export interface RegistriesCase {
   /** The folder of `component`, and a folder that is no component. */
   componentDir: string;
   notComponent: string;
+  /** A project folder whose components/ holds its own `component` (overriding the workspace's) and `projectOnly`. */
+  projectDir: string;
+  projectOnly: string;
 }
 
 let made = 0;
@@ -34,6 +37,17 @@ export function registriesContract(adapter: string, make: () => Promise<Registri
       expect(ids).toEqual([...ids].sort());
       expect(reg.list().some((i) => i.source === 'builtin')).toBe(true);
       expect(reg.list('card').map((i) => i.manifest.id)).toContain(c.component);
+    });
+
+    it("a project's registry: its own components first (source project), the workspace's beside them; the workspace's alone unchanged", async () => {
+      const c = await make();
+      const reg = await c.registries.load(c.root, { projectDir: c.projectDir });
+      expect(reg.get(c.component)).toMatchObject({ source: 'project', dir: join(c.projectDir, 'components', c.component) });
+      expect(reg.get(c.projectOnly).source).toBe('project');
+      expect(reg.list().some((i) => i.source === 'builtin')).toBe(true);
+      const ws = await c.registries.load(c.root);
+      expect(ws.get(c.component).source).toBe('workspace');
+      expect(ws.has(c.projectOnly)).toBe(false);
     });
 
     it('a component it does not hold is refused by the registry, not by the load', async () => {

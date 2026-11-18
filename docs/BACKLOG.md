@@ -2910,12 +2910,12 @@ browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium
 re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
 Testing's terms allow shipping it in a public DMG (with BL-138).
 
-### BL-193 — A project's themes and brand files: what L9.2 left
-*S–M each · from L9.2 (field feedback 2, point 32)*
+### BL-193 — A project's themes, brand files and components: what L9.2 and L9.3 left
+*S–M each · from L9.2 and L9.3 (field feedback 2, point 32)*
 
-- **`retake prune` and `.retake/adopted/`:** a move sets the workspace folder aside there; prune neither lists nor
+- **`retake prune` and `.retake/adopted/`:** a move (theme or component) sets the workspace folder aside there; prune neither lists nor
   removes it yet (removing it stays a person's act).
-- **The Studio:** an Adopt button (adopt is the CLI's `retake project adopt` and MCP `project_adopt`), a "save in the
+- **The Studio:** an Adopt button for themes and components (adopt is the CLI's `retake project adopt` and MCP `project_adopt`), a "save in the
   workspace" choice (a project's screen always makes a theme into that project), a brand-file upload.
 - **Undoing a move** by command; rewriting project.yaml or a theme's provenance after a move.
 - **Site extractions per project:** `site:` results stay workspace state (the created theme copies the logo);
@@ -2927,3 +2927,7 @@ Testing's terms allow shipping it in a public DMG (with BL-138).
 - **A move's in-flight check** is workspace-wide (any queued or running job refuses it), not per theme.
 - **Adopted renders beyond the hash budget:** an old render matches its moved theme by `template_sha256`; a theme too
   large for the hash budget has none, so its earlier renders read as another theme.
+- **Project components:** previews are not regenerated automatically (`retake components preview --all --stale
+  --project <slug>` by hand); doctor does not check them and validation takes one project at a time; a component
+  move's users are found by text in themes, project.yaml and scenarios, and other projects' older runs and renders
+  that name the folder are not counted; no `components diff` between a project's copy and the workspace's.

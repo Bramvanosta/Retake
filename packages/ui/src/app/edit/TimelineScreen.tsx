@@ -203,7 +203,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   // The status bar's Render (⌘B) renders the capture and the file this screen shows.
   useShownFile(slug, name, proposal ? null : (v.hash ?? null), v.run_id);
   const shownVersion = useShownVersion(v);
-  const { allowing, allowError, allow } = useAllow(setRestart, reload);
+  const { allowing, allowError, allow } = useAllow(slug, setRestart, reload);
   // Comment at the playhead — a render of the version shown (the same plan and theme files: its frame f is the
   // preview's frame f), the newest; without one the button is off, with why.
   const commentOn = renders.loaded.state === 'ready' ? renders.loaded.data.renders.find((x) => x.status === 'succeeded' && versionNote(x, shownVersion).same) : undefined;
@@ -292,14 +292,14 @@ function useShownVersion(v: Ready) {
   );
 }
 
-/** Workspace components the take uses that the preview does not run yet, and the Allow clicks. */
-function useAllow(setRestart: PreviewState['setRestart'], reload: () => void) {
+/** Own components (the workspace's, the project's) the take uses that the preview does not run yet, and the Allow clicks. */
+function useAllow(slug: string, setRestart: PreviewState['setRestart'], reload: () => void) {
   const [allowing, setAllowing] = useState<string | null>(null);
   const [allowError, setAllowError] = useState<string | null>(null);
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
     setAllowError(null);
-    previewAllow({ id: c.id, hash: c.hash })
+    previewAllow({ id: c.id, hash: c.hash, project: slug })
       .then(
         () => {
           // A new frame document: its bundle now holds the component.

@@ -247,7 +247,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       <p className="tm-status" role="status" aria-live="polite" data-tone={status?.tone ?? 'info'} data-testid="theme-status">
         {busy ? <Txt text={busy} /> : status ? <Txt text={status.text} /> : editable ? 'Each change is written at once (Undo takes it back).' : ''}
       </p>
-      <LivePreview target={target} setTarget={setTarget} answer={answer} previewError={previewError} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
+      <LivePreview slug={slug} target={target} setTarget={setTarget} answer={answer} previewError={previewError} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
       <UseInScenario slug={slug} theme={v.name} scenarios={scenarios} onChanged={reloadView} />
       <ShellSlot name="inspector" inline="Fields">
         <ThemeFields v={v} slug={slug} off={off} draft={draft} paper={paper} rippleFollows={rippleFollows} setRippleFollows={setRippleFollows} listed={listed} send={stableSend} setDraft={setDraft} />
@@ -258,6 +258,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
 
 /** The live preview section: the target control, then the frame, its progress or its error. */
 function LivePreview({
+  slug,
   target,
   setTarget,
   answer,
@@ -265,6 +266,7 @@ function LivePreview({
   drafting,
   onAgain,
 }: {
+  slug: string;
   target: PreviewTarget;
   setTarget: (t: PreviewTarget) => void;
   answer: ThemePreviewAnswer | null;
@@ -284,7 +286,7 @@ function LivePreview({
         </span>
       </div>
       {answer ? (
-        <LiveFrame v={answer} drafting={drafting} onAgain={onAgain} />
+        <LiveFrame slug={slug} v={answer} drafting={drafting} onAgain={onAgain} />
       ) : previewError ? null : (
         <p className="tm-quiet" role="status">
           Loading the preview…
@@ -371,7 +373,7 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
  * The frame of a theme_preview answer: the sandboxed Player loads the preview at its still's moment and settles
  * there; Play loops it (a toggle with one name). A workspace component it uses waits for Allow (preview_allow).
  */
-function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
+function LiveFrame({ slug, v, drafting, onAgain }: { slug: string; v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
   const urls = 'frame_url' in v ? previewUrls(v.frame_url, v.plan_url) : null;
   const f = useLiveFrameState('frame' in v ? v.frame : undefined, urls?.plan);
   const { state, setState, setRestart, setAllowing, setAllowError } = f;
@@ -379,7 +381,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
     setAllowError(null);
-    previewAllow({ id: c.id, hash: c.hash })
+    previewAllow({ id: c.id, hash: c.hash, project: slug })
       .then(
         () => {
           setRestart((n) => n + 1);

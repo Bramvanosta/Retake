@@ -13,6 +13,7 @@ Keep your material in a folder of your own: `retake init ~/demo-workspace` makes
   retake.yaml          # marks the workspace (all keys optional)
   projects/<slug>/     # one folder per product
     templates/<name>/  # the project's own themes (found first: see Themes, components and media)
+    components/<ns>/<name>/  # the project's own components (found first: retake components create --project)
     brand/             # the project's brand files (logos, fonts), looked for before the workspace's brand/
   templates/<name>/    # the workspace's themes (copy a starter from this repository's templates/ to begin)
   brand/               # brand files any project may take
@@ -335,8 +336,9 @@ absolute paths.
 - **What moves with the folder:** its scenarios, hooks, assets, comments, runs, renders, reviews and exports.
 - **What does not:** the workspace's themes and components (a render with a workspace theme still names that
   workspace's logo and fonts: absolute — take the theme into the project first: `retake project adopt <slug> --theme
-  <name>`, and its brand files with `--brand brand/…`; a project's own themes in `projects/<slug>/templates/` and brand
-  files in `projects/<slug>/brand/` move with it), the starter themes
+  <name>`, its components with `--component <id>` and its brand files with `--brand brand/…`; a project's own themes in
+  `projects/<slug>/templates/`, components in `projects/<slug>/components/` and brand files in `projects/<slug>/brand/`
+  move with it), the starter themes
   of the Retake that rendered (absolute: the review measures without a font it cannot find), `.retake/` state (job
   history, comment stills: machine-local), the manifests of `exports/` (absolute paths), and a render written with
   `--out` outside the project.

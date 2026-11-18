@@ -23,7 +23,7 @@ import type { LoadedProject } from '@retake/core/project';
 import type { LoadedTemplate, TemplateEntry, ThemeOrigin } from '@retake/core/theme';
 import type { NewThemeName, ThemeName } from '@retake/core/ids';
 import type { ComponentRegistry } from '@retake/components/geometry';
-import { workspaceRegistry } from './components.js';
+import { projectRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug } from './refs.js';
@@ -176,7 +176,8 @@ async function listedSummary(ws: OpenedWorkspace, e: TemplateEntry, reg: Compone
  */
 export async function templateList(ws: OpenedWorkspace, projectSlug?: string): Promise<TemplateListView> {
   const project = projectSlug !== undefined ? await openProjectBySlug(ws, checkProjectSlug(projectSlug)) : undefined;
-  const reg = await workspaceRegistry(ws);
+  // The project's registry: a theme's picks resolve as the project's renders resolve them (its own components first).
+  const reg = await projectRegistry(ws, project);
   const own = project?.config.template;
   const listed = await ws.reads.listTemplates(ws.root, project ? { projectDir: project.dir } : undefined);
   // The folder project.yaml names by its path, when it is one of the listed folders (the project's templates/<n>).
@@ -223,8 +224,9 @@ export async function templateGet(ws: OpenedWorkspace, o: { template?: string; p
   let shadows: TemplateSummary['shadows'];
   let byPath = false;
   let isDefault = false;
+  let project: LoadedProject | undefined;
   if (o.project !== undefined) {
-    const project = await openProjectBySlug(ws, checkProjectSlug(o.project));
+    project = await openProjectBySlug(ws, checkProjectSlug(o.project));
     t = await themeForWork(ws, project, o.template);
     const own = project.config.template;
     isDefault = o.template === undefined || o.template === own;
@@ -246,7 +248,7 @@ export async function templateGet(ws: OpenedWorkspace, o: { template?: string; p
     }
     source = (await ws.reads.listTemplates(ws.root)).find((e) => e.name === t.name)?.source ?? 'workspace';
   }
-  const reg = await workspaceRegistry(ws);
+  const reg = await projectRegistry(ws, project);
   const buf = await readFile(join(t.dir, TEMPLATE_FILE));
   const text = buf.toString('utf8');
   const resolved: TemplateDetail['resolved'] = {};

@@ -6,16 +6,18 @@
  *   them (in a copy) changes the hash;
  * - ⚑ the render bundler's guard (`bundledFileProblem`, applied by the `componentFilesGuard` webpack plugin) refuses a
  *   loaded file the hash skips (dot folder, node_modules, previews, dist, a preview artifact) and a file of the folders
- *   holding components that belongs to none (a planted node_modules there); the plugin turns each into a build error.
+ *   holding components that belongs to none (a planted node_modules there); the plugin turns each into a build error;
+ * - ⚑ a project's own component (`projects/<slug>/components/`) is guarded the same way, and the Studio's preview
+ *   holds it until the person allows it, as a workspace one.
  */
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import { checkComponentEntry, loadComponentRegistry, paramDefaults, scaffoldDir } from '@retake/components';
 import type { JsonSchemaNode } from '@retake/components';
-import { bundledFileProblem, componentFilesGuard, componentHashedFiles, scaffoldComponents } from '../src/render/bundle.js';
+import { bundledFileProblem, componentFilesGuard, componentHashedFiles, playerComponentSet, scaffoldComponents, workspaceComponents } from '../src/render/bundle.js';
 import { componentFolderHash } from '@retake/editor';
 import type { BundleComponent } from '@retake/editor';
 
@@ -127,5 +129,32 @@ describe('the content hash covers what the bundler loads', () => {
     componentFilesGuard(c).apply({ hooks: { compilation: { tap: (_: string, fn: (x: typeof compilation) => void) => fn(compilation) } } });
     tapped!([{ resource: join(dir, 'index.tsx') }, { resource: join(dir, '.impl', 'code.ts') }, {}, { resource: join(root, 'components', 'node_modules', 'x.js') }]);
     expect(compilation.errors.map((e) => e.message.slice(0, 40))).toEqual(['acme/crafted: import ".impl/code.ts" rea', 'the render bundle loaded node_modules/x.']);
+  });
+
+  it("⚑ a project's own component: guarded in its own folder, and held from the Studio's preview until allowed (by hash)", async () => {
+    const dir = join(root, 'projects', 'demo', 'components', 'acme', 'mine');
+    await mkdir(dirname(dir), { recursive: true });
+    await cp(join(root, 'components', 'acme', 'crafted'), dir, { recursive: true });
+    await writeFile(join(dir, 'component.yaml'), (await readFile(join(dir, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/mine'));
+    const registry = await loadComponentRegistry({ root, projectComponentsDir: join(root, 'projects', 'demo', 'components') });
+    expect(registry.get('acme/mine').source).toBe('project');
+    const c = [{ id: 'acme/mine', dir }];
+    expect(bundledFileProblem(join(dir, 'index.tsx'), c)).toBeUndefined();
+    expect(bundledFileProblem(join(dir, 'node_modules', 'x.js'), c)).toMatch(/^acme\/mine: import "node_modules\/x.js" reaches node_modules\//);
+    expect(bundledFileProblem(join(root, 'projects', 'demo', 'components', 'acme', 'node_modules', 'x.js'), c)).toMatch(/from the folder holding acme\/mine, but it belongs to no component/);
+    // The allow-list's own components: the workspace's and the project's, each by its folder's hash.
+    const own = await workspaceComponents(registry);
+    expect(own.map((x) => x.id).sort()).toEqual(['acme/crafted', 'acme/mine']);
+    // Each says where it comes from (the Allow callout words it so).
+    expect(own.map((x) => [x.id, x.source]).sort()).toEqual([
+      ['acme/crafted', 'workspace'],
+      ['acme/mine', 'project'],
+    ]);
+    const hash = own.find((x) => x.id === 'acme/mine')!.hash;
+    const held = await playerComponentSet(registry, () => false);
+    expect(held.held).toEqual(['acme/crafted', 'acme/mine']);
+    const allowed = await playerComponentSet(registry, (id, h) => id === 'acme/mine' && h === hash);
+    expect(allowed.held).toEqual(['acme/crafted']);
+    expect(allowed.components.map((x) => x.id)).toContain('acme/mine');
   });
 });
