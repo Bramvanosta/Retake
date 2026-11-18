@@ -120,7 +120,7 @@ describe('the update in the status bar and its sheet', () => {
     expect(await notes.innerText()).toBe(NOTES);
     expect(await notes.locator('b, img').count()).toBe(0);
     expect(await sheet(p).innerText()).toContain(
-      "You have v0.2.0. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts Retake.",
+      "You have v0.2.0. Install and Restart downloads the update and checks its signature, downloads and checks the Tools it needs, waits for this workspace's jobs to end, asks about unsaved text, then restarts Retake.",
     );
     // A named region (a <section> with a name) the keyboard reaches and scrolls.
     expect(await notes.evaluate((e) => [e.tagName, e.getAttribute('tabindex'), e.getAttribute('role'), e.getAttribute('aria-label')])).toEqual([
@@ -341,7 +341,7 @@ describe('the update in the status bar and its sheet', () => {
       .toBe('Download 152 MB of 370 MB · 41 %');
     expect(await bar().evaluate((b) => [b.getAttribute('aria-valuenow'), b.getAttribute('aria-valuemax'), b.getAttribute('aria-valuetext')])).toEqual(['41', '100', '152 MB of 370 MB · 41 %']);
     expect(await badge(p).innerText()).toBe('Downloading v0.2.1 · 41 %');
-    expect(await steps()).toEqual(['download:running', 'signature:next', 'jobs:next', 'install:next']);
+    expect(await steps()).toEqual(['download:running', 'signature:next', 'tools:next', 'jobs:next', 'install:next']);
     expect(await sheet(p).locator('.sh-update-step[aria-current="step"]').innerText()).toBe('Download the update\nrunning');
     expect(await sheet(p).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Close', 'Later']);
     await shot(p, 'update-sheet-downloading');
@@ -374,20 +374,31 @@ describe('the update in the status bar and its sheet', () => {
         POLL,
       )
       .toBe('Checking the signature\n\nRetake checks the update against the key it was built with.');
-    expect(await steps()).toEqual(['download:done', 'signature:running', 'jobs:next', 'install:next']);
+    expect(await steps()).toEqual(['download:done', 'signature:running', 'tools:next', 'jobs:next', 'install:next']);
     expect(await badge(p).innerText()).toBe('Checking v0.2.1…');
+    // The Tools the new version needs (the server downloads them before the restart).
+    shell({ type: 'update', state: 'preparing', current: '0.2.0', version: '0.2.1' });
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'tools:running', 'jobs:next', 'install:next']);
+    expect(await sheet(p).locator('[data-step="tools"] .sh-update-step-label').innerText()).toBe('Download the Tools it needs');
+    expect(await badge(p).innerText()).toBe('Downloading the Tools for v0.2.1…');
+    await shot(p, 'update-sheet-tools');
     // The jobs, then the quit.
     shell({ type: 'update', state: 'waiting', current: '0.2.0', version: '0.2.1', jobs: 1 });
-    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'jobs:running', 'install:next']);
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'tools:done', 'jobs:running', 'install:next']);
     expect(await sheet(p).locator('[data-step="jobs"] .sh-update-step-label').innerText()).toBe('Wait for a job of this workspace');
     expect(await sheet(p).getByTestId('update-download').count()).toBe(0);
     shell({ type: 'update', state: 'installing', current: '0.2.0', version: '0.2.1' });
-    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'jobs:done', 'install:running']);
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'tools:done', 'jobs:done', 'install:running']);
     // A failed download marks its step.
     shell({ type: 'update', state: 'failed', current: '0.2.0', failure: 'download', version: '0.2.1', checked: 1762000000, retry: true });
-    await expect.poll(steps, POLL).toEqual(['download:failed', 'signature:next', 'jobs:next', 'install:next']);
+    await expect.poll(steps, POLL).toEqual(['download:failed', 'signature:next', 'tools:next', 'jobs:next', 'install:next']);
     expect(await sheet(p).locator('[data-step="download"] .sh-update-step-state').innerText()).toBe('failed');
     await shot(p, 'update-sheet-download-failed');
+    // The Tools that did not download mark their step; Install and Restart stays live.
+    shell({ type: 'update', state: 'failed', current: '0.2.0', failure: 'tools', version: '0.2.1', checked: 1762000000, retry: true });
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'tools:failed', 'jobs:next', 'install:next']);
+    expect(await badge(p).innerText()).toBe('Update v0.2.1: its Tools did not download');
+    expect(await sheet(p).getByTestId('update-install').isEnabled()).toBe(true);
     // A failure that is no step's (the feed): no steps.
     shell({ type: 'update', state: 'failed', current: '0.2.0', failure: 'check', version: null, checked: 1762000000, retry: false });
     await expect.poll(() => sheet(p).getByTestId('update-steps').count(), POLL).toBe(0);

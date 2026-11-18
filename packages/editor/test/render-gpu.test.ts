@@ -4,8 +4,8 @@
  * - the default policy: ANGLE (Metal) + VideoToolbox — the record says so, no x264 in the file, a key frame every 2 s,
  *   SSIM ≥ 0.995 on every frame against the software render of the same plan (never bytes: the GPU is not
  *   frame-identical run to run);
- * - the VideoToolbox probe: the compositor's ffmpeg as Remotion spawns it, in place and from a relinked copy (the app
- *   bundle's layout), and its measured size limit;
+ * - the VideoToolbox probe: the compositor's ffmpeg as Remotion spawns it, in place and from an unmodified read-only
+ *   copy (the app's downloaded Tools' layout), and its measured size limit;
  * - an oversize render (scale 3) in a process with no handler of its own: libx264, said; VideoToolbox forced there
  *   breaks the encoder's pipe (EPIPE) — the process does not crash and the render falls back to software;
  * - no GPU found (an injected SystemInfo reply) and the GPU path failing (an injected failure): the browser that renders
@@ -210,7 +210,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   );
 
   it(
-    "the VideoToolbox probe: the compositor's ffmpeg as Remotion spawns it — in place and relinked as in the app — and its size limit",
+    "the VideoToolbox probe: the compositor's ffmpeg as Remotion spawns it — in place and from an unmodified, read-only copy as the app downloads it — and its size limit",
     async () => {
       resetVideotoolboxProbes();
       expect(await videotoolboxRenderWorks({ width: 1920, height: 1080, fps: 30 })).toEqual({ ok: true });
@@ -218,26 +218,26 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       const over = await videotoolboxRenderWorks({ width: 4104, height: 2304, fps: 30 });
       expect(over.ok).toBe(false);
       expect(over.error).toMatch(/-12903|compression session/);
-      // The app's layout (apps/desktop/scripts/bundle.mjs relinkCompositor): the dylibs found through @loader_path.
+      // The app's layout (BL-192): the npm package as published, extracted into <RETAKE_HOME>/tools/compositor-<version>
+      // and made read-only — no relink, no new signature; its dylibs are found through DYLD_LIBRARY_PATH (Remotion's
+      // `binariesDirectory`).
       const { RenderInternals } = await import('@remotion/renderer');
       const inPlace = dirname(RenderInternals.getExecutablePath({ type: 'ffmpeg', indent: false, logLevel: 'error', binariesDirectory: null }));
-      const copy = mkdtempSync(join(tmpdir(), 'retake-compositor-'));
+      const copy = join(mkdtempSync(join(tmpdir(), 'retake-compositor-')), 'compositor');
       try {
         cpSync(inPlace, copy, { recursive: true });
-        for (const f of readdirSync(copy).filter((x) => x === 'ffmpeg' || x.endsWith('.dylib'))) {
-          const file = join(copy, f);
-          const names = execFileSync('otool', ['-L', file], { encoding: 'utf8' })
-            .split('\n')
-            .slice(1)
-            .map((l) => l.trim().split(' (')[0])
-            .filter((n) => n && !n.includes('/'));
-          const args = [...(f.endsWith('.dylib') ? ['-id', `@loader_path/${f}`] : []), ...names.filter((n) => n !== f).flatMap((n) => ['-change', n, `@loader_path/${n}`])];
-          if (args.length) execFileSync('install_name_tool', [...args, file], { stdio: 'ignore' });
-          execFileSync('codesign', ['--force', '-s', '-', file], { stdio: 'ignore' });
-        }
+        // Unmodified: the ffmpeg still names its dylibs bare (a relinked copy names them through @loader_path).
+        const names = execFileSync('otool', ['-L', join(copy, 'ffmpeg')], { encoding: 'utf8' })
+          .split('\n')
+          .slice(1)
+          .map((l) => l.trim().split(' (')[0]);
+        expect(names.some((n) => n && !n.includes('/'))).toBe(true);
+        expect(names.some((n) => n?.startsWith('@loader_path/'))).toBe(false);
+        execFileSync('chmod', ['-R', 'a-w', copy]);
         expect(await videotoolboxRenderWorks({ width: 1920, height: 1080, fps: 30 }, { binariesDirectory: copy })).toEqual({ ok: true });
       } finally {
-        rmSync(copy, { recursive: true, force: true });
+        spawnSync('chmod', ['-R', 'u+w', dirname(copy)]);
+        rmSync(dirname(copy), { recursive: true, force: true });
       }
     },
     LONG,

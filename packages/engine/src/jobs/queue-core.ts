@@ -13,6 +13,10 @@
 import type { EngineEnv } from '../env.js';
 import { parseJobId } from '@retake/core/ids';
 import { JOB_STATES, JobInputSchema, isFilming, jobClass } from './job-input.js';
+import { NO_PROJECT_BROWSER, jobToolNeed } from '../tools/tool-need.js';
+import type { ProjectBrowser } from '../tools/tool-need.js';
+import type { BundleInfo, ToolNeed } from '@retake/core/io';
+import { toolsGate } from '../tools/gate.js';
 import type { JobId } from '@retake/core/ids';
 import type { JobInput } from './job-input.js';
 import { stampOf } from '../clock.js';
@@ -25,6 +29,7 @@ import { signApprovals } from './signing.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
+import type { ToolsGate } from './job-queue.js';
 import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobRangeRead, JobMark, JobPosition, JobQueue, RecordedBrowser, TakeHold, YieldMark } from './job-queue.js';
 import { bestEffort } from '@retake/core/base';
 import { storedJson } from '../stored-json.js';
@@ -109,6 +114,10 @@ function checkJobFile(name: string): string {
 export abstract class StoredJobQueue implements JobQueue {
   /** Ids whose record was read finished (final: never read again by takeHold). */
   private readonly finished = new Set<string>();
+  /** The app's Tools missing now (tools/gate.ts, read at most once a second): a queued job that needs one waits. A test's memory queue hands its own. */
+  protected tools: ToolsGate;
+  /** The `browser:` of this workspace's projects (tools/tool-need.ts; its engine hands the reader): a job whose project launches its own browser needs no Tool. */
+  protected browsers: ProjectBrowser = NO_PROJECT_BROWSER;
 
   protected constructor(
     readonly root: string,
@@ -118,7 +127,22 @@ export abstract class StoredJobQueue implements JobQueue {
     protected readonly clock: Clock,
     /** The environment its composition root read (env.ts): the Retake home whose key signs the approvals, the captures folder. */
     protected readonly env: EngineEnv,
-  ) {}
+  ) {
+    this.tools = toolsGate(env);
+  }
+
+  useTools(o: { app?: BundleInfo | null; browsers?: ProjectBrowser }): void {
+    if (o.app !== undefined) {
+      const app = o.app;
+      this.tools = toolsGate(this.env, () => app);
+    }
+    if (o.browsers) this.browsers = o.browsers;
+  }
+
+  /** What a job needs of the Tools while `missing` are missing (tool-need.ts: its kind's, or none for a project's own browser). */
+  toolNeed(rec: { kind: string; input: unknown }, missing: ReadonlySet<ToolNeed>): Promise<ToolNeed | null> {
+    return jobToolNeed(rec, missing, this.browsers);
+  }
 
   /** A filming marker of this user that holds heavy work (`here`: its workspace is this one), else undefined. */
   protected abstract filming(): Promise<TakeHold>;
@@ -194,9 +218,15 @@ export abstract class StoredJobQueue implements JobQueue {
         if (!(await isAlive(claim))) return interrupted(rec, this.cli, `the worker (pid ${claim.pid}) stopped right after taking the job, before it started`);
       } else if (cancelAt) {
         return { ...rec, state: 'cancelled', finished_at: cancelAt, error: { code: 'cancelled', message: 'cancelled before it started' }, derived: true };
-      } else if (heavy) {
-        const cause = await (opts.hold ?? (() => this.takeHold()))();
-        if (cause) rec.yield = { state: 'waiting', cause };
+      } else {
+        // a job whose Tool is not downloaded yet waits for it, whatever its class (it is not picked: pick.ts).
+        const missing = (opts.tools ?? this.tools)();
+        const needs = missing.size ? await this.toolNeed(rec, missing) : null;
+        if (needs && missing.has(needs)) rec.yield = { state: 'waiting', cause: 'tools', needs };
+        else if (heavy) {
+          const cause = await (opts.hold ?? (() => this.takeHold()))();
+          if (cause) rec.yield = { state: 'waiting', cause };
+        }
       }
     } else if (rec.state === 'running') {
       if (!rec.worker || !(await isAlive(rec.worker))) {
@@ -248,13 +278,22 @@ export abstract class StoredJobQueue implements JobQueue {
     for (const id of await this.ids()) {
       if (this.finished.has(id)) continue;
       const s = await bestEffort(this.stored(id), 'a job removed meanwhile reads as gone');
-      if (s?.state === 'queued' && isFilming(s.input) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
+      // A take that waits for the browser films nothing yet: it holds no heavy work (pick.ts skips it too).
+      if (s?.state === 'queued' && isFilming(s.input) && !(await this.heldByTools(s)) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
     }
     return this.filming();
   }
 
   ids(): Promise<string[]> {
     return this.entries.ids();
+  }
+
+  /** Does a queued job wait for the Tools now (its need missing)? */
+  private async heldByTools(rec: JobRecord): Promise<boolean> {
+    const missing = this.tools();
+    if (!missing.size) return false;
+    const need = await this.toolNeed(rec, missing);
+    return need !== null && missing.has(need);
   }
 
   async list(f: JobFilter = {}): Promise<JobRecord[]> {
@@ -270,7 +309,7 @@ export abstract class StoredJobQueue implements JobQueue {
       if (f.kinds && !f.kinds.includes(stored.kind)) continue;
       if (f.runId !== undefined && !(stored.input.kind === 'run' && stored.input.run_id === f.runId)) continue;
       if (f.renderId !== undefined && !('render_id' in stored.input && stored.input.render_id === f.renderId)) continue;
-      const rec = await this.derive(stored, { hold: once });
+      const rec = await this.derive(stored, { hold: once, ...(f.tools ? { tools: f.tools } : {}) });
       if (f.states && !f.states.includes(rec.state)) continue;
       out.push(rec);
     }
@@ -417,12 +456,14 @@ export abstract class StoredJobQueue implements JobQueue {
       else recs.push(rec);
     }
     if (mine?.state !== 'queued') return undefined;
+    if (mine.yield?.cause === 'tools') return { ahead: 0, held_by: 'tools', ...(mine.yield.needs ? { needs: mine.yield.needs } : {}) };
     const lane = jobClass(mine.kind);
     for (const rec of recs) {
       if (jobClass(rec.kind) !== lane) continue;
       if (rec.state === 'running') running = rec.id;
-      // Captures go before every heavy job whatever their age; within a lane, the oldest first.
-      else if (rec.state === 'queued' && rec.id < id) ahead++;
+      // Captures go before every heavy job whatever their age; within a lane, the oldest first — not one that waits
+      // for the Tools (it is skipped: pick.ts).
+      else if (rec.state === 'queued' && rec.id < id && rec.yield?.cause !== 'tools') ahead++;
     }
     const held = lane === 'heavy' && (await once()) !== undefined;
     return { ahead: ahead + (running ? 1 : 0), ...(running ? { running } : {}), ...(held ? { held_by: 'take' as const } : {}) };

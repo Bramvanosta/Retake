@@ -12,6 +12,7 @@ import {
   captureEncoderCheck,
   chromiumCheck,
   chromiumSandboxCheck,
+  compositorCheck,
   displayCheck,
   dockerCheck,
   gpuCheck,
@@ -21,6 +22,7 @@ import {
   renderBrowserCheck,
   rendersCheck,
   secretsCheck,
+  toolsCheck,
   unsafeTestResolveCheck,
   npmTestRegistryCheck,
 } from './machine-checks.js';
@@ -45,12 +47,16 @@ export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, po
   const bundle = appBundleCheck(probes);
   if (bundle) out.push(bundle);
   out.push(...appChecks(probes, now));
+  const tools = toolsCheck(probes);
+  if (tools) out.push(tools);
   const chromium = await probes.chromium(ws.browser, ws.policy);
-  out.push(chromiumCheck(chromium, ws.browser, probes.bundle));
+  out.push(chromiumCheck(chromium, ws.browser, probes.bundle, probes.tools?.()));
   const sandbox = chromiumSandboxCheck(chromium);
   if (sandbox) out.push(sandbox);
   const render = await renderBrowserCheck(probes);
   if (render) out.push(render);
+  const compositor = compositorCheck(probes);
+  if (compositor) out.push(compositor);
   const gpu = gpuCheck(chromium, ws.browser);
   if (gpu) out.push(gpu);
   if (probes.renders) out.push(rendersCheck(await probes.renders(ws.policy)));

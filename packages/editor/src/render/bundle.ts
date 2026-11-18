@@ -53,6 +53,12 @@ export function withCspMeta(html: string): string {
 }
 /** Cached bundles kept per workspace (most recently used first). */
 export const BUNDLE_CACHE_KEEP = 6;
+/**
+ * A bundle used this recently (its bundle.json touched by the render that made or reused it) is never pruned, whatever
+ * BUNDLE_CACHE_KEEP says: a render in flight in another process (the jobs worker, a Studio preview, another workspace
+ * sharing the cache) serves its files that long. Removing it under that render failed it with nothing written.
+ */
+export const BUNDLE_IN_USE_MS = 3600_000;
 
 /** packages/editor (this module lives in src/render or dist/render). */
 export const EDITOR_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
@@ -367,8 +373,11 @@ async function isComplete(dir: string): Promise<boolean> {
   return existsSync(join(dir, 'bundle.json')) && existsSync(join(dir, 'bundle', 'index.html'));
 }
 
-/** Keep the BUNDLE_CACHE_KEEP most recently used bundles; drop abandoned temporary folders older than an hour. */
-async function pruneCache(cacheDir: string, keep: string): Promise<void> {
+/**
+ * Keep the BUNDLE_CACHE_KEEP most recently used bundles, and every one used within BUNDLE_IN_USE_MS (a render may still
+ * serve it); drop abandoned temporary folders older than an hour. Exported for its test (bundle-cache.test.ts).
+ */
+export async function pruneBundleCache(cacheDir: string, keep: string, now = Date.now()): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(cacheDir);
@@ -381,14 +390,14 @@ async function pruneCache(cacheDir: string, keep: string): Promise<void> {
     const dir = join(cacheDir, name);
     if (name.includes('.tmp-')) {
       const st = await stat(dir).catch(() => null);
-      if (st && Date.now() - st.mtimeMs > 3600_000) await rm(dir, { recursive: true, force: true });
+      if (st && now - st.mtimeMs > 3600_000) await rm(dir, { recursive: true, force: true });
       continue;
     }
     const st = await stat(join(dir, 'bundle.json')).catch(() => null);
     done.push({ dir, t: st?.mtimeMs ?? 0 });
   }
   done.sort((a, b) => b.t - a.t);
-  for (const d of done.slice(BUNDLE_CACHE_KEEP)) if (d.dir !== keep) await rm(d.dir, { recursive: true, force: true });
+  for (const d of done.slice(BUNDLE_CACHE_KEEP)) if (d.dir !== keep && now - d.t > BUNDLE_IN_USE_MS) await rm(d.dir, { recursive: true, force: true });
 }
 
 function abortError(): Error {
@@ -529,7 +538,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
       await rm(tmp, { recursive: true, force: true });
       if (!(await isComplete(dir))) throw e;
     }
-    await pruneCache(cacheDir, dir);
+    await pruneBundleCache(cacheDir, dir);
     if (opts.signal?.aborted) throw abortError();
     return { serveUrl: join(dir, 'bundle'), dir, hash, cached: false, ms, components: ids };
   } catch (e) {

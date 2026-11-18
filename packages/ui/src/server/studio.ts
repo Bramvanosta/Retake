@@ -50,6 +50,8 @@ import { UnsavedBoard, unsavedOps } from './unsaved.js';
 import { DesktopPipe, desktopOps } from './desktop.js';
 import { SetupState, setupOps, systemSetupContext } from './setup-ops.js';
 import { UpdateState, updateOps } from './update-ops.js';
+import { ToolsServerState, toolsOps } from './tools-ops.js';
+import { UpdateTools } from './update-tools.js';
 import { studioPorts } from './ports.js';
 import type { SetupContext } from './setup-ops.js';
 import { UI_OPS, handleRequest, replies } from './studio-requests.js';
@@ -84,6 +86,8 @@ export interface StudioServerOptions {
   playerPort?: number;
   /** Tests: what the setup ops read from the machine (default: the machine itself, systemSetupContext). */
   setup?: () => SetupContext;
+  /** Tests: the app and the download the engine's Tools use (a fake bundle, an injected fetch; default this app's, the system's). */
+  tools?: Parameters<typeof createEngine>[0]['tools'];
 }
 
 export interface StudioServer {
@@ -125,6 +129,8 @@ export interface StudioServer {
   setup: { state: SetupState; context(): SetupContext; pipe: DesktopPipe };
   /** The desktop app's update state, as its shell said it (desktop_update_status). */
   update: UpdateState;
+  /** The app's Tools as this server knows them (the install it runs, the last check). */
+  tools: ToolsServerState;
   /**
    * `f` runs after each op that succeeded and is not read-only (NO_NUDGE excepted): the supervised server's job
    * watch polls at once (a Studio submit shows in the desktop shell without waiting). Returns the unsubscribe.
@@ -172,6 +178,8 @@ export interface StudioToolDeps {
   updateState: UpdateState;
   setupContext: () => SetupContext;
   workspace: string;
+  engine: () => Engine;
+  toolsState: ToolsServerState;
 }
 
 /** The ops of one Studio server: the engine's operations of the allow-list and the Studio's own ops, each by name (uiTools). */
@@ -190,6 +198,7 @@ function ownOps(d: StudioToolDeps) {
     ...desktopOps(d.desktop),
     ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
     ...updateOps({ pipe: d.desktop, state: d.updateState }),
+    ...toolsOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace, engine: d.engine, tools: d.toolsState }),
   ] as const;
 }
 
@@ -221,7 +230,17 @@ async function studioEngine(o: StudioServerOptions): Promise<Engine> {
     workerEnv: studioWorkerEnv(process.env, root, process.execPath, undefined, folders),
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
+    ...(o.tools ? { tools: o.tools } : {}),
   });
+}
+
+/** The Studio's open in the app: a worker for the queued jobs it can claim (engine.tools.wake; never throws). */
+function wakeAtOpen(engine: Engine): void {
+  try {
+    if (engine.tools.status().available) void engine.tools.wake().catch(() => undefined);
+  } catch {
+    /* the Tools' status is said by the set-up sheet and doctor */
+  }
 }
 
 /** The parts the StudioServer handle exposes beside its counters. */
@@ -233,7 +252,7 @@ interface ServerParts {
   token: string;
   started: PlayerServer;
   writeListeners: Set<() => void>;
-  rest: Pick<StudioServer, 'bundles' | 'previewAllow' | 'live' | 'runLive' | 'unsaved' | 'desktop' | 'setup' | 'update' | 'engine'>;
+  rest: Pick<StudioServer, 'bundles' | 'previewAllow' | 'live' | 'runLive' | 'unsaved' | 'desktop' | 'setup' | 'update' | 'tools' | 'engine'>;
 }
 
 function serverHandle(p: ServerParts): StudioServer {
@@ -267,13 +286,15 @@ function serverHandle(p: ServerParts): StudioServer {
     desktop: p.rest.desktop,
     setup: p.rest.setup,
     update: p.rest.update,
+    tools: p.rest.tools,
     onWrite: (f) => {
       writeListeners.add(f);
       return () => writeListeners.delete(f);
     },
     engine: p.rest.engine,
     close: () =>
-      (closed ??= (runLive.close(), Promise.all([live.close(), started.close()])).then(
+      // A download of the Tools pauses (what arrived is kept); an update's Tools are kept for the restart.
+      (closed ??= (runLive.close(), p.rest.update.tools?.stop(), Promise.all([live.close(), started.close(), p.rest.tools.stop()])).then(
         () =>
           new Promise<void>((resolve) => {
             server.close(() => resolve());
@@ -304,6 +325,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const desktop = new DesktopPipe();
   const setupState = new SetupState();
   const updateState = new UpdateState();
+  updateState.tools = new UpdateTools({ engine: () => engine, pipe: desktop });
+  const toolsState = new ToolsServerState();
   const setupContext = o.setup ?? (() => systemSetupContext());
   const tools = studioTools({
     live,
@@ -318,6 +341,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     updateState,
     setupContext,
     workspace: engine.workspace.root,
+    engine: () => engine,
+    toolsState,
   });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
@@ -353,6 +378,11 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     throw e;
   }
   frameSrc = player.origin;
-  const rest = { bundles, previewAllow, live, runLive, unsaved, desktop, setup: { state: setupState, context: setupContext, pipe: desktop }, update: updateState, engine };
+  // The app's start: once every Tool is ready, it is recorded and older Tools are pruned (never a download).
+  void engine.tools.started().catch((e: unknown) => log(`retake ui: the Tools' start record failed: ${e instanceof Error ? e.message.split('\n')[0] : 'error'}`));
+  // In the app, jobs left queued that it can claim (their Tools installed by another process while no worker ran):
+  // the worker starts. The Studio's own engine only — never a terminal's or an MCP client's; never in a checkout.
+  if (o.startWorker !== false) wakeAtOpen(engine);
+  const rest = { bundles, previewAllow, live, runLive, unsaved, desktop, setup: { state: setupState, context: setupContext, pipe: desktop }, update: updateState, tools: toolsState, engine };
   return serverHandle({ server, url: `http://127.0.0.1:${counters.port}/`, codes, counters, token, started: player, writeListeners, rest });
 }

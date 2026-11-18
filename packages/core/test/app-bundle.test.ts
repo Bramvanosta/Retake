@@ -3,7 +3,7 @@
  * write guard, prepareBundle's browsers path that never leaks into the person's processes, and the H.264 fallback.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,7 @@ import {
   assertOutsideBundle,
   findBundle,
   h264CodecArgs,
+  homeFolder,
   h264Encoder,
   insideBundle,
   loadProject,
@@ -30,6 +31,8 @@ import {
   resolveMediaTools,
   retakeHome,
   starterTemplatesDir,
+  toolsBrowsersDir,
+  toolsFolder,
 } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 
@@ -42,21 +45,22 @@ afterEach(() => {
 
 let n = 0;
 /** A fake bundle: <root>/bundle.json + the folders it names (+ an engine module file to discover it from). */
-function fakeBundle(opts: { paths?: Record<string, unknown>; app?: boolean } = {}): { root: string; module: string } {
+function fakeBundle(opts: { paths?: Record<string, unknown>; app?: boolean; v?: number } = {}): { root: string; module: string } {
   const base = join(tmp, `b${n++}`);
   const root = opts.app ? join(base, 'Retake.app', 'Contents', 'Resources') : base;
-  for (const d of ['node/bin', 'engine/node_modules/@retake/core/dist/io', 'browsers', 'ffmpeg/bin', 'engine/templates', 'plugin']) mkdirSync(join(root, d), { recursive: true });
+  for (const d of ['node/bin', 'engine/node_modules/@retake/core/dist/io', 'ffmpeg/bin', 'engine/templates', 'plugin']) mkdirSync(join(root, d), { recursive: true });
   const module = join(root, 'engine/node_modules/@retake/core/dist/io/bundle.js');
   writeFileSync(module, '');
-  const paths = { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: 'ffmpeg/bin', templates: 'engine/templates', plugin: 'plugin', ...opts.paths };
+  const paths = { node: 'node/bin/node', engine: 'engine', ffmpeg: 'ffmpeg/bin', templates: 'engine/templates', plugin: 'plugin', ...opts.paths };
   writeFileSync(
     join(root, 'bundle.json'),
     JSON.stringify({
-      v: 1,
+      v: opts.v ?? 2,
       app: '0.2.0',
       node: '22.16.0',
-      playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' },
+      playwright: { core: '1.65.1' },
       compositor: '4.0.534',
+      tools: [],
       ffmpeg: null,
       minimum_macos: '15.0',
       paths,
@@ -71,7 +75,8 @@ describe('bundle discovery and the manifest', () => {
     const info = findBundle(b.module);
     expect(info?.root).toBe(b.root);
     expect(info?.sealed).toBe(b.root);
-    expect(info?.paths.browsers).toBe(join(b.root, 'browsers'));
+    expect(info?.paths.plugin).toBe(join(b.root, 'plugin'));
+    expect(info?.paths).not.toHaveProperty('browsers');
     expect(findBundle(join(REPO, 'packages', 'core', 'src', 'io', 'bundle.ts'))).toBeNull();
   });
 
@@ -83,7 +88,7 @@ describe('bundle discovery and the manifest', () => {
   });
 
   it('a stray bundle.json whose engine is elsewhere is ignored', () => {
-    const b = fakeBundle({ paths: { engine: 'browsers' } });
+    const b = fakeBundle({ paths: { engine: 'plugin' } });
     expect(findBundle(b.module)).toBeNull();
   });
 
@@ -96,11 +101,11 @@ describe('bundle discovery and the manifest', () => {
     writeFileSync(
       join(outer, 'bundle.json'),
       JSON.stringify({
-        v: 1,
+        v: 2,
+        tools: [],
         paths: {
           node: rel(join(b.root, 'node/bin/node')),
           engine: rel(join(b.root, 'engine')),
-          browsers: rel(join(b.root, 'browsers')),
           ffmpeg: null,
           templates: rel(join(b.root, 'engine/templates')),
           plugin: rel(join(b.root, 'plugin')),
@@ -188,8 +193,8 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
   });
 
   it('paths leaving the bundle are refused (.., absolute, a link out)', () => {
-    expect(() => readBundleManifest(fakeBundle({ paths: { browsers: '../elsewhere' } }).root)).toThrow(/leaves the bundle/);
-    expect(() => readBundleManifest(fakeBundle({ paths: { browsers: '/opt/browsers' } }).root)).toThrow(BundleError);
+    expect(() => readBundleManifest(fakeBundle({ paths: { templates: '../elsewhere' } }).root)).toThrow(/leaves the bundle/);
+    expect(() => readBundleManifest(fakeBundle({ paths: { templates: '/opt/templates' } }).root)).toThrow(BundleError);
     const b = fakeBundle({ paths: { plugin: 'out' } });
     symlinkSync(tmp, join(b.root, 'out'));
     expect(() => readBundleManifest(b.root)).toThrow(/paths\.plugin \(out\) leaves the bundle/);
@@ -324,14 +329,31 @@ describe('nothing writes inside the bundle', () => {
   });
 });
 
-describe('prepareBundle: the browsers path for playwright-core only', () => {
+describe('bundle.json version 2 (the Tools are downloaded, no browsers in the app)', () => {
+  it('a version 1 manifest (paths.browsers) is refused, and so is one without its tools list', () => {
+    expect(() => readBundleManifest(fakeBundle({ v: 1 }).root)).toThrow(/is not a version 2 bundle manifest/);
+    const b = fakeBundle();
+    const file = join(b.root, 'bundle.json');
+    writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), tools: undefined }));
+    expect(() => readBundleManifest(b.root)).toThrow(/is not a version 2 bundle manifest/);
+  });
+
+  it("the home copy bundle.ts keeps (homeFolder) is retakeHome's rule: $RETAKE_HOME trimmed, ~ expanded, made absolute, else ~/.retake", () => {
+    const cases: NodeJS.ProcessEnv[] = [{}, { RETAKE_HOME: '' }, { RETAKE_HOME: '   ' }, { RETAKE_HOME: join(tmp, 'h1') }, { RETAKE_HOME: `  ${join(tmp, 'h2')}  ` }, { RETAKE_HOME: '~/scratch-home' }, { RETAKE_HOME: '~' }, { RETAKE_HOME: 'relative/home' }];
+    for (const env of cases) expect(homeFolder(env), JSON.stringify(env)).toBe(retakeHome(env));
+    expect(toolsFolder({ RETAKE_HOME: join(tmp, 'h1') })).toBe(join(tmp, 'h1', 'tools'));
+    expect(toolsBrowsersDir({ RETAKE_HOME: join(tmp, 'h1') })).toBe(join(tmp, 'h1', 'tools', 'browsers'));
+  });
+});
+
+describe("prepareBundle: the Tools' browsers path for playwright-core only", () => {
   const bundle = readBundleManifest(fakeBundle().root);
 
-  it('set while playwright-core loads, then the inherited value is back (absent or set)', () => {
-    const env: NodeJS.ProcessEnv = {};
+  it('set while playwright-core loads (<RETAKE_HOME>/tools/browsers), then the inherited value is back (absent or set)', () => {
+    const env: NodeJS.ProcessEnv = { RETAKE_HOME: join(tmp, 'home-pb') };
     let during: string | undefined;
     prepareBundle(env, bundle, () => (during = env.PLAYWRIGHT_BROWSERS_PATH));
-    expect(during).toBe(bundle.paths.browsers);
+    expect(during).toBe(join(tmp, 'home-pb', 'tools', 'browsers'));
     expect('PLAYWRIGHT_BROWSERS_PATH' in env).toBe(false);
     const mine = { PLAYWRIGHT_BROWSERS_PATH: '/my/browsers' };
     prepareBundle(mine, bundle, () => {
@@ -343,7 +365,7 @@ describe('prepareBundle: the browsers path for playwright-core only', () => {
     expect(called).toBe(false);
   });
 
-  it("real playwright-core keeps the bundle's browsers; the process's children never see the variable", () => {
+  it("real playwright-core keeps the Tools' browsers (under the home); the process's children never see the variable", () => {
     // A fake stage whose engine links the repository's playwright-core and holds core's built bundle.js (pnpm build).
     const b = fakeBundle();
     const pw = realpathSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core'));
@@ -361,12 +383,13 @@ const child = spawnSync('/usr/bin/env', { encoding: 'utf8' }).stdout;
 console.log(JSON.stringify({ exe: chromium.executablePath(), env: process.env.PLAYWRIGHT_BROWSERS_PATH ?? null, child: child.split('\\n').filter((l) => l.startsWith('PLAYWRIGHT_BROWSERS_PATH=')) }));
 `,
     );
+    const home = join(tmp, `home${n++}`);
     for (const inherited of [undefined, '/person/ms-playwright']) {
-      const env = { PATH: '/usr/bin:/bin', HOME: tmp, ...(inherited ? { PLAYWRIGHT_BROWSERS_PATH: inherited } : {}) };
+      const env = { PATH: '/usr/bin:/bin', HOME: tmp, RETAKE_HOME: home, ...(inherited ? { PLAYWRIGHT_BROWSERS_PATH: inherited } : {}) };
       const r = spawnSync(process.execPath, [script], { encoding: 'utf8', env });
       expect(r.status, r.stderr).toBe(0);
       const out = JSON.parse(r.stdout) as { exe: string; env: string | null; child: string[] };
-      expect(out.exe.startsWith(join(b.root, 'browsers', 'chromium-'))).toBe(true);
+      expect(out.exe.startsWith(join(home, 'tools', 'browsers', 'chromium-'))).toBe(true);
       expect(out.env).toBe(inherited ?? null);
       expect(out.child).toEqual(inherited ? [`PLAYWRIGHT_BROWSERS_PATH=${inherited}`] : []);
     }

@@ -25,6 +25,7 @@ import { inspectApi, recordApi } from './facade/record-api.js';
 import { exportsApi, rendersApi, reviewsApi, timelineApi } from './facade/renders-api.js';
 import { runsApi } from './facade/runs-api.js';
 import { scenariosApi } from './facade/scenarios-api.js';
+import { toolsApi } from './facade/tools-api.js';
 import type { Engine, EngineOptions } from './facade/types.js';
 
 export { ENGINE_API_VERSION } from './facade/info.js';
@@ -92,6 +93,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     folder: (root) => ports.stores.folder(root),
     comments: commentsApi(ctx),
     sandbox: sandboxApi(ctx),
+    tools: toolsApi(ctx),
   };
   // Who drives this engine: the context's frozen caller, a read-only member (not writable, not configurable); and its
   // clock (the Clock port its composition root chose), read-only the same way.

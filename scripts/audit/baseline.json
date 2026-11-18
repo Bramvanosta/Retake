@@ -97,12 +97,13 @@
   },
   {
    "rule": "shell-op",
-   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12; 19 since desktop_menu, 2026-11-15): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
+   "reason": "The Studio's own ops (18 in 6 files on 2026-11-12; 19 since desktop_menu, 2026-11-15; 25 since the app's Tools, 2026-11-17: they hold the set-up gate, the download this server runs and its last check): every use case the engine serves is its operation now; these hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe) and stay here.",
    "entries": [
     "packages/ui/src/server/desktop.ts → 2 operations defined",
     "packages/ui/src/server/ops.ts → 5 operations defined",
     "packages/ui/src/server/setup-ops.ts → 8 operations defined",
     "packages/ui/src/server/theme-ops.ts → 1 operation defined",
+    "packages/ui/src/server/tools-ops.ts → 6 operations defined",
     "packages/ui/src/server/unsaved.ts → 1 operation defined",
     "packages/ui/src/server/update-ops.ts → 2 operations defined"
    ]
@@ -126,9 +127,10 @@
   },
   {
    "rule": "layout",
-   "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
+   "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there), and the app bundle's first module's copy of the Retake home (core io bundle.ts homeFolder: it imports node: builtins only, pinned against retakeHome by a test).",
    "entries": [
     "packages/core/src/agent-policy.ts → 10 hand-written layout paths",
+    "packages/core/src/io/bundle.ts → 1 hand-written layout path",
     "packages/core/src/project.ts → 10 hand-written layout paths",
     "packages/core/src/schemas/timeline.ts → 2 hand-written layout paths",
     "packages/engine/src/catalogue.ts → 3 hand-written layout paths",

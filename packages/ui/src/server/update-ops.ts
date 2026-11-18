@@ -23,13 +23,14 @@ import { defineTool } from '@retake/engine/contract';
 import type { ToolOutput } from '@retake/engine/contract';
 import type { DesktopPipe } from './desktop.js';
 import { hasHidden } from '@retake/core/base';
+import type { UpdateTools, UpdateToolsView } from './update-tools.js';
 
-export const UPDATE_STATES = ['off', 'idle', 'updated', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
+export const UPDATE_STATES = ['off', 'idle', 'updated', 'checking', 'available', 'downloading', 'preparing', 'waiting', 'installing', 'failed'] as const;
 export type UpdateStateName = (typeof UPDATE_STATES)[number];
 /** Why the app does not update itself (update_flow Off::wire). */
 export const UPDATE_OFF_REASONS = ['build', 'disabled', 'translocated', 'read_only'] as const;
 /** What went wrong (update_flow Failure::wire). */
-export const UPDATE_FAILURES = ['check', 'download', 'install', 'not_writable'] as const;
+export const UPDATE_FAILURES = ['check', 'download', 'install', 'not_writable', 'tools'] as const;
 /** The sheet's clicks (pipe.rs UpdateAction). */
 export const UPDATE_ACTIONS = ['install', 'later'] as const;
 /** The longest notes the shell sends (update_flow NOTES_MAX), plus its "…". */
@@ -51,7 +52,7 @@ export type UpdateLine =
   | { type: 'update'; state: 'checking'; current: string }
   | { type: 'update'; state: 'available'; current: string; version: string; notes: string; checked: number | null }
   | { type: 'update'; state: 'downloading'; current: string; version: string; received: number; total: number | null }
-  | { type: 'update'; state: 'installing'; current: string; version: string }
+  | { type: 'update'; state: 'installing' | 'preparing'; current: string; version: string }
   | { type: 'update'; state: 'waiting'; current: string; version: string; jobs: number }
   | { type: 'update'; state: 'failed'; current: string; failure: (typeof UPDATE_FAILURES)[number]; version: string | null; checked: number | null; retry: boolean };
 
@@ -64,6 +65,7 @@ const KEYS: Record<UpdateStateName, string> = {
   available: 'checked,current,notes,state,type,version',
   downloading: 'current,received,state,total,type,version',
   installing: 'current,state,type,version',
+  preparing: 'current,state,type,version',
   waiting: 'current,jobs,state,type,version',
   failed: 'checked,current,failure,retry,state,type,version',
 };
@@ -91,6 +93,8 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
         ? { type: 'update', state, current, version: o.version, received: o.received, total: o.total as number | null }
         : null;
     case 'installing':
+    case 'preparing':
+      // `preparing`: the archive is verified, the server downloads the Tools that version needs (update-tools.ts).
       return versionOk(o.version) ? { type: 'update', state, current, version: o.version } : null;
     case 'waiting':
       return versionOk(o.version) && typeof o.jobs === 'number' && Number.isInteger(o.jobs) && o.jobs >= 1 && o.jobs <= 1_000_000
@@ -112,6 +116,8 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
 /** What the server keeps: the shell's last update line, and the clicks' cap. */
 export class UpdateState {
   last: UpdateLine | undefined;
+  /** the update's Tools, downloaded by this server before the restart (studio.ts sets it). */
+  tools: UpdateTools | undefined;
   private window = { start: 0, count: 0 };
 
   constructor(readonly now: () => number = Date.now) {}
@@ -132,7 +138,7 @@ export class UpdateState {
 
 /** An update is known: Install and Restart may be clicked (available, or a failure the shell may try again). */
 export function installable(l: UpdateLine | undefined): boolean {
-  return !!l && (l.state === 'available' || (l.state === 'failed' && l.version !== null && l.retry && (l.failure === 'download' || l.failure === 'install')));
+  return !!l && (l.state === 'available' || (l.state === 'failed' && l.version !== null && l.retry && (l.failure === 'download' || l.failure === 'install' || l.failure === 'tools')));
 }
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -159,10 +165,20 @@ export interface UpdateStatus {
   /** A failure the shell may try again (Install and Restart stays live). */
   retry?: boolean;
   installable?: boolean;
-  untrusted?: { notes?: string };
+  /** the update's Tools, while the server downloads them before the restart (or why they failed). */
+  tools?: Omit<UpdateToolsView, 'untrusted'>;
+  untrusted?: { notes?: string; tools?: string };
 }
 
-/** The Studio's update ops on `pipe` (the shell's pipe) and `state` (its last line). */
+/** The update's Tools as the status gives them (the system's words under `untrusted`), for this line's version. */
+function toolsOf(l: UpdateLine, tools: UpdateTools | undefined): Pick<UpdateStatus, 'tools'> & { why?: string } {
+  const v = tools?.view;
+  if (!v || !('version' in l) || l.version !== v.version) return {};
+  const { untrusted, ...rest } = v;
+  return { tools: rest, ...(untrusted ? { why: untrusted.message } : {}) };
+}
+
+/** The Studio's update ops on `pipe` (the shell's pipe) and `state` (its last line, the update's Tools). */
 export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }) {
   const { pipe, state } = o;
   const status = defineTool({
@@ -181,7 +197,8 @@ export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }) {
         const { notes, ...rest } = fields as typeof fields & { notes: string };
         return { summary: `updates: ${l.version} available`, data: { available: true, ...rest, installable: true, untrusted: { notes } } };
       }
-      return { summary: `updates: ${l.state}`, data: { available: true, ...fields, installable: installable(l) } };
+      const { why, ...tools } = toolsOf(l, state.tools);
+      return { summary: `updates: ${l.state}`, data: { available: true, ...fields, installable: installable(l), ...tools, ...(why ? { untrusted: { tools: why } } : {}) } };
     },
   });
   const ClickInput = z.strictObject({ action: z.enum(UPDATE_ACTIONS).describe('install: Install and Restart; later: not now (stops waiting for jobs).') });

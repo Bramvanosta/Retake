@@ -1,19 +1,29 @@
 /**
  * The bundled app, end to end (gated: RETAKE_TEST_BUNDLE=1, macOS on Apple silicon, `pnpm build` first,
  * cargo offline; slow — a build is ≈ 2–5 min, the capture and render ≈ 3 min — and ≈ 3 GB of scratch, removed after).
+ * The app carries no browser and no compositor (BL-192): it downloads its Tools into <RETAKE_HOME>/tools. Here they
+ * come from RETAKE_TEST_TOOL_ARCHIVES=<folder of the three archives apps/desktop/bundle/tools.json records> through
+ * `retake tools install --from-archives` (the installer's own path minus the network); without it the suite is
+ * skipped, and says so in its name.
  *
  * The app: RETAKE_TEST_BUNDLE_APP=<…/Retake.app> takes a built one; otherwise `pnpm desktop:bundle` runs here
  * (bundle.mjs build) into RETAKE_TEST_BUNDLE_OUT or a scratch folder, with the ffmpeg of RETAKE_TEST_BUNDLE_FFMPEG
  * (a folder with ffmpeg + ffprobe: scripts/build-ffmpeg.mjs's output) — required, every tool must be the app's own.
  * Then, from the built app only — no repository on PATH (/usr/bin:/bin:/usr/sbin:/sbin), a scratch HOME, RETAKE_HOME
  * and TMPDIR, nothing else in the environment:
+ * - the app holds no browser, no render shell and no compositor package; its bundle.json (v 2) names the three Tools;
  * - the launcher (Contents/Resources/bin/retake, directly and through a link): `--version` names the app bundle;
- *   `doctor --json`: Node.js, Chromium, the render browser, ffmpeg and ffprobe are the app's (`bundled`); its
- *   `App updates` line says "updates are off in this build" (no feed given to this build: launch.json `updates`);
+ *   `doctor --json` before the Tools: Node.js, ffmpeg and ffprobe are the app's (`bundled`), the Tools, the browser,
+ *   the render browser and the compositor are `not downloaded yet` — warnings, not failures; its `App updates` line
+ *   says "updates are off in this build" (no feed given to this build: launch.json `updates`);
  * - `retake init` makes a workspace, the fixture project is copied in (its hosts on ports 4970–4973, where this test
- *   serves the fixture product), `run northfield-fixture quote` captures it and `render … --review` renders it with the
- *   app's headless shell (the render record says `bundled`; ANGLE + VideoToolbox, and doctor's Renders line says
- *   so), the review passes;
+ *   serves the fixture product); `run northfield-fixture quote` before the Tools is refused, saying to run
+ *   `retake tools install`, and starts nothing;
+ * - `retake tools install --from-archives` installs the three Tools under the scratch home's tools/ (each archive and
+ *   tree checked); doctor then says `downloaded Tools` with those paths, and its Renders line ANGLE + VideoToolbox;
+ * - `run northfield-fixture quote` captures it and `render … --review` renders it with the downloaded headless shell
+ *   (the render record says `tools`, a path under <scratch home>/tools; ANGLE + VideoToolbox), the review passes,
+ *   and `retake tools check` (every folder's full digest again) passes after;
  * - the shell binary started directly (Contents/MacOS, test mode — never `open` / Launch Services) serves the Studio
  *   from the app's own Node.js and engine (the server's command line), the page redeems its code, SIGTERM stops it;
  * - the first run — no workspace, test mode answers Create ~/Retake: the app's own `retake init` makes it in the
@@ -50,7 +60,10 @@ type Untyped = any;
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const WANTED = process.env.RETAKE_TEST_BUNDLE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
-const ENABLED = WANTED && existsSync(join(REPO, 'packages', 'cli', 'dist', 'bin.js'));
+/** The Tools' archives (apps/desktop/bundle/tools.json's): the folder `retake tools install --from-archives` reads. */
+const ARCHIVES = process.env.RETAKE_TEST_TOOL_ARCHIVES?.trim() || undefined;
+const ENABLED = WANTED && !!ARCHIVES && existsSync(join(REPO, 'packages', 'cli', 'dist', 'bin.js'));
+const SKIPPED_WHY = WANTED && !ARCHIVES ? ' — skipped: RETAKE_TEST_TOOL_ARCHIVES=<folder of the Tools’ archives> is needed (the app downloads its Tools)' : '';
 const PORTS = { console: 4970, shop: 4971, authConsole: 4972, authShop: 4973 };
 const BUNDLE_ID = JSON.parse(readFileSync(join(REPO, 'apps', 'desktop', 'tauri.conf.json'), 'utf8')).identifier as string;
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
@@ -198,7 +211,7 @@ function retake(args: string[], o: { timeout?: number; via?: string } = {}) {
   return { status: r.status, out: `${r.stdout}\n${r.stderr}`, stdout: r.stdout, ms: Date.now() - t0 };
 }
 
-describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RETAKE_TEST_BUNDLE=1)', () => {
+describe.skipIf(!ENABLED)(`the bundled app, built and run from itself, its Tools installed from their archives (gated: RETAKE_TEST_BUNDLE=1)${SKIPPED_WHY}`, () => {
   beforeAll(async () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'retake-bundle-acc-')));
     const t0 = Date.now();
@@ -284,10 +297,30 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RE
     if (app && existsSync(LSREGISTER)) spawnSync(LSREGISTER, ['-u', app], { stdio: 'ignore' });
     if (process.env.RETAKE_TEST_BUNDLE_REPORT) writeFileSync(process.env.RETAKE_TEST_BUNDLE_REPORT, `${JSON.stringify(report, null, 1)}\n`);
     process.stdout.write(`bundle acceptance: ${JSON.stringify(report)}\n`);
-    if (base && !process.env.RETAKE_TEST_KEEP) rmSync(base, { recursive: true, force: true });
+    // The installed Tools are read-only trees (the installer's rule): writable again before they are removed.
+    if (base && !process.env.RETAKE_TEST_KEEP) {
+      spawnSync('chmod', ['-R', 'u+w', base]);
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 
-  it("the launcher: --version names the app (directly and through a link); doctor: every tool is the app's own", () => {
+  it('the app carries no browser, no render shell and no compositor: its bundle.json (v 2) names the three Tools it downloads', () => {
+    const res = join(app, 'Contents', 'Resources');
+    const m = JSON.parse(readFileSync(join(res, 'bundle.json'), 'utf8')) as { v: number; paths: Record<string, unknown>; tools: Array<{ id: string; folder: string }> };
+    expect(m.v).toBe(2);
+    expect(m.paths.browsers).toBeUndefined();
+    expect(m.tools.map((t) => t.id).sort()).toEqual(['browser', 'compositor', 'render-browser']);
+    expect(existsSync(join(res, 'browsers'))).toBe(false);
+    expect(existsSync(join(res, 'engine', 'node_modules', '@remotion', 'compositor-darwin-arm64'))).toBe(false);
+    // No browser application or headless shell anywhere inside (Contents/MacOS holds the shell only).
+    const found = spawnSync('find', [res, '(', '-name', '*.app', '-o', '-name', 'chrome-headless-shell*', '-o', '-name', 'headless_shell', '-o', '-name', 'Google Chrome for Testing*', ')'], {
+      encoding: 'utf8',
+    }).stdout.trim();
+    expect(found).toBe('');
+    for (const id of ['browser', 'render-browser', 'compositor']) expect(existsSync(join(res, 'licenses', 'tools', `${id}.md`)), id).toBe(true);
+  });
+
+  it("the launcher: --version names the app (directly and through a link); doctor before the Tools: the app's own Node.js and ffmpeg, the Tools not downloaded yet (warnings)", () => {
     for (const via of [launcher, join(base, 'bin', 'retake')]) {
       const v = retake(['--version'], { via });
       expect(v.status, v.out).toBe(0);
@@ -295,45 +328,100 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RE
     }
     const d = retake(['doctor', '--json']);
     report.doctor_ms = d.ms;
-    const doc = JSON.parse(d.stdout) as { failures: number; checks: Array<{ status: string; name: string; detail: string }> };
+    const doc = JSON.parse(d.stdout) as { failures: number; checks: Array<{ status: string; name: string; detail: string; hint?: string }> };
     const check = (name: string) => doc.checks.find((c) => c.name === name)!;
+    report.doctor_before = Object.fromEntries(doc.checks.map((c) => [c.name, `${c.status}: ${c.detail}`]));
     expect(doc.failures, d.out).toBe(0);
     const manifest = JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'bundle.json'), 'utf8')) as { node: string };
     expect(check('Node.js').detail).toBe(manifest.node);
-    for (const name of ['Chromium', 'Render browser', 'ffmpeg', 'ffprobe']) {
+    for (const name of ['ffmpeg', 'ffprobe']) {
       expect(check(name).status, `${name}: ${check(name).detail}`).toBe('ok');
       expect(check(name).detail, name).toContain(join(app, 'Contents', 'Resources'));
       expect(check(name).detail, name).toMatch(/bundled/);
     }
+    const tools = join(env.RETAKE_HOME, 'tools');
+    expect(check('Tools'), JSON.stringify(check('Tools'))).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^not downloaded yet: /) });
+    expect(check('Tools').detail).toContain(`${tools} ($RETAKE_HOME)`);
+    expect(check('Tools').hint).toContain('retake tools install');
+    for (const name of ['Browser', 'Render browser', 'Compositor']) {
+      expect(check(name), `${name}: ${JSON.stringify(check(name))}`).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^not downloaded yet \(/) });
+      expect(check(name).detail, name).toContain(tools);
+      expect(check(name).hint, name).toContain('retake tools install');
+    }
     expect(check('MCP').detail).toContain(join(app, 'Contents', 'Resources', 'node', 'bin', 'node'));
-    // The app's renders run on the GPU — its relinked compositor's ffmpeg passes the VideoToolbox probe.
-    expect(check('Renders'), JSON.stringify(check('Renders'))).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^GPU \(.*\) · VideoToolbox H\.264 · 3 frames at a time$/) });
     // A bundle built without an update feed says so (its launch.json `updates: "off"`).
     expect(JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'launch.json'), 'utf8')).updates).toBe('off');
     expect(check('App updates').detail).toMatch(/^updates are off in this build/);
   });
 
-  it(
-    'a workspace by retake init, then a capture and a render of the fixture quote through the launcher',
-    async () => {
-      ws = join(base, 'ws');
-      const init = retake(['init', ws]);
-      expect(init.status, init.out).toBe(0);
-      expect(existsSync(join(ws, 'retake.yaml'))).toBe(true);
-      const project = join(ws, 'projects', 'northfield-fixture');
-      const from = join(REPO, 'projects', 'northfield-fixture');
-      cpSync(from, project, { recursive: true, filter: (src) => !['runs', 'renders', 'review', 'exports'].includes(src.slice(from.length + 1).split('/')[0]!) });
-      // This test's ports; no sandboxes (they start the fixture from the repository).
-      const yaml = readFileSync(join(project, 'project.yaml'), 'utf8')
-        .replace(/localhost:4401/g, `localhost:${PORTS.console}`)
-        .replace(/localhost:4402/g, `localhost:${PORTS.shop}`)
-        .replace(/localhost:4403/g, `localhost:${PORTS.authConsole}`)
-        .replace(/localhost:4404/g, `localhost:${PORTS.authShop}`)
-        .replace(/^sandboxes:\n(?: {2}.*\n)+/m, '');
-      expect(yaml).not.toMatch(/sandboxes:|localhost:440\d/);
-      writeFileSync(join(project, 'project.yaml'), yaml);
-      rmSync(join(project, 'sandbox'), { recursive: true, force: true });
+  it('a workspace by retake init; a capture before the Tools is refused, saying to run retake tools install, and starts nothing', () => {
+    ws = join(base, 'ws');
+    const init = retake(['init', ws]);
+    expect(init.status, init.out).toBe(0);
+    expect(existsSync(join(ws, 'retake.yaml'))).toBe(true);
+    const project = join(ws, 'projects', 'northfield-fixture');
+    const from = join(REPO, 'projects', 'northfield-fixture');
+    cpSync(from, project, { recursive: true, filter: (src) => !['runs', 'renders', 'review', 'exports'].includes(src.slice(from.length + 1).split('/')[0]!) });
+    // This test's ports; no sandboxes (they start the fixture from the repository).
+    const yaml = readFileSync(join(project, 'project.yaml'), 'utf8')
+      .replace(/localhost:4401/g, `localhost:${PORTS.console}`)
+      .replace(/localhost:4402/g, `localhost:${PORTS.shop}`)
+      .replace(/localhost:4403/g, `localhost:${PORTS.authConsole}`)
+      .replace(/localhost:4404/g, `localhost:${PORTS.authShop}`)
+      .replace(/^sandboxes:\n(?: {2}.*\n)+/m, '');
+    expect(yaml).not.toMatch(/sandboxes:|localhost:440\d/);
+    writeFileSync(join(project, 'project.yaml'), yaml);
+    rmSync(join(project, 'sandbox'), { recursive: true, force: true });
 
+    const refused = retake(['--root', ws, 'run', 'northfield-fixture', 'quote']);
+    expect(refused.status, refused.out).not.toBe(0);
+    expect(refused.out).toMatch(/retake run needs the browser: .*not downloaded yet.*retake tools install/);
+    report.refused = refused.out.trim().split('\n').filter(Boolean).slice(-1)[0];
+    expect(existsSync(join(project, 'runs')) ? readdirSync(join(project, 'runs')) : []).toEqual([]);
+  });
+
+  it(
+    "retake tools install --from-archives: the three Tools checked and installed under the scratch home's tools/; doctor then says downloaded Tools, and renders on the GPU",
+    () => {
+      const tools = join(env.RETAKE_HOME, 'tools');
+      const inst = retake(['tools', 'install', '--from-archives', ARCHIVES!], { timeout: 15 * 60_000 });
+      report.tools_install_ms = inst.ms;
+      expect(inst.status, inst.out.slice(-3000)).toBe(0);
+      const entries = (JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'bundle.json'), 'utf8')) as { tools: Array<{ id: string; folder: string; bytes: number; disk: number }> }).tools;
+      for (const t of entries) {
+        expect(existsSync(join(tools, ...t.folder.split('/'), '.verified')), t.folder).toBe(true);
+        expect(inst.out, t.id).toContain(t.folder);
+      }
+      report.tools = { download: entries.reduce((n, t) => n + t.bytes, 0), disk: du(tools), folders: entries.map((t) => t.folder) };
+      // Nothing of the install is left about: no archive copy, no temp folder.
+      expect(readdirSync(tools).filter((n) => n.startsWith('.tmp-') || n === '.partial')).toEqual([]);
+      const st = retake(['tools', '--json']);
+      expect(JSON.parse(st.stdout)).toMatchObject({ available: true, state: 'ready', folder: tools });
+
+      const d = retake(['doctor', '--json']);
+      const doc = JSON.parse(d.stdout) as { failures: number; checks: Array<{ status: string; name: string; detail: string }> };
+      const check = (name: string) => doc.checks.find((c) => c.name === name)!;
+      report.doctor_after = Object.fromEntries(doc.checks.map((c) => [c.name, `${c.status}: ${c.detail}`]));
+      expect(doc.failures, d.out).toBe(0);
+      expect(check('Tools'), JSON.stringify(check('Tools'))).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^ready · /) });
+      for (const name of ['Browser', 'Render browser', 'Compositor']) {
+        expect(check(name).status, `${name}: ${check(name).detail}`).toBe('ok');
+        expect(check(name).detail, name).toContain(tools);
+        expect(check(name).detail, name).toContain('downloaded Tools');
+      }
+      expect(check('Chromium sandbox')?.status).toBe('ok');
+      // The app's renders run on the GPU — the downloaded compositor, unmodified (no relink, its own signature), passes
+      // the VideoToolbox probe from the app's hardened Node.js (DYLD_LIBRARY_PATH: the Tools' binaries are not hardened).
+      expect(check('Renders'), JSON.stringify(check('Renders'))).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^GPU \(.*\) · VideoToolbox H\.264 · 3 frames at a time$/) });
+    },
+    20 * 60_000,
+  );
+
+  it(
+    'then a capture and a render of the fixture quote through the launcher, on the downloaded Tools; retake tools check passes after',
+    async () => {
+      const project = join(ws, 'projects', 'northfield-fixture');
+      const tools = join(env.RETAKE_HOME, 'tools');
       const run = retake(['--root', ws, 'run', 'northfield-fixture', 'quote'], { timeout: 10 * 60_000 });
       report.capture_ms = run.ms;
       expect(run.status, run.out.slice(-3000)).toBe(0);
@@ -360,18 +448,22 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (gated: RE
         encoding: { encoder?: string };
       };
       expect(r.status).toBe('succeeded');
-      // The signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
-      // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and a relinked copy's probe).
+      // The signed app's path (the downloaded compositor, the hardened Node.js) draws with ANGLE and encodes with
+      // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and an unmodified copy's probe).
       expect(r.policy, JSON.stringify(r.policy)).toMatchObject({ gl: { used: 'angle', renderer: expect.stringMatching(/Metal/) }, encoder: { used: 'h264_videotoolbox' } });
       expect(r.policy?.fallback).toBeUndefined();
       expect(r.encoding.encoder).toBe('h264_videotoolbox');
-      expect(r.browser.source).toBe('bundled');
-      expect(r.browser.path).toContain(join(app, 'Contents', 'Resources', 'browsers'));
+      expect(r.browser.source).toBe('tools');
+      expect(r.browser.path).toContain(join(tools, 'browsers'));
       expect(statSync(r.file).size).toBe(r.size_bytes);
       expect(r.review.counts.error ?? 0, JSON.stringify(r.review.counts)).toBe(0);
       report.render = { frames: r.frames, duration_s: r.duration_s, size_bytes: r.size_bytes, timings: r.timings, review: r.review.counts, clean: r.review.clean, policy: r.policy };
       // The render bundle took no canary either (renderBundleRestriction: the app, the workspace, the cache).
       expect(canaryMarked(join(ws, '.retake'))).toEqual([]);
+      // The Tools as installed: every folder's full digest again.
+      const c = retake(['tools', 'check'], { timeout: 10 * 60_000 });
+      report.tools_check_ms = c.ms;
+      expect(c.status, c.out).toBe(0);
     },
     30 * 60_000,
   );

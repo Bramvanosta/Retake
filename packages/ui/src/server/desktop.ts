@@ -79,7 +79,7 @@ export const DesktopMenuInput = z.union([
 export type MenuItemState = z.infer<typeof menuItem>;
 
 /** What the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
-export const SETUP_ACTIONS = ['notifications', 'cli_folder'] as const;
+export const SETUP_ACTIONS = ['notifications', 'cli_folder', 'tools_folder'] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
 
 /** The pipe of a supervised server (set by startSupervisor); none otherwise. */
@@ -122,8 +122,8 @@ export class DesktopPipe {
 
   /**
    * A set-up request for the shell (setup-ops.ts) — `notifications` (ask macOS for the permission) or
-   * `cli_folder` (show the native folder panel; the answer comes back on stdin: shell-line.ts parseShellLine). Fixed
-   * shapes only.
+   * `cli_folder` (show the native folder panel; the answer comes back on stdin: shell-line.ts parseShellLine) or
+   * `tools_folder` (the Tools page's Show in Finder: the shell reveals its own home's Tools folder). Fixed shapes only.
    */
   setup(action: SetupAction): void {
     this.send(this.need(), JSON.stringify({ type: 'setup', action }));
@@ -159,6 +159,15 @@ export class DesktopPipe {
     this.send(w, JSON.stringify({ type: 'cli', state }));
     this.cliSent = state;
     return true;
+  }
+
+  /**
+   * The server's answer on an update's Tools (update-tools.ts, after the shell's `update_archive` line): that version's
+   * Tools are ready, or could not be had, or are left to that version's first start (`skip`: its manifest cannot be read
+   * by this version) — the shell's wait before the quit ends (desktop_core pipe.rs `update_tools`).
+   */
+  updateTools(version: string, state: 'ready' | 'failed' | 'skip'): void {
+    this.send(this.need(), JSON.stringify({ type: 'update_tools', version, state }));
   }
 
   /** The update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */

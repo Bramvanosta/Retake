@@ -6,7 +6,7 @@
  */
 import type { BrowserConfig, LoadedProject } from '@retake/core/project';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { BundleInfo } from '@retake/core/io';
+import type { BundleInfo, ToolId, ToolReadiness } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web/types';
 import type { RenderBrowserProbe, RenderPathProbe } from '../render/renderer.js';
 
@@ -70,10 +70,27 @@ export interface DoctorProbes {
   bundleProblems?(): string[];
   /** The browser renders use: the "Render browser" line; absent, no line. */
   renderBrowser?(): RenderBrowserProbe | Promise<RenderBrowserProbe>;
+  /**
+   * The app's downloaded Tools (core/io tools.ts, the cheap state): the "Tools" and "Compositor" lines and what the
+   * "Browser" and "Render browser" lines say when one is not ready. Null: a repository checkout (Playwright's cache and
+   * node_modules); absent: no line.
+   */
+  tools?(): DoctorToolsProbe | null;
   /** The "Captures first" line: this user's filming markers on this Mac (nothing made, nothing named); absent, no line. */
   captures?(root: string): Promise<CapturesProbe>;
   /** The "Renders" line: the render path a 1080p render takes here; absent, no line. */
   renders?(policy: WorkPolicy): Promise<RendersProbe>;
+}
+
+/** What doctor reads of the app's downloaded Tools (core/io toolsState: the cheap check, no file read). */
+export interface DoctorToolsProbe {
+  /** `<RETAKE_HOME>/tools`. */
+  dir: string;
+  /** Whether $RETAKE_HOME names the home (the Tools of another home are not seen: a scratch home in a shell). */
+  homeFromEnv: boolean;
+  /** The app's bundle.json lists no valid Tools (a damaged app): why. */
+  problem?: string;
+  tools: Array<{ id: ToolId; label: string; version: string; state: ToolReadiness; path: string; problem?: string }>;
 }
 
 /** What the "Renders" line reads: the renderer's probe of the render path (render/renderer.ts). */

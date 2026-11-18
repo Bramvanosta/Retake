@@ -8,7 +8,8 @@
 #    secrets and variables all or nothing: a partial set fails here, before anything is built; the updater set needs a
 #    public repository); the release created
 #    as a DRAFT — nobody sees it yet — or edited (a re-run).
-#  - build (macOS, contents: read, NO secret): dependencies, the packages, Rust, the pinned Tauri CLI, Chromium, our
+#  - build (macOS, contents: read, NO secret): dependencies, the packages, Rust, the pinned Tauri CLI, the Tools the app
+#    downloads checked against tools.json (the app carries none of them), our
 #    ffmpeg (built from its sha256-checked sources at every run), then the app laid out and signed ad hoc exactly as
 #    `pnpm desktop:bundle` does (`--app-only`); packed (a tar that keeps the links) with its sha256 as an artifact.
 #  - sign (a FRESH macOS runner, `environment: release`, contents: read): runs no dependency code — no pnpm install, no
@@ -217,13 +218,15 @@ jobs:
           set -eu
           V=$(node -p "require('./apps/desktop/bundle/tauri-cli.json').version")
           pnpm store add "@tauri-apps/cli@$V" "@tauri-apps/cli-darwin-arm64@$V"
-      - name: Chromium and the headless shell
-        # The revisions the lockfile's playwright-core pins, into Playwright's cache (the stage copies them into the
-        # app), then checked against the tree digests apps/desktop/bundle/browsers.json pins (Playwright checks none).
+      - name: The Tools, downloaded from their publishers and checked against tools.json
+        # The app carries no browser and no compositor: it downloads them, the Tools, from the URLs
+        # apps/desktop/bundle/tools.json records. That file must name what the lockfile's playwright-core and
+        # compositor pin, and each published archive must be the recorded one: downloaded here by the installer's own
+        # downloader (the Tools' hosts only, the recorded size the cap), its sha256 checked, extracted and its tree
+        # digest checked as the app's install would (bundle.mjs check-tools; nothing of it is kept or shipped).
         run: |
           set -eu
-          node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
-          node apps/desktop/scripts/bundle.mjs check-pins
+          node apps/desktop/scripts/bundle.mjs check-tools --fetch "$RUNNER_TEMP/tools"
       - name: ffmpeg
         # Our ffmpeg (GPL, libx264; apps/desktop/licenses/ffmpeg), built at every run from its pinned sources.
         env:
@@ -251,7 +254,7 @@ jobs:
           pnpm desktop:bundle --app-only --ffmpeg "$RUNNER_TEMP/ffmpeg"
       - name: Pack the app
         id: pack
-        # A tar keeps the app's links (Chromium's framework) and modes; no extended attribute.
+        # A tar keeps the app's links and modes; no extended attribute.
         run: |
           set -eu
           A="$RUNNER_TEMP/artifact"

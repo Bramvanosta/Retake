@@ -80,6 +80,11 @@ const NO_NUDGE = new Set<string>([
   'setup_notifications',
   'setup_done',
   'desktop_update',
+  'tools_install',
+  'tools_control',
+  'tools_check',
+  'tools_prune',
+  'tools_reveal',
 ]);
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 export const CALL_PREFIX = '/v1/call/';

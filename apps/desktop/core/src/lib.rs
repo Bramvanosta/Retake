@@ -19,6 +19,7 @@ pub mod relaunch;
 pub mod rules;
 pub mod setup;
 pub mod stop;
+pub mod sha256;
 pub mod update_flow;
 pub mod words;
 

@@ -13,7 +13,7 @@ import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle } from './bundle.js';
 import type { BundleComponent } from './bundle.js';
 import type { DriverPreviewBundle, DriverPreviews } from './driver-types.js';
-import { rendererLibrary } from './library.js';
+import { libraryBinaries, rendererLibrary } from './library.js';
 import type { RenderBrowserHandle } from './library.js';
 import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, pickFreePort } from './network-guard.js';
 import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
@@ -109,6 +109,7 @@ function remotionRenderer(o: OpenOptions, lib: RendererLib, opened: OpenedBrowse
   const { renderMedia, renderStill, selectComposition, makeCancelSignal } = lib;
   const puppeteer = opened.puppeteer;
   const common = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 60_000 } as const;
+  const bin = libraryBinaries();
   // Guarded: a browser that is no program for every Remotion call — a page that fails ends that preview, never a
   // browser Remotion opens itself (network-guard.ts).
   const executable = guard ? GUARDED_NO_OTHER_BROWSER : browserExe;
@@ -123,6 +124,7 @@ function remotionRenderer(o: OpenOptions, lib: RendererLib, opened: OpenedBrowse
   const select = (spec: ComponentPreviewSpec) =>
     selectComposition({
       ...common,
+      binariesDirectory: bin,
       serveUrl: o.serveUrl,
       id: PREVIEW_COMPOSITION,
       inputProps: previewProps(spec),
@@ -136,6 +138,7 @@ function remotionRenderer(o: OpenOptions, lib: RendererLib, opened: OpenedBrowse
       await plainly(() =>
         renderStill({
           ...common,
+          binariesDirectory: bin,
           composition,
           serveUrl: o.serveUrl,
           frame: spec.frame,
@@ -159,6 +162,7 @@ function remotionRenderer(o: OpenOptions, lib: RendererLib, opened: OpenedBrowse
         await plainly(() =>
           renderMedia({
             ...common,
+            binariesDirectory: bin,
             composition,
             serveUrl: o.serveUrl,
             codec: 'gif',

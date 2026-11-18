@@ -12,6 +12,7 @@
  * theme list and one theme's editor, `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
  * recent recordings, or one recording, live then reviewed. `#/ui` the design system's gallery.
  * `#/setup` the projects with the installed app's Set-up sheet open over them (shell/SetupSheet.tsx).
+ * `#/setup/tools` the Tools page: the browser, render browser and compositor the app downloads (setup/ToolsScreen.tsx).
  * `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` a
  * location's page (its pages, its sandbox, its personas), `#/p/<slug>/cast` Locations and cast (every location with
  * its personas' sessions), `#/p/<slug>/settings` the project's settings (project.yaml, read only),
@@ -49,6 +50,7 @@ export type Route =
   | { name: 'record'; slug: string; rec?: string }
   | { name: 'ui' }
   | { name: 'setup' }
+  | { name: 'setup-tools' }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
@@ -71,6 +73,7 @@ export function parseRoute(hash: string): Route {
   if (path === '' || path === '/') return { name: 'projects' };
   if (path === '/ui' || path === '/ui/') return { name: 'ui' };
   if (path === '/setup' || path === '/setup/') return { name: 'setup' };
+  if (path === '/setup/tools' || path === '/setup/tools/') return { name: 'setup-tools' };
   const m = /^\/p\/([^/]+)(\/readme|\/settings)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
   if (m && slug !== null) return m[2] === '/readme' ? { name: 'readme', slug } : m[2] === '/settings' ? { name: 'settings', slug } : { name: 'project', slug };
@@ -156,6 +159,8 @@ export function hrefTo(r: Route): string {
       return '#/ui';
     case 'setup':
       return '#/setup';
+    case 'setup-tools':
+      return '#/setup/tools';
     case 'project':
       return `#/p/${encodeURIComponent(r.slug)}`;
     case 'readme':

@@ -37,6 +37,7 @@ let studio: StudioServer;
 let browser: Browser;
 let page: Page;
 const bodies: string[] = [];
+const received: { hidden: boolean; items: unknown[] }[] = [];
 const retakeHome = scratchHome();
 const board = () => studio.unsaved.items();
 
@@ -51,6 +52,13 @@ beforeAll(async () => {
   await writeFile(join(ws, 'projects', P, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
   await writeRun(join(ws, 'projects', P), capture('20261020-100000-blocks', { video: false }));
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
+  // What the server's board received, call by call: Playwright 1.65 no longer reports an unload's keepalive
+  // request to `page.on('request')` (nor to the context's), so the pagehide report is checked where it lands.
+  const report = studio.unsaved.report.bind(studio.unsaved);
+  studio.unsaved.report = (tab, hidden, items) => {
+    received.push({ hidden, items: [...items] });
+    return report(tab, hidden, items);
+  };
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1360, height: 1000 } });
@@ -112,7 +120,7 @@ describe('the unsaved-text report', () => {
     await page.getByRole('heading', { level: 1 }).waitFor(POLL);
     await expect.poll(() => studio.unsaved.tabCount, POLL).toBe(0);
     expect(board()).toEqual([]);
-    expect(bodies.at(-1)).toMatch(/"hidden":true,"items":\[\]\}$/);
+    expect(received.at(-1)).toEqual({ hidden: true, items: [] });
   });
 
   it('the Library component words, a changed new-theme form and a colour draft are named; leaving each clears it', async () => {

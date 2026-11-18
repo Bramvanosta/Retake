@@ -32,6 +32,7 @@ import type { HookRow, LiveFrame, OutlineStep, RunLiveState, RunStatusLite, Step
 import { useRunLocation } from './run-location.js';
 import { RUN_STATUS_WORDS, runErrorWords, seconds, stepWords } from '../words/scenario-words.js';
 import { ShellSlot } from '../shell/slots.js';
+import { ToolsNeeded } from '../shell/tools-parts.js';
 import { capturePictureOn, takeLiveFocus, useScenarioActions } from './shoot-data.js';
 import { ShootBrowser } from './ShootBrowser.js';
 import { modeWord } from '../words/shoot-words.js';
@@ -411,6 +412,8 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
         {shown(statusLine)}
       </p>
       <StreamNotices conn={conn} />
+      {/* Only while the queue holds it for the Tools (a project on a browser of its own waits for none). */}
+      {st.word === 'queued' && !st.finished && s.job?.waits_for && <ToolsNeeded need={s.job.waits_for} what={mode === 'dry' ? 'This rehearsal' : 'This capture'} queued testId="live-tools" />}
       {(st.finished || s.ended) && <Outcome slug={slug} name={name} runId={runId} s={s} mode={mode} pauseLate={pauseLate} />}
       <LiveView
         ref={view}

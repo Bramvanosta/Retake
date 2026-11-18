@@ -49,6 +49,7 @@
       "@retake/engine/catalogue": ["./packages/engine/src/catalogue.ts"],
       "@retake/engine/integrations": ["./packages/engine/src/integrations.ts"],
       "@retake/engine/doctor": ["./packages/engine/src/doctor-entry.ts"],
+      "@retake/engine/tools": ["./packages/engine/src/tools-entry.ts"],
       "@retake/engine/shell": ["./packages/engine/src/shell-entry.ts"],
       "@retake/engine/testing": ["./packages/engine/src/testing.ts"],
       "@retake/engine/composition": ["./packages/engine/src/composition.ts"],
@@ -77,6 +78,7 @@
       "@retake/test-support/site": ["./packages/test-support/src/site.ts"],
       "@retake/test-support/studio-tools": ["./packages/test-support/src/studio-tools.ts"],
       "@retake/test-support/take": ["./packages/test-support/src/take.ts"],
+      "@retake/test-support/tools": ["./packages/test-support/src/tools.ts"],
       "@retake/test-support/timing": ["./packages/test-support/src/timing.ts"],
       "@retake/test-support/timeline": ["./packages/test-support/src/timeline.ts"],
       "@retake/test-support/workspace": ["./packages/test-support/src/workspace.ts"]

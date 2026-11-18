@@ -500,6 +500,18 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   holds such a switch — what an executable that adds switches itself passes — is closed and refused (RunnerError). A
   source scan (test/launch-options.test.ts) keeps every `launch` / `launchPersistentContext` on both. `retake doctor`
   reports its probe's `browserSandbox` instead.
+  BL-192 (playwright-core 1.65.1, Chrome for Testing 159): `launchOptions` also appends `--enable-automation` (1.56.1
+  passed it itself; a test pins it on every launch site), and ends every launch with ONE `--disable-features=` switch —
+  Chromium reads only the last one — holding the union of the launch's own lists (the runner's and `browser.args`'s,
+  merged instead of the later replacing the earlier), else Playwright's own list (`PLAYWRIGHT_DISABLED_FEATURES`, a copy
+  pinned against a real launch), plus `GUARD_DISABLED_FEATURES` (`RenderDocument`: with it on, a document's unload
+  requests escape Playwright's route — measured, a write reached the server — so the write guard needs it off).
+  **Fail closed**: under the agent policy, a launch whose playwright-core does not say which browser it would start (a
+  moved or unreadable registry, an unknown channel) is refused before it starts ("… so it cannot be checked — set
+  browser.executable"; a person's command still launches); and `refuseUnsandboxed` refuses a browser that reports no
+  command line (no CDP session, no answer); doctor's **Chromium sandbox** line is then a FAIL saying that captures,
+  sign-ins and recordings refuse it (review B-M3). In the app, `launchTarget` refuses a channel launch whose Tool is
+  not downloaded or damaged (§4p (f)).
 - HTTP credentials: `resolveEnvironment` gives every consumer the page URLs without `user:password@`
   (core `withoutCredentials`); `environmentHttpCredentials` returns those details, decoded, with the page's origin —
   one origin at most, one set of details (else a validation error of the environment, and the run refused). The capture
@@ -795,9 +807,12 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 ### 3.4 Recording
 - CDP `Page.startScreencast({ format, quality, maxWidth: w·scale, maxHeight: h·scale, everyNthFrame: 1 })`
   on the active page (stop/start on page switch; JPEG quality 90 by default since L5.7). Every frame is acked
-  immediately, `{ file, t }` appended to `frames.jsonl` (t = metadata.timestamp·1000 − t0_wall, seconds), and the
+  immediately, `{ file, t }` appended to `frames.jsonl` (t = the frame's wall time − t0_wall, seconds), and the
   frame itself written to `runs/<id>/frames/NNNNNN.jpg` only with `capture.keep_frames` (L5.7: default false). Frame
-  timestamps and runner events share the wall clock.
+  timestamps and runner events share the wall clock. A frame's wall time is `frameWall(stamp, arrival)` =
+  min(metadata.timestamp·1000, its arrival) (BL-192: Chrome 159 stamps screencast frames up to ≈ 15 ms in the future,
+  measured; 141's stamps were all before arrival, so unchanged there), and a frame whose wall time is before the last
+  kept frame's is dropped.
 - t0 = the moment recording starts (before the first scene). Encoding **during the take** (L5.7, `stream.ts`): every
   kept frame is pushed to a `StreamEncoder` — ffmpeg reading JPEG/PNG frames from a pipe (`image2pipe`) at the output
   rate; `CfrStream` emits tick n (time n/fps) with the latest frame stamped at or before it (the first frame also covers
@@ -1055,10 +1070,11 @@ read-only environment and an unusable clock throw before the run folder is made.
   `SharedWorker` (Playwright detaches from shared-worker targets: their requests reach no route, nor a hook tab's CDP
   Fetch) are deleted from every frame's global by the guard's init script (`UNGUARDED_APIS_SCRIPT`, measured: deleting
   works in frames and popups) and by the js hook tab's own init script on every run. Apps feature-detect both.
-- **Service workers.** `enableServiceWorkerRequests()` sets `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1` before
-  the first read-only launch (read by playwright-core when a service-worker target attaches; process-wide, harmless for
-  read-write runs: no route there): a service worker's own requests — answering a page, or in the background — reach
-  the context route (`frame()` throws for them: guarded). The sign-in tab bypasses service workers
+- **Service workers.** playwright-core (1.57 onwards) routes a service worker's own requests unless
+  `PLAYWRIGHT_DISABLE_SERVICE_WORKER_NETWORK` is set; `enableServiceWorkerRequests()` removes that variable before
+  each read-only launch (read when a service-worker target attaches; process-wide, harmless for read-write runs: no
+  write guard there). Up to 1.56 it set `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1` instead. A service worker's
+  own requests — answering a page, or in the background — reach the context route (`frame()` throws for them: guarded). The sign-in tab bypasses service workers
   (`bypassServiceWorkers`: `Network.setBypassServiceWorker` on a CDP session of the tab, as hook tabs do), so a worker
   that forwards its sign-in POST does not turn it into a page-less, stopped request.
 - **Recording.** `onWrite` (capture/browser-guards.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
@@ -1513,7 +1529,9 @@ panel — the same session, nothing forwarded to it.
   edit inside the field (a deletion, an insertion before its end) `clear: true` and its whole final value, which holds
   the parts of the initial value that were kept (a replay types the final value: only the changed part would not do);
   native `<select>` change → `select_native` (the option's label); a file input's change / a drop → `file` (names
-  only); a scroll the person made (wheel, scroll keys, a scrollbar press) → `scroll` per container, net, after 400 ms;
+  only); a scroll the person made (wheel, scroll keys, a scrollbar press) → `scroll` per container, net, after 400 ms
+  (BL-192: its baseline is where the container was before the input's time stamp, `scrollTrail`; a passive wheel
+  listener runs after Chromium scrolled, so the position it read was already the scrolled one);
   keys only `RECORDED_KEYS` outside text fields (Escape, Enter, Space, arrows, paging, Backspace, Delete) or a
   Control / Meta + letter / digit; inside a field Escape / ArrowUp / ArrowDown / PageUp / PageDown only; Space,
   Backspace and Delete are not sent when the focus is inside a closed shadow root (the event's deepest target is the
@@ -5896,10 +5914,11 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater; L5.16e: releases from GitHub Actions; L5.16f: the update feed on a GitHub release)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater; L5.16e: releases from GitHub Actions; L5.16f: the update feed on a GitHub release; BL-192: the Tools downloaded instead of shipped)
 
-R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
-resolver, and behaves exactly as before when there is no bundle (a repository checkout).
+R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need but its Tools — the browser, the
+render browser and the compositor, downloaded on the person's click into the Retake home since BL-192 (§4p (f)); the
+engine finds both through one resolver, and behaves exactly as before when there is no bundle (a repository checkout).
 
 **Layout** (`Retake.app/Contents/Resources`, or a stage folder — `apps/desktop/scripts/bundle.mjs stage`):
 
@@ -5910,33 +5929,34 @@ engine/             pnpm deploy --prod of @retake/cli, hoisted (the isolated lay
                     .pnpm folder names), every hard-linked file given an inode of its own first (pnpm imports the
                     injected workspace packages as hard links to the checkout's package.json and dist/ files), pnpm's
                     own records removed, injected workspace packages' `workspace:` / `file:` specs replaced by their
-                    version, *.map / *.d.ts / .bin pruned; the compositor's bare install names rewritten to
-                    @loader_path (the hardened runtime ignores the DYLD_LIBRARY_PATH Remotion sets); engine/templates/
-                    (git-tracked files only)
-browsers/           chromium-<rev>, chromium_headless_shell-<rev>: the revisions the deployed playwright-core's
-                    browsers.json pins, from Playwright's cache (ditto, links kept); markers empty and freshly dated
+                    version, *.map / *.d.ts / .bin pruned, and (BL-192) the compositor package pruned
+                    (`@remotion/compositor-darwin-arm64`: a Tool, downloaded); engine/templates/ (git-tracked files only)
 ffmpeg/bin/         ffmpeg + ffprobe handed with --ffmpeg (system libraries only), else absent (`ffmpeg: null`)
 plugin/             .claude-plugin/marketplace.json + skills/ (git-tracked; the Claude plugin marketplace)
-licenses/           node/, chromium/, remotion/, apps/desktop/licenses/** (ffmpeg/: our build's notices and written
-                    source offer; remotion-compositor/: the compositor's GPL FFmpeg build — version, configuration,
-                    source pointer; the stage refuses a compositor version it does not name), THIRD-PARTY.md
+licenses/           node/, remotion/, apps/desktop/licenses/** (ffmpeg/: our build's notices and written source offer;
+                    tools/: our notice of each Tool the app downloads — the stage refuses one that does not name its
+                    Tool's version), THIRD-PARTY.md
 ```
 
-`bundle.json` (v 1): `app` (the one version), `node`, `playwright {core, chromium, headless_shell}`, `compositor`,
-`ffmpeg {version, licence, libx264, sha256} | null`, `minimum_macos` (`15.0`: Remotion's own libraries are built for
-it; part b puts it in Info.plist), `paths {node, engine, browsers, ffmpeg|null, templates, plugin}` relative to the
-folder holding it, `sha256`, `sizes`. The stage refuses an out folder inside the checkout or /Applications, a cache
-without the pinned browsers (the message names the one install command, the person's), an ffmpeg linking outside the
-system; it ends with `checkStage` (also `bundle.mjs check <dir>`, and the tests on a small fake stage): paths inside
+`bundle.json` (v 2 since BL-192; `readBundleManifest` refuses v 1 and a manifest without a `tools` list — an old
+process reads only `app`, so the change is safe across an in-place update): `app` (the one version), `node`,
+`playwright {core}`, `compositor` (its version, for doctor), `tools` (tools.json's entries for the app's platform:
+§4p (f)), `ffmpeg {version, licence, libx264, sha256} | null`, `minimum_macos` (`15.0`: Remotion's own libraries are
+built for it; part b puts it in Info.plist), `paths {node, engine, ffmpeg|null, templates, plugin}` relative to the
+folder holding it, `sha256`, `sizes`. The stage refuses an out folder inside the checkout or /Applications, a
+tools.json that does not name the deployed playwright-core's revisions or the deployed compositor's version, or whose
+notices are missing or stale (`stageTools`, before the prune), an ffmpeg linking outside the system; it ends with `checkStage` (also `bundle.mjs check <dir>`, and the tests on a small fake stage): paths inside
 and present, every link relative and resolving inside, no regular file with a second hard link (a write to it would
 change the checkout or the store), no path of the build machine (home, checkout) in any text file of the stage
-(`.js`, `.json`, `.md`, `.yaml`… up to 8 MB each), one playwright-core, empty markers, the Mach-O files listed (thin and
-FAT magic: part b's signing walk). Stage hygiene: `xattr -cr` (after the links are broken). **The checkout is never
+(`.js`, `.json`, `.md`, `.yaml`… up to 8 MB each), one playwright-core, no `browsers/` folder or `paths.browsers`,
+nothing of `PRUNED` left, `tools` parsed by core and its notices matching, the Mach-O files listed (thin and FAT magic:
+part b's signing walk). Stage hygiene: `xattr -cr` (after the links are broken). **The checkout is never
 written**: `stage` snapshots `git status --porcelain` with the sha256 of every file it lists before and after (a file
 already modified and written again keeps its status line; its bytes tell), and fails loudly, naming both, when they
 differ — whether the stage succeeded or not. (Found by L5.16a's reviews: the first stage rewrote nine
 `packages/*/package.json` through pnpm's hard links.) Measured (L5.16a): 977 MB = Node 110, engine 314 (after D7: `@remotion/cli`
-dropped; @remotion/bundler still needs @remotion/studio), browsers 500, ffmpeg 53 MB; ≈ 10 s on APFS.
+dropped; @remotion/bundler still needs @remotion/studio), browsers 500, ffmpeg 53 MB; ≈ 10 s on APFS. Since BL-192:
+470 MB = Node 110, engine 311, ffmpeg 53 (no browsers, no compositor).
 
 **Discovery** (core io `bundle.ts`, in `dist/io/`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five
 above core's own `dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
@@ -5974,21 +5994,29 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   `pictureSizeFromJson`, `ffprobePackets`, each with its arguments). Ratchet rule `media-call`: a file of
   packages/*/src that names a media tool and calls node:child_process to start a process is an entry (one: the
   doctor's exec probe).
-- Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
-  browsers (below) — source `bundled`, else `playwright` (the cache).
-- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:
-  no render starts (`assertRenderBrowser` says how to install the headless shell; Remotion never downloads its own).
+- Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the app's
+  downloaded Tools (`<home>/tools/browsers`, below) — source `tools` (BL-192; it was `bundled`), refused with
+  "not downloaded yet" / "damaged" while that Tool is not ready — else `playwright` (the cache, a checkout only).
+- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the app's downloaded render browser (`tools`, only when ready) or,
+  in a checkout, the registry's headless shell (`playwright`) → none: no render starts (`assertRenderBrowser` says how
+  to install the headless shell, in the app `retake tools install`; Remotion never downloads its own).
+- Compositor (BL-192): the app's downloaded one (editor `libraryBinaries`: `binariesDirectory` on every call of the
+  rendering library; a RenderError "no compositor to render with" while it is not ready) → in a checkout, the library's
+  own package.
 - Starter themes: `paths.templates`, else the repository's `templates/` (`STARTER_TEMPLATES_DIR`, so the "shipped
   theme" checks follow); the Claude plugin marketplace: `paths.plugin`, else the folder above the entry point.
 - `retake --version` adds `(app bundle: <path>)`; doctor names each source (`retake.yaml`, `$RETAKE_FFMPEG`,
-  `bundled`, `PATH`, `Playwright cache`) on the ffmpeg, ffprobe, Chromium and new "Render browser" lines, and its
-  hints inside a bundle say "reinstall Retake" or name retake.yaml / the variables, never a pnpm / brew / Homebrew
+  `bundled`, `downloaded Tools`, `PATH`, `Playwright cache`) on the ffmpeg, ffprobe, Browser (it was "Chromium"),
+  "Render browser" and (BL-192) "Compositor" lines, plus a "Tools" line (§4p (f)), and its hints inside a bundle say
+  "reinstall Retake" (for what the app carries) or `retake tools install` / `retake tools check` (for a Tool) or name
+  retake.yaml / the variables, never a pnpm / brew / Homebrew
   command (an app without its own ffmpeg, a `$RETAKE_CHROMIUM` pointing nowhere included). Its MCP line resolves ffmpeg
   as the MCP client's server will: with the registration's `PATH` (and `RETAKE_HOME`) only — never the shell's
   `$RETAKE_FFMPEG`.
 
 **The browsers path never leaks** (critique M2): playwright-core reads `PLAYWRIGHT_BROWSERS_PATH` once, when its
-registry loads. `prepareBundle()` sets it to `paths.browsers`, requires playwright-core from the engine folder and
+registry loads. `prepareBundle()` sets it to the Tools' browsers folder (`<home>/tools/browsers`, core `toolsBrowsersDir`
+of the process's `RETAKE_HOME`; it was `paths.browsers` before BL-192), requires playwright-core from the engine folder and
 restores the inherited value (deleted when there was none) — first thing in both entry points: `bin.js` loads
 `bundle-env.js` before `main.js`; the composition package's `worker-main.ts` first imports its `./bundle-env.js` (the worker never runs bin.js).
 Hooks, sandbox services, shells, `claude` and the worker's children see the person's own value. One playwright-core in
@@ -6001,8 +6029,10 @@ refused by `loadWorkspaceConfig`; a project folder there (a link from `projects/
 before the command runs); `retake init` refuses one; `renderComponentPreviews` refuses (before rendering) a preview
 written next to a component inside it; from a bundle `components preview --all` means `--workspace`. Not guarded: a
 write a third-party library makes on its own (below).
-Playwright rewrites `DEPENDENCIES_VALIDATED` (empty) when it is older than 30 days: the stage dates it fresh and keeps
-it empty (an empty rewrite leaves the seal intact). The L5.16a acceptance found no file newer than the run in the stage.
+Playwright rewrites `DEPENDENCIES_VALIDATED` (empty) when it is older than 30 days: since BL-192 the markers are in the
+downloaded Tools' folders, outside the app, left out of their tree digest, and those folders are read-only (Playwright
+launched both browsers from them and wrote nothing, 2026-11-17). The L5.16a acceptance found no file newer than the run
+in the stage.
 
 **H.264** (core `h264.ts`): `h264Encoder(ffmpeg)` reads `-encoders` once per path — libx264 when listed (today's
 arguments, unchanged: the repository's Homebrew ffmpeg and the app's own GPL build have it), else `h264_videotoolbox`
@@ -6053,7 +6083,7 @@ snapshot (`git status` + the bytes of every listed file) covers it, compared bef
 **One environment for every child** (critique M1, review A M1). `buildEnv` is an allow-list: PATH, HOME, USER,
 LOGNAME, SHELL, TMPDIR, LANG, `LC_*`, TERM, CI, NO_COLOR, SDKROOT, DEVELOPER_DIR, MACOSX_DEPLOYMENT_TARGET, RUSTFLAGS,
 `CARGO_*`, `RUSTUP_*`, `RUSTC*`, PNPM_HOME, `COREPACK_*` (COREPACK_ENABLE_AUTO_PIN=0 keeps pnpm from pinning itself
-into a package.json), `npm_config_*`, `XDG_*`, PLAYWRIGHT_BROWSERS_PATH — and any name that reads as a credential
+into a package.json), `npm_config_*`, `XDG_*` (PLAYWRIGHT_BROWSERS_PATH until BL-192: no stage reads Playwright's cache any more) — and any name that reads as a credential
 (TOKEN, SECRET, PASSW, CREDENTIAL, AUTH, PRIVATE, KEY) is dropped even where a prefix allows it. Every child of a build
 or a stage runs with it — pnpm (deploy, store path), git, otool, install_name_tool, codesign, ditto, xattr, sips,
 iconutil, plutil, hdiutil, `tauri build` and cargo (every crate's build script), xcrun, spctl — plus the build's own
@@ -6138,12 +6168,15 @@ share its team); the Plugin helper keeps Chromium's own set (Retake never starts
 | Entry | Release entitlements | Dry adds DLV |
 |---|---|---|
 | node | allow-jit, disable-library-validation | (has it) |
-| Chromium Helper (Renderer), (GPU), headless_shell | allow-jit | yes |
-| Chromium Helper (Plugin) | allow-unsigned-executable-memory, disable-library-validation | (has it) |
-| Chromium.app, Chromium Helper, (Alerts), crashpad handler, app_mode_loader, web_app_shortcut_copier | none | yes |
-| compositor `remotion`, `ffmpeg`, `ffprobe` | none | yes |
-| every library (`*.dylib`, `*.node`, Chromium Framework.framework), esbuild ×2, our ffmpeg / ffprobe (optional) | none | no |
+| every library (`*.node`, `*.dylib`: sharp, libvips, rspack), esbuild ×2, our ffmpeg / ffprobe (optional) | none | no |
 | the shell (Contents/MacOS) and the outer app | none (signed after Tauri, by `signApp`) | no |
+
+Since BL-192 the table has 8 entries and `node.plist` is the only entitlements file: the Chromium rows (11 of the
+browser, 2 of the headless shell, the `chromium-jit` / `chromium-plugin` plists) and the compositor's 4 are gone with
+the browsers and the compositor, which the app downloads and never signs (§4p (f)). The downloaded Tools run as their
+publishers signed them, as separate processes the hardened Node.js starts (they inherit no hardening): the compositor
+as npm publishes it, not relinked (`DYLD_LIBRARY_PATH` works — the app's VideoToolbox probe passed from the built app,
+2026-11-17). The Chromium probe above is history.
 
 `signPlan(payload)` walks every regular file (links never followed), finds each Mach-O by its magic (thin either byte
 order, FAT), and fails on one no entry covers (a file entry, or the main executable of a bundle entry: an app's
@@ -6191,6 +6224,12 @@ an `/Applications` link, no Finder scripting, no mount to make it (a styled wind
 `hdiutil imageinfo` (format ULFO), then `hdiutil attach -nobrowse -readonly -noautoopen -mountpoint <out>/mnt`: the app
 inside verifies and carries no AppleDouble file or foreign attribute, the Applications link is there, nothing else on
 the volume (dot files included); detached (forced when needed).
+
+**Measured since BL-192** (one ad hoc `pnpm desktop:bundle`, 2026-11-17): 83 s (stage 10 s, `tauri build` 40 s, DMG
+19 s); 8 signatures for 8 Mach-O files, no link kept; app 487 MB, DMG 202 MB (422 MB at v0.3.0); from the built app on a
+scratch home, doctor said the four Tools lines "not downloaded yet", `bin/retake tools install --from-archives`
+checked all three, then doctor said "downloaded Tools" and renders "GPU (ANGLE Metal) · VideoToolbox H.264"; the
+Tools folder took 600 MB.
 
 **Measured** (the gated acceptance, `RETAKE_TEST_BUNDLE=1`, M4 Mac, after the review fixes, 2026-11-03): build 108 s —
 stage 12.9 s, payload signing 4.8 s, `tauri build` 46.3 s, verification 16.6 s, DMG 26.8 s (a cold cargo cache: about
@@ -6360,7 +6399,7 @@ no capability grants its commands to the page.
 **The archive** (critique H3). Ours, not Tauri's: `COPYFILE_DISABLE=1 /usr/bin/tar --no-mac-metadata --no-xattrs
 --no-acls --no-fflags -czf Retake.app.tar.gz -C <dir> Retake.app` (macOS 26's bsdtar writes extended attributes as pax
 headers, an older one AppleDouble `._` entries: neither travels), checked against the app (`archiveProblems`: every
-link — Chromium's framework's included —, no `._` entry, nothing outside `Retake.app/`), then signed by the pinned Tauri
+link, no `._` entry, nothing outside `Retake.app/`), then signed by the pinned Tauri
 CLI's `signer sign --app-version <the app's Info.plist version>` with `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) given
 to that one command only, and the `.sig` checked against the public key in Node before the build ends.
 
@@ -6435,7 +6474,7 @@ both hops of the check and of the download followed, the real update 13.7 s from
   checks off; an app running from a translocated copy or a read-only disk is off too ("move it to Applications": the
   plugin's renames need a writable folder on its volume — critique H1); /Volumes (an external disk) is allowed.
 - *What the Studio sees*: one stdin line per state (`off` + reason, `idle`, `checking`, `available` + version, notes,
-  date, `downloading`, `waiting` + jobs, `installing`, `failed` + failure and `retry`) with fixed keys, a checked
+  date, `downloading`, `preparing` (BL-192: its Tools), `waiting` + jobs, `installing`, `failed` + failure and `retry`) with fixed keys, a checked
   version, the feed's notes cleaned (no control, bidi or zero-width character, ≤ 2,000 characters, the line cut to the
   server's 8,192 BYTES: `fits_shell_line`, shared with part c's folder line — review d B-L4); the server parses them
   again (update-ops.ts), `desktop_update_status` gives the notes under `untrusted`, the page shows them through Txt in
@@ -6475,7 +6514,10 @@ both hops of the check and of the download followed, the real update 13.7 s from
   (MACOS-CHECKLIST 15d).
 - What an update replaces: the whole `.app`; the Retake home, workspaces, the command's link and the Claude
   registrations point at the same paths. Processes still running from the old bundle (another workspace's worker, an
-  MCP server Claude started) keep their loaded code; an idle worker hands over (critique M6). Cut to BACKLOG BL-143:
+  MCP server Claude started) keep their loaded code; an idle worker hands over (critique M6). The Tools are not in
+  the `.app`: before the quit the update downloads and checks those its version needs (`preparing`, the sheet's step
+  "Download the Tools it needs", §4p (f)), the current ones untouched; the new version prunes the old ones after its
+  first start. Cut to BACKLOG BL-143:
   counting those processes before the swap, an admin install, delta updates, the download's progress.
 
 **Measured** (the gated end to end, 2026-11-03): the two builds 188 s — 0.2.0 117 s (stage 15.7 s, payload signing 4.5 s, `tauri build` 56.4 s with a cold cargo target and the plugin, verification 16.4 s, the archive and its signature 23.5 s), 0.2.1 from the same stage and target 71 s (`tauri build` 22.7 s); app 941 MB (no ffmpeg in that run), archive 345 MB (344,896,177 bytes), its 5 links those of the app, signed for 0.2.1 by the CLI with the test key. A feed whose signature (same key, same version) is of other bytes: the plugin refused the download ("The signature verification failed"), the app kept running at 0.2.0, nothing installed. The real update: 13.0 s from the launch of the 0.2.0 copy to the restarted app's first line — check, download and check of the 345 MB archive from 127.0.0.1, the quit (nothing pending: no question), the owned server stopped gracefully in 22 ms, the swap, the restart; the restarted 0.2.1 served the workspace with a server of its own; `codesign --verify --deep --strict` passed on the swapped app, every link there, no AppleDouble file; Chromium 141.0.7390.37 (new headless) and the headless shell launched from it with its own Node.js. Whole test 225 s, 3 / 3. Two findings of that test, fixed: `tauri::generate_context!` embeds a config's `plugins` as serde_json values (the `updater` feature adds the optional `serde_json`, already locked); test mode's restart gave the child the log filter's pipe as stderr, whose reader ends with the old process — the restarted app lost its lines and hung on the first one (it now gets the real stderr: `logfilter::real_stderr`). Re-run after the review d fixes (2026-11-03): 3 / 3 in
@@ -6499,8 +6541,9 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   and public key come as the release job's outputs): Node.js (below), corepack's pnpm (package.json's `packageManager`
   carries its sha512, checked on download), `pnpm install --frozen-lockfile`,
   Rust 1.99.1 through the image's rustup (`rustup toolchain install … --profile minimal --target aarch64-apple-darwin`,
-  `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, Playwright's
-  browsers then `bundle.mjs check-pins`, our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
+  `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, the Tools
+  checked (BL-192: `bundle.mjs check-tools --fetch` — tools.json against the lockfile's pins, then each published
+  archive downloaded by the installer's own downloader and checked as an install would; nothing kept), our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
   printed; built at every run), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
   `/usr/bin/tar` (links kept, no extended attribute, no Mac metadata) with `tauri-cli/`, its sha256 a job output,
   uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, Node.js,
@@ -6578,18 +6621,15 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   unpacked or run — npm, corepack and the rest of the install with it —, unpacked into `$RUNNER_TEMP/node`, its
   bin/node checked against node.json's `sha256` for darwin-arm64 (the macOS jobs) or linux-x64 (the ubuntu ones),
   its bin first on PATH (`$GITHUB_PATH`); the stage refuses any other binary again (`checkNode`) before it copies it.
-  Playwright's installer checks no hash:
-  each browser revision folder's tree digest (every path, link target, size, executable bit and sha256, markers left
-  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from a checked local install of the
-  lockfile's playwright-core (re-recorded at each bump), and the stage refuses another tree (`checkBrowser`;
-  `check-pins` right after the install). **The first tagged run may need these digests refreshed** if the CDN's
-  browser archive lays files out differently from the local install — the build job then fails with the digest it
-  found, and `bundle.mjs browser-digest <folder>` records a checked one (the darwin-arm64 binary pin was recorded from
-  a local install of that tarball: the first run confirms it too). **No cache**: no `actions/cache` step and no setup
+  **The Tools** (BL-192): the app ships no browser and no compositor; `apps/desktop/bundle/tools.json` records each
+  Tool's URL, size, sha256 and tree digest, recorded from the real archives (`bundle.mjs record-tools`) at every bump,
+  and the build job checks each published archive against it (`check-tools --fetch`: the tree too, as the app's
+  install would). It replaced `browsers.json`, `browserDigest`, `checkBrowser`, `check-pins` and `browser-digest`.
+  **No cache**: no `actions/cache` step and no setup
   action — nothing is restored from an earlier run or another workflow; the pnpm store, ffmpeg and cargo are filled
   at every run from the lockfile and the pinned sources (a re-run downloads ffmpeg's sources again: two are archives a
   forge generates, re-pinned after a re-verification if their bytes change). RELEASING.md has Playwright (the app's
-  Chromium) bumped and browsers.json re-recorded at every release (automating it: BACKLOG BL-160).
+  browser) bumped and tools.json re-recorded at every release (automating it: BACKLOG BL-160).
 - **The temporary keychain** (`apps/desktop/scripts/ci-keychain.sh import|delete <dir>`, GitHub Actions only): the user
   search list saved first, a keychain with a random password locked after 6 h, the identity re-wrapped by LibreSSL's
   `/usr/bin/openssl` (the certificate's password from the environment) with a random one-time password and imported
@@ -6612,17 +6652,264 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   tool, no `gh`, `umask 077`); `persist-credentials: false` on every checkout; only `push: tags: v*`.
 - **Not covered**: build provenance (an attestation of what the build job built) — BACKLOG BL-145; the build job is
   trusted to build what the tag says (the sign job signs what it is handed).
-- **Licence** (BACKLOG BL-138): the app ships Remotion's compositor's FFmpeg build (GPL, fdk-aac compiled in) —
-  accepted on 2026-11-04 for the person's own releases, though a public release is distribution to anyone who
-  downloads it; to resolve before any sale (the licence note of docs/guide/desktop-app.md and the README's Licence section say so).
+- **Licence** (BACKLOG BL-138): up to v0.3.0 the app shipped Remotion's compositor's FFmpeg build (GPL, fdk-aac
+  compiled in) — accepted on 2026-11-04 for the person's own releases. Since BL-192 the app no longer carries it: the
+  person's click downloads it from the npm registry (§4p (f)); a release distributes only our own ffmpeg.
 - **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
-  `security -i`, the Node.js download (ci-node.sh against the project's host) and the CDN browsers' digests meet the real runner on the first tagged
+  `security -i`, the Node.js download (ci-node.sh against the project's host) and `check-tools --fetch` against the
+  publishers (BL-192: never run against the network here; tools.json was recorded from archives downloaded once by
+  hand) meet the real runner on the first tagged
   run, and the GitHub REST calls of publish-update.mjs (tested against a local stand-in of the API only) meet GitHub on
   the first publication; the notarised DMG on a clean account and an update through the feed are the person's
   (MACOS-CHECKLIST 15b, 15d).
   Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, the gated bundle acceptance, and the
   pinned Tauri CLI laid out from the pnpm store, copied fresh, its `signer generate` and `signUpdateArchive` run from
   the copy (a throwaway key, HOME in the copy) with the signature verified.
+
+### 4p (f). The Tools, downloaded on a click (BL-192)
+
+R-APP-19 – R-APP-23. playwright-core 1.65.1 pins Chrome for Testing 159.0.8154.6 (revision 1255) and its headless
+shell. The app may not redistribute Chrome for Testing, so it no longer carries a browser; with them it stopped carrying
+the rendering library's compositor (`@remotion/compositor-darwin-arm64`, with its GPL FFmpeg build). These three are the
+app's **Tools** (GLOSSARY): downloaded once, on the person's click, from their publishers, checked, then kept in the
+Retake home. A repository checkout has no Tools and behaves as before (Playwright's cache, node_modules). The DMG went
+from 422 MB to 202 MB (the app 487 MB, its payload 470 MB: Node.js 110, engine 311, ffmpeg 53; 8 Mach-O files and
+8 signatures instead of 35).
+
+**What, and from where** (`apps/desktop/bundle/tools.json`, v 1, one list per platform: `darwin-arm64` only). One entry
+per Tool, by stable id, in install order (core `TOOL_IDS`: smallest first, so renders and stills unblock early):
+
+| id | label | what | from | archive · on disk | folder |
+|---|---|---|---|---|---|
+| `render-browser` | Render browser | Chrome Headless Shell 159.0.8154.6: renders, stills, previews | Google's Chrome for Testing bucket | 105.7 · 216.1 MB (zip) | `browsers/chromium_headless_shell-1255` |
+| `compositor` | Compositor | the compositor 4.0.534: the rendering library's own binaries | the npm registry | 8.4 · 18.0 MB (tgz) | `compositor-4.0.534` |
+| `browser` | Browser | Chrome for Testing 159.0.8154.6: captures, sign-in, recording, doctor's probe | Google's Chrome for Testing bucket | 201.3 · 394.1 MB (zip) | `browsers/chromium-1255` |
+
+The download is 315 MB in all ("Download · 315 MB"). An entry (core io `tools.ts` `ToolEntry`, `parseToolEntries`,
+which refuses anything else in one sentence): `id`, `label`, `name`, `version`, `publisher`, `licence` (short lines of
+text, shown as text), `folder` (the browsers under `browsers/`, the compositor not), `url`, `archive` (`zip` | `tgz`),
+`bytes`, `sha256` of the archive, `integrity` (the compositor's npm sha512, which must be pnpm-lock.yaml's), `root`
+(a tgz's top folder: `package`), `prune` (paths removed after extraction), `tree` (the tree digest of the folder once
+pruned), `disk`, `executable` (inside the folder; `.` for the compositor), `markers` (Playwright's, the browsers only).
+Every id once, every folder once. The stage copies the platform's list into `bundle.json`'s `tools` (signed with the
+app: `bundleTools` reads it). The URLs are Google's own Chrome for Testing archives and npm's tarball: Playwright's
+mirror answers a 307 to the same Google file (measured 2026-11-17), so it is not needed.
+
+**The allow-list.** Every hop of every download (core `urlProblem`, applied by the installer, `record-tools` and the
+update's manifest alike): https only; the hosts of core `TOOL_HOSTS` only (Google's Chrome for Testing bucket and the
+npm registry); no port, user, password, query or fragment; at most 3 redirects (`MAX_REDIRECTS`), each checked; no
+proxy, cookie or credential (Node 22's `fetch` ignores `HTTPS_PROXY`: BACKLOG); `accept-encoding: identity`, any
+content encoding refused; the recorded `bytes` is the cap: a `Content-Length` other than it, or one byte more, is
+refused.
+
+**Layout** (`<Retake home>/tools/`, core `toolsFolder`: `RETAKE_HOME` trimmed, `~` expanded, else `~/.retake` — a copy
+of `retakeHome`'s rule in builtin-only bundle.ts, pinned against it by a test; 0700, this user's, no one else may write
+it):
+
+```
+browsers/chromium-1255/                 Playwright's own layout and markers (PLAYWRIGHT_BROWSERS_PATH names browsers/)
+browsers/chromium_headless_shell-1255/
+compositor-4.0.534/                     the npm package's files (the tarball's package/)
+<folder>/.verified                      the stamp: its tree digest, entries, bytes, when (and `damaged` after a failed Check again)
+.lock                                   the Tools' lock {pid, started_at, command: tools install|check|prune|cancel, by: studio|cli|update, version, since}
+.state.json                             the run's progress, written at most every 250 ms: what every reader shows
+.control.json                           pause / cancel asked by a process that does not hold the lock
+.partial/                               archives arriving: <leaf>.<zip|tgz>.part + .part.json
+.started.json  .pending.json  .in-use/  prune's records (below)
+.tmp-*  .trash-*                        an install's and a removal's work folders, swept at the next install
+```
+
+Using Playwright's layout under `browsers/` keeps the capture path as it was: `prepareBundle` points
+`PLAYWRIGHT_BROWSERS_PATH` at `<home>/tools/browsers` while playwright-core loads (§4p (a)), and Playwright checks an
+executable's existence at launch, so a Studio started before the download sees the browsers once they are there.
+
+**Install** (`packages/engine/src/tools/`, an `adapters` layer; `installTools`, with an injectable fetch, clock, sleep
+and free-space reader). Only a person's action installs: the Studio's Download (an own op of the app's own server) or
+`retake tools install`; no job, no MCP tool and no Studio start does.
+- *The lock*: `.lock`, an exclusive create; stale when its pid is gone or is not the process that took it. It is taken
+  by an install, Check again, a prune and a cancel (its `command` says which; the status shows only an install's
+  holder as downloading). A second installer answers `busy` with the holder: `retake tools install` follows its
+  progress (`--no-wait`: says who, exit 0), the Studio shows it. Taking the folder, an install also takes group and
+  other write off the Tools folder and `browsers/` when this user owns them (`ensureToolsDir`).
+- *What it installs*: every Tool not ready, and every ready one whose full digest is not the recorded tree (a stamp
+  is a cache, not a proof).
+- *Free space*: what is left to download, plus every folder's `disk`, plus 10 %; otherwise one sentence with the figures
+  (megabytes are decimal everywhere: core `megabytes`, the Studio's copy pinned to it by a test).
+- *Per Tool*, in order: the archive arrives (the network; `--from-archives <dir>`: a copy of the archive named by the
+  URL's leaf, its size checked first; `--from-playwright-cache [dir]`: the browsers only, a `ditto` copy of the
+  revision folder whose **copy** is digested; with `--from-archives` a usage error) → **the sha256 of the whole file**
+  before anything is opened (a mismatch: the archive and its record deleted, nothing extracted — a test asserts the
+  extractor never ran —, state `mismatch` with `mismatch: archive`, the expected and received digests and the URL) →
+  extraction → the tree check (`mismatch: tree` when its digest differs: discarded, nothing installed) → the place.
+- *Resume*: what arrived is kept in `.partial/`; a cut is retried with `Range: bytes=<received>-` after 2 s, doubling
+  to 60 s, at most 8 tries or 10 minutes, then the state `offline` (what arrived kept); a `206` must start at the file's
+  end and name the recorded total, a `200` to a Range starts again from zero. Pause (Ctrl-C, the Studio's Pause, a
+  `.control.json` another process wrote, polled every 250 ms; a pause with no install running does nothing) keeps
+  `.partial/`. Cancel takes the lock (`tools cancel`) and clears `.partial/` and `.state.json` under it, or, while an
+  install holds the lock, asks it (its files are never removed under it). An install that ends (ready or cancelled)
+  removes only its own partial downloads: another version's paused one stays. After a restart the `.part` file is used
+  again (its prefix re-hashed).
+- *Extraction* (`archive.ts`, `extract.ts`): the archive's listing is read first, by our own readers (the zip's central
+  directory, ZIP64 included; the tgz's tar headers, ustar prefix and pax `path`), and refused when an entry is
+  absolute, has a `..`, a backslash, a control character or an empty segment, lies below a link entry, is anything but
+  a file, a folder or a link, carries setuid or setgid, or (a tgz) lies outside its `root`. Then `/usr/bin/ditto -x -k
+  --noqtn` or `/usr/bin/tar -xzf --no-same-owner`, by absolute path, with `PATH=/usr/bin:/bin` and nothing of the
+  person's environment, into a fresh `.tmp-<rand>` of the Tools folder (the same volume). The extracted tree is walked
+  again (`treeProblem`): no special file, no setuid / setgid, no link absolute or leading out of the tree, lexically or
+  through other links.
+- *The tree check* (`verifyTree`): the `prune` paths are removed (each inside the tree, never through a link — the
+  browser framework's `install.sh`, which can run as root and nothing of Retake runs), the markers left out, then core
+  `treeDigest` (every path, link target, size, executable bit and sha256, top-level dot entries and markers left out:
+  the stage's own tree digest, pinned by a parity test) must equal `tree`; then the markers (empty) and `.verified` are
+  written.
+- *The place* (`placeTree`): an existing folder is always moved aside to `.trash-<rand>` and removed (what made it not
+  ready — a marker or the stamp gone, a damaged stamp, a folder others may write, a file changed — is not all in its
+  tree digest, so a damaged folder is repaired by one install, from the checked tree); the new one renamed into place;
+  then every file 0444 / 0555 and every folder 0555. A crash before the rename leaves the old state; the next install
+  sweeps `.tmp-*` and `.trash-*`. A second install of ready Tools digests each folder again and copies nothing.
+
+Measured on the real archives (2026-11-17, `--from-archives`): ready in 8.0 s; a second install 3.1 s; our ditto and
+tar extraction gives exactly the trees Playwright's own installer and `pnpm install` give (so one `tree` serves the
+download, the cache import and Check again); Playwright launched both browsers from the read-only trees and wrote
+nothing into them.
+
+**The gated acceptances** (2026-11-18; both need `RETAKE_TEST_TOOL_ARCHIVES=<folder of the three archives>`, no
+network). `app-bundle-acceptance` 11 / 11 in 238 s: the built app (487 MB, DMG 204 MB, 8 signatures) carries no Tool;
+doctor before the Tools warns on its four lines; `retake run` is refused with `retake tools install` and makes no run
+folder; `tools install --from-archives` 3.2 s (`tools/` 629 MB on disk); then a capture (50 s) and a render (69 s,
+ANGLE Metal + VideoToolbox) with `browser.source: tools`, and `tools check` passes. `app-update-e2e` 3 / 3: 0.2.1's
+manifest moves the compositor to another folder (the same archive) so the update has a Tools folder 0.2.0 lacks; its
+archive is laid as a complete `.partial` download (the update's install has no local source, on purpose), so the
+installer reuses it and runs every check; the new folder is ready before the quit and kept by `.pending.json`; after
+0.2.1's first start the old folder is pruned and `.pending.json` is empty. It ran from a frozen copy of the tree (the stage refuses a checkout
+that changes during the build); a run on the final tree is the lead's.
+
+**The state** (core `toolState`, cheap: lstat calls and the stamp, no file read). A Tool is `missing` when its folder
+is not there; `damaged` when it is not a real folder of this user that only they may write (the Tools folder and
+`browsers/` included), a marker is gone, the stamp is missing, names another tree digest than this version's, says
+`damaged`, or no longer matches the folder's entries and bytes; else `ready`. The queue's gate reads the stamp and
+markers only (`walk: false`). **Check again** (`retake tools check`, the Tools page) takes the Tools' lock (`busy`,
+with the holder, while an install holds it; the Studio also refuses while its status shows a download) and runs the
+full tree digest: a changed folder's stamp is marked `damaged` — only the folder it digested, the same inode before and
+after —, and every cheap check says so until it is installed again. The overall
+state the Studio, the CLI and engine_info read (`toolsStatus`, from `.state.json` and the folders): `needed`,
+`downloading`, `paused` (a dead holder's `downloading` too), `offline`, `mismatch`, `failed`, `damaged`, `ready`, or
+`checkout`.
+
+**Who finds them** (D4, §4p (a)): the capture browser, the render browser and the compositor of an app come from the
+Tools, never from Playwright's cache. Each use refuses a Tool that is not ready with one sentence saying what to do
+(core `toolProblem`: "… is not downloaded yet (path): run `retake tools install`, or Download in the Studio's set-up" /
+"… is damaged (why): run `retake tools check`, then `retake tools install`"): runner-web `launchTarget` (all seven
+launch sites), editor `renderBrowser` and `libraryBinaries` (every call of the rendering library names
+`binariesDirectory`: a source scan holds it; the stage prunes the compositor package, so a call that forgot it fails
+loudly in the app), and, before anything starts, the CLI's in-process commands (`cli/src/tool-needs.ts`
+`CLI_TOOL_NEEDS`: run, login, record, inspect, theme from-site, export-capture — not with `--cursor none` — and
+`auth status --check` need the browser; render, still, export, components preview the render browser and the
+compositor; a command whose project launches a browser of its own needs none, `launchTool`). `retake new` offers no
+sign-in while the browser is missing (one warning, then the "sign in later" lines). The source word is `tools` ("downloaded Tools": probe.ts, browser.ts, doctor, a render record's
+`browser.source`); `bundled` stays for ffmpeg and ffprobe, and readable in older render records.
+
+**Jobs wait** (engine `jobs/job-input.ts` `JOB_TOOLS`, `satisfies Record<JobKind, ToolNeed | null>`: a new kind does not
+compile without its entry): run, auth_login, inspect, record, site need the browser; render, export (it re-renders
+with the planner) and preview need the render tools (the render browser and the compositor); hooks, env_reset,
+sandbox_*, review need nothing. **Per project** (review B-M1): one rule, core `launchTool(browser, headless)` — an
+`executable` or an installed channel needs no Tool, the headless shell headless the render tools, else the browser —
+which runner-web `launchTarget` also calls; the queue reads it through `jobs/tool-need.ts` `jobToolNeed` (the
+project's `browser:` read, cached, through the WorkspaceReads port only while the browser is missing; the engine and
+the worker hand it with `JobQueue.useTools({browsers, app})`), and so do the CLI (`tool-needs.ts` `commandRefusal`,
+the project opened) and the Studio (the Run screen's job event carries `waits_for` only while the queue holds the
+job). A job whose project films with a browser of its own never waits. `tools/gate.ts` `missingNeeds` (read at most once a second; `$RETAKE_CHROMIUM` /
+`$RETAKE_CHROMIUM_HEADLESS_SHELL` satisfy the browsers; a damaged list: both missing) feeds `pick()`'s `blocked`: a
+blocked job is skipped, never an early return, and a blocked take holds no heavy job. A queued job of a missing need
+gets `yield: {state: 'waiting', cause: 'tools', needs}` and `queue.held_by: 'tools'` (words: "waiting for the browser
+to be downloaded (it starts by itself once checked)"; the held segment "a run waits for the browser to be
+downloaded"). `position()` does not count them as ahead of the jobs of their lane. The worker does not stay alive for
+them: `hasQueued` and the supervised server's `snapshot()` leave them out (so Install and Restart and Quit are not
+blocked by them). It is started by a submit (as before), by an install that ends ready (`engine.tools.wake()`, also
+`retake tools install`) and by the Studio server's open in the app (`wakeAtOpen`), never by another engine's open
+(`retake list`, doctor…); `wake()` decides from a fresh read of the Tools (`missingToolsNow`, not the cached gate), and
+the Studio remembers a turn to ready only once its wake resolved. Cancel works as for any queued job. engine_info's
+"Captures first" clause leaves them out too.
+
+**Operations** (catalogue; never MCP — `TOOLS_MCP`: "the person downloads the Tools"): `tools_status` (cli `tools
+[status]`), `tools_install` (`tools install`), `tools_control` {pause | cancel} (Studio only; the CLI's Ctrl-C),
+`tools_check` (`tools check`), `tools_prune` (destructive: `tools prune [--force]`, the Tools page's Remove…),
+`tools_reveal` (Studio only: Show in Finder, a pipe line `{"type":"setup","action":"tools_folder"}`; the shell reveals
+its own home's `tools/`). The Studio's are own ops of `ui/src/server/tools-ops.ts`, behind the set-up ops' gate
+(supervised and bundled; Download also needs the app in place: `installLocation` ok, §4p (c)) and their twelve writes a minute, pause and cancel not counted
+(they only stop); the install runs in the server and the page polls `tools_status`; the server's close pauses it. The
+system's words (an install's message, a Tool's problem) are under `untrusted`; the manifest's (URLs, digests, names)
+are ours. engine_info: `data.tools = {state, missing}` and, while not ready in an app, a summary clause saying the
+person downloads them and that captures and renders wait in the queue. The facade: `engine.tools.{status, install,
+control, check, prune, started, wake, readUpdate, installUpdate, abandonUpdate, licences}` (`@retake/engine/tools` for the CLI).
+
+**Doctor** (§4p (a)): a **Tools** line (ready with the versions · the folder, `($RETAKE_HOME)` when that variable chose
+the home; WARN not downloaded yet, with the hint that the Tools of `~/.retake` are not used then; FAIL damaged; a
+checkout: OK "checkout: Playwright cache / node_modules"); **Browser** (it was **Chromium**), **Render browser** and a
+new **Compositor** line: a Tool not downloaded yet is a WARN "run: retake tools install …", a damaged one a FAIL "run:
+retake tools check, then retake tools install" — never "reinstall Retake" for a Tool. The probe never launches a
+browser that is not ready.
+
+**Prune** (`tools/prune.ts`). At the Studio server's start in the app, once every Tool of this version is ready, the
+start is appended to `.started.json` (`{app, location, folders, at}`, the newest 20), this version's `.pending.json`
+entry removed, and the older folders removed: "after the new version's first successful start". A folder stays when
+this version names it, when a Retake that recorded a start within 30 days (`KEEP_DAYS`) names it (read from that copy's
+own bundle.json when it is still there, else from the record: two copies of the app on one home never prune each
+other's current Tools), when an update downloaded it before its restart (`.pending.json`, honoured 30 days at most),
+or when a live process of another copy uses it (`.in-use/<pid>.json`). `retake tools prune` and Remove… do the same on
+demand, under the lock; `force` keeps this version's and the update under way's only (`keepPending`: the Studio's;
+the CLI's `--force` passes none, so every pending update goes), and the pending records no longer honoured are removed. A removal is a rename to `.trash-<rand>` first (a running browser keeps its
+open files), made writable, then removed, under the install lock. Other versions' partial downloads go too.
+
+**The updater** (§4p (d)): an update downloads and checks the Tools its version needs **before** its restart. Once
+the shell has downloaded and verified the update archive (and hashed its bytes as it wrote them: `sha256.rs`, our own
+SHA-256, no new crate), it sends its own server one strict line, `{"type":"update_archive","version","path","sha256"}`
+(the path the shell's `updates/update-<n>.tar.gz`), and enters `State::PreparingTools` (wire `preparing`). The server
+(`ui/src/server/update-tools.ts`, engine `tools/update-archive.ts`) checks the file (a plain file of this account's,
+that name, ≤ 1.5 GB, its SHA-256 the line's), reads `Retake.app/Contents/Resources/bundle.json` from it with
+`/usr/bin/tar -xzOf` (PATH /usr/bin:/bin, 512 KB, 5 minutes), requires a v 2 manifest of the announced version and
+parses its `tools` with the same rules and allow-list, records them in `.pending.json`, and installs the missing
+folders with the same installer (`by: 'update'`; while another install holds the Tools, it waits for it to end and tries
+again, `UPDATE_WAIT_MS` = 30 minutes at most): the running version's Tools are untouched. Progress reaches the update
+sheet through `desktop_update_status` (`tools`). Then it answers `{"type":"update_tools","version","state":"ready" |
+"skip" | "failed"}`. **`skip`** (review A-M3: this version's code must never decide which later releases install):
+the new bundle.json cannot be read whole by this version — not JSON or not v 2, the member missing, an id unknown,
+added or missing, a field past this version's rules, a host off its allow-list (`readUpdateArchive` → `{skip: why}`);
+nothing is downloaded, the shell logs it and goes on as for ready, and the new version downloads its Tools at its first
+start. Still **`failed`**: an archive that is not the one the shell verified (name, owner, size, sha256) and a
+bundle.json whose `app` is another version (`UpdateVersionMismatch`). The shell waits at most 30 minutes (`TOOLS_MS`)
+and only while its server lives, takes only this version's answer (pipe.rs `ToolsAnswer`, strict: the three keys,
+`skip` lowercase; update_flow `ToolsWait::Skipped`), and on `failed` installs nothing (Failure `tools`, tried again like
+a download). Later, or any state line that
+is not this version's preparing, waiting or installing, gives the update's Tools up (`abandonUpdate`: paused, the
+pending record removed). The new version's first start prunes the old revision. An app with no owned server goes
+straight on: the new version downloads its Tools at its first start (the set-up sheet, jobs waiting).
+
+**Licences.** `apps/desktop/licenses/tools/<id>.md`: our own short notice per Tool — what it is, its publisher, its
+exact download URL, that Retake downloads it from the publisher and neither carries nor redistributes it, the checks
+made, its folder, its licence (the compositor's keeps the GPL FFmpeg and fdk-aac facts of the former
+`remotion-compositor` notice). Never fetched; the stage refuses a missing notice, a stale one (another version) or one
+for an unknown id. The Tools page's Terms lists the manifest's words and each ready folder's own licence files
+(`about*`, `licen[cs]e*`, `notice*`, `copying*`).
+
+**Release** (§4p (e), RELEASING step 1). `bundle.mjs record-tools --from <archives> | --fetch <dir> [--out <file>]`
+(`apps/desktop/scripts/tools.mjs`): the archives read (or downloaded through the installer's own `getTool`, the
+Tools' hosts only, its redirect chain logged), each size, sha256 and the compositor's sha512 against the lockfile,
+extracted by the engine's `extractArchive`, pruned (each `prune` pattern must match), then `treeDigest` and
+`treeSummary` (`disk`); the entries parsed by core and checked against the pins, then installed from those archives
+as a check before tools.json is written. `bundle.mjs check-tools [--archives <dir> | --fetch <dir>] [--manifest
+<file>]`: tools.json names exactly what the repository pins — every playwright-core's revision and browser version
+(all the same), the lockfile's one compositor version and integrity, the URLs, folders, layout and order that follow
+— and, with archives, each one is the recorded one and extracts to the recorded tree (the installer's `verifyTree`).
+It replaces `check-pins` and `browser-digest`; `browsers.json`, the Chromium entitlement plists, `relinkCompositor` and
+the 17 browser and compositor rows of the sign table are gone.
+
+**For the person** (MACOS-CHECKLIST 21): the first real download on a Mac, offline and resume, Check again, Remove…,
+an update across a Tools change, the headed windows on Chrome 159, a managed Mac (quarantine, Santa) and App Management
+when an old revision is removed. **Not done** (BACKLOG): Spotlight and Time Machine exclusion of the Tools folder;
+quarantine removal (our fetch writes no quarantine attribute; not probed under an MDM); `.in-use` records from the jobs
+worker; the Terms reading our notices; the update sheet listing the Tools before the click; a native menu item for the
+Tools page; proxies.
 
 ## 4q. Captures first (L5.14)
 

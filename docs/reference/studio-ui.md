@@ -577,6 +577,58 @@ Studio keeps `APP_NAME` (L5.13 renames).
   for Updates… found one). Its a11y tours, before the click and while it downloads: dark at 1280 / 900 and light
   (`test/studio-e2e-update.test.ts`).
 
+
+- **The Tools (BL-192)** — the app's downloaded browser, render browser and compositor (DESIGN §4p (f)), in the
+  installed app only (`tools_status` says `available: false` in a checkout: nothing shows). Words:
+  `words/tools-words.ts` (pure, unit-tested); data: one shared poll (`tools-data.ts` `useTools`: every second while a
+  download or a check runs, every 2 s while a Tools screen is open, else every 30 s); parts: `shell/tools-parts.tsx`.
+  - *The Set-up sheet's first item*, "Browser and render tools" (`shell/ToolsItem.tsx`), with its state word (the
+    colour-only rule's list): Needed: not downloaded yet · Downloading · 220 of 315 MB · about 1 min left · Paused · N
+    of 315 MB kept · Stopped: no connection · Failed: a file did not check · Failed: the download stopped · Damaged: a
+    Tool changed on disk · Ready; "Blocked: move the app first" while the app runs from a translocated copy. Before a
+    download: one sentence (not in the disk image, downloaded once from their publishers), three rows (name · version ·
+    publisher, what for, the download size — they add up to the button), the digest line and the folder (`Txt`, mono;
+    "(the home RETAKE_HOME sets)" when the variable chose it), "Captures and renders wait until the tools are here",
+    and the actions **Download · 315 MB** (primary; tools.json's `bytes`), Terms of each tool… (an inline list: each
+    Tool's publisher, licence, host and "not redistributed", and once installed its folder's own licence files), Show
+    details (to the Tools page). Downloading: a kit Progress per row (Checked, Checking, Next, the megabytes so far),
+    "Done closes this list: the download goes on, its progress stays in the status bar", Pause and Cancel. Paused or
+    offline: Resume (and Cancel); offline's warn Callout says what arrived is kept and where Resume goes on from. A
+    mismatch: a fail Callout (`role="alert"`) — the Tool's file is not the one this version expects (sha256), nothing
+    of it was kept or opened; or, for a tree mismatch, its extracted files are not (their tree digest), they were
+    discarded and nothing was installed — with Expected and Received (the first and last four characters, the whole digest as the title)
+    and From (the URL, shortened), Copy the details and Try again. Damaged: Download again.
+  - *The status bar* (`ToolsControl`, every page, beside the update's button): a ghost LinkButton to the Tools page with
+    its StatusMark — "Downloading tools · 38 %", "Tools: download paused", "Tools: download stopped", "Tools: download
+    failed", "Tools: damaged", "Tools needed: not downloaded yet"; nothing when ready. The held segment says what the
+    queue waits for ("a run waits for the browser", "2 jobs wait for the render tools").
+  - *Welcome* — while the Tools are not all here, a first panel in the Set up column: the title, its state word, "Captures
+    and renders start once they are here. A job asked meanwhile waits in the queue.", a Progress once a download
+    started, and the item's actions (Download, Pause, Resume, Show details).
+  - *The Tools page*, `#/setup/tools` (`project/ToolsScreen.tsx`; reached from the item's Show details and the status
+    bar; no app Settings exists, and no native menu item yet): the state (StatusMark and, while not ready, the rows and
+    actions above); a DataTable (Tool · Version and source · Download · On disk · State: Ready, Downloading, Paused,
+    Missing, Damaged, Failed); the facts Folder and Checked ("Today 09:12, every file matches", "Checking every
+    file…"); Check again (reads every file; a changed Tool is said damaged), Show in Finder (a pipe line to the shell,
+    which reveals its own home's `tools/`), Terms of each tool…; the card "Older versions · N MB" with Remove… (an inline
+    confirmation, destructive; the answer names what was removed and what was kept, and why). A server that cannot act
+    (not supervised, a checkout, the app not in Applications) says so and keeps the actions off.
+  - *Waiting work* (`ToolsNeeded`): a queued rehearsal or capture on Shoot's live view shows "Waiting for the browser"
+    (or the render tools) only while the queue holds it for them — the run's `job` event says `waits_for`, so a
+    project that films with a browser of its own never shows it (running Callout: it starts by itself once they are
+    downloaded and checked, with the percent while they download, "download them first", "the download is paused" or
+    "one is damaged: download it again"; it waits in the queue and fails only if cancelled — the status bar's Stop
+    cancels it); the Library's
+    posters and loops and the frame viewer's frame to comment, which run outside the queue, show "Not downloaded yet"
+    with Download (or Show the download).
+  - *The update sheet*: a step "Download the Tools it needs · N MB" ("Its Tools: up to date" when the new version uses
+    the same) between the signature and the jobs; while it runs (state `preparing`, polled every second) a Progress "Its
+    Tools" and the list of the update's Tools (each with its size, or "already here"); the badge "Downloading the Tools
+    for v0.3.1 · 40 %"; the failure `tools` ("Update v0.3.1: its Tools did not download": nothing installed, this
+    version kept). Before the click the sheet cannot list them (the feed carries no manifest).
+  - Its a11y tours: the Set-up item and the Tools page, dark at 1440 / 900 and light (`test/studio-e2e-tools.test.ts`);
+    the update's steps in `test/studio-e2e-update.test.ts`.
+
 **The legacy layer is gone (L5.12d).** Every screen is on the kit: `app.css` (the cascade layer `legacy`) is deleted, the
 ratchet table `test/legacy-controls.json` is `{}` (every file holds zero findings), bits.tsx keeps only `Txt`, `shown`
 and small helpers (no Badge, Notice or Loading). A class word given in a JSX `className` or an object's `className:`

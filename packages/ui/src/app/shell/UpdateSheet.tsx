@@ -21,10 +21,10 @@ import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
 import { Button, Callout, Progress, Shape, Sheet } from '../ui-kit/index.js';
 import type { SheetAction } from '../ui-kit/index.js';
-import { STEP_MARKS, UPDATE_EVENT, badgeWords, checkedWords, downloadFigure, installSteps, progressWords, sheetShown } from './update.js';
+import { STEP_MARKS, UPDATE_EVENT, badgeWords, checkedWords, downloadFigure, installSteps, megabytes, progressWords, sheetShown, toolsFigure } from './update.js';
 import type { UpdateStatus } from './update.js';
 
-const BUSY = new Set(['checking', 'downloading', 'waiting', 'installing']);
+const BUSY = new Set(['checking', 'downloading', 'preparing', 'waiting', 'installing']);
 /** The version whose "Updated to vX" was seen (a per-browser convenience). */
 const SEEN_KEY = 'retake.update.seen';
 
@@ -44,7 +44,7 @@ function useUpdateStatus() {
   useEffect(() => load(), [load]);
   const fast = open || (st?.state !== undefined && BUSY.has(st.state));
   useEffect(() => {
-    const t = window.setInterval(load, st?.state === 'downloading' ? 1000 : fast ? 2000 : 60_000);
+    const t = window.setInterval(load, st?.state === 'downloading' || st?.state === 'preparing' ? 1000 : fast ? 2000 : 60_000);
     return () => window.clearInterval(t);
   }, [load, fast, st?.state]);
   // Help › Check for Updates… found one: the shell's constant event — read the status, open the sheet.
@@ -99,6 +99,7 @@ function UpdateContent({ st, failed }: { st: UpdateStatus; failed: string | null
   const progress = progressWords(st);
   const steps = installSteps(st);
   const figure = downloadFigure(st);
+  const tools = toolsFigure(st);
   const notes = st.untrusted?.notes ?? '';
   return (
     <>
@@ -119,6 +120,19 @@ function UpdateContent({ st, failed }: { st: UpdateStatus; failed: string | null
           </Callout>
         ))}
       {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
+      {tools && <Progress label="Its Tools" value={tools.percent} valueText={tools.text} testId="update-tools" />}
+      {st.tools && st.tools.tools.length > 0 && (
+        <ul className="sh-update-tools" aria-label="The Tools of the update" data-testid="update-tools-list">
+          {st.tools.tools.map((t) => (
+            <li key={t.id} className="sh-update-tool">
+              <span className="sh-update-tool-name">
+                <Txt text={`${t.label} · ${t.name} ${t.version}`} />
+              </span>
+              <span className="sh-update-tool-state">{t.here ? 'already here' : megabytes(t.bytes)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {steps && (
         <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
           {steps.map((step) => (
@@ -200,7 +214,7 @@ export function UpdateControl() {
           text={
             st.state === 'updated'
               ? `${checkedWords(st.checked)}`
-              : `You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`
+              : `You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, downloads and checks the Tools it needs, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`
           }
         />
       </Sheet>

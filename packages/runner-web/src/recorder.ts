@@ -88,9 +88,19 @@ export const KICK_WINDOW_MS = 700;
 const KICK_POLL_MS = 30;
 
 /**
+ * A screencast frame's wall time (epoch ms): its compositor time stamp (`stamp`, epoch seconds), but never later than
+ * `arrival` (Date.now() when it came) — a frame cannot have been painted after it arrived. Chromium 141 stamps a frame
+ * 1–3 ms before it arrives; Chrome for Testing 159 stamps it ≈ 13 ms after (measured on the M4: arrival − stamp
+ * −14.7 … +4.3 ms, median −13), so its raw stamps put a frame inside a load hold or a pause that began after it came.
+ */
+export function frameWall(stamp: number | undefined, arrival: number): number {
+  return stamp !== undefined && Number.isFinite(stamp) ? Math.min(stamp * 1000, arrival) : arrival;
+}
+
+/**
  * CDP screencast of the active page. Frames are acked immediately and handed to the encoder fed during the take
  * — and written asynchronously to `framesDir` when kept — so capture never blocks the action loop; timestamps come from
- * the compositor (epoch seconds, same clock as the runner).
+ * the compositor (epoch seconds, same clock as the runner), never later than the frame's arrival (frameWall).
  */
 export class ScreencastRecorder {
   readonly frames: FrameIndexEntry[] = [];
@@ -301,7 +311,7 @@ export class ScreencastRecorder {
       } else if (px && (Math.abs(px.width - ew) > 1 || Math.abs(px.height - eh) > 1)) {
         wrong = `${px.width}×${px.height} px`;
       }
-      const wall = f.metadata.timestamp !== undefined ? f.metadata.timestamp * 1000 : Date.now();
+      const wall = frameWall(f.metadata.timestamp, this.lastArrival);
       if (wrong) {
         this.dropped++;
         const now = Date.now();
@@ -327,6 +337,9 @@ export class ScreencastRecorder {
       }
       lastFull = Math.max(lastFull, wall);
       healRefreshes = 0;
+      // Painted before a frame already filmed: it would put capture time back (Chrome for Testing 159, as the screencast
+      // starts again after a pause: a frame stamped 17 ms before the one already kept came after it). Dropped.
+      if (wall < this.lastFrameWall) return;
       const shot: Shot = { data, wall };
       // A page that has not painted yet (R-ISS-08): the frame is held, the previous one stays on screen.
       if (this.hold.frame(shot)) this.keep(shot);

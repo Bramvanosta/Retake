@@ -25,6 +25,7 @@
     "./site": "./src/site.ts",
     "./studio-tools": "./src/studio-tools.ts",
     "./take": "./src/take.ts",
+    "./tools": "./src/tools.ts",
     "./timeline": "./src/timeline.ts",
     "./timing": "./src/timing.ts",
     "./workspace": "./src/workspace.ts"

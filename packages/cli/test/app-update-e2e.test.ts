@@ -11,10 +11,22 @@
  * - a scratch copy of the 0.2.0 app, run directly (test mode, never through LaunchServices) on a scratch workspace with
  *   a scratch HOME / Retake home / TMPDIR / CFFIXED_USER_HOME; RETAKE_DESKTOP_TEST_UPDATE=install clicks Install and
  *   Restart once the launch check finds the update.
+ * The Tools (BL-192): one stage is made, then copied — the 0.2.0 stage's bundle.json says 0.2.0, the 0.2.1 stage's
+ * says 0.2.1 and names its compositor in another folder (`compositor-<version>-update-e2e`: the same published archive,
+ * re-labelled — a new Tools folder that 0.2.0 lacks, as a new revision would be; the browsers stay shared, since
+ * playwright-core finds them by its own revision's folder name). 0.2.0's Tools are installed into the scratch Retake
+ * home from RETAKE_TEST_TOOL_ARCHIVES=<folder of the Tools' archives> (`retake tools install --from-archives`;
+ * without it the suite is skipped, and says so in its name).
  * First a feed whose signature is for other bytes: the download is refused, nothing is installed, the app keeps
- * running at 0.2.0. Then the real one: the owned server stops gracefully, the bundle is swapped, the app restarts at
- * 0.2.1 by itself — its signature verifies (`codesign --verify --deep --strict`), every link of the build
- * is there, no AppleDouble file, Chromium and the headless shell launch from it.
+ * running at 0.2.0. Then the real one. The new Tools folder's archive is laid where an earlier download of it would have
+ * left it complete (`<tools>/.partial/<folder>.tgz.part` and its record) — no network here; the installer reuses such a
+ * part, then checks it as any download (sha256, extraction rules, tree digest) — once 0.2.0's start has pruned
+ * (it removes the parts of archives it does not name), the feed holding latest.json until then. The shell verifies the
+ * update, hands the archive to its server, which reads 0.2.1's bundle.json from it and installs the missing folder before
+ * the restart (kept by `.pending.json`, the old folder still there); then the owned server stops gracefully, the bundle
+ * is swapped, the app restarts at 0.2.1 by itself — its signature verifies (`codesign --verify --deep --strict`), every
+ * link of the build is there, no AppleDouble file; its first start records itself and prunes the old compositor folder;
+ * doctor, `retake tools check`, Chromium and the headless shell (from the downloaded Tools) work from it.
  * RETAKE_TEST_UPDATE_PORT=<port> (default 4990; the storage stand-in takes the next one).
  * RETAKE_TEST_BUNDLE_FFMPEG=<dir> (optional) bundles that ffmpeg; RETAKE_TEST_UPDATE_REPORT=<file> writes the numbers;
  * RETAKE_TEST_KEEP=1 keeps the temp folder, RETAKE_TEST_UPDATE_REUSE=<that folder> runs again on its builds (each run's
@@ -34,7 +46,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 type Untyped = any;
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const ENABLED = process.env.RETAKE_TEST_UPDATE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
+const WANTED = process.env.RETAKE_TEST_UPDATE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
+/** The Tools' archives (apps/desktop/bundle/tools.json's): 0.2.0's Tools, and the archive of 0.2.1's new folder. */
+const ARCHIVES = process.env.RETAKE_TEST_TOOL_ARCHIVES?.trim() || undefined;
+const ENABLED = WANTED && !!ARCHIVES;
+const SKIPPED_WHY = WANTED && !ARCHIVES ? ' — skipped: RETAKE_TEST_TOOL_ARCHIVES=<folder of the Tools’ archives> is needed (the app downloads its Tools)' : '';
+/** 0.2.1's compositor folder: 0.2.0's, re-labelled (the same archive), a Tools folder 0.2.0 lacks. */
+const NEW_FOLDER_SUFFIX = '-update-e2e';
 const PORT = Number(process.env.RETAKE_TEST_UPDATE_PORT ?? 4990);
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
@@ -45,6 +63,8 @@ let storage: Server | undefined;
 /** Every request the two servers got: `feed <url>` / `storage <url>`. */
 const hits: string[] = [];
 let served: { manifest: string; archive: string } = { manifest: '{}', archive: '' };
+/** While set, latest.json is answered only once it resolves (the real update waits for 0.2.0's start prune). */
+let holdManifest: Promise<void> | undefined;
 let copy: string;
 let built: { v1: Record<string, Untyped>; v2: Record<string, Untyped> };
 let runEnv: Record<string, string>;
@@ -121,7 +141,27 @@ async function stopAll(): Promise<void> {
   for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
 }
 
-describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)', () => {
+/** A Tool entry of a bundle.json (the fields this test reads). */
+interface ToolEntryLike {
+  id: string;
+  folder: string;
+  url: string;
+  sha256: string;
+  bytes: number;
+  archive: string;
+}
+const manifestOf = (app: string) => JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'bundle.json'), 'utf8')) as { app: string; tools: ToolEntryLike[] };
+
+/** A stage's bundle.json made another version's: `app`, and (0.2.1) its compositor in a folder of its own. */
+function relabelStage(dir: string, version: string, newFolder?: boolean): void {
+  const file = join(dir, 'bundle.json');
+  const m = JSON.parse(readFileSync(file, 'utf8')) as { app: string; tools: ToolEntryLike[] };
+  m.app = version;
+  if (newFolder) m.tools = m.tools.map((t) => (t.id === 'compositor' ? { ...t, folder: `${t.folder}${NEW_FOLDER_SUFFIX}` } : t));
+  writeFileSync(file, `${JSON.stringify(m, null, 1)}\n`);
+}
+
+describe.skipIf(!ENABLED)(`the updater, end to end, with the Tools an update brings (gated: RETAKE_TEST_UPDATE=1)${SKIPPED_WHY}`, () => {
   beforeAll(async () => {
     base = reuse ? realpathSync(reuse) : realpathSync(mkdtempSync(join(tmpdir(), 'retake-update-e2e-')));
     const t0 = Date.now();
@@ -129,7 +169,10 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
     if (reuse) {
       // An earlier run's builds (RETAKE_TEST_KEEP=1): a fresh copy and a fresh scratch world below.
       built = { v1: JSON.parse(readFileSync(join(base, 'v1', 'bundle-report.json'), 'utf8')), v2: JSON.parse(readFileSync(join(base, 'v2', 'bundle-report.json'), 'utf8')) };
-      for (const d of ['apps', 'home', 'retake-home', 'tmp', 'ws']) rmSync(join(base, d), { recursive: true, force: true });
+      for (const d of ['apps', 'home', 'retake-home', 'tmp', 'ws']) {
+        if (existsSync(join(base, d))) spawnSync('chmod', ['-R', 'u+w', join(base, d)]);
+        rmSync(join(base, d), { recursive: true, force: true });
+      }
     } else {
       // The build's toolchain: the account's HOME finds the pnpm store (corepack's pnpm) and rustup — the build starts no
       // browser and no app.
@@ -149,20 +192,28 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       // The test key for the archive's signature (bundle.mjs gives it to the signer only).
       const buildEnv = { ...toolEnv, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(keyDir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'e2e-test-password' };
       const ffmpeg = process.env.RETAKE_TEST_BUNDLE_FFMPEG;
+      // One stage, copied: each version's bundle.json says its version (the update's server reads 0.2.1's from the
+      // archive and requires it), and 0.2.1's names a Tools folder 0.2.0 lacks.
+      const stage1 = join(base, 'stage-0.2.0');
+      const stage2 = join(base, 'stage-0.2.1');
+      bundle.stage({ out: stage1, env: toolEnv, ...(ffmpeg ? { ffmpeg } : {}) });
+      expect(spawnSync('ditto', [stage1, stage2]).status).toBe(0);
+      relabelStage(stage1, '0.2.0');
+      relabelStage(stage2, '0.2.1', true);
       const v1 = bundle.build({
         out: join(base, 'v1'),
         env: buildEnv,
         offline: true,
         dmg: false,
+        stage: stage1,
         updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.0' }),
-        ...(ffmpeg ? { ffmpeg } : {}),
       });
       const v2 = bundle.build({
         out: join(base, 'v2'),
         env: buildEnv,
         offline: true,
         dmg: false,
-        stage: join(base, 'v1', 'stage'),
+        stage: stage2,
         updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.1' }),
       });
       built = { v1, v2 };
@@ -177,9 +228,12 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       if (to) return void res.writeHead(302, { location: `http://127.0.0.1:${PORT + 1}/storage/${to}?signed=1` }).end();
       res.writeHead(404).end();
     });
-    storage = createServer((req, res) => {
+    storage = createServer(async (req, res) => {
       hits.push(`storage ${req.url}`);
-      if (req.url === '/storage/latest.json?signed=1') return void res.writeHead(200, { 'content-type': 'application/json' }).end(served.manifest);
+      if (req.url === '/storage/latest.json?signed=1') {
+        if (holdManifest) await holdManifest;
+        return void res.writeHead(200, { 'content-type': 'application/json' }).end(served.manifest);
+      }
       if (req.url === '/storage/Retake.app.tar.gz?signed=1' && served.archive) {
         res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(statSync(served.archive).size) });
         return void createReadStream(served.archive).pipe(res);
@@ -206,7 +260,12 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       RETAKE_DESKTOP_TEST: '1',
       RETAKE_DESKTOP_TEST_UPDATE: 'install',
     };
-  }, 30 * 60_000);
+    // 0.2.0's Tools, from their archives, by the 0.2.0 copy's own command (its scratch Retake home).
+    const t1 = Date.now();
+    const inst = spawnSync(join(copy, 'Contents', 'Resources', 'bin', 'retake'), ['tools', 'install', '--from-archives', ARCHIVES!], { env: runEnv, encoding: 'utf8', timeout: 15 * 60_000 });
+    if (inst.status !== 0) throw new Error(`retake tools install --from-archives: ${inst.stdout}\n${inst.stderr}`);
+    report.tools_install_ms = Date.now() - t1;
+  }, 45 * 60_000);
 
   afterAll(async () => {
     await stopAll();
@@ -216,12 +275,21 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
     if (copy && existsSync(LSREGISTER)) spawnSync(LSREGISTER, ['-u', copy], { stdio: 'ignore' });
     if (process.env.RETAKE_TEST_UPDATE_REPORT) writeFileSync(process.env.RETAKE_TEST_UPDATE_REPORT, `${JSON.stringify(report, null, 1)}\n`);
     process.stdout.write(`update e2e: ${JSON.stringify(report)}\n`);
-    if (base && !reuse && !process.env.RETAKE_TEST_KEEP) rmSync(base, { recursive: true, force: true });
+    // The installed Tools are read-only trees (the installer's rule): writable again before they are removed.
+    if (base && !reuse && !process.env.RETAKE_TEST_KEEP) {
+      spawnSync('chmod', ['-R', 'u+w', base]);
+      rmSync(base, { recursive: true, force: true });
+    }
   }, 120_000);
 
   it('the builds: 0.2.0 and 0.2.1 with the updater; the archive keeps every link, has no AppleDouble entry, and is signed for 0.2.1', () => {
     expect(plist(built.v1.app).CFBundleShortVersionString).toBe('0.2.0');
     expect(plist(built.v2.app).CFBundleShortVersionString).toBe('0.2.1');
+    // Each bundle.json says its version; 0.2.1's compositor is in a folder 0.2.0 does not name, the browsers are shared.
+    const [m1, m2] = [manifestOf(built.v1.app), manifestOf(built.v2.app)];
+    expect([m1.app, m2.app]).toEqual(['0.2.0', '0.2.1']);
+    const folders = (m: typeof m1) => Object.fromEntries(m.tools.map((t) => [t.id, t.folder]));
+    expect(folders(m2)).toEqual({ ...folders(m1), compositor: `${folders(m1).compositor}${NEW_FOLDER_SUFFIX}` });
     const a = built.v2.updater.archive;
     expect(a.version).toBe('0.2.1');
     expect(a.signature).toBe(`${a.archive}.sig`);
@@ -278,7 +346,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
   );
 
   it(
-    'the real update: the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole, and Chromium launches from it',
+    "the real update: 0.2.1's new Tools folder installed before the restart, the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole; its start prunes 0.2.0's folder, and Chromium launches from the Tools",
     async () => {
       const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as Untyped;
       const a = built.v2.updater.archive;
@@ -296,11 +364,52 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       // The check of the first run is remembered (at most once a day): forget it.
       rmSync(join(base, 'retake-home', 'desktop-updates.json'), { force: true });
       hits.length = 0;
+      const tools = join(base, 'retake-home', 'tools');
+      const oldEntry = manifestOf(copy).tools.find((t) => t.id === 'compositor')!;
+      const newEntry = manifestOf(built.v2.app).tools.find((t) => t.id === 'compositor')!;
+      const oldDir = join(tools, oldEntry.folder);
+      const newDir = join(tools, newEntry.folder);
+      expect(existsSync(join(oldDir, '.verified'))).toBe(true);
+      expect(existsSync(newDir)).toBe(false);
+      // 0.2.0's start prunes the parts of archives it does not name: a sentinel part tells when that is done; until
+      // then the feed holds latest.json. Then the new folder's archive goes where a complete download leaves it.
+      const partial = join(tools, '.partial');
+      mkdirSync(partial, { recursive: true, mode: 0o700 });
+      const sentinel = join(partial, 'sentinel.zip.part');
+      writeFileSync(sentinel, '');
+      let release!: () => void;
+      holdManifest = new Promise<void>((r) => (release = r));
       const t0 = Date.now();
       const run = launch();
+      try {
+        const end = Date.now() + 25_000;
+        while (existsSync(sentinel)) {
+          if (Date.now() > end) throw new Error(`0.2.0's start did not prune (${run.lines.slice(-20).join('\n')})`);
+          await sleep(100);
+        }
+        const leaf = newEntry.folder.split('/').pop()!;
+        const part = join(partial, `${leaf}.${newEntry.archive}.part`);
+        const src = readdirSync(ARCHIVES!, { recursive: true, withFileTypes: true }).find((e) => e.isFile() && e.name === newEntry.url.split('/').pop());
+        expect(src, `the archive of ${newEntry.url} in ${ARCHIVES}`).toBeDefined();
+        expect(spawnSync('cp', [join(src!.parentPath, src!.name), part]).status).toBe(0);
+        writeFileSync(`${part}.json`, JSON.stringify({ url: newEntry.url, sha256: newEntry.sha256, bytes: newEntry.bytes, received: newEntry.bytes }));
+      } finally {
+        release();
+        holdManifest = undefined;
+      }
       await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
       // The verified archive is kept in a 0600 file of the app's cache folder (not in memory)…
       await run.wait(/updates: 0\.2\.1 downloaded and verified \(\d+ MB\), kept in the cache folder/, 300_000);
+      // …then 0.2.1's Tools, before the restart: its server reads 0.2.1's bundle.json from the archive and installs the
+      // folder that is missing (checked as any download), kept by `.pending.json`; 0.2.0's folder is still there.
+      await run.wait(/updates: the Studio server downloads the Tools 0\.2\.1 needs/, 60_000);
+      await run.wait(/updates: the Tools 0\.2\.1 needs are (?:ready|not ready)/, 600_000);
+      expect(run.lines.join('\n')).toMatch(/updates: the Tools 0\.2\.1 needs are ready/);
+      expect(existsSync(join(newDir, '.verified'))).toBe(true);
+      expect(existsSync(join(oldDir, '.verified'))).toBe(true);
+      expect(JSON.parse(readFileSync(join(tools, '.pending.json'), 'utf8'))).toEqual([expect.objectContaining({ app: '0.2.1', folders: expect.arrayContaining([newEntry.folder]) })]);
+      expect(existsSync(partial) ? readdirSync(partial) : []).toEqual([]);
+      report.update_tools = { folder: newEntry.folder, bytes: newEntry.bytes, ready_after_ms: Date.now() - t0 };
       await run.wait(/updates: quitting to install 0\.2\.1/, 300_000);
       await run.wait(/updates: 0\.2\.1 installed — restarting/, 300_000);
       await run.wait(/restarted the app directly \(pid \d+\)/, 30_000);
@@ -319,6 +428,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       );
       report.redirects = hits;
       const at = (re: RegExp) => run.lines.findIndex((l) => re.test(l));
+      expect(at(/updates: the Tools 0\.2\.1 needs are ready/)).toBeLessThan(at(/updates: quitting to install 0\.2\.1/));
       // The owned server stopped (gracefully: its exit, not a kill) before the swap.
       const stopped = at(/stopped the Studio server \(pid \d+, quit\)/);
       expect(stopped, run.lines.join('\n')).toBeGreaterThan(0);
@@ -333,14 +443,34 @@ describe.skipIf(!ENABLED)('the updater, end to end (gated: RETAKE_TEST_UPDATE=1)
       expect(v.status, v.stderr).toBe(0);
       expect(links(copy)).toBe(links(built.v2.app));
       expect(walk(copy).filter((p) => p.split('/').pop()!.startsWith('._'))).toEqual([]);
-      // Chromium (new headless) and the headless shell launch from the swapped app, with its own Node.js and engine.
+      // 0.2.1's first start, every Tool ready: recorded, its pending record gone, 0.2.0's compositor folder pruned.
+      const end = Date.now() + 60_000;
+      while (existsSync(oldDir) && Date.now() < end) await sleep(250);
+      expect(existsSync(oldDir), `0.2.0's ${oldEntry.folder} pruned after 0.2.1 started`).toBe(false);
+      expect(existsSync(join(newDir, '.verified'))).toBe(true);
+      const started = JSON.parse(readFileSync(join(tools, '.started.json'), 'utf8')) as Array<{ app: string; location: string; folders: string[] }>;
+      expect(started).toEqual(expect.arrayContaining([expect.objectContaining({ app: '0.2.1', location: copy, folders: expect.arrayContaining([newEntry.folder]) })]));
+      expect(JSON.parse(readFileSync(join(tools, '.pending.json'), 'utf8'))).toEqual([]);
+      const cli = join(copy, 'Contents', 'Resources', 'bin', 'retake');
+      const doc = JSON.parse(spawnSync(cli, ['doctor', '--json'], { env: runEnv, encoding: 'utf8', timeout: 180_000 }).stdout) as {
+        failures: number;
+        checks: Array<{ name: string; status: string; detail: string }>;
+      };
+      const line = (n: string) => doc.checks.find((c) => c.name === n)!;
+      expect(doc.failures, JSON.stringify(doc.checks)).toBe(0);
+      expect(line('Compositor')).toMatchObject({ status: 'ok', detail: expect.stringContaining(newDir) });
+      expect(line('Tools').status).toBe('ok');
+      const check = spawnSync(cli, ['tools', 'check'], { env: runEnv, encoding: 'utf8', timeout: 600_000 });
+      expect(check.status, `${check.stdout}\n${check.stderr}`).toBe(0);
+      // Chromium (new headless) and the headless shell launch from the swapped app, with its own Node.js and engine,
+      // from the downloaded Tools.
       const res = join(copy, 'Contents', 'Resources');
       const probe = join(base, 'probe.cjs');
       writeFileSync(
         probe,
         `const { chromium } = require(${JSON.stringify(join(res, 'engine', 'node_modules', 'playwright-core'))});\n(async () => {\n  for (const o of [{ channel: 'chromium' }, {}]) {\n    const b = await chromium.launch({ headless: true, ...o });\n    const p = await b.newPage();\n    await p.setContent('<p>ok</p>');\n    process.stdout.write((await p.textContent('p')) + ' ' + b.version() + '\\n');\n    await b.close();\n  }\n})().catch((e) => { console.error(e); process.exit(1); });\n`,
       );
-      const c = spawnSync(join(res, 'node', 'bin', 'node'), [probe], { encoding: 'utf8', env: { ...runEnv, PLAYWRIGHT_BROWSERS_PATH: join(res, 'browsers') }, timeout: 120_000 });
+      const c = spawnSync(join(res, 'node', 'bin', 'node'), [probe], { encoding: 'utf8', env: { ...runEnv, PLAYWRIGHT_BROWSERS_PATH: join(tools, 'browsers') }, timeout: 120_000 });
       expect(c.status, c.stderr).toBe(0);
       expect(c.stdout.trim().split('\n')).toHaveLength(2);
       for (const l of c.stdout.trim().split('\n')) expect(l).toMatch(/^ok \d+\./);

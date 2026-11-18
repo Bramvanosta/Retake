@@ -82,14 +82,20 @@ interface Armed {
 
 const armedContexts = new WeakMap<BrowserContext, Armed>();
 
+/** The variable that keeps playwright-core from routing service workers' own requests (it does by default since 1.57). */
+export const SERVICE_WORKER_NETWORK_OFF = 'PLAYWRIGHT_DISABLE_SERVICE_WORKER_NETWORK';
+
 /**
- * Before the first launch of a read-only run: let Playwright report service workers' own requests, so the context route
- * sees (and stops) a write a service worker sends — to answer a page's request or in the background. Read when a
- * service-worker target attaches (playwright-core crServiceWorker), process-wide: read-write runs only get network
- * events of their service workers (no route, nothing intercepted).
+ * Before the launch of a read-only run: let Playwright report service workers' own requests, so the context route
+ * sees (and stops) a write a service worker sends — to answer a page's request or in the background. playwright-core
+ * 1.57 onwards does so unless SERVICE_WORKER_NETWORK_OFF is set (up to 1.56 it did only with an experimental variable
+ * set), so an inherited one is removed here — it would take service workers' writes out of the guard. Read when a
+ * service-worker target attaches (playwright-core crServiceWorker), process-wide: read-write runs get the same network
+ * events of their service workers (no write guard there; a launch with a route of its own — artefacts, site
+ * extraction — blocks or answers them as it does a page's).
  */
 export function enableServiceWorkerRequests(): void {
-  process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS ??= '1';
+  delete process.env[SERVICE_WORKER_NETWORK_OFF];
 }
 
 /**

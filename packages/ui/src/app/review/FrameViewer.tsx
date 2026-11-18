@@ -24,6 +24,7 @@ import type { FrameAsk, Region } from '../words/comment-words.js';
 import { Jpeg } from '../Thumb.js';
 import { SHEET_DATA_MAX } from '../thumbs.js';
 import { Callout, RegionOverlay, Scrubber } from '../ui-kit/index.js';
+import { ToolsNeeded } from '../shell/tools-parts.js';
 import { useRegionDrag } from './region-drag.js';
 import { FrameControls, ViewerTicks, useViewerKeys } from './viewer-controls.js';
 
@@ -142,6 +143,8 @@ export function FrameViewer(p: {
   const ticks = d.markers.length + d.pins.length;
   return (
     <div className="cm-viewer" data-testid="viewer" data-render={d.render_id} data-variant={d.variant} data-frame={frame} data-shown={image ? image.frame : ''}>
+      {/* A frame is rendered again to be commented (render_frame): the render tools. */}
+      <ToolsNeeded need="render" what="Showing a frame to comment" testId="frame-tools" />
       <FramePicture o={d} image={image} frame={frame} drawing={p.drawing} region={p.region} setRegion={p.setRegion} regionLabel={p.regionLabel} />
       {frameError && (
         <p className="cm-pre cm-error" role="alert" data-testid="frame-error">

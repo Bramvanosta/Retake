@@ -31,6 +31,11 @@
       "types": "./dist/doctor-entry.d.ts",
       "default": "./dist/doctor-entry.js"
     },
+    "./tools": {
+      "source": "./src/tools-entry.ts",
+      "types": "./dist/tools-entry.d.ts",
+      "default": "./dist/tools-entry.js"
+    },
     "./integrations": {
       "source": "./src/integrations.ts",
       "types": "./dist/integrations.d.ts",

@@ -9,6 +9,9 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
+import { appToolPath, bundleInfo, toolProblem } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
+import { RenderError } from './types.js';
 
 const require = createRequire(import.meta.url);
 
@@ -23,10 +26,26 @@ export function bundlerLibrary(): Promise<typeof import('@remotion/bundler')> {
 }
 
 /**
- * The folder of the library's own programs (its compositor, ffmpeg, ffprobe and their libraries): what a render uses
- * when it is given no other. The encode tools (encode-tools.ts) link to it.
+ * The compositor folder every library call is handed as `binariesDirectory` (its compositor, ffmpeg, ffprobe and their
+ * libraries): in the app, its downloaded compositor (`<RETAKE_HOME>/tools/compositor-<version>`, core/io tools.ts) — a
+ * RenderError saying what to do while it is not downloaded or its check fails (the app ships no compositor package: a
+ * call without it fails loudly); null in a checkout (the library's own package in node_modules). A source scan
+ * (test/tools-resolvers.test.ts) requires every library call of this package to name `binariesDirectory`.
+ */
+export function libraryBinaries(env: NodeJS.ProcessEnv = process.env, bundle: BundleInfo | null = bundleInfo()): string | null {
+  if (!bundle) return null;
+  const problem = toolProblem('compositor', env, bundle);
+  if (problem) throw new RenderError(`no compositor to render with: ${problem}`);
+  return appToolPath('compositor', env, bundle);
+}
+
+/**
+ * The folder of the library's own programs (its compositor, ffmpeg, ffprobe and their libraries): the app's downloaded
+ * compositor (libraryBinaries), else the library's own package. The encode tools (encode-tools.ts) link to it.
  */
 export async function compositorDir(): Promise<string> {
+  const own = libraryBinaries();
+  if (own) return own;
   const { RenderInternals } = await rendererLibrary();
   return dirname(RenderInternals.getExecutablePath({ type: 'compositor', binariesDirectory: null, indent: false, logLevel: 'error' }));
 }

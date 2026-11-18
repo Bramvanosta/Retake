@@ -3,6 +3,8 @@ import { zThemeName } from '@retake/core/ids';
 import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
 import { outsideWorkspace, staleThisEngine, workerOfAnotherCopy } from '../engine-copy.js';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
+import type { ToolId } from '@retake/core/io';
+import type { ToolsOverall, ToolsStatus } from '../tools-work.js';
 import { README_MAX_CHARS } from '../projects.js';
 import type { EnvironmentChangeView } from '../project-env.js';
 import { formatBytes } from '../prune.js';
@@ -30,12 +32,15 @@ export const engineInfo = defineOperation({
     const worker = w ? { pid: w.pid, since: w.since, build: w.build, ...(w.started_by ? { started_by: w.started_by } : {}), ...(other ? { other_copy: true } : {}) } : null;
     const usage = await engine.usage();
     // What a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
-    const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
+    // Jobs held by the Tools are said by the Tools' own clause.
+    const held = heldWork((await engine.jobs.list({ states: ['queued', 'running'], limit: 50 })).filter((j) => j.yield?.cause !== 'tools'));
     const elsewhere = outsideWorkspace(startedIn, info.root);
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
     const stale = staleThisEngine(info.version);
+    // the app's downloaded Tools (a checkout has none: no clause); MCP never downloads them.
+    const tools = toolsInfo(engine.tools.status());
     return {
-      summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
+      summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${toolsClause(tools)}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
       data: {
         ...info,
         stale,
@@ -45,11 +50,25 @@ export const engineInfo = defineOperation({
         worker,
         usage,
         held: held ?? null,
+        tools,
         ...(other ? { untrusted: { worker_other_copy: other } } : {}),
       },
     };
   },
 });
+
+/** What engine_info says of the Tools: their state and the ones not ready (`checkout`: none in a checkout). */
+export function toolsInfo(s: ToolsStatus): { state: ToolsOverall; missing: ToolId[] } {
+  return { state: s.state, missing: s.tools.filter((t) => t.state !== 'ready').map((t) => t.id) };
+}
+
+/** The summary's clause when the app's Tools are not all ready (none in a checkout or when they are). */
+export function toolsClause(t: { state: ToolsOverall; missing: readonly ToolId[] }): string {
+  if (t.state === 'ready' || t.state === 'checkout') return '';
+  const what = t.state === 'downloading' ? 'being downloaded' : t.state === 'damaged' ? 'damaged (the person runs retake tools check)' : 'not downloaded yet';
+  // "downloaded Tools" (GLOSSARY): never a bare "Tools" beside the client's own MCP tools.
+  return ` The app's downloaded Tools (${t.missing.join(', ')}): ${what} — the person downloads them (the Studio's set-up, or \`retake tools install\`); captures and renders wait in the queue and start by themselves once they are checked.`;
+}
 
 export const projectList = defineOperation({
   name: 'project_list',

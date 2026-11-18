@@ -129,7 +129,10 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
   const live = v ? LIVE_STATES.has(v.state) : error === null;
   useFocusKeeper(title);
   // A recording opens at the top of the centre pane (the start form shares the screen's key: no scroll back by the shell).
-  useEffect(() => document.getElementById('main')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }), []);
+  // A statement body: Chrome 159's scrollTo returns a Promise, which React would call as the effect's cleanup on unmount.
+  useEffect(() => {
+    document.getElementById('main')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
   // The clock ticks while the recording goes (the time left, "draft updated …").
   useEffect(() => {
     if (!state || !LIVE_STATES.has(state)) return;

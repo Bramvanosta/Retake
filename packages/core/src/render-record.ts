@@ -121,7 +121,7 @@ export interface RenderBase<P, O> {
   probe?: RenderProbe;
   concurrency: number;
   bundle: { hash: string; cached: boolean; ms: number };
-  browser: { path: string | null; source: 'env' | 'bundled' | 'playwright' | 'none' | 'remotion' };
+  browser: { path: string | null; source: 'env' | 'tools' | 'bundled' | 'playwright' | 'none' | 'remotion' };
   timings: { plan_ms: number; bundle_ms: number; render_ms: number; total_ms: number };
   warnings: string[];
   /** The plan rendered. */
