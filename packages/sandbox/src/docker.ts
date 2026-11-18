@@ -123,6 +123,8 @@ export interface DockerRunOptions {
   onLine?: (line: string) => void;
   /** The child, once spawned (a second Ctrl-C kills it synchronously). */
   onSpawn?: (child: ChildProcess) => void;
+  /** Text written to docker's standard input, then closed (a compose file given as `-f -`); none by default. */
+  input?: string;
 }
 
 /** How docker is run: `args` after the binary. Injectable (tests run the provider on a fake). */
@@ -142,12 +144,16 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions & 
         cwd: opts.cwd,
         ...(opts.argv0 ? { argv0: opts.argv0 } : {}),
         env: { ...dockerEnv(opts.policy, process.env, opts.unset, opts.pass), ...(opts.env ?? {}) },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [opts.input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: errorMessage(e) });
     }
     opts.onSpawn?.(child);
+    if (opts.input !== undefined && child.stdin) {
+      child.stdin.on('error', () => undefined);
+      child.stdin.end(opts.input);
+    }
     let stdout = '';
     let stderr = '';
     let timedOut = false;

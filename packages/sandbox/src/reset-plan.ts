@@ -46,12 +46,7 @@ export interface ResetPlanInput {
   empty: boolean;
 }
 
-export type ResetPlan =
-  | { kind: 'restore' }
-  | { kind: 'first-seed' }
-  | { kind: 'from-base'; why: OutdatedWhy }
-  | { kind: 'from-snapshot'; why: OutdatedWhy }
-  | { kind: 'refuse'; why: OutdatedWhy };
+export type ResetPlan = { kind: 'restore' } | { kind: 'first-seed' } | { kind: 'from-base'; why: OutdatedWhy } | { kind: 'from-snapshot'; why: OutdatedWhy } | { kind: 'refuse'; why: OutdatedWhy };
 
 /** The first reason the snapshot cannot be restored as it is (null: it can). */
 export function outdatedWhy(i: ResetPlanInput): OutdatedWhy | null {

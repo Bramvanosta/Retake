@@ -23,3 +23,6 @@ export type {
 } from './provider.js';
 export type { InitSandboxOptions, InitSandboxResult } from './init.js';
 export type { OutdatedWhy, ResetPlan } from './reset-plan.js';
+export type { DockerFacts, ImageFacts, SandboxShare, ShareDocker, ShareFacts, ShareFactsService } from './share.js';
+export type { ShareService } from './compose-parse.js';
+export type { CanonicalOptions, CanonicalResult } from './image-tar.js';

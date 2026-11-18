@@ -1848,11 +1848,42 @@ and patched; ZIP64 for an entry whose size reaches 0xF0000000 and for the end re
 the central directory's offset or size 0xFFFFFFFF; Unix modes 0644 / 0755; entries sorted by name). `project/<path>` for
 each file, the project tree as the import writes it; the manifest `retake-project.json` last (`project-archive/
 manifest.ts`, `format: "retake-project"`, version 1 = core `FORMAT_VERSIONS.project_archive`): `project {slug, name}`,
-`options {with_runs}`, `files[] {path, size, sha256 of the bytes streamed, mode, origin: project | workspace-theme |
-workspace-component}`, `embedded {themes, components}`, `uses {starters, builtin_components}`, `needs {env_vars,
+`options {with_runs, with_sandbox?, with_env?, images?}`, `files[] {path, size, sha256 of the bytes streamed, mode,
+origin: project | workspace-theme | workspace-component | sandbox | env}`, `embedded {themes, components}`, `uses {starters, builtin_components}`, `needs {env_vars,
 keychain, pass_env, sessions[{env, persona}]}` (names only), `excluded {env, sensitive, links, special}`, `warnings
-{literal_tokens[{file, lines, what}]}`, `code_files` (informational). A later lot adds the sandbox's files and images
-beside `project/` (an option and a prefix of the manifest; the reader's per-entry cap is a function of the name).
+{literal_tokens[{file, lines, what}]}`, `code_files` (informational); with the sandbox (L9.5) `sandbox[] {env, provider,
+copied[{from, to}], rewritten, outside[{ref, what}], host_mounts[{service, source, target}], env_file?{path, keys,
+included}, service_env_files[], images[{service, name, id}]}` and `images[] {id, entry, bytes, sha256, platform,
+size}`, each image an entry `images/sha256-<hex>.tar.gz` before `project/` (its cap: the free space only,
+`limits.ts archiveEntryMax`).
+
+**The sandbox** (`sandbox-part.ts`, `compose-read.ts` on core `compose-subset.ts`, `images-work.ts`; the Sandboxes
+port's `share`, sandbox package `share.ts` / `image-tar.ts`: the engine runs no docker). **The compose subset**
+(`readComposeSubset`, `readSandboxSubset`): an allow-list, fail closed — no anchor, alias, merge key or tag; no
+interpolation outside `environment`; top level `services`, `volumes` / `networks` without drivers or external ones,
+`name`, `version`; the service keys of the sandbox guide; every compose file in one folder (the `--project-directory`);
+every `env_file` inside the project from that folder and every bind source inside `<sandbox>/data/` (`folderAs`: where
+it will be once imported); no directive or explicit tag, one document, volume and network names equal to their keys,
+short bind modes ro/rw/z/Z; on an import a built service needs a carried image. Export (`with_sandbox`, a person only; `with_env` too; `--no-images` only
+with it, refused for a built service): sandbox.yaml in the project; outside compose files copied to
+`<sandbox>/compose-files/`, sandbox.yaml's path scalars rewritten (core `rewriteSandboxCompose`); the subset read in
+the archive's layout — any problem refuses the export, naming each; each service's `env_file` excluded (the reader's
+`env_here`, never `docker compose config`) and listed with `expected_at`; `share.compose` / `share.inspect` give the
+images (a missing one refused with the fix; the containerd store refused), `share.save` writes `docker save
+[--platform] <id>` gzipped. Without the sandbox, plan.ts excludes the reader's env files, or — a sandbox outside the
+subset — every file of its compose folders but the compose files, sandbox.yaml files and `seed/` (a sandbox at the
+project's root outside the subset refuses the export). Import: image entries
+listed both ways, streamed to `<root>/.retake/imports/images/<slug>/` (sha256, decompressed size measured, capped);
+with `with_sandbox`, a sandbox outside the subset refuses the import; the manifest's uses checked against the files;
+the mark records the images (signed with the trust) and `sandbox_notes`. Trust (`loadImportImages`): the subset and the
+uses again, Docker, its store and Compose ≥ 2.24, Docker's data root where readable, `share.load` (image-tar.ts read
+twice, the second written as a fresh tar to `docker load`; tag and id listings before — a failed one refuses the load —
+and after: moved or gone tags put back, new tags on created images removed, never an image that was here, every
+answer checked), `share.tag` `retake-share-<slug>-<env>-<service>:<64 hex>` (a tag on another image refused), the signed
+`loaded {at, images, overrides, missing}`, the override for every service. The guard: a trusted import's sandbox
+outside the subset never starts; the override read, its sha256 checked, its text handed as
+`LoadedSandbox.imagesOverride.text` and given to docker as `-f -` on stdin; compose runs with the compose folder as
+its cwd; starts refused while images wait, a service's image is missing or the override changed.
 
 **Export** (`export.ts`, `plan.ts`). The project folder walked (no link followed) minus the never-list (core
 `project-archive.ts` `neverArchived`, on the folded key of each segment: `.retake/`, `.env*`, `exports/`, key and
@@ -1889,6 +1920,6 @@ member but `down` / `killStartedSync`, the capture runner's run, recording, sess
 the renderer's videos, stills and preview bundles by every folder a request names). Theme copies and adopt refuse a
 source folder inside an untrusted import (`untrustedSourceRefusal`). `retake project trust` lists the code files with
 `changed` / `new` since the import and what project.yaml asks of the machine (`settingsNotes`), refuses when the files
-changed while read, then signs on a person's y/N at a terminal (no `--yes`); `--discard` moves the folder to `.retake/imports/discarded/<stamp>-<slug>/`. A new
+changed while read, then signs on a person's y/N at a terminal (no `--yes`); `--discard` moves the folder to `.retake/imports/discarded/<stamp>-<slug>/` and removes its extracted images. A new
 project of a slug clears a stale mark (`writeNewProject`). The Studio's board answers `imported: {trusted: false,
 command}` for an untrusted project.

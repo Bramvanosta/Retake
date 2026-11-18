@@ -25,6 +25,7 @@ import type {
   ResetResult,
   SandboxCallOptions,
   SandboxLogs,
+  SandboxShare,
   SandboxStatus,
   SandboxUpResult,
   Take,
@@ -75,4 +76,10 @@ export interface Sandboxes {
    * order docker-compose sandboxes look: what `retake doctor` checks. Nothing is run.
    */
   dockerPlaces(home: string): Promise<string[]>;
+  /**
+   * A docker-compose sandbox handed over in a project archive (the sandbox package's share.ts): what docker says of
+   * its compose files and images, an image saved by id and loaded back. Absent: this port hands over no image (a
+   * test's fake) — `retake project export --with-sandbox` and the load at trust say so.
+   */
+  share?: SandboxShare;
 }

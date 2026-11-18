@@ -378,8 +378,13 @@ but its `exports/`). Another person, or you on another Mac, makes it a project o
   never printed and never removed: move them into `{{env:…}}` and export again.
 - **A theme named by a path outside the project** (`template: ../../brand-themes/acme`) is refused: copy it into the
   project first (a workspace theme: `retake project adopt <slug> --theme <name>`) and name it by its name.
-- **Through Claude** (`project_export`): without the runs, into the project's `exports/` only, at most 1 GB, written at
-  once; `dry_run: true` says what would go in. Claude never imports and never trusts.
+- **`--with-sandbox`** adds the project's sandboxes: the compose files sandbox.yaml names (copied in from outside the
+  project, sandbox.yaml's paths rewritten), and the images its services run, saved by id (`--no-images`: the files
+  only); never a build context, a bind mount, a compose secret or config, nor the env file — unless you add
+  `--with-env`, which asks first, naming the file and its key count. The images are loaded at `retake project trust`,
+  never at import (the sandbox guide, "Handing a sandbox over").
+- **Through Claude** (`project_export`): without the runs and without the sandbox, into the project's `exports/` only,
+  at most 1 GB, written at once; `dry_run: true` says what would go in. Claude never imports and never trusts.
 
 **An imported project is not trusted:** nothing of it runs — no hook, no sandbox, no component, no capture, no render,
 none of its browser settings — through any way in (a terminal, Claude, the Studio, a job queued by hand), until a
@@ -393,7 +398,9 @@ machine (browser programs and their switches, sign-in profiles and saved states 
 reset hooks, paths outside the project) and the scenarios' themes outside it, each marked
 `changed` or `new` since the import — then asks. It needs a person at a terminal, always: without one it is refused, and
 there is no `--yes`. `--list` only lists;
-`--discard` sets the folder of an import nobody trusted aside under `.retake/imports/discarded/` and forgets it. The
+`--discard` sets the folder of an import nobody trusted aside under `.retake/imports/discarded/`, removes the images it
+extracted and forgets it. With a sandbox's images, the listing names them and the yes loads them (`--no-images`: later,
+with `--images`). The
 Studio shows an untrusted project with a banner and the command.
 
 The import checks everything it is handed and believes nothing of the manifest: the archive must be one this Retake
