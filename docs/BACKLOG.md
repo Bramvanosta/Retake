@@ -2629,7 +2629,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only). *Applied in L4.1:* the engine's gate (DESIGN §4c) — 127.0.0.1 only, Host (421), Origin and Sec-Fetch-Site (403), no CORS at all (no `Access-Control-*` header, a preflight always fails), a bearer token per Studio launch (a one-time bootstrap code in the link, never the token in a URL), a stable token for MCP over HTTP; the asset server is L4.2's.
 - **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.retake/ui.json` (0600, claimed exclusively). *L5.2:* the Tauri shell does not read it — it runs `retake ui --supervised`, whose reuse of ui.json gives it a one-time URL (and the player origin) without the token.
 - **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.retake/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
-- **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70).
+- **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70). *L9.1:* run, render and review records write project-relative paths (DESIGN §3.5 "Paths in records"); storage refs and sha256 still not in them.
 - **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1. *Applied in L4.1:* a bounded stat poll of the workspace while a Studio tab is open (no recursive fs.watch), told to the page as events; the README editor saves with `if_match` and shows a conflict.
 - **L3.1 / L3.6** — Use globally unique IDs (ULID, or UTC plus random) for runs, renders and comment threads; `-vN` becomes a display label only. *Why:* `newRunId` (core/src/util.ts:14) and `nextVersion` (editor/src/render/runs.ts:92) collide across machines, and comments anchor on render_id. *Partly applied in L3.1:* job ids are ULID-style (`j_` + 26 Crockford base32); run ids keep their readable format (L3.6 / BL-70). *Applied in L3.6:* comment threads are `c_` + a ULID and their entries `r_` + a ULID; render ids stay `<scenario>-v<N>` with the render's `created_at` stored beside them in a thread (BL-76, BL-70).
 - **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.retake/history.jsonl` — one line per finished job and per CLI run / render / still (and per `retake export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
@@ -2909,3 +2909,57 @@ browser checks) and `sign.mjs` (the signing order: helpers, framework, `Chromium
 `chrome-mac/Chromium.app` and `headless_shell`. Its own lot: the new layout in the stage and the signer, the digests
 re-recorded, one signed and notarised build, the gated bundle and update tests — and first, whether Chrome for
 Testing's terms allow shipping it in a public DMG (with BL-138).
+
+### BL-193 — A project's themes, brand files and components: what L9.2 and L9.3 left
+*S–M each · from L9.2 and L9.3 (field feedback 2, point 32)*
+
+- **`retake prune` and `.retake/adopted/`:** a move (theme or component) sets the workspace folder aside there; prune neither lists nor
+  removes it yet (removing it stays a person's act).
+- **The Studio:** an Adopt button for themes and components (adopt is the CLI's `retake project adopt` and MCP `project_adopt`), a "save in the
+  workspace" choice (a project's screen always makes a theme into that project), a brand-file upload.
+- **Undoing a move** by command; rewriting project.yaml or a theme's provenance after a move.
+- **Site extractions per project:** `site:` results stay workspace state (the created theme copies the logo);
+  moving existing extractions.
+- **Checks:** `retake validate` / doctor noting a project `templates/` subfolder without template.yaml, doctor
+  checking project themes.
+- **Case-only name clashes** (`Brand` vs `brand` on a case-insensitive disk): adopt and create compare without case,
+  resolution does not.
+- **A move's in-flight check** is workspace-wide (any queued or running job refuses it), not per theme.
+- **Adopted renders beyond the hash budget:** an old render matches its moved theme by `template_sha256`; a theme too
+  large for the hash budget has none, so its earlier renders read as another theme.
+- **Project components:** previews are not regenerated automatically (`retake components preview --all --stale
+  --project <slug>` by hand); doctor does not check them and validation takes one project at a time; a component
+  move's users are found by text in themes, project.yaml and scenarios, and other projects' older runs and renders
+  that name the folder are not counted; no `components diff` between a project's copy and the workspace's.
+
+### BL-194 — Sharing a project: what L9.4 left
+*S–M each · from L9.4 (field feedback 2, point 32)*
+
+- **MCP:** `project_export` as a queued job for large projects (over 1 GB is refused now), and `with_runs` through MCP.
+- **The Studio:** an Export button, import and trust screens, a card badge, the status bar's Run / Render disabled on
+  an untrusted import (the server refuses them), a browser test of the banner.
+- **Renders made with a theme outside the project:** `--with-runs` leaves them out (re-render after import); rewriting
+  their records to the archived copy of the theme would carry them.
+- **`retake prune`** listing `.retake/imports/discarded/` and stale marks of slugs whose folder is gone.
+- **Trust:** revoking it (`--untrust`), re-binding it to file hashes later.
+- **More shapes:** importing over an existing project (an update), exporting several projects, `--exclude`.
+- **Embedding workspace brand inputs** (themes hold their copies) and rewriting a path theme (refused now: adopt it).
+- **Signing archives;** a compose project name collision warning at import.
+- **Doctor checks** of imported projects; an automated out-tier test of the whole round trip (done by hand).
+
+### BL-195 — The sandbox in a shared project: what L9.5 left
+*S–M each · from L9.5 (field feedback 2, point 32)*
+
+- **More of Compose:** the handed-over sandbox accepts only a documented subset of Compose (sandbox guide, "Handing
+  a sandbox over"); keys are added on demand, each with its refusal tests.
+- **The containerd image store** (the default for new Docker installs): saving with images and loading are refused
+  until it is supported and tested; Docker before 25 (another save layout) is refused at trust.
+- **Copying bind-mount sources** into the archive (today the importer is told where to put them); a service's own
+  `env_file`s through `--with-env`; `--with-sandbox <env>` for one environment.
+- **Pulling public images** on the importer's side instead of saving them; copying build contexts.
+- **Cleanup:** `retake prune` for abandoned imports' extracted images (today `project trust --discard`), removing
+  loaded `retake-share-*` images when the project is removed, an image listing in the Studio.
+- **Data:** Postgres snapshots or volume data in the archive; podman.
+- **MCP** `with_sandbox` through a queued job (decided: CLI only for now).
+- **A sandbox.yaml outside the project** (refused now); one `docker save` for images that share a platform; a doctor
+  minimum for Compose 2.24.

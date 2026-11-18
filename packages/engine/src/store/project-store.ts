@@ -16,10 +16,10 @@
  * folder is configured outside the workspace (`projects_dir`, `templates_dir`, `components_dir` elsewhere) journals its
  * paths under its label (`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`), never an absolute path.
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { copyFile, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { copyFile, cp, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join } from 'node:path';
 import { errorKindOf, bestEffort, pathInside } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
 import { callerOf } from '../caller.js';
@@ -36,6 +36,44 @@ import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabe
 export type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreScope, StoreWriteOptions } from './store.js';
 
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
+
+/**
+ * A stage's file from a stream (FolderStage.writeFrom): each folder of `rel` made without `recursive` (EEXIST on one
+ * `made` does not hold: another spelling of a name the disk folds — refused), the file opened O_EXCL | O_NOFOLLOW with
+ * `mode` set exactly (fchmod: no umask, no setuid).
+ */
+async function streamInto(stageDir: string, rel: string, source: AsyncIterable<Buffer | Uint8Array>, mode: 0o644 | 0o755, made: Set<string>): Promise<{ sha256: string; bytes: number }> {
+  const segments = rel.split('/');
+  for (let i = 1; i < segments.length; i++) {
+    const folder = segments.slice(0, i).join('/');
+    if (made.has(folder)) continue;
+    try {
+      await mkdir(join(stageDir, ...segments.slice(0, i)), { mode: 0o755 });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      throw new EngineError('refused', `two names are one on this disk (case or Unicode form): the folder of ${JSON.stringify(rel.slice(0, 200))} exists already`);
+    }
+    made.add(folder);
+  }
+  const fh = await open(join(stageDir, ...segments), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'EEXIST') throw new EngineError('refused', `two names are one on this disk (case or Unicode form): ${JSON.stringify(rel.slice(0, 200))} exists already`);
+    throw e;
+  });
+  const hash = createHash('sha256');
+  let bytes = 0;
+  try {
+    await fh.chmod(mode);
+    for await (const chunk of source) {
+      const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      hash.update(b);
+      bytes += b.length;
+      await fh.write(b);
+    }
+  } finally {
+    await fh.close();
+  }
+  return { sha256: hash.digest('hex'), bytes };
+}
 
 /** The disk adapter of the ProjectStore port (built by `diskProjectStores` only: the import-rules ratchet's `store-new`). */
 class DiskProjectStore implements ProjectStore {
@@ -95,6 +133,76 @@ class DiskProjectStore implements ProjectStore {
     return this.writeText(this.#storage.refOf(path), text, opts);
   }
 
+  async copyFileIn(ref: string, from: string, o: { what: JournalWhat }): Promise<WriteResult> {
+    const path = this.#storage.resolve(ref);
+    const journaled = this.journalPathOf(path);
+    try {
+      if (dirname(ref) !== '.') await this.makeFolder(dirname(ref));
+      // Never over a file (or a link) of that name: COPYFILE_EXCL fails with EEXIST.
+      try {
+        await copyFile(from, path, constants.COPYFILE_EXCL);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new EngineError('conflict', `${ref} already exists: not copied over`, { details: { current: ref } });
+        throw e;
+      }
+      const real = await realpath(path);
+      if (!pathInside(real, await realpath(this.#storage.root), { dotDotPrefix: true })) {
+        await rm(path, { force: true });
+        throw new EngineError('refused', `${path} leads out of ${this.#storage.root} (a symbolic link): not written`);
+      }
+    } catch (e) {
+      await this.journal({ op: 'write', what: o.what, path: journaled, if_match: null, outcome: outcomeOf(e) });
+      throw e;
+    }
+    const bytes = await readFile(path);
+    const res: WriteResult = { ref, path, sha256: sha256Hex(bytes), bytes: bytes.length };
+    await this.journal({ op: 'write', what: o.what, path: journaled, if_match: null, sha256: res.sha256, bytes: res.bytes, outcome: 'ok' });
+    return res;
+  }
+
+  async moveAside(ref: string, toRef: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    return this.move(this.#storage.resolve(ref), toRef, o);
+  }
+
+  async takeIn(from: string, toRef: string, o: { what: JournalWhat; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    if (!isAbsolute(from)) throw new EngineError('invalid', `takeIn: ${from} is not an absolute path`);
+    return this.move(from, toRef, o);
+  }
+
+  /** moveAside / takeIn: `from` (absolute) to the store's `toRef`, journaled. */
+  private async move(from: string, toRef: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    const to = this.#storage.resolve(toRef);
+    const entry = { op: 'move' as const, what: o.what, path: this.journalPathOf(from), to: this.journalPathOf(to) };
+    const move = async (): Promise<void> => {
+      await o.check?.();
+      if (dirname(toRef) !== '.') await this.makeFolder(dirname(toRef));
+      if (
+        await lstat(to).then(
+          () => true,
+          () => false,
+        )
+      )
+        throw new EngineError('conflict', `${toRef} already exists: not moved`);
+      try {
+        await rename(from, to);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
+        // Another volume: a copy (never over anything), then the original removed.
+        await cp(from, to, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+        await rm(from, { recursive: true, force: true });
+      }
+    };
+    try {
+      if (o.lockRef !== undefined) await this.#storage.withWriteLock(o.lockRef, move);
+      else await move();
+    } catch (e) {
+      await this.journal({ ...entry, outcome: outcomeOf(e) });
+      throw e;
+    }
+    await this.journal({ ...entry, outcome: 'ok' });
+    return { path: from, to };
+  }
+
   async makeFolder(ref: string): Promise<void> {
     const path = this.#storage.resolve(ref);
     // The store's own folder is made as it is named (a new workspace's); what lies under it is checked.
@@ -136,7 +244,19 @@ class DiskProjectStore implements ProjectStore {
   ): Promise<{ result: T; dir: string; replaced: boolean }> {
     const tmp = join(parent, `.tmp-${name}-${randomBytes(6).toString('hex')}`);
     const final = join(parent, name);
+    // The folder is made inside the store's own folder, never where a link leads (a project's templates/ linked out).
+    const contained = await Promise.all([realpath(parent), realpath(this.#storage.root)]).then(
+      ([p, r]) => pathInside(p, r, { dotDotPrefix: true }),
+      () => true,
+    );
+    if (!contained) {
+      const e = new EngineError('refused', `${parent} leads out of ${this.#storage.root} (a symbolic link): ${name} not made`);
+      await this.journal({ op: 'folder', what: o.what, path: this.journalPathOf(final), outcome: outcomeOf(e) });
+      throw e;
+    }
     const written: string[] = [];
+    // The folders writeFrom made in this stage, by their exact spelling.
+    const made = new Set<string>();
     const stage: FolderStage = {
       dir: tmp,
       write: async (rel, data) => {
@@ -150,6 +270,11 @@ class DiskProjectStore implements ProjectStore {
         await mkdir(dirname(p), { recursive: true });
         await copyFile(from, p, 1 /* COPYFILE_EXCL */);
         written.push(rel);
+      },
+      writeFrom: async (rel, source, wo) => {
+        const r = await streamInto(tmp, rel, source, wo.mode, made);
+        written.push(rel);
+        return r;
       },
     };
     const path = this.journalPathOf(final);

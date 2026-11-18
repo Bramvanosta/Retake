@@ -118,6 +118,54 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
   });
 });
 
+describe("a project's own components (R-SHR-20)", () => {
+  it('scans the project components first, then the workspace, then the built-in library, each override with its notice', async () => {
+    await writeFiles(ws.dir, {
+      ...component('projects/demo/components', 'acme/intro-split', 'intro', 'tags: [mine]\n'),
+      ...component('projects/demo/components', 'acme/own', 'card'),
+      ...component('projects/demo/components', 'studio/intro-stack', 'intro'),
+    });
+    const projectDir = join(ws.dir, 'projects/demo/components');
+    const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin, projectComponentsDir: projectDir });
+    expect(reg.projectComponentsDir).toBe(projectDir);
+    expect(reg.list().map((c) => `${c.manifest.id} ${c.source}`)).toEqual([
+      'acme/intro-split project',
+      'acme/own project',
+      'acme/title-card workspace',
+      'studio/caption-below builtin',
+      'studio/intro-stack project',
+      'studio/layout-card workspace',
+    ]);
+    expect(reg.get('acme/intro-split').dir).toBe(join(projectDir, 'acme/intro-split'));
+    expect(reg.notices.map((n) => `${n.source}: ${n.message}`)).toEqual([
+      'project: project component acme/intro-split overrides the workspace one',
+      'project: project component studio/intro-stack overrides the built-in one',
+      'workspace: workspace component studio/layout-card overrides the built-in one',
+    ]);
+    expect(() => reg.get('acme/nope')).toThrow(`not found in ${projectDir}, ${join(ws.dir, 'components')} or the built-in library`);
+    // The workspace's registry alone is unchanged.
+    const alone = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin });
+    expect(alone.projectComponentsDir).toBeUndefined();
+    expect(alone.get('acme/intro-split').source).toBe('workspace');
+    expect(alone.has('acme/own')).toBe(false);
+  });
+
+  it('a broken project folder still wins, with its error; a project folder that IS the workspace folder is the workspace', async () => {
+    await writeFiles(ws.dir, { 'projects/demo/components/acme/intro-split/component.yaml': 'id: acme/intro-split\nversion: one\nkind: intro\nname: B\ndescription: B.\n' });
+    const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin, projectComponentsDir: join(ws.dir, 'projects/demo/components') });
+    expect(reg.has('acme/intro-split')).toBe(false);
+    expect(() => reg.get('acme/intro-split')).toThrow(/invalid component acme\/intro-split/);
+    expect(reg.notices.find((n) => n.id === 'acme/intro-split' && n.severity === 'warning')?.message).toBe('project component acme/intro-split overrides the workspace one');
+    // A project with no components/ of its own answers as the workspace does, word for word.
+    const none = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin, projectComponentsDir: join(ws.dir, 'projects/other/components') });
+    expect(none.projectComponentsDir).toBeUndefined();
+    expect(() => none.get('acme/none')).toThrow(`component "acme/none" not found in ${join(ws.dir, 'components')} or the built-in library`);
+    const same = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin, projectComponentsDir: join(ws.dir, 'components') });
+    expect(same.projectComponentsDir).toBeUndefined();
+    expect(same.list().every((c) => c.source !== 'project')).toBe(true);
+  });
+});
+
 describe('registry.resolve (R-REG-04)', () => {
   it('resolves an id or {id, params}: defaults merged under the given params, validated', async () => {
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin });

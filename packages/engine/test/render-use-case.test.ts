@@ -11,8 +11,8 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PERSON_POLICY } from '@retake/core';
-import { loadProject, projectTemplateFolderId } from '@retake/core/io';
+import { PERSON_POLICY, renderRecordOnDisk } from '@retake/core';
+import { loadProject, projectTemplateFolderId, readNamedRender } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { RenderCancelledError, RenderError, planRun } from '@retake/editor';
 import type { RenderAttempt } from '@retake/editor';
@@ -113,7 +113,9 @@ describe('renderVideo on a driver handed to it', () => {
     });
     expect(record).not.toHaveProperty('probe');
     expect(record.warnings).toContain('a driver warning');
-    expect(JSON.parse(await readFile(record.record, 'utf8'))).toEqual(record);
+    // Read back (its paths resolved: core record-paths.ts), the record is the one handed back.
+    const back = await readNamedRender(record.record);
+    expect(back.read.ok && back.read.value).toEqual(record);
     expect(stages).toEqual(['planning', 'planning', 'rendering', 'done']);
     expect(processes).toEqual([4242]);
   });
@@ -268,7 +270,8 @@ describe('the record renderVideo writes, and the one a failure carries: their me
     const probe = { duration_s: 1, frames: 30, width: 1920, height: 1080, fps: 30, audio_streams: 1 };
     const record = await renderWork({ ...place, workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ probe }) });
     const text = await readFile(record.record, 'utf8');
-    expect(text).toBe(`${JSON.stringify(record, null, 2)}\n`);
+    // The record as its disk form (core record-paths.ts, R-SHR-01): its paths relative inside the project.
+    expect(text).toBe(`${JSON.stringify(renderRecordOnDisk(record, { file: record.record, project: project.dir }), null, 2)}\n`);
     expect(Object.keys(JSON.parse(text) as object)).toEqual([...BASE, 'plan', 'policy', 'probe']);
     expect(Object.keys(record.encoding)).toEqual(['codec', 'pixel_format', 'faststart', 'audio', 'encoder', 'crf']);
     expect([record.status, 'error' in record]).toEqual(['succeeded', false]);
@@ -277,6 +280,28 @@ describe('the record renderVideo writes, and the one a failure carries: their me
     // Without a probe from the driver: no `probe` member at all.
     const bare = await renderWork({ ...place, workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver() });
     expect(Object.keys(JSON.parse(await readFile(bare.record, 'utf8')) as object)).toEqual([...BASE, 'plan', 'policy']);
+  });
+
+  it('the record on the disk names its files relative to renders/ (version 2, no path of the workspace in it); the record handed back and the one read back are absolute; `--out` elsewhere: all absolute (R-SHR-01)', async () => {
+    const record = await renderWork({ ...place, workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver() });
+    const text = await readFile(record.record, 'utf8');
+    const disk = JSON.parse(text) as { version: number; file: string; record: string; run_dir: string; plan: { source: { file: string }; assets: Record<string, string> } };
+    expect([disk.version, disk.file, disk.record, disk.run_dir, disk.plan.source.file]).toEqual([2, `${record.id}.mp4`, `${record.id}.json`, `../runs/${RUN_ID}`, `../runs/${RUN_ID}/capture.mp4`]);
+    expect(text).not.toContain(project.dir);
+    expect(disk.plan.assets['retake-asset:capture.mp4']).toBe(`../runs/${RUN_ID}/capture.mp4`);
+    // The starter theme's files lie outside the project: written absolute.
+    expect(Object.values(disk.plan.assets).filter((f) => f.startsWith('/')).length).toBeGreaterThan(0);
+    expect([record.file, record.run_dir, record.plan.source.file]).toEqual([
+      join(project.dir, 'renders', `${record.id}.mp4`),
+      join(project.dir, 'runs', RUN_ID),
+      join(project.dir, 'runs', RUN_ID, 'capture.mp4'),
+    ]);
+    const read = await readNamedRender(record.record);
+    expect(read.read.ok && [read.read.value.file, read.read.value.record, read.read.value.run_dir]).toEqual([record.file, record.record, record.run_dir]);
+    // `--out` outside the project: every path absolute, as before.
+    const out = await renderWork({ ...place, workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver(), out: join(root, 'elsewhere', 'x.mp4') });
+    const outside = JSON.parse(await readFile(out.record, 'utf8')) as { file: string; record: string; run_dir: string };
+    expect([outside.file, outside.record, outside.run_dir]).toEqual([join(root, 'elsewhere', 'x.mp4'), join(root, 'elsewhere', 'x.json'), join(project.dir, 'runs', RUN_ID)]);
   });
 
   it('a failed or cancelled render writes no record: the attempt rides on the error, `error` after `plan`, then the path it tried', async () => {
@@ -323,7 +348,8 @@ describe("an export's re-rendered format uses the master's theme folder", () => 
     await writeFile(join(dir, 'project.yaml'), 'name: Pathy\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: ./themes/brand\n');
     const pathy = await loadProject('pathy', root);
     const master = await renderWork({ ...place, workPolicy: PERSON_POLICY, project: pathy, root, run: RUN_ID, renderer: driver() });
-    expect([master.template, master.template_folder]).toEqual(['brand', 'projects/pathy/themes/brand']);
+    // A folder inside the project: its id is project-relative.
+    expect([master.template, master.template_folder]).toEqual(['brand', '/project:themes/brand']);
     for (const trust of ['author', 'mcp'] as const) {
       const r = await exportWork({
         ...place,
@@ -340,7 +366,7 @@ describe("an export's re-rendered format uses the master's theme folder", () => 
       const out = r.outputs.find((o) => o.format === 'vertical_9x16');
       expect(out?.method).toBe('render');
       const rec = JSON.parse(await readFile(out!.record!, 'utf8')) as { template_folder?: string };
-      expect(rec.template_folder).toBe('projects/pathy/themes/brand');
+      expect(rec.template_folder).toBe('/project:themes/brand');
     }
   });
 });

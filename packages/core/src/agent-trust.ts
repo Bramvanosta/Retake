@@ -31,7 +31,7 @@ import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { resolvePersonas } from './auth.js';
 import { collectSandboxRefs, collectSecretRefs } from './templating.js';
-import { agentWritable, canonicalOrigin, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
+import { agentMade, canonicalOrigin, projectLibraryPath, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
 import { confinementOrDefault, confinementWords } from './confinement.js';
 import type { Confinement } from './confinement.js';
 import { needFiles } from './file-facts.js';
@@ -67,9 +67,10 @@ export function projectFileProblem(projectDir: string, ref: string, o: { baseDir
     // Never the target itself: a path outside the project is not the agent's to learn.
     return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }
-  if (o.code && agentWritable(rel)) {
+  if (o.code && agentMade(rel)) {
     const writes = confinementOrDefault(o.via).writesThrough;
-    return `${ref} is a file an agent can write${writes ? ` ${writes}` : ''} (${rel.split(sep).join('/')}): ${through} code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
+    const library = projectLibraryPath(rel);
+    return `${ref} is a file ${library ? "of the project's themes, components or brand files" : `an agent can write${writes ? ` ${writes}` : ''}`} (${rel.split(sep).join('/')}): ${through} code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
   }
   return null;
 }

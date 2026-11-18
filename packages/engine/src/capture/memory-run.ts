@@ -13,7 +13,7 @@
  * What it stamps (run.json's times, a pause's, the timeline's) is its clock's; elapsed times are performance.now's.
  */
 import { join, resolve } from 'node:path';
-import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
+import { FORMAT_VERSIONS, errorMessage, runRecordOnDisk } from '@retake/core/base';
 import { isCaptureScene } from '@retake/core/language';
 import { parseRunId } from '@retake/core/ids';
 import { listSteps, resolveStepRef, sceneId } from '@retake/core/language';
@@ -140,7 +140,7 @@ async function openRun(req: CaptureRequest, o: { clock: Clock; fail?: MemoryStep
     }
   };
   emit({ type: 'run_start', run: { ...record } });
-  await runs.writeJson(dir, 'run.json', record);
+  await runs.writeJson(dir, 'run.json', runRecordOnDisk(record, project.dir));
   emit({ type: 'outline', steps: toRun.map((s) => ({ scene: s.scene.id ?? sceneId(s.scene, s.sceneIndex), step: s.step.index, action: s.step.action, desc: s.step.action })) });
 
   const t0 = performance.now();
@@ -254,7 +254,7 @@ async function pauseBefore(st: MemoryState, s: RunStep, scene: string, ref: stri
   const since = performance.now();
   const sinceStamp = stampOf(clock);
   record.paused = { scene, step: s.step.index, since: sinceStamp };
-  await req.runs.writeJson(st.dir, 'run.json', record);
+  await req.runs.writeJson(st.dir, 'run.json', runRecordOnDisk(record, req.project.dir));
   st.emit({ type: 'pause', state: 'paused', scene, step: s.step.index, max_ms: maxMs });
   st.tell('pause');
   try {
@@ -431,7 +431,7 @@ async function endRun(st: MemoryState, failure: Error | null): Promise<RunRecord
     end = { status: failure instanceof Cancel ? 'cancelled' : 'failed', at: stamp, warnings: [], error };
   }
   const done = finishRun(record, end);
-  await st.req.runs.writeJson(dir, 'run.json', done);
+  await st.req.runs.writeJson(dir, 'run.json', runRecordOnDisk(done, st.req.project.dir));
   st.emit({ type: 'run_end', run: { ...done } });
   return done;
 }

@@ -56,12 +56,13 @@ export type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedPos
 export { STARTER_TEMPLATES_DIR };
 
 /**
- * The theme of previews: a template of the workspace (name or path), else — for a bare name — the starter template of
+ * The theme of previews: a template of the project (`projectDir`: its own themes first), of the workspace (name or
+ * path), else — for a bare name — the starter template of
  * that name shipped with Retake (the committed previews use the starter `editorial`): `loadTemplate` falls back
  * to the starters itself.
  */
-export async function loadPreviewTheme(nameOrDir: string, root: string, files: WorkFileFacts): Promise<LoadedTemplate> {
-  return loadTemplate(nameOrDir, root, { files });
+export async function loadPreviewTheme(nameOrDir: string, root: string, files: WorkFileFacts, projectDir?: string): Promise<LoadedTemplate> {
+  return loadTemplate(nameOrDir, root, { files, ...(projectDir !== undefined ? { projectDir } : {}) });
 }
 
 /** Composition id of component previews (written once, in ../remotion/contract.ts). */
@@ -79,10 +80,11 @@ export interface RenderPreviewsOptions extends PreviewSessionOptions {
   /** Write only the images, to `<outDir>/<namespace>/<name>.png`, instead of updating the component folders. */
   outDir?: string;
   /**
-   * The READMEs of the components under `readmes.root` are written through `readmes.write`; any other README (the
-   * built-in library's, the scaffolds', every one without this option) is written directly (writePreviewReadme).
+   * The READMEs of the components under a writer's `root` are written through its `write` (the workspace's components
+   * folder, a project's own); any other README (the built-in library's, the scaffolds', every one without this
+   * option) is written directly (writePreviewReadme).
    */
-  readmes?: PreviewReadmeWriter;
+  readmes?: PreviewReadmeWriter | readonly PreviewReadmeWriter[];
   onProgress?: (done: number, total: number, id: string) => void;
 }
 
@@ -186,9 +188,10 @@ async function renderLoop(ctx: SessionContext, preview: BuiltPreview, out: strin
  * of the README (the project store's: a link out of the components folder, a README changed meanwhile) says that
  * those two were written.
  */
-async function writeReadmeOf(target: PreviewComponentTarget, meta: PreviewMeta, readmes: PreviewReadmeWriter | undefined): Promise<string> {
+async function writeReadmeOf(target: PreviewComponentTarget, meta: PreviewMeta, writers: PreviewReadmeWriter | readonly PreviewReadmeWriter[] | undefined): Promise<string> {
   const file = join(target.dir, 'README.md');
-  if (!readmes || !pathInside(file, readmes.root)) return writePreviewReadme(target.dir, target.manifest, meta);
+  const readmes = (writers === undefined ? [] : Array.isArray(writers) ? (writers as readonly PreviewReadmeWriter[]) : [writers as PreviewReadmeWriter]).find((w) => pathInside(file, w.root));
+  if (!readmes) return writePreviewReadme(target.dir, target.manifest, meta);
   const existing = existsSync(file) ? await readFile(file, 'utf8') : null;
   try {
     await readmes.write(file, mergePreviewReadme(existing ?? undefined, previewReadmeBlock(target.manifest, meta)), existing);

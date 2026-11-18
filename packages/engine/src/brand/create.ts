@@ -16,16 +16,26 @@
  * this tool's provenance file or nothing) are removed by the next create; any other hidden folder is never touched.
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { RETAKE_VERSION, canonicalJson, parseYaml } from '@retake/core/base';
 import { NEW_THEME_NAME_RE } from '@retake/core/ids';
-import { insideFolder } from '@retake/core/scenario';
-import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, aspectOf, formatFontsourceRef, fontsourcePackage, isFontsourceRef, parseFontsourceRef, parseTemplateYaml, siteRef } from '@retake/core/theme';
-import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
+import {
+  AuthorBrandInputSchema,
+  BrandInputSchema,
+  TEMPLATE_FILE,
+  aspectOf,
+  formatFontsourceRef,
+  fontsourcePackage,
+  isFontsourceRef,
+  parseFontsourceRef,
+  parseTemplateYaml,
+  siteRef,
+} from '@retake/core/theme';
+import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandInput, TemplateFile, LoadedTemplate } from '@retake/core/theme';
 import type { Palette } from '@retake/components/geometry';
-import { workspaceRegistry } from '../components.js';
+import { projectRegistry } from '../components.js';
 import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -43,14 +53,16 @@ import type { FontPlan, ThemeFontView } from './theme-fonts.js';
 export { fileNameFace } from './theme-fonts.js';
 export type { ThemeFontView } from './theme-fonts.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import { themeTarget } from '../theme-target.js';
+import type { ThemeTarget } from '../theme-target.js';
 import { storedJson } from '../stored-json.js';
 import { z } from 'zod';
 
 /** The provenance file of a theme this tool made (hidden: the loader and listTemplates ignore it). */
 export const THEME_PROVENANCE_FILE = '.retake-theme.json';
 export const DEFAULT_BRAND_BASE = 'editorial';
-/** The Retake package (the repository, or its install folder): no theme is ever written inside it. */
-export const PACKAGE_ROOT = dirname(STARTER_TEMPLATES_DIR);
+/** The Retake package (the repository, or its install folder): no workspace theme is ever written inside it (theme-target.ts). */
+export { PACKAGE_ROOT } from '../theme-target.js';
 /** Hidden build / swap folders older than this are leftovers of a crash, removed by the next create. */
 const STALE_MS = 60 * 60 * 1000;
 /** A build or swap folder of this tool: `.tmp-<name>-<12 hex>` / `.old-<name>-<12 hex>`. */
@@ -99,6 +111,10 @@ export interface ThemeReuse {
   fontsource?: Map<string, FontsourceLicence>;
   created_at: string;
   changed: string[];
+  /** The recorded found_in of the inputs it was made from (kept for those still named). */
+  foundIn?: Record<string, 'project' | 'workspace'>;
+  /** Where an input the theme was made from was found (its provenance's found_in; none recorded: the workspace root); undefined for a new reference. */
+  placeOf(ref: string): 'project' | 'workspace' | undefined;
 }
 
 export interface ThemeCreateOptions {
@@ -111,6 +127,8 @@ export interface ThemeCreateOptions {
   scope: StoreScope;
   /** trust `author`: relative file paths resolve against it (default process.cwd()). */
   cwd?: string;
+  /** Where it is written (theme-target.ts; default: the input's `project`, else templates_dir): template_update's theme's own place. */
+  target?: ThemeTarget;
 }
 
 export interface Provenance {
@@ -133,6 +151,12 @@ export interface Provenance {
   record_sha256?: string;
   /** The input reference each copied file came from (relative path → ref; a base font: `base:<theme>/<file>`). */
   sources?: Record<string, string>;
+  /**
+   * A project's theme: where each input file was found (`project`: its folder, `workspace`: the root) — template_update
+   * reads an input again where it was found. Absent (a workspace theme, or one made before projects had brand files):
+   * the workspace root.
+   */
+  found_in?: Record<string, 'project' | 'workspace'>;
   /** The site extraction a `site:` logo or wordmark came from (template_from_site). */
   site_id?: string;
   /** sha256 of every file written (relative path → hex), the provenance file excepted. */
@@ -307,17 +331,27 @@ export async function removeStale(templatesDir: string, now: number): Promise<vo
  * tool-made one). `name` passed core `isNewThemeName` (its type says so; templates.ts checkNewThemeName gives it). The
  * folder itself is made by the store from the same checked string, whose parameter is a plain string.
  */
-export async function checkNewName(templatesDir: string, name: NewThemeName, replace: boolean, trust: BrandTrust, o: { update?: boolean } = {}): Promise<{ existing: boolean }> {
+export async function checkNewName(
+  templatesDir: string,
+  name: NewThemeName,
+  replace: boolean,
+  trust: BrandTrust,
+  o: { update?: boolean; noun?: string; project?: boolean; keepStarterName?: boolean } = {},
+): Promise<{ existing: boolean }> {
   const lower = name.toLowerCase();
+  const noun = o.noun ?? 'templates_dir';
   const starters = (await entries(STARTER_TEMPLATES_DIR)).filter((e) => !e.startsWith('.'));
-  const starter = starters.find((s) => s.toLowerCase() === lower);
+  const starter = o.keepStarterName ? undefined : starters.find((s) => s.toLowerCase() === lower);
   if (starter) {
-    throw new EngineError('refused', `"${name}" is the name of the starter theme ${starter}: a workspace theme of that name would replace it for every project of the workspace — choose another name`);
+    throw new EngineError(
+      'refused',
+      `"${name}" is the name of the starter theme ${starter}: a ${o.project ? 'project' : 'workspace'} theme of that name would replace it for ${o.project ? 'the project' : 'every project of the workspace'} — choose another name`,
+    );
   }
   const taken = (await entries(templatesDir)).find((e) => e.toLowerCase() === lower);
   if (taken === undefined) return { existing: false };
   if (!replace) {
-    throw new EngineError('conflict', `templates_dir already has "${taken}" (${join(templatesDir, taken)}): choose another name (e.g. ${name}-2), or replace: true for a theme this tool made`, {
+    throw new EngineError('conflict', `${noun} already has "${taken}" (${join(templatesDir, taken)}): choose another name (e.g. ${name}-2), or replace: true for a theme this tool made`, {
       details: { existing: join(templatesDir, taken) },
     });
   }
@@ -332,11 +366,30 @@ export async function checkNewName(templatesDir: string, name: NewThemeName, rep
   return { existing: true };
 }
 
+/**
+ * A new project theme of a workspace theme's name (it would hide that theme for the project): refused through MCP —
+ * project_adopt copies the workspace theme into the project — said once at a terminal (`warnings`).
+ */
+export async function projectShadowCheck(ws: OpenedWorkspace, target: ThemeTarget, name: NewThemeName, trust: BrandTrust, warnings: string[]): Promise<void> {
+  if (target.project === undefined) return;
+  const lower = name.toLowerCase();
+  const workspace = (await entries(ws.templatesDir)).find((e) => e.toLowerCase() === lower && !e.startsWith('.'));
+  if (workspace === undefined) return;
+  if (trust === 'mcp') {
+    throw new EngineError(
+      'refused',
+      `"${name}" is the name of a workspace theme: a theme of project ${target.project.slug} of that name would hide it there — choose another name, or ask a person to copy the workspace theme into the project (project_adopt {project, themes: ["${workspace}"]})`,
+    );
+  }
+  warnings.push(`project ${target.project.slug}'s theme ${name} is used there instead of the workspace's theme ${workspace}`);
+}
+
 /** The base theme of a new one: loaded, its assets inside it, its template.yaml as written. */
-async function loadBase(ws: OpenedWorkspace, baseName: string): Promise<{ base: LoadedTemplate; baseFile: TemplateFile }> {
+async function loadBase(ws: OpenedWorkspace, baseName: string, project?: { dir: string }): Promise<{ base: LoadedTemplate; baseFile: TemplateFile }> {
   let base: LoadedTemplate;
   try {
-    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
+    // A project's theme may be made over another theme of the project (its own first, as its work resolves names).
+    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy), ...(project ? { projectDir: project.dir } : {}) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -429,10 +482,12 @@ function provenanceOf(o: {
   via: ThemeMadeVia;
   written: Map<string, Buffer>;
   sources: Record<string, string>;
+  foundIn?: Record<string, 'project' | 'workspace'>;
   createdAt?: string;
 }): Provenance {
   const { input, now, name, baseName, written } = o;
-  const { replace: _replace, ...inputs } = input;
+  // Which theme it is (its project) and whether it replaced one are no inputs it was made from.
+  const { replace: _replace, project: _project, ...inputs } = input;
   const siteId = [input.logo, input.wordmark].map((r) => (r !== undefined ? siteRef(r)?.site_id : undefined)).find((x) => x !== undefined);
   const provenance: Provenance = {
     version: 1,
@@ -446,6 +501,7 @@ function provenanceOf(o: {
     made_via: o.via,
     inputs,
     sources: o.sources,
+    ...(o.foundIn && Object.keys(o.foundIn).length ? { found_in: o.foundIn } : {}),
     ...(siteId ? { site_id: siteId } : {}),
     files: Object.fromEntries([...written].map(([f, b]) => [f, sha256Hex(b)])),
   };
@@ -460,12 +516,13 @@ function provenanceOf(o: {
 async function buildThemeFolder(
   ws: OpenedWorkspace,
   o: ThemeCreateOptions,
-  t: { templatesDir: string; name: NewThemeName; replace: boolean; baseName: string; provenance: Provenance; written: Map<string, Buffer>; yaml: string },
+  t: { target: ThemeTarget; name: NewThemeName; replace: boolean; baseName: string; provenance: Provenance; written: Map<string, Buffer>; yaml: string },
 ): Promise<{ dir: string; replaced: boolean }> {
-  const { templatesDir, name, replace, baseName, provenance, written } = t;
+  const { target, name, replace, baseName, provenance, written } = t;
+  const templatesDir = target.dir;
   let made: { dir: string; replaced: boolean };
   try {
-    made = await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
+    made = await target.store(o.scope).createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
@@ -478,13 +535,14 @@ async function buildThemeFolder(
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('internal', outside.join('; '));
         try {
-          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+          // A project's theme picks among the project's own components too.
+          (await projectRegistry(ws, target.project)).resolveTheme(loaded.template);
         } catch (e) {
           throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
         }
       },
       // template_update's swap rechecks its own guard (the record as written too).
-      recheck: () => checkNewName(templatesDir, name, replace, o.trust, { update: o.reuse !== undefined }),
+      recheck: () => checkNewName(templatesDir, name, replace, o.trust, { update: o.reuse !== undefined, noun: target.noun, project: target.project !== undefined }),
     });
   } catch (e) {
     throw toEngineError(e);
@@ -603,13 +661,21 @@ function copySources(input: BrandInput, o: { logoName: string; wordmarkName?: st
  * name (never the original reference again), counted against the brand budget as the file it was copied from was; a
  * reused store font's licence read from the store's record.
  */
-function brandReader(ws: OpenedWorkspace, o: ThemeCreateOptions, budget: { left: number }) {
+function brandReader(ws: OpenedWorkspace, o: ThemeCreateOptions, budget: { left: number }, target: ThemeTarget, foundIn: Record<string, 'project' | 'workspace'>) {
+  const project = target.project ? { dir: target.project.dir, slug: target.project.slug } : undefined;
   return async (ref: string, kind: 'logo' | 'wordmark' | 'font'): Promise<ResolvedBrandFile & { fontsource?: StoreFont['fontsource'] }> => {
     const store = isFontsourceRef(ref);
     if (store && kind !== 'font') throw new EngineError('refused', `${kind}: ${ref} is a font of the font store: a ${kind} is an image file (e.g. brand/logo.svg)`);
     const own = o.reuse?.file(ref, kind);
     const reader: StoreReader = o.trust === 'author' ? 'cli' : 'agent';
-    if (!own) return store ? readStoreFont(ws, ref, budget, reader) : readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget });
+    if (!own) {
+      if (store) return readStoreFont(ws, ref, budget, reader);
+      // template_update: an input it was made from is read again where it was found then (none recorded: the root).
+      const only = o.reuse?.placeOf(ref);
+      const file = await readBrandFile(ws, ref, kind, { trust: o.trust, ...(o.cwd ? { cwd: o.cwd } : {}), budget, ...(project ? { project } : {}), ...(only ? { only } : {}) });
+      if (file.found_in !== undefined) foundIn[ref] = file.found_in;
+      return file;
+    }
     if (own.bytes.length > budget.left) throw new EngineError('invalid', `the brand files are more than ${BRAND_TOTAL_MAX_BYTES} bytes together`);
     budget.left -= own.bytes.length;
     if (!store) return own;
@@ -629,29 +695,28 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   // The input schema holds the same rule: the check gives the name its type.
   const name = checkNewThemeName(parsed.name);
   const replace = parsed.replace === true;
-  const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
-    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
-      fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
-    });
-  }
+  // The project's own templates/ when the input names a project, else templates_dir (theme-target.ts).
+  const target = o.target ?? (await themeTarget(ws, parsed.project));
+  const templatesDir = target.dir;
+  const warnings: string[] = [];
+  const notes: string[] = [];
+  if (o.reuse === undefined) await projectShadowCheck(ws, target, name, o.trust, warnings);
   await mkdir(templatesDir, { recursive: true });
   await removeStale(templatesDir, now.getTime());
-  await checkNewName(templatesDir, name, replace, o.trust, { update: o.reuse !== undefined });
+  await checkNewName(templatesDir, name, replace, o.trust, { update: o.reuse !== undefined, noun: target.noun, project: target.project !== undefined });
   const baseName = parsed.base ?? DEFAULT_BRAND_BASE;
   checkTemplateName(baseName);
   if (baseName.toLowerCase() === name.toLowerCase()) throw new EngineError('invalid', `the base theme cannot be the theme being created (${name})`);
 
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
-  const { base, baseFile } = await loadBase(ws, baseName);
+  const { base, baseFile } = await loadBase(ws, baseName, target.project);
 
   const lib = await componentCalls();
-  const warnings: string[] = [];
-  const notes: string[] = [];
   // fontsource: fonts come from the workspace's font store only (offline), each pinned to the version it holds.
   const input = await pinFontsourceFonts(ws, parsed, notes, o.trust === 'author' ? 'cli' : 'agent');
   const budget = { left: BRAND_TOTAL_MAX_BYTES };
-  const read = brandReader(ws, o, budget);
+  const foundIn: Record<string, 'project' | 'workspace'> = { ...(o.reuse?.foundIn ?? {}) };
+  const read = brandReader(ws, o, budget, target, foundIn);
 
   // Logo and wordmark.
   const { logoFile, logoInfo, logoName, logoKind, writtenKind, wordmarkFile, wordmarkInfo, wordmarkName } = await readArtwork(input, read, { lib, warnings, notes });
@@ -692,9 +757,14 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   ]);
   const sources = copySources(input, { logoName, ...(wordmarkName ? { wordmarkName } : {}), fonts: uniqueFonts });
   const via = o.via ?? (o.trust === 'author' ? 'cli' : 'mcp');
-  const provenance = provenanceOf({ input, now, name, baseName, trust: o.trust, via, written, sources, ...(o.reuse ? { createdAt: o.reuse.created_at } : {}) });
+  // Where each input file still named was found (a project's theme only: a workspace theme's are the root's).
+  const named = new Set(
+    [input.logo, input.wordmark, ...(input.fonts ? [input.fonts.display, ...(input.fonts.body ?? [])] : [])].map((f) => (f === undefined ? undefined : typeof f === 'string' ? f : f.file)),
+  );
+  const kept = target.project ? Object.fromEntries(Object.entries(foundIn).filter(([ref]) => named.has(ref))) : undefined;
+  const provenance = provenanceOf({ input, now, name, baseName, trust: o.trust, via, written, sources, ...(kept ? { foundIn: kept } : {}), ...(o.reuse ? { createdAt: o.reuse.created_at } : {}) });
 
-  const made = await buildThemeFolder(ws, o, { templatesDir, name, replace, baseName, provenance, written, yaml: generated.yaml });
+  const made = await buildThemeFolder(ws, o, { target, name, replace, baseName, provenance, written, yaml: generated.yaml });
   const final = made.dir;
   return {
     name,

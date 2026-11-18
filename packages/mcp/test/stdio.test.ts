@@ -100,6 +100,8 @@ describe('retake mcp over stdio', () => {
       'project_env_set',
       'project_env_remove',
       'project_prune',
+      'project_adopt',
+      'project_export',
       'scenario_get',
       'scenario_validate',
       'scenario_save',
@@ -155,6 +157,8 @@ describe('retake mcp over stdio', () => {
           'project_env_set',
           'project_env_remove',
           'project_prune',
+          'project_adopt',
+          'project_export',
           'scenario_save',
           'page_inspect',
           'scenario_record',
@@ -182,7 +186,9 @@ describe('retake mcp over stdio', () => {
           'sandbox_init',
         ].includes(t.name),
       );
-      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site', 'font_fetch'].includes(t.name));
+      expect(t.annotations?.openWorldHint, t.name).toBe(
+        ['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site', 'font_fetch'].includes(t.name),
+      );
       expect(t.annotations?.destructiveHint, t.name).toBe(
         ['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'template_update', 'project_env_remove', 'project_prune', 'job_cancel'].includes(t.name),
       );
@@ -484,7 +490,7 @@ describe('retake mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(51);
+    expect(TOOLS).toHaveLength(53);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

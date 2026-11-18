@@ -12,7 +12,11 @@ Keep your material in a folder of your own: `retake init ~/demo-workspace` makes
 ~/demo-workspace/
   retake.yaml          # marks the workspace (all keys optional)
   projects/<slug>/     # one folder per product
-  templates/<name>/    # your themes (copy a starter from this repository's templates/ to begin)
+    templates/<name>/  # the project's own themes (found first: see Themes, components and media)
+    components/<ns>/<name>/  # the project's own components (found first: retake components create --project)
+    brand/             # the project's brand files (logos, fonts), looked for before the workspace's brand/
+  templates/<name>/    # the workspace's themes (copy a starter from this repository's templates/ to begin)
+  brand/               # brand files any project may take
   components/<ns>/<name>/  # your own components (retake components create)
 ```
 
@@ -241,7 +245,7 @@ instead of 700 ms.
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration — encoded during the take (L5.7): output frame n is the screencast frame on screen at n / fps, as before; a take ends without a long encode |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Retake, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
+| `run.json` | run record — its paths relative to the run folder (`dir: "."`, `capture.mp4`, `screenshots/…`; an older run's absolute ones still read) — (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Retake, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames.jsonl` | the screencast frames' capture times (always) |
@@ -318,3 +322,92 @@ A file of a higher version than this Retake reads (a newer Retake wrote it) is r
 update Retake` — instead of a list of keys this one does not know; `render`, `plan` and `export-capture` refuse a run
 whose `run.json` is newer the same way. Retake never rewrites your files: a future incompatible change raises the
 format's version and keeps reading the older ones (a `retake migrate` command is in docs/BACKLOG.md).
+
+## Moving a project, or handing it over
+
+A project folder can be copied or moved alone — `projects/<slug>/` into another workspace, onto another Mac, to
+someone else — with its runs, renders and reviews. The records name the files of their project relative to
+themselves: `run.json` says `dir: "."`, `capture.mp4`, `screenshots/…`; a render record (`renders/<id>.json`, format
+version 2) says `quote-v3.mp4`, `../runs/<run-id>`, `../runs/<run-id>/capture.mp4`; a review's `report.json` says
+`sheet_1fps.jpg`, `../../renders/quote-v3.mp4`. In the copy, render a copied run and review or export a copied render
+as usual, at a terminal or through Claude: every file read and written is the copy's. Commands and Claude still say
+absolute paths.
+
+- **What moves with the folder:** its scenarios, hooks, assets, comments, runs, renders, reviews and exports.
+- **What does not:** the workspace's themes and components (a render with a workspace theme still names that
+  workspace's logo and fonts: absolute — take the theme into the project first: `retake project adopt <slug> --theme
+  <name>`, its components with `--component <id>` and its brand files with `--brand brand/…`; a project's own themes in
+  `projects/<slug>/templates/`, components in `projects/<slug>/components/` and brand files in `projects/<slug>/brand/`
+  move with it), the starter themes
+  of the Retake that rendered (absolute: the review measures without a font it cannot find), `.retake/` state (job
+  history, comment stills: machine-local), the manifests of `exports/` (absolute paths), and a render written with
+  `--out` outside the project.
+- **Records an older Retake wrote** (every path absolute) still read: their paths inside the project they were made in
+  are taken as the same files of the project they are read in, even under another folder name — the folder above
+  their `renders/` is the old project. Nothing is rewritten.
+- **A record moved out of its folder** is read relative to where it lies: name `renders/quote-v3.json` of the project,
+  not a copy of the record somewhere else (a copy elsewhere finds neither its video nor its run, unless they lie beside
+  it the same way). A relative path that leads out of the project is never followed: it reads as missing.
+- **Through Claude**, a render whose video, run folder, capture or page tracks lie outside its project is refused, as
+  before; so is a caption font that is no font file of the plan.
+
+## A project in one ZIP: export, import, trust
+
+`retake project export <slug>` writes the project as one ZIP file, a **project archive**, into its own `exports/`
+folder (`exports/<slug>-project-<YYYYMMDD-HHMMSS>.zip`; `--out <file or folder>` elsewhere, never inside the project
+but its `exports/`). Another person, or you on another Mac, makes it a project of a workspace with
+`retake project import <archive> [--as <slug>]`.
+
+- **What goes in:** project.yaml, the README, scenarios, hooks, assets, data, the project's own themes and components,
+  and — so that the archive alone carries its look — the workspace themes and workspace components it uses: they land
+  in the imported project's own `templates/` and `components/`. Starter themes and built-in components ship with every
+  Retake: the manifest names them (`uses`). `--with-runs` adds its runs, renders and reviews — but a render made with a
+  theme outside the project (a starter, a workspace theme) names that theme's files and is left out with its review:
+  the export says which (re-render after the import; adopt a workspace theme first to keep its renders).
+- **What never does:** the state folder (`.retake/`), any env file (`.env*`, `*.env`, `*.env.*`), sessions (they live in
+  the Retake home, never in a project), `exports/`, key and credential files (`*.pem`, `*.key`, `*.p12`, `*.kdbx`,
+  `id_*`, `.netrc`, `.npmrc`, `.pgpass`, `.git-credentials`, `credentials*`, `service-account*.json`, `*.tfstate*`, every
+  file of `.aws/`, `.ssh/`, `.docker/`, `.gnupg/`, `.kube/` and `.auth/` — a test tool's saved sign-in), the file project.yaml names as a sign-in's saved state (`auth.storage_state`, `auth.profile`),
+  the secrets, configs and env files of its sandbox's compose files, symbolic links, `.git/` and `node_modules/`. The
+  export lists what it left out.
+- **The manifest** (`retake-project.json`, the archive's last entry) lists every file with its size and sha256, and
+  what the project needs where it goes — by name only, never a value: the environment variables and keychain items its
+  `{{env:…}}` / `{{keychain:…}}` references name, the variables passed on (`pass_env`), the personas to sign in.
+- **Literal tokens** (a value shaped like an API key in any text file of the project, a plain value under `headers:`)
+  are warned about by file and line,
+  never printed and never removed: move them into `{{env:…}}` and export again.
+- **A theme named by a path outside the project** (`template: ../../brand-themes/acme`) is refused: copy it into the
+  project first (a workspace theme: `retake project adopt <slug> --theme <name>`) and name it by its name.
+- **`--with-sandbox`** adds the project's sandboxes: the compose files sandbox.yaml names (copied in from outside the
+  project, sandbox.yaml's paths rewritten), and the images its services run, saved by id (`--no-images`: the files
+  only); never a build context, a bind mount, a compose secret or config, nor the env file — unless you add
+  `--with-env`, which asks first, naming the file and its key count. The images are loaded at `retake project trust`,
+  never at import (the sandbox guide, "Handing a sandbox over").
+- **Through Claude** (`project_export`): without the runs and without the sandbox, into the project's `exports/` only,
+  at most 1 GB, written at once; `dry_run: true` says what would go in. Claude never imports and never trusts.
+
+**An imported project is not trusted:** nothing of it runs — no hook, no sandbox, no component, no capture, no render,
+none of its browser settings — through any way in (a terminal, Claude, the Studio, a job queued by hand), until a
+person reads what of it runs and trusts it. Reading it, editing its scenarios and README, exporting it, pruning it and
+stopping a sandbox stay possible. `retake project import` prints its code files; `retake project trust <slug>` lists
+them again — the hooks, its components' files, its themes' Lottie and SVG files and any Lottie anywhere, its sandbox
+files, the scenarios that name hooks, page code or a Lottie, every file a scenario, a hooks file or a theme names (a sql
+hook's `data/seed.sql`), any script (`.sql` included) or executable file, every hidden file or folder and the files tools
+read on opening a folder (`.vscode/`, `.claude/`, `CLAUDE.md`, `package.json`…), and what project.yaml asks of this
+machine (browser programs and their switches, sign-in profiles and saved states at every level, variables passed on,
+reset hooks, paths outside the project) and the scenarios' themes outside it, each marked
+`changed` or `new` since the import — then asks. It needs a person at a terminal, always: without one it is refused, and
+there is no `--yes`. `--list` only lists;
+`--discard` sets the folder of an import nobody trusted aside under `.retake/imports/discarded/`, removes the images it
+extracted and forgets it. With a sandbox's images, the listing names them and the yes loads them (`--no-images`: later,
+with `--images`). The
+Studio shows an untrusted project with a banner and the command.
+
+The import checks everything it is handed and believes nothing of the manifest: the archive must be one this Retake
+writes (anything else is refused before a byte is written), every file listed once with its sha256, no `.retake/`,
+env or key file, no `.git/`, `node_modules/` or `.DS_Store` (Retake never archives them: a git folder could run a command
+at the next `git status`), no name a Mac's disk would take for another, the layout's names spelt as Retake spells them
+(`runs/`, `run.json`: never `Runs/`, `RUN.JSON`); a run, render or review record that names a path
+outside its own folder is left out (its run, render or review with it; a render's review too) and said; the code files listed come from the
+files written. A slug already used is refused (`--as <other>`): nothing is ever replaced. Its saved sessions are this
+machine's: a project imported under a slug that already has sessions here uses them once trusted (the import says so).

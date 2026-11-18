@@ -26,12 +26,14 @@
  * Path-free; text read from a file (the video's title, an environment the project does not have) under `untrusted`,
  * capped; strings from run.json only when they have the expected shape (an environment name, an ISO time).
  */
+import { importTrust } from '../project-archive/trust.js';
+import type { EngineEnv } from '../env.js';
 import { lstatSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { SLUG_RE } from '@retake/core/model';
 import { isRunId, isThemeName, parseRenderId } from '@retake/core/ids';
-import { projectPath } from '@retake/core/project';
+import { projectLibraryDir, projectPath } from '@retake/core/project';
 import { isFinishedRunStatus, isRunViewStatus } from '@retake/core/run';
 import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core/scenario';
 import { orderRenders } from '@retake/core/render';
@@ -58,6 +60,17 @@ import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from '../scenarios.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
+import { PROJECT_FOLDER_ID_PREFIX } from '@retake/core/io';
+import { NODE_THEME_HASHES } from '../theme-files.js';
+
+/** `fn()`, or undefined when it throws (a theme folder gone meanwhile hashes to nothing). */
+function bestEffortSync<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
+}
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -149,6 +162,11 @@ export interface ProjectBoardView {
   truncated?: { shown: number; total: number };
   /** Render and review job ids the board shows (a page re-reads it when one of them, or a job it never saw, changes). */
   jobs: string[];
+  /**
+   * The project was imported from a project archive and is not trusted (engine project-archive/trust.ts): nothing of
+   * it runs until a person runs `command` in a terminal. Absent for an ordinary or a trusted project.
+   */
+  imported?: { trusted: false; command: string };
 }
 
 export interface RunPoster {
@@ -172,6 +190,8 @@ export interface ProjectBoardContext {
   seen: VersionLedger;
   /** The stores port: a scenario's file is read through its project folder. */
   stores: ProjectStores;
+  /** The environment whose Retake home judges an imported project's trust (absent: none is judged trusted). */
+  env?: EngineEnv;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -279,6 +299,8 @@ interface BoardPass {
   reviewJobs: JobRecord[];
   records: Map<string, StoredRenderRecord[]>;
   shownJobs: Set<string>;
+  /** A project theme folder's content hash, by its id: hashed once per board read (adoptedRenders). */
+  themeHashes: Map<string, string>;
 }
 
 /** The project boards of one engine (memos apart from the scenario views'). */
@@ -312,7 +334,7 @@ export class ProjectBoards {
     const runJobs = new Map(jobs.filter((j) => j.input.kind === 'run').map((j) => [j.input.kind === 'run' ? j.input.run_id : '', j]));
     const records = await this.renderRecordsOf(p, new Set(names));
     const shownJobs = new Set<string>();
-    const b: BoardPass = { p, slug, pass, runJobs, renderJobs, reviewJobs, records, shownJobs };
+    const b: BoardPass = { p, slug, pass, runJobs, renderJobs, reviewJobs, records, shownJobs, themeHashes: new Map() };
     // Today's theme folder of each reference (core io projectTemplateFolderId, the editor's rule), once per board.
     const folders = new Map<string, Promise<string | undefined>>();
     const folderIds = (ref: string | undefined): Promise<string | undefined> => {
@@ -341,13 +363,15 @@ export class ProjectBoards {
       if (f.title) s.untrusted.title = f.title;
       if (f.error) s.untrusted.error = f.error;
       await this.scenarioRuns(b, s, f, g);
-      await this.scenarioRenders(b, s, f, g, { themeId, themeFolder });
+      await this.scenarioRenders(b, s, f, g, { themeId, themeFolder, folderIds });
       await this.scenarioPoster(b.p, s, g);
       out.push(s);
     }
+    const imported = await importTrust({ root: p.root, dir: p.dir, slug: p.slug }, this.ctx.env ?? {});
     return {
       project: slug,
       ...(p.config.default_env ? { default_env: p.config.default_env } : {}),
+      ...(imported.state === 'untrusted' ? { imported: { trusted: false as const, command: `retake project trust ${p.slug}` } } : {}),
       scenarios: out,
       ...(p.scenarios.length > names.length ? { truncated: { shown: names.length, total: p.scenarios.length } } : {}),
       jobs: [...shownJobs].sort(),
@@ -386,8 +410,42 @@ export class ProjectBoards {
     }
   }
 
+  /**
+   * The records made with a workspace theme the project has since adopted (a verbatim copy in its templates/): their
+   * folder id is the workspace's, but their theme's name resolves today to the project's own folder and its content
+   * hash is the one they hold (`template_sha256`). Hashed once per folder per board read.
+   */
+  private async adoptedRenders(
+    b: BoardPass,
+    records: readonly StoredRenderRecord[],
+    t: { themeFolder: string | undefined; folderIds: (ref: string | undefined) => Promise<string | undefined>; same: ((id: string) => boolean) | undefined },
+  ): Promise<Set<StoredRenderRecord>> {
+    const out = new Set<StoredRenderRecord>();
+    const { themeFolder, same } = t;
+    if (themeFolder === undefined || same === undefined || !themeFolder.startsWith(PROJECT_FOLDER_ID_PREFIX)) return out;
+    for (const r of records) {
+      const tf = r.template_folder;
+      if (typeof tf !== 'string' || tf.startsWith(PROJECT_FOLDER_ID_PREFIX) || same(tf) || typeof r.template_sha256 !== 'string') continue;
+      if ((await t.folderIds(r.template)) !== themeFolder) continue;
+      let h = b.themeHashes.get(themeFolder);
+      if (h === undefined) {
+        const dir = resolve(b.p.dir, ...themeFolder.slice(PROJECT_FOLDER_ID_PREFIX.length).split('/'));
+        h = bestEffortSync(() => NODE_THEME_HASHES.contentHash(dir)) ?? '';
+        b.themeHashes.set(themeFolder, h);
+      }
+      if (h !== '' && h === r.template_sha256) out.add(r);
+    }
+    return out;
+  }
+
   /** A scenario's render (the newest that shows today's file, else the newest), a newer failure and the job running. */
-  private async scenarioRenders(b: BoardPass, s: BoardScenario, f: BoardFileFacts, g: RunGroup, t: { themeId: string | undefined; themeFolder: string | undefined }): Promise<void> {
+  private async scenarioRenders(
+    b: BoardPass,
+    s: BoardScenario,
+    f: BoardFileFacts,
+    g: RunGroup,
+    t: { themeId: string | undefined; themeFolder: string | undefined; folderIds: (ref: string | undefined) => Promise<string | undefined> },
+  ): Promise<void> {
     const { themeId, themeFolder } = t;
     // Renders: the newest succeeded landscape one, a newer failure, the job running.
     const recs = b.records.get(s.name) ?? [];
@@ -398,8 +456,11 @@ export class ProjectBoards {
     for (const r of landscape) views.push({ r, v: await renderView({ memos: this.ctx.renderMemos, reviews: this.ctx.ws.outputs.reviews, projectDir: b.p.dir }, r, mine, b.reviewJobs) });
     // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
     // themes); an older record, which holds no folder, by its folder's name — also when it is no theme name.
+    // The project's real paths read once for every record (templateFolderMatcher), not per record.
+    const same = themeFolder !== undefined ? this.ctx.ws.reads.templateFolderMatcher(themeFolder, b.p) : undefined;
+    const adopted = await this.adoptedRenders(b, landscape, { themeFolder, folderIds: t.folderIds, same });
     const sameTheme = (r: StoredRenderRecord): boolean =>
-      typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
+      typeof r.template_folder === 'string' && same !== undefined ? same(r.template_folder) || adopted.has(r) : themeId === undefined || r.template === themeId;
     const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
       !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && sameTheme(x.r) && x.v.overrides.length === 0;
     const shown = views.find(shows);
@@ -493,9 +554,17 @@ export class ProjectBoards {
 
   private async projectSig(p: LoadedProject): Promise<string> {
     // The project's theme as validation loads it (templateOf): its folder (a file added or gone) and its template.yaml.
+    // A name resolves project-first: the project's own templates/<name>, then templates_dir — both are signed (a
+    // project theme made, edited or broken shows at once, as one of the workspace's).
     const ref = p.config.template;
-    const theme = SLUG_RE.test(ref) ? join(this.ctx.ws.templatesDir, ref) : resolve(p.dir, ref);
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), projectPath(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
+    const themes = SLUG_RE.test(ref) ? [projectLibraryDir(p.dir, 'templates', ref), join(this.ctx.ws.templatesDir, ref)] : [resolve(p.dir, ref)];
+    const files = [
+      join(p.dir, 'project.yaml'),
+      join(p.dir, 'sandbox.yaml'),
+      projectPath(p.dir, 'hooks'),
+      join(this.ctx.ws.root, 'retake.yaml'),
+      ...themes.flatMap((t) => [t, join(t, 'template.yaml')]),
+    ];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 

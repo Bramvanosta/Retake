@@ -94,6 +94,7 @@
     ],
     "data": {
      "templates_dir": "<ws>/templates",
+     "project_templates_dir": "<ws>/projects/northfield-fixture/templates",
      "templates": [
       {
        "name": "default",
@@ -160,7 +161,8 @@
        "issues": []
       }
      ],
-     "project_theme": "editorial"
+     "project_theme": "editorial",
+     "notices": []
     }
    }
   },
@@ -994,14 +996,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "refused: logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/",
+    "text": "refused: logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "refused",
-      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/"
+      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/"
      }
     }
    }
@@ -1266,14 +1268,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "not_found: template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+    "text": "not_found: template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+      "message": "template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }
@@ -3175,14 +3177,14 @@
    },
    "answer": {
     "isError": true,
-    "text": "not_found: template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+    "text": "not_found: template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
     "blocks": [
      "text"
     ],
     "data": {
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
+      "message": "template \"no-such\" not found in <ws>/projects/northfield-fixture/templates, <ws>/templates or the starter templates (available: brand-one, default, editorial, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }
@@ -3519,6 +3521,1086 @@
       }
      ],
      "notices": []
+    }
+   }
+  },
+  {
+   "op": "component_create",
+   "args": {
+    "id": "acme/proj-card",
+    "kind": "card",
+    "description": "A card of the project.",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": false,
+    "text": "created card component acme/proj-card in <ws>/projects/northfield-fixture/components/acme/proj-card (validated): component.yaml, index.tsx, README.md\nnext: the code is edited outside this server (the user, or your own file tools with the user's permission); then component_validate {component: \"acme/proj-card\"} and component_preview {project, component: \"acme/proj-card\"} (with project northfield-fixture: component_validate {component, project})",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "id": "acme/proj-card",
+     "kind": "card",
+     "dir": "<ws>/projects/northfield-fixture/components/acme/proj-card",
+     "entry": "<ws>/projects/northfield-fixture/components/acme/proj-card/index.tsx",
+     "files": [
+      "<ws>/projects/northfield-fixture/components/acme/proj-card/component.yaml",
+      "<ws>/projects/northfield-fixture/components/acme/proj-card/index.tsx",
+      "<ws>/projects/northfield-fixture/components/acme/proj-card/README.md"
+     ],
+     "issues": []
+    }
+   }
+  },
+  {
+   "op": "component_create",
+   "args": {
+    "id": "acme/new-card",
+    "kind": "card",
+    "description": "A workspace id.",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: component id \"acme/new-card\" is a workspace component's: a component of that id in project northfield-fixture would replace it in every render of the project — pick another id, or copy the workspace's into the project (project_adopt {components})",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "component id \"acme/new-card\" is a workspace component's: a component of that id in project northfield-fixture would replace it in every render of the project — pick another id, or copy the workspace's into the project (project_adopt {components})"
+     }
+    }
+   }
+  },
+  {
+   "op": "component_list",
+   "args": {
+    "kind": "card",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": false,
+    "text": "17 components usable as card:\n- acme/broken (card, workspace 0.1.0): Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.\n- acme/held (card, workspace 0.1.0): Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.\n- acme/new-card (card, workspace 0.1.0): A plain card for tests. — no preview\n- acme/proj-card (card, project 0.1.0): A card of the project. — no preview\n- studio/card-before-after (card, builtin 1.0.0): Two frames of the capture (by mark, scene start/end or time) or two images in one card, the after wiping over the before\n- studio/card-chart (card, builtin 1.0.0): Full-screen animated bar or line chart from inline data or a CSV file of the project, the highlighted value in the accen\n- studio/card-cta (card, builtin 1.0.0): Final call to action — kicker, title, text, an accent button with the URL under it and a locally generated QR code — on \n- studio/card-features (card, builtin 1.0.0): Full-screen list of 3–5 features appearing one by one — icon (built-in set) or number, title and a line of text — beside\n- studio/card-figure (card, builtin 1.0.0): Full-screen key figure — kicker, a big animated counter (value from the scenario or captured from the page), accent rule\n- studio/card-testimonial (card, builtin 1.0.0): Full-screen quote — large quotation mark, the quote in the display font, accent rule, avatar (or initials), name, role a\n- studio/card-title (card, builtin 1.0.0): Full-screen chapter card — uppercase kicker, display title, an accent rule drawn from the centre and an optional line of\n- studio/document-pdf (card, builtin 1.0.0): A4 page(s) of a captured or project PDF on the theme background with a paper shadow — a slow push-in, a slow scroll thro\n- studio/lottie (card, builtin 1.0.0): A Lottie (bodymovin JSON) animation of the project — full frame on the theme background, or in a box over the capture — \n- studio/mail-view (card, builtin 1.0.0): A mail client card showing a captured email — subject, sender, date and its rendered HTML from its top (scroll auto scro\n- studio/media (card, builtin 1.0.0): Your own video or image instead of a provided component — full frame (cover, or whole on the theme background) as an int\n- studio/phone-home-badge (card, builtin 1.0.0): A phone home screen whose product app icon gets a badge counting up (e.g. 0 → 3 new notifications), with a theme wallpap\n- studio/phone-lockscreen (card, builtin 1.0.0): A phone lock screen with a theme wallpaper, big time and date, and notifications arriving one by one — stacked newest fi",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "components_dir": "<ws>/components",
+     "project_components_dir": "<ws>/projects/northfield-fixture/components",
+     "builtin_dir": "<repo>/packages/components/library",
+     "components": [
+      {
+       "id": "acme/broken",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Card",
+       "description": "Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.",
+       "source": "workspace",
+       "dir": "<ws>/components/acme/broken",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<ws>/components/acme/broken/preview.png",
+       "preview_status": "stale"
+      },
+      {
+       "id": "acme/held",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Card",
+       "description": "Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.",
+       "source": "workspace",
+       "dir": "<ws>/components/acme/held",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<ws>/components/acme/held/preview.png",
+       "preview_status": "stale"
+      },
+      {
+       "id": "acme/new-card",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "New card",
+       "description": "A plain card for tests.",
+       "source": "workspace",
+       "dir": "<ws>/components/acme/new-card",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview_status": "missing"
+      },
+      {
+       "id": "acme/proj-card",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Proj card",
+       "description": "A card of the project.",
+       "source": "project",
+       "dir": "<ws>/projects/northfield-fixture/components/acme/proj-card",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview_status": "missing"
+      },
+      {
+       "id": "studio/card-before-after",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Before / after",
+       "description": "Two frames of the capture (by mark, scene start/end or time) or two images in one card, the after wiping over the before behind a divider, with labels and a title.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-before-after",
+       "slots": [
+        "before",
+        "after",
+        "title",
+        "kicker",
+        "before_label",
+        "after_label"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-before-after/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "comparison",
+        "before-after"
+       ]
+      },
+      {
+       "id": "studio/card-chart",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Chart",
+       "description": "Full-screen animated bar or line chart from inline data or a CSV file of the project, the highlighted value in the accent, with kicker, title and a source line.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-chart",
+       "slots": [
+        "title",
+        "kicker",
+        "data",
+        "note"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-chart/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "chart",
+        "data"
+       ]
+      },
+      {
+       "id": "studio/card-cta",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Call to action",
+       "description": "Final call to action — kicker, title, text, an accent button with the URL under it and a locally generated QR code — on the theme background or night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-cta",
+       "slots": [
+        "title",
+        "kicker",
+        "text",
+        "button",
+        "url",
+        "qr",
+        "qr_label"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-cta/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "cta",
+        "qr"
+       ]
+      },
+      {
+       "id": "studio/card-features",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Feature list",
+       "description": "Full-screen list of 3–5 features appearing one by one — icon (built-in set) or number, title and a line of text — beside a kicker, display title and accent rule.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-features",
+       "slots": [
+        "title",
+        "kicker"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-features/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "features",
+        "list"
+       ]
+      },
+      {
+       "id": "studio/card-figure",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Key figure",
+       "description": "Full-screen key figure — kicker, a big animated counter (value from the scenario or captured from the page), accent rule, label and text — on the theme background or night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-figure",
+       "slots": [
+        "value",
+        "capture",
+        "kicker",
+        "label",
+        "text"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-figure/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "figure",
+        "counter"
+       ]
+      },
+      {
+       "id": "studio/card-testimonial",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Testimonial",
+       "description": "Full-screen quote — large quotation mark, the quote in the display font, accent rule, avatar (or initials), name, role and company logo — staggered in.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-testimonial",
+       "slots": [
+        "quote",
+        "name",
+        "role",
+        "company",
+        "logo",
+        "avatar"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-testimonial/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "quote",
+        "testimonial"
+       ]
+      },
+      {
+       "id": "studio/card-title",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Title card",
+       "description": "Full-screen chapter card — uppercase kicker, display title, an accent rule drawn from the centre and an optional line of text — staggered in on the theme background or the theme's night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-title",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-title/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "chapter",
+        "title"
+       ]
+      },
+      {
+       "id": "studio/document-pdf",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Document (PDF)",
+       "description": "A4 page(s) of a captured or project PDF on the theme background with a paper shadow — a slow push-in, a slow scroll through the pages, or a static page / spread — with an optional kicker and title beside it.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/document-pdf",
+       "slots": [
+        "document",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/document-pdf/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "document",
+        "pdf"
+       ]
+      },
+      {
+       "id": "studio/lottie",
+       "kind": "card",
+       "kinds": [
+        "intro",
+        "outro",
+        "interstitial",
+        "overlay"
+       ],
+       "version": "1.0.0",
+       "name": "Lottie animation",
+       "description": "A Lottie (bodymovin JSON) animation of the project — full frame on the theme background, or in a box over the capture — with optional colour replacement by theme colours.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/lottie",
+       "slots": [
+        "file"
+       ],
+       "preview": "<repo>/packages/components/library/studio/lottie/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "lottie",
+        "animation",
+        "motion",
+        "own"
+       ]
+      },
+      {
+       "id": "studio/mail-view",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Mail view",
+       "description": "A mail client card showing a captured email — subject, sender, date and its rendered HTML from its top (scroll auto scrolls a long one slowly) — or scenario values, in a window with an inbox column on the theme background.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/mail-view",
+       "slots": [
+        "email",
+        "from",
+        "address",
+        "subject",
+        "date",
+        "body",
+        "mailbox"
+       ],
+       "preview": "<repo>/packages/components/library/studio/mail-view/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "email",
+        "mail"
+       ]
+      },
+      {
+       "id": "studio/media",
+       "kind": "card",
+       "kinds": [
+        "intro",
+        "outro",
+        "interstitial",
+        "overlay"
+       ],
+       "version": "1.0.0",
+       "name": "Your file",
+       "description": "Your own video or image instead of a provided component — full frame (cover, or whole on the theme background) as an intro, outro, card or interstitial, or in a box over the capture as an overlay (alpha videos composite).",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/media",
+       "slots": [
+        "file"
+       ],
+       "preview": "<repo>/packages/components/library/studio/media/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "media",
+        "file",
+        "video",
+        "image",
+        "own",
+        "alpha"
+       ]
+      },
+      {
+       "id": "studio/phone-home-badge",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Phone home badge",
+       "description": "A phone home screen whose product app icon gets a badge counting up (e.g. 0 → 3 new notifications), with a theme wallpaper, quiet icon grid and dock; optional kicker and title beside it.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/phone-home-badge",
+       "slots": [
+        "app",
+        "icon",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/phone-home-badge/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "phone",
+        "notification",
+        "badge",
+        "mobile"
+       ]
+      },
+      {
+       "id": "studio/phone-lockscreen",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Phone lock screen",
+       "description": "A phone lock screen with a theme wallpaper, big time and date, and notifications arriving one by one — stacked newest first and grouped by app — from the scenario, a captured email or a captured web notification.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/phone-lockscreen",
+       "slots": [
+        "email",
+        "notification",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/phone-lockscreen/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "phone",
+        "notification",
+        "mobile"
+       ]
+      }
+     ],
+     "notices": []
+    }
+   }
+  },
+  {
+   "op": "component_get",
+   "args": {
+    "component": "acme/proj-card",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": false,
+    "text": "acme/proj-card: card component (project 0.1.0) in <ws>/projects/northfield-fixture/components/acme/proj-card\nslots: title (text, required), kicker (text), text (text)\nparams: {\"align\":\"center\"}",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "id": "acme/proj-card",
+     "kind": "card",
+     "version": "0.1.0",
+     "name": "Proj card",
+     "description": "A card of the project.",
+     "source": "project",
+     "dir": "<ws>/projects/northfield-fixture/components/acme/proj-card",
+     "slots": [
+      "title",
+      "kicker",
+      "text"
+     ],
+     "preview_status": "missing",
+     "entry": "<ws>/projects/northfield-fixture/components/acme/proj-card/index.tsx",
+     "manifest": {
+      "id": "acme/proj-card",
+      "version": "0.1.0",
+      "kind": "card",
+      "name": "Proj card",
+      "description": "A card of the project.",
+      "slots": {
+       "title": {
+        "type": "text",
+        "required": true,
+        "max_chars": 60,
+        "description": "The card title."
+       },
+       "kicker": {
+        "type": "text",
+        "max_chars": 40,
+        "description": "Small uppercase line above the title."
+       },
+       "text": {
+        "type": "text",
+        "max_chars": 140,
+        "description": "Optional supporting line under the title."
+       }
+      },
+      "params": {
+       "type": "object",
+       "properties": {
+        "align": {
+         "type": "string",
+         "enum": [
+          "center",
+          "left"
+         ],
+         "default": "center",
+         "description": "Alignment of the column."
+        }
+       }
+      },
+      "tokens": [
+       "colors.accent",
+       "colors.text",
+       "colors.muted",
+       "background",
+       "fonts.display",
+       "fonts.body"
+      ],
+      "duration": {
+       "default": 2.5,
+       "min": 1,
+       "max": 10
+      },
+      "variants": [
+       "landscape",
+       "vertical"
+      ],
+      "preview": {
+       "slots": {
+        "title": "From quote to order",
+        "kicker": "Chapter two",
+        "text": "The same totals follow the customer to checkout."
+       },
+       "at": [
+        0.3,
+        1.5
+       ]
+      },
+      "entry": "index.tsx"
+     },
+     "param_defaults": {
+      "align": "center"
+     },
+     "files": [
+      "component.yaml",
+      "index.tsx"
+     ],
+     "readme": "# acme/proj-card\n\nA card of the project.\n\n- `component.yaml` — the manifest: slots, params (JSON Schema with defaults), duration, preview samples.\n- `index.tsx` — the implementation: `export default function (props: ComponentProps)`. Read every colour, font and\n  logo from `props.theme`, size everything with `props.unit`, animate from `useCurrentFrame()` only, and import only\n  `react`, `remotion` and `@retake/components/kit`.\n\nCheck it with `retake components validate acme/proj-card`. Use it from a template (`components: {card: acme/proj-card}`) or a\nscenario (see docs/guide/themes-and-components.md of Retake, section \"Components\").\n"
+    }
+   }
+  },
+  {
+   "op": "component_validate",
+   "args": {
+    "component": "acme/proj-card",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": false,
+    "text": "acme/proj-card: valid — <ws>/projects/northfield-fixture/components/acme/proj-card",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "id": "acme/proj-card",
+     "dir": "<ws>/projects/northfield-fixture/components/acme/proj-card",
+     "ok": true,
+     "issues": [],
+     "errors": 0,
+     "warnings": 0
+    }
+   }
+  },
+  {
+   "op": "component_get",
+   "args": {
+    "component": "acme/proj-card"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: component \"acme/proj-card\" not found in <ws>/components or the built-in library",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "component \"acme/proj-card\" not found in <ws>/components or the built-in library",
+      "docs": "<repository>/blob/v<version>/docs/guide/themes-and-components.md"
+     }
+    }
+   }
+  },
+  {
+   "op": "project_adopt",
+   "args": {
+    "project": "northfield-fixture",
+    "components": [
+     "acme/new-card"
+    ]
+   },
+   "answer": {
+    "isError": false,
+    "text": "1 component copied into project northfield-fixture: acme/new-card (components/acme/new-card/, 3 files)\nnext: component_list {project: \"northfield-fixture\"} show them as the project's own",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "project": "northfield-fixture",
+     "mode": "copy",
+     "themes": [],
+     "brand": [],
+     "notes": [],
+     "components": [
+      {
+       "id": "acme/new-card",
+       "files": [
+        "README.md",
+        "component.yaml",
+        "index.tsx"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "op": "project_adopt",
+   "args": {
+    "project": "northfield-fixture",
+    "components": [
+     "studio/card-title"
+    ]
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: component id \"studio/card-title\": the \"studio/\" namespace belongs to the built-in library — a workspace component of that id overrides the built-in one for every project and stays a workspace item: nothing adopted",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "component id \"studio/card-title\": the \"studio/\" namespace belongs to the built-in library — a workspace component of that id overrides the built-in one for every project and stays a workspace item: nothing adopted"
+     }
+    }
+   }
+  },
+  {
+   "op": "project_adopt",
+   "args": {
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: name what the project adopts: workspace themes (themes) or workspace components (components)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "name what the project adopts: workspace themes (themes) or workspace components (components)"
+     }
+    }
+   }
+  },
+  {
+   "op": "component_list",
+   "args": {
+    "kind": "card",
+    "project": "northfield-fixture"
+   },
+   "answer": {
+    "isError": false,
+    "text": "17 components usable as card:\n- acme/broken (card, workspace 0.1.0): Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.\n- acme/held (card, workspace 0.1.0): Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.\n- acme/new-card (card, project 0.1.0): A plain card for tests. — no preview\n- acme/proj-card (card, project 0.1.0): A card of the project. — no preview\n- studio/card-before-after (card, builtin 1.0.0): Two frames of the capture (by mark, scene start/end or time) or two images in one card, the after wiping over the before\n- studio/card-chart (card, builtin 1.0.0): Full-screen animated bar or line chart from inline data or a CSV file of the project, the highlighted value in the accen\n- studio/card-cta (card, builtin 1.0.0): Final call to action — kicker, title, text, an accent button with the URL under it and a locally generated QR code — on \n- studio/card-features (card, builtin 1.0.0): Full-screen list of 3–5 features appearing one by one — icon (built-in set) or number, title and a line of text — beside\n- studio/card-figure (card, builtin 1.0.0): Full-screen key figure — kicker, a big animated counter (value from the scenario or captured from the page), accent rule\n- studio/card-testimonial (card, builtin 1.0.0): Full-screen quote — large quotation mark, the quote in the display font, accent rule, avatar (or initials), name, role a\n- studio/card-title (card, builtin 1.0.0): Full-screen chapter card — uppercase kicker, display title, an accent rule drawn from the centre and an optional line of\n- studio/document-pdf (card, builtin 1.0.0): A4 page(s) of a captured or project PDF on the theme background with a paper shadow — a slow push-in, a slow scroll thro\n- studio/lottie (card, builtin 1.0.0): A Lottie (bodymovin JSON) animation of the project — full frame on the theme background, or in a box over the capture — \n- studio/mail-view (card, builtin 1.0.0): A mail client card showing a captured email — subject, sender, date and its rendered HTML from its top (scroll auto scro\n- studio/media (card, builtin 1.0.0): Your own video or image instead of a provided component — full frame (cover, or whole on the theme background) as an int\n- studio/phone-home-badge (card, builtin 1.0.0): A phone home screen whose product app icon gets a badge counting up (e.g. 0 → 3 new notifications), with a theme wallpap\n- studio/phone-lockscreen (card, builtin 1.0.0): A phone lock screen with a theme wallpaper, big time and date, and notifications arriving one by one — stacked newest fi\n1 registry notice: project component acme/new-card overrides the workspace one",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "components_dir": "<ws>/components",
+     "project_components_dir": "<ws>/projects/northfield-fixture/components",
+     "builtin_dir": "<repo>/packages/components/library",
+     "components": [
+      {
+       "id": "acme/broken",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Card",
+       "description": "Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.",
+       "source": "workspace",
+       "dir": "<ws>/components/acme/broken",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<ws>/components/acme/broken/preview.png",
+       "preview_status": "stale"
+      },
+      {
+       "id": "acme/held",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Card",
+       "description": "Full-screen chapter card with a kicker, a display title and an optional line of text, fading and rising in.",
+       "source": "workspace",
+       "dir": "<ws>/components/acme/held",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<ws>/components/acme/held/preview.png",
+       "preview_status": "stale"
+      },
+      {
+       "id": "acme/new-card",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "New card",
+       "description": "A plain card for tests.",
+       "source": "project",
+       "overrides": "workspace",
+       "dir": "<ws>/projects/northfield-fixture/components/acme/new-card",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview_status": "missing"
+      },
+      {
+       "id": "acme/proj-card",
+       "kind": "card",
+       "version": "0.1.0",
+       "name": "Proj card",
+       "description": "A card of the project.",
+       "source": "project",
+       "dir": "<ws>/projects/northfield-fixture/components/acme/proj-card",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview_status": "missing"
+      },
+      {
+       "id": "studio/card-before-after",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Before / after",
+       "description": "Two frames of the capture (by mark, scene start/end or time) or two images in one card, the after wiping over the before behind a divider, with labels and a title.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-before-after",
+       "slots": [
+        "before",
+        "after",
+        "title",
+        "kicker",
+        "before_label",
+        "after_label"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-before-after/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "comparison",
+        "before-after"
+       ]
+      },
+      {
+       "id": "studio/card-chart",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Chart",
+       "description": "Full-screen animated bar or line chart from inline data or a CSV file of the project, the highlighted value in the accent, with kicker, title and a source line.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-chart",
+       "slots": [
+        "title",
+        "kicker",
+        "data",
+        "note"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-chart/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "chart",
+        "data"
+       ]
+      },
+      {
+       "id": "studio/card-cta",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Call to action",
+       "description": "Final call to action — kicker, title, text, an accent button with the URL under it and a locally generated QR code — on the theme background or night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-cta",
+       "slots": [
+        "title",
+        "kicker",
+        "text",
+        "button",
+        "url",
+        "qr",
+        "qr_label"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-cta/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "cta",
+        "qr"
+       ]
+      },
+      {
+       "id": "studio/card-features",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Feature list",
+       "description": "Full-screen list of 3–5 features appearing one by one — icon (built-in set) or number, title and a line of text — beside a kicker, display title and accent rule.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-features",
+       "slots": [
+        "title",
+        "kicker"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-features/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "features",
+        "list"
+       ]
+      },
+      {
+       "id": "studio/card-figure",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Key figure",
+       "description": "Full-screen key figure — kicker, a big animated counter (value from the scenario or captured from the page), accent rule, label and text — on the theme background or night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-figure",
+       "slots": [
+        "value",
+        "capture",
+        "kicker",
+        "label",
+        "text"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-figure/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "figure",
+        "counter"
+       ]
+      },
+      {
+       "id": "studio/card-testimonial",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Testimonial",
+       "description": "Full-screen quote — large quotation mark, the quote in the display font, accent rule, avatar (or initials), name, role and company logo — staggered in.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-testimonial",
+       "slots": [
+        "quote",
+        "name",
+        "role",
+        "company",
+        "logo",
+        "avatar"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-testimonial/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "story",
+        "quote",
+        "testimonial"
+       ]
+      },
+      {
+       "id": "studio/card-title",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Title card",
+       "description": "Full-screen chapter card — uppercase kicker, display title, an accent rule drawn from the centre and an optional line of text — staggered in on the theme background or the theme's night tone.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/card-title",
+       "slots": [
+        "title",
+        "kicker",
+        "text"
+       ],
+       "preview": "<repo>/packages/components/library/studio/card-title/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "chapter",
+        "title"
+       ]
+      },
+      {
+       "id": "studio/document-pdf",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Document (PDF)",
+       "description": "A4 page(s) of a captured or project PDF on the theme background with a paper shadow — a slow push-in, a slow scroll through the pages, or a static page / spread — with an optional kicker and title beside it.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/document-pdf",
+       "slots": [
+        "document",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/document-pdf/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "document",
+        "pdf"
+       ]
+      },
+      {
+       "id": "studio/lottie",
+       "kind": "card",
+       "kinds": [
+        "intro",
+        "outro",
+        "interstitial",
+        "overlay"
+       ],
+       "version": "1.0.0",
+       "name": "Lottie animation",
+       "description": "A Lottie (bodymovin JSON) animation of the project — full frame on the theme background, or in a box over the capture — with optional colour replacement by theme colours.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/lottie",
+       "slots": [
+        "file"
+       ],
+       "preview": "<repo>/packages/components/library/studio/lottie/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "lottie",
+        "animation",
+        "motion",
+        "own"
+       ]
+      },
+      {
+       "id": "studio/mail-view",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Mail view",
+       "description": "A mail client card showing a captured email — subject, sender, date and its rendered HTML from its top (scroll auto scrolls a long one slowly) — or scenario values, in a window with an inbox column on the theme background.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/mail-view",
+       "slots": [
+        "email",
+        "from",
+        "address",
+        "subject",
+        "date",
+        "body",
+        "mailbox"
+       ],
+       "preview": "<repo>/packages/components/library/studio/mail-view/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "email",
+        "mail"
+       ]
+      },
+      {
+       "id": "studio/media",
+       "kind": "card",
+       "kinds": [
+        "intro",
+        "outro",
+        "interstitial",
+        "overlay"
+       ],
+       "version": "1.0.0",
+       "name": "Your file",
+       "description": "Your own video or image instead of a provided component — full frame (cover, or whole on the theme background) as an intro, outro, card or interstitial, or in a box over the capture as an overlay (alpha videos composite).",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/media",
+       "slots": [
+        "file"
+       ],
+       "preview": "<repo>/packages/components/library/studio/media/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "media",
+        "file",
+        "video",
+        "image",
+        "own",
+        "alpha"
+       ]
+      },
+      {
+       "id": "studio/phone-home-badge",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Phone home badge",
+       "description": "A phone home screen whose product app icon gets a badge counting up (e.g. 0 → 3 new notifications), with a theme wallpaper, quiet icon grid and dock; optional kicker and title beside it.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/phone-home-badge",
+       "slots": [
+        "app",
+        "icon",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/phone-home-badge/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "phone",
+        "notification",
+        "badge",
+        "mobile"
+       ]
+      },
+      {
+       "id": "studio/phone-lockscreen",
+       "kind": "card",
+       "version": "1.0.0",
+       "name": "Phone lock screen",
+       "description": "A phone lock screen with a theme wallpaper, big time and date, and notifications arriving one by one — stacked newest first and grouped by app — from the scenario, a captured email or a captured web notification.",
+       "source": "builtin",
+       "dir": "<repo>/packages/components/library/studio/phone-lockscreen",
+       "slots": [
+        "email",
+        "notification",
+        "kicker",
+        "title"
+       ],
+       "preview": "<repo>/packages/components/library/studio/phone-lockscreen/preview.png",
+       "preview_status": "fresh",
+       "tags": [
+        "card",
+        "phone",
+        "notification",
+        "mobile"
+       ]
+      }
+     ],
+     "notices": [
+      {
+       "severity": "warning",
+       "message": "project component acme/new-card overrides the workspace one",
+       "id": "acme/new-card",
+       "dir": "<ws>/projects/northfield-fixture/components/acme/new-card",
+       "issues": 0,
+       "project": true
+      }
+     ]
     }
    }
   }
@@ -5281,7 +6363,7 @@
      "ok": false,
      "error": {
       "code": "refused",
-      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write through MCP (scenarios, runs, renders, reviews, exports): put brand files in brand/"
+      "message": "logo: projects/northfield-fixture/scenarios/logo.svg lies in scenarios/ of project northfield-fixture, a folder an agent can write or scaffold through MCP (scenarios, runs, renders, reviews, exports, components): put brand files in brand/"
      }
     }
    }
@@ -8387,7 +9469,7 @@
      "ok": false,
      "error": {
       "code": "not_found",
-      "message": "template \"no-such\" not found in templates or the starter templates (available: brand-two, default, editorial, mine, motion)",
+      "message": "template \"no-such\" not found in projects/northfield-fixture/templates, templates or the starter templates (available: brand-two, default, editorial, mine, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }

@@ -1,28 +1,36 @@
 /**
- * "Copy to edit" (R-UI-07): a new workspace theme that is a copy of a listed one (a starter, a workspace theme), so a
+ * "Copy to edit" (R-UI-07): a new theme — the project's own when one is named, else the workspace's — that is a
+ * copy of a listed one (a starter, a workspace theme, a theme of the project), so a
  * starter — read-only — can be edited from the Studio. The source's regular files are copied verbatim (dot entries left
  * out: a source's own provenance file is not the copy's); only `name:` changes (a splice). Like brand/create.ts: the
  * name checks (lower-case, never a starter's, never an existing folder's — without case), refused when templates_dir
- * lies inside the Retake package, the folder built hidden with this tool's provenance file written first (`copy_of`,
+ * lies inside the Retake package (a workspace target: theme-target.ts), the folder built hidden with this tool's provenance file written first (`copy_of`,
  * trust `author`: the person made it in the Studio — never replaced through MCP), validated (schema, loader, files
  * inside the folder, the registry resolving its components), then renamed into place; a failure removes it. A source
  * holding a symbolic link, a hard link or a special file is refused whole (a copy would serve a file from elsewhere);
  * at most THEME_COPY_MAX_FILES files and THEME_COPY_MAX_BYTES bytes.
  */
+import { untrustedSourceRefusal } from '../project-archive/trust.js';
+import type { EngineEnv } from '../env.js';
+import { realPathOf } from '@retake/core/policy';
+import { nodeFileFacts } from '@retake/core/io';
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
-import { insideFolder, setMapPath, StepEditError } from '@retake/core/scenario';
+import { setMapPath, StepEditError } from '@retake/core/scenario';
 import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
 import type { LoadedTemplate } from '@retake/core/theme';
-import { nodeFileFacts } from '@retake/core/io';
-import { workspaceRegistry } from '../components.js';
+import { projectRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import type { StoreScope } from '../store/store.js';
 import { dateOf } from '../clock.js';
 import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
-import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
+import { THEME_PROVENANCE_FILE, checkNewName, projectShadowCheck, removeStale } from './create.js';
+import type { BrandTrust } from './files.js';
+import { themeTarget } from '../theme-target.js';
+import type { ThemeTarget } from '../theme-target.js';
+import type { NewThemeName } from '@retake/core/ids';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export const THEME_COPY_MAX_FILES = 2_000;
@@ -34,6 +42,10 @@ export interface ThemeCopied {
   from: string;
   /** Files written, relative to the new folder. */
   files: string[];
+  /** The project whose own theme it is (absent: a workspace theme). */
+  project?: string;
+  /** A project theme hiding a workspace theme of its name, said once. */
+  warnings?: string[];
 }
 
 /** Every regular file of a folder (relative, `/`), dot entries left out; a link or a special file refuses the copy. */
@@ -75,41 +87,71 @@ function renamedText(text: string, name: string, from: string): string {
   }
 }
 
-/** Copy a listed theme into a new workspace theme `name` (see the header). */
-export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { scope: StoreScope }): Promise<ThemeCopied> {
+/** Copy a listed theme into a new theme `name` (see the header): the project's own when `project` is named, else the workspace's. */
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string; project?: string }, o: { scope: StoreScope; trust: BrandTrust; env?: EngineEnv }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
   const name = checkNewThemeName(req?.name);
-  // Stamped by the scope's clock (its provenance), which also dates the stale stages swept.
-  const now = dateOf(o.scope.clock);
-  const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
-    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
-      fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
-    });
-  }
+  const target = await themeTarget(ws, req?.project, 'a copy');
   let source: LoadedTemplate;
   try {
-    source = await ws.reads.loadTemplate(from, ws.root, { files: ws.reads.fileFacts(ws.policy) });
+    // A project's copy may take one of the project's own themes (found first, as its work names them).
+    source = await ws.reads.loadTemplate(from, ws.root, { files: ws.reads.fileFacts(ws.policy), ...(target.project ? { projectDir: target.project.dir } : {}) });
   } catch (e) {
     throw toEngineError(e);
   }
+  const warnings: string[] = [];
+  // The Studio's copy as its New theme: a project copy of a workspace theme's name is refused (trust mcp), a person's warned.
+  await projectShadowCheck(ws, target, name, o.trust, warnings);
+  const files = await copyThemeFolder(ws, { source, from }, target, name, { provenance: 'new', scope: o.scope, ...(o.env ? { env: o.env } : {}) });
+  return { name, from, files, ...(target.project ? { project: target.project.slug } : {}), ...(warnings.length ? { warnings } : {}) };
+}
+
+/**
+ * A theme folder copied whole into `target` as `name` (copyTheme; project-adopt.ts): its regular files verbatim (a link,
+ * a hard link or a special file refuses it; size caps), template.yaml's `name:` set to `name`, validated as a render
+ * will load it, through the target's store (staged, rechecked, journaled). `provenance`: `new` writes this tool's
+ * record (`copy_of`, trust `author`: a person's copy); `keep` copies the source's own record as it is (an adopted
+ * theme stays what it was: one MCP made can still be updated through MCP, a person's never). A source folder inside an
+ * imported project not trusted is refused (project-archive/trust.ts). Returns the files written.
+ */
+export async function copyThemeFolder(
+  ws: OpenedWorkspace,
+  src: { source: LoadedTemplate; from: string },
+  target: ThemeTarget,
+  name: NewThemeName,
+  o: { provenance: 'new' | 'keep'; scope: StoreScope; keepStarterName?: boolean; env?: EngineEnv },
+): Promise<string[]> {
+  const { source, from } = src;
+  // Nothing leaves an imported project not trusted (its Lottie, its code): judged by the folder's owner (`env`: whose home's key).
+  if (o.env) {
+    const refused = await untrustedSourceRefusal(ws, realPathOf(source.dir, nodeFileFacts), o.env);
+    if (refused) throw refused;
+  }
+  // Stamped by the scope's clock (its provenance), which also dates the stale stages swept.
+  const now = dateOf(o.scope.clock);
+  const templatesDir = target.dir;
   const leaks = themeAssetProblems(source);
   if (leaks.length) throw new EngineError('refused', `theme ${from}: ${leaks.join('; ')}`);
   const files = await sourceFiles(source.dir, from);
   if (!files.includes(TEMPLATE_FILE)) throw new EngineError('refused', `theme ${from} has no template.yaml of its own`);
+  const kept = o.provenance === 'keep' ? await keptProvenance(source.dir, from) : undefined;
   await mkdir(templatesDir, { recursive: true });
   await removeStale(templatesDir, now.getTime());
-  await checkNewName(templatesDir, name, false, 'author');
+  const isProject = target.project !== undefined;
+  await checkNewName(templatesDir, name, false, 'author', { noun: target.noun, project: isProject, ...(o.keepStarterName ? { keepStarterName: true } : {}) });
   const text = renamedText(await readFile(join(source.dir, TEMPLATE_FILE), 'utf8'), name, from);
   const hashes: Record<string, string> = {};
   for (const f of files) hashes[f] = f === TEMPLATE_FILE ? sha256Hex(text) : sha256Hex(await readFile(join(source.dir, ...f.split('/'))));
   try {
-    await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
+    await target.store(o.scope).createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
-        const provenance = { version: 1, made_by: 'retake', tool_version: RETAKE_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
-        await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
+        if (kept !== undefined) await stage.write(THEME_PROVENANCE_FILE, kept);
+        else if (o.provenance === 'new') {
+          const provenance = { version: 1, made_by: 'retake', tool_version: RETAKE_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
+          await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
+        }
         for (const f of files) {
           if (f === TEMPLATE_FILE) await stage.write(f, text);
           else {
@@ -125,15 +167,30 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('refused', outside.join('; '));
         try {
-          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+          // A project's copy picks among the project's own components too.
+          (await projectRegistry(ws, target.project)).resolveTheme(loaded.template);
         } catch (e) {
           throw new EngineError('invalid', `the copy's components do not resolve: ${toEngineError(e).message}`);
         }
       },
-      recheck: () => checkNewName(templatesDir, name, false, 'author'),
+      recheck: () => checkNewName(templatesDir, name, false, 'author', { noun: target.noun, project: isProject, ...(o.keepStarterName ? { keepStarterName: true } : {}) }),
     });
   } catch (e) {
     throw toEngineError(e);
   }
-  return { name, from, files: [...files, THEME_PROVENANCE_FILE] };
+  return [...files, ...(kept !== undefined || o.provenance === 'new' ? [THEME_PROVENANCE_FILE] : [])];
+}
+
+/** The source's own provenance record, as written (a regular file of its folder, no link), or undefined when it has none. */
+async function keptProvenance(dir: string, from: string): Promise<string | undefined> {
+  const file = join(dir, THEME_PROVENANCE_FILE);
+  let st: Awaited<ReturnType<typeof lstat>>;
+  try {
+    st = await lstat(file);
+  } catch {
+    return undefined;
+  }
+  if (!st.isFile() || st.nlink > 1) throw new EngineError('refused', `theme ${from}: its ${THEME_PROVENANCE_FILE} is not a regular file of its own — copy it by hand`);
+  if (st.size > 1024 * 1024) throw new EngineError('refused', `theme ${from}: its ${THEME_PROVENANCE_FILE} is larger than 1 MB — copy it by hand`);
+  return readFile(file, 'utf8');
 }

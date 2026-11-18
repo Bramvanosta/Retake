@@ -120,6 +120,7 @@ const TimelineLeaveInput = z.strictObject({ project, lease: lease.describe('The 
 const PreviewAllowInput = z.strictObject({
   id: z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name" (timeline_view preview_held names them)'),
   hash: z.string().regex(COMPONENT_HASH_RE, 'the folder hash timeline_view preview_held gave (16 hex characters)'),
+  project: project.optional().describe("The project whose preview held it: its own components first (a project's component of a workspace id is its own folder)."),
 });
 
 /** The file's text while switches can be written (the engine gives it beside the view): what undo restores. */
@@ -151,15 +152,25 @@ export type TimelineViewAnswer =
  * does not run until `preview_allow` (the Studio's in-memory allow-list, by folder content hash).
  * Not MCP tools: Claude reads plan_preview.
  */
-export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry>; leases?: PreviewLeases }) {
+export function timelineOps(o: {
+  player: () => PlayerServer;
+  forbid: () => readonly string[];
+  allow?: PreviewAllowList;
+  /** The registry a project's preview bundles (its own components first); the workspace's without a project. */
+  registry?: (project?: string) => Promise<ComponentRegistry>;
+  leases?: PreviewLeases;
+}) {
   // The theme editor's preview pages hold leases of the same set (theme-ops.ts), so timeline_leave ends theirs too.
   const leases = o.leases ?? new PreviewLeases((p) => o.player().release(p));
-  /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
-  const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
+  /**
+   * The own components (the workspace's, the project's) a plan of `project` uses that are not allowed (empty without an
+   * allow-list: every one runs) — looked up in the project's registry, as its preview bundles them.
+   */
+  const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan'], project: string): Promise<NonNullable<PreviewHeld['preview_held']>> => {
     if (!o.allow || !o.registry) return [];
     const pm = await playerMaking();
     const used = new Set(pm.usedComponentIds(plan));
-    return (await pm.workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
+    return (await pm.workspaceComponents(await o.registry(project))).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
   };
   const view = defineTool({
     name: 'timeline_view',
@@ -184,7 +195,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       leases.prune();
       if (a.lease) leases.hold(a.project, a.lease);
       // The proposal's plan too: a workspace component a proposal adds is held until the person allows it.
-      const held = await heldOf(r.plan);
+      const held = await heldOf(r.plan, a.project);
       const heldPart: PreviewHeld = held.length ? { preview_held: held } : {};
       try {
         // Each project its own capability: a page of one project never holds URLs of another's files.
@@ -217,13 +228,14 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   const allow = defineTool({
     name: 'preview_allow',
     title: 'Allow a workspace component in the preview',
-    description: 'The person allows one workspace component, at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).',
+    description:
+      "The person allows one workspace component — or, with project, one of the project's own — at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).",
     input: PreviewAllowInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(a) {
       if (!o.allow || !o.registry) throw new EngineError('refused', 'this Studio runs every component in its preview');
-      const c = (await (await playerMaking()).workspaceComponents(await o.registry())).find((x) => x.id === a.id);
-      if (!c) throw new EngineError('not_found', `${a.id} is not a workspace component (a built-in component always runs)`);
+      const c = (await (await playerMaking()).workspaceComponents(await o.registry(a.project))).find((x) => x.id === a.id);
+      if (!c) throw new EngineError('not_found', `${a.id} is not a workspace${a.project !== undefined ? ' or project' : ''} component (a built-in component always runs)`);
       if (c.hash !== a.hash)
         throw new EngineError('conflict', `${a.id} changed since the timeline showed it (its folder is now ${c.hash}): look at it again, then allow it`, { details: { id: a.id, hash: c.hash } });
       if (!o.allow.allow(a.id, a.hash)) throw new EngineError('refused', 'too many components were allowed in this session: restart the Studio');

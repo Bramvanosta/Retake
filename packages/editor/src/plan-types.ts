@@ -367,7 +367,7 @@ export interface ClipSegment extends SegmentBase {
 export interface PlanSource {
   /** Filled at render time (asset server URL). */
   url: string;
-  /** Absolute path of the video. */
+  /** The video: absolute in memory; in a render record on a disk, the rule of core record-paths.ts. */
   file: string;
   /** Video pixels. */
   width: number;
@@ -446,7 +446,7 @@ export interface TimeMapEntry {
 
 export interface PlanMusic {
   url: string;
-  /** Absolute path of the audio file. */
+  /** The audio file: absolute in memory; in a render record on a disk, the rule of core record-paths.ts. */
   file: string;
   /** Base volume 0..1: the level of the intro, the outro, cards and interstitials. */
   volume: number;
@@ -483,7 +483,7 @@ export interface EditPlan {
   source: {
     /** Filled at render time (asset server URL). */
     url: string;
-    /** Absolute path of capture.mp4. */
+    /** capture.mp4: absolute in memory; in a render record on a disk, the rule of core record-paths.ts. */
     file: string;
     /** Video pixels. */
     width: number;
@@ -510,7 +510,7 @@ export interface EditPlan {
   music?: PlanMusic;
   /** Tutorial overlays: what was planned, what could not be shown, the progress bar. Absent when none is on. */
   tutorial?: PlanTutorial;
-  /** Every asset URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
+  /** Every asset URL of the plan → absolute file (capture, logo, wordmark, fonts, music); on a disk, core record-paths.ts. */
   assets: Record<string, string>;
   /**
    * The display table the edit used (core editDisplayTable): project.yaml's current pages of the run's

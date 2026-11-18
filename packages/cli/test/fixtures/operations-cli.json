@@ -152,7 +152,7 @@
   ],
   "code": 1,
   "out": "",
-  "err": "✗ template \"ghost\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)\n",
+  "err": "✗ template \"ghost\" not found in <ws>/projects/film/templates, <repo>/templates or the starter templates (available: default, editorial, motion)\n",
   "history": [],
   "journal": [],
   "files": {},
@@ -2417,7 +2417,7 @@
   ],
   "code": 0,
   "out": "",
-  "err": "! the run's template could not be loaded (template \"ghost\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)): the cursor layer uses the default look\nraw export of 20260101-100000-signup → <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked <t>\n  h264 · 30 fps · cursor baked · sequence 6.00 s (180 frames)\n✓ 01-signup.mp4                      1920×1080 90 frames 3.00 s @ 00:00:00:00 2.0 MB · cut <t> page load\n✓ 02-inbox.mp4                       1920×1080 90 frames 3.00 s @ 00:00:03:00 2.0 MB (other page)\n  markers 2 scene, 3 step, 1 click: markers.fcpxml, markers.edl, markers.otio, markers.csv\n  cursor  cursor.json, cursor.csv, clicks.csv\n!   the cursor layer uses the default look\n  manifest <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/manifest.json · <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/README.md\n",
+  "err": "! the run's template could not be loaded (template \"ghost\" not found in <ws>/projects/film/templates, <repo>/templates or the starter templates (available: default, editorial, motion)): the cursor layer uses the default look\nraw export of 20260101-100000-signup → <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked <t>\n  h264 · 30 fps · cursor baked · sequence 6.00 s (180 frames)\n✓ 01-signup.mp4                      1920×1080 90 frames 3.00 s @ 00:00:00:00 2.0 MB · cut <t> page load\n✓ 02-inbox.mp4                       1920×1080 90 frames 3.00 s @ 00:00:03:00 2.0 MB (other page)\n  markers 2 scene, 3 step, 1 click: markers.fcpxml, markers.edl, markers.otio, markers.csv\n  cursor  cursor.json, cursor.csv, clicks.csv\n!   the cursor layer uses the default look\n  manifest <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/manifest.json · <ws>/projects/film/exports/20260101-100000-signup-raw-mp430-baked/README.md\n",
   "history": [],
   "journal": [],
   "files": {
@@ -2831,7 +2831,7 @@
    "--help"
   ],
   "code": 0,
-  "out": "Usage: retake components list [options]\n\ncomponents of the workspace (components/) and the built-in library\n\nOptions:\n  --kind <kind>  only this kind (choices: \"intro\", \"outro\", \"card\",\n                 \"interstitial\", \"caption\", \"layout\", \"overlay\", \"transition\")\n  --json         machine-readable output\n  -h, --help     display help for command\n",
+  "out": "Usage: retake components list [options]\n\ncomponents of the workspace (components/) and the built-in library; with\n--project, the project's own (projects/<slug>/components/) first\n\nOptions:\n  --kind <kind>     only this kind (choices: \"intro\", \"outro\", \"card\",\n                    \"interstitial\", \"caption\", \"layout\", \"overlay\",\n                    \"transition\")\n  --project <slug>  list this project's own components first, as its renders\n                    resolve them\n  --json            machine-readable output\n  -h, --help        display help for command\n",
   "err": "",
   "history": [],
   "journal": [],
@@ -2845,7 +2845,7 @@
    "--help"
   ],
   "code": 0,
-  "out": "Usage: retake components validate [options] [component]\n\ncheck a component: manifest, params schema, preview samples, entry compile and\nimports (every workspace component when omitted)\n\nArguments:\n  component   component id (namespace/name) or folder\n\nOptions:\n  --json      machine-readable output\n  -h, --help  display help for command\n",
+  "out": "Usage: retake components validate [options] [component]\n\ncheck a component: manifest, params schema, preview samples, entry compile and\nimports (every workspace component when omitted)\n\nArguments:\n  component         component id (namespace/name) or folder\n\nOptions:\n  --project <slug>  the project's own component of that id first (none named:\n                    its own components too)\n  --json            machine-readable output\n  -h, --help        display help for command\n",
   "err": "",
   "history": [],
   "journal": [],
@@ -2859,7 +2859,7 @@
    "--help"
   ],
   "code": 0,
-  "out": "Usage: retake components create|new [options] <id>\n\nscaffold a workspace component (components/<namespace>/<name>/) from the\nscaffold of its kind (alias: new)\n\nArguments:\n  id                    component id \"namespace/name\" (lower-case letters,\n                        digits and \"-\")\n\nOptions:\n  --kind <kind>         what it renders (choices: \"intro\", \"outro\", \"card\",\n                        \"interstitial\", \"caption\", \"layout\", \"overlay\",\n                        \"transition\")\n  --description <text>  one or two sentences: what it looks like and when to use\n                        it\n  --name <name>         display name (default: from the id)\n  --theme <name>        theme of the generated preview (default editorial)\n  --no-preview          do not render preview.png\n  --json                machine-readable output\n  -h, --help            display help for command\n",
+  "out": "Usage: retake components create|new [options] <id>\n\nscaffold a workspace component (components/<namespace>/<name>/) — or a project's\nown with --project (projects/<slug>/components/<namespace>/<name>/) — from the\nscaffold of its kind (alias: new)\n\nArguments:\n  id                    component id \"namespace/name\" (lower-case letters,\n                        digits and \"-\")\n\nOptions:\n  --kind <kind>         what it renders (choices: \"intro\", \"outro\", \"card\",\n                        \"interstitial\", \"caption\", \"layout\", \"overlay\",\n                        \"transition\")\n  --description <text>  one or two sentences: what it looks like and when to use\n                        it\n  --name <name>         display name (default: from the id)\n  --theme <name>        theme of the generated preview (default editorial)\n  --project <slug>      make it in this project's own components folder (used by\n                        its renders only)\n  --no-preview          do not render preview.png\n  --json                machine-readable output\n  -h, --help            display help for command\n",
   "err": "",
   "history": [],
   "journal": [],
@@ -2873,7 +2873,7 @@
    "--help"
   ],
   "code": 0,
-  "out": "Usage: retake components preview [options] [component]\n\nrender preview.png (960×540) + preview.json + the README block of a component,\nor of every component with --all\n\nArguments:\n  component       component id (namespace/name) or folder\n\nOptions:\n  --all           every component: workspace, built-in library and the per-kind\n                  scaffolds\n  --workspace     with --all: only the workspace components\n  --stale         only previews that are missing or out of date\n  --theme <name>  theme of the previews (a theme name or path; default\n                  editorial)\n  --out <dir>     write only the images to <dir>/<namespace>/<name>.png\n                  (component folders untouched)\n  --json          machine-readable output\n  -h, --help      display help for command\n",
+  "out": "Usage: retake components preview [options] [component]\n\nrender preview.png (960×540) + preview.json + the README block of a component,\nor of every component with --all\n\nArguments:\n  component         component id (namespace/name) or folder\n\nOptions:\n  --all             every component: workspace, built-in library and the\n                    per-kind scaffolds\n  --workspace       with --all: only the workspace components (and the project's\n                    own with --project)\n  --project <slug>  the project's own components first, and its own theme of\n                    --theme's name\n  --stale           only previews that are missing or out of date\n  --theme <name>    theme of the previews (a theme name or path; default\n                    editorial)\n  --out <dir>       write only the images to <dir>/<namespace>/<name>.png\n                    (component folders untouched)\n  --json            machine-readable output\n  -h, --help        display help for command\n",
   "err": "",
   "history": [],
   "journal": [],

@@ -51,20 +51,20 @@ import { Button, Callout, Segmented, Sheet, TextField } from '../ui-kit/index.js
 import { bestEffort } from '../best-effort.js';
 
 /** The theme as the editor reads it: theme_view, read again after each write (sequence-guarded). */
-function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
+function useThemeView(slug: string, theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
   const [v, setV] = useState<Loaded<ThemeEditView>>({ state: 'loading' });
   const seq = useRef(0);
   const load = useCallback(async () => {
     const n = ++seq.current;
     try {
-      const d = await themeView({ theme });
+      const d = await themeView({ theme, project: slug });
       if (n === seq.current) setV({ state: 'ready', data: d });
       return d;
     } catch (e) {
       if (n === seq.current && !(e instanceof SessionEnded)) setV({ state: 'error', error: errorText(e), ...(e instanceof CallError ? { code: e.error.code } : {}) });
       return null;
     }
-  }, [theme]);
+  }, [slug, theme]);
   useEffect(() => {
     setV({ state: 'loading' });
     void load();
@@ -115,6 +115,8 @@ function useLivePreview(slug: string, theme: string, target: PreviewTarget, show
 /** What the one write path reads and sets: the version shown, its history, the screen's state and the live frame. */
 interface WriteCtx {
   v: ThemeEditView | null;
+  /** The project whose screen it is: its own themes are found first. */
+  slug: string;
   theme: string;
   load: () => Promise<ThemeEditView | null>;
   history: { current: ThemeHistory };
@@ -128,7 +130,7 @@ interface WriteCtx {
 }
 
 /** The one write path: theme_edit on the version shown (if_match its sha256), an edit, an undo or a redo; the view read again. */
-function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender }: WriteCtx) {
+function makeWrite({ v, slug, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender }: WriteCtx) {
   return async (edit: ThemeEdit, mode: 'edit' | 'undo' | 'redo' = 'edit'): Promise<boolean> => {
     if (!v || busyRef.current) return false;
     busyRef.current = true;
@@ -137,7 +139,7 @@ function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDr
     const before = v.yaml !== null ? { text: v.yaml, sha256: v.sha256 } : null;
     const step = mode === 'undo' ? history.current.undoStep() : mode === 'redo' ? history.current.redoStep() : null;
     try {
-      const r = await themeEdit({ theme, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
+      const r = await themeEdit({ theme, project: slug, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
       const nv = await load();
       if (mode === 'undo') history.current.undone();
       else if (mode === 'redo') history.current.redone();
@@ -171,7 +173,7 @@ function makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDr
 }
 
 export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
-  const [view, load] = useThemeView(theme);
+  const [view, load] = useThemeView(slug, theme);
   const history = useRef(new ThemeHistory());
   const [, rerender] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -192,7 +194,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   };
 
   // ── Writes ──
-  const write = makeWrite({ v, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender });
+  const write = makeWrite({ v, slug, theme, load, history, busyRef, setBusy, setStatus, setDraftState, throttle, askPreview, rerender });
   /** A control's plan: written, refused with why (said), or nothing to do (the draft dropped). */
   const send: Send = (plan) => {
     if (plan === null) {
@@ -245,7 +247,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       <p className="tm-status" role="status" aria-live="polite" data-tone={status?.tone ?? 'info'} data-testid="theme-status">
         {busy ? <Txt text={busy} /> : status ? <Txt text={status.text} /> : editable ? 'Each change is written at once (Undo takes it back).' : ''}
       </p>
-      <LivePreview target={target} setTarget={setTarget} answer={answer} previewError={previewError} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
+      <LivePreview slug={slug} target={target} setTarget={setTarget} answer={answer} previewError={previewError} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
       <UseInScenario slug={slug} theme={v.name} scenarios={scenarios} onChanged={reloadView} />
       <ShellSlot name="inspector" inline="Fields">
         <ThemeFields v={v} slug={slug} off={off} draft={draft} paper={paper} rippleFollows={rippleFollows} setRippleFollows={setRippleFollows} listed={listed} send={stableSend} setDraft={setDraft} />
@@ -256,6 +258,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
 
 /** The live preview section: the target control, then the frame, its progress or its error. */
 function LivePreview({
+  slug,
   target,
   setTarget,
   answer,
@@ -263,6 +266,7 @@ function LivePreview({
   drafting,
   onAgain,
 }: {
+  slug: string;
   target: PreviewTarget;
   setTarget: (t: PreviewTarget) => void;
   answer: ThemePreviewAnswer | null;
@@ -282,7 +286,7 @@ function LivePreview({
         </span>
       </div>
       {answer ? (
-        <LiveFrame v={answer} drafting={drafting} onAgain={onAgain} />
+        <LiveFrame slug={slug} v={answer} drafting={drafting} onAgain={onAgain} />
       ) : previewError ? null : (
         <p className="tm-quiet" role="status">
           Loading the preview…
@@ -307,7 +311,7 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
     if (problem) return setState({ error: problem });
     setState({ busy: true });
     try {
-      const c = await themeCopy({ from: theme, name });
+      const c = await themeCopy({ from: theme, name, project: slug });
       location.hash = hrefTo({ name: 'themes', slug, theme: c.name });
     } catch (e) {
       if (!(e instanceof SessionEnded)) setState({ error: errorText(e) });
@@ -369,7 +373,7 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
  * The frame of a theme_preview answer: the sandboxed Player loads the preview at its still's moment and settles
  * there; Play loops it (a toggle with one name). A workspace component it uses waits for Allow (preview_allow).
  */
-function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
+function LiveFrame({ slug, v, drafting, onAgain }: { slug: string; v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
   const urls = 'frame_url' in v ? previewUrls(v.frame_url, v.plan_url) : null;
   const f = useLiveFrameState('frame' in v ? v.frame : undefined, urls?.plan);
   const { state, setState, setRestart, setAllowing, setAllowError } = f;
@@ -377,7 +381,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
     setAllowError(null);
-    previewAllow({ id: c.id, hash: c.hash })
+    previewAllow({ id: c.id, hash: c.hash, project: slug })
       .then(
         () => {
           setRestart((n) => n + 1);

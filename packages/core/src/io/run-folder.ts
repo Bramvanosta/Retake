@@ -5,7 +5,8 @@
  * a run a person named is read through them (`readNamedRunFolder`), and says which of its files are links.
  */
 import { lstat, readdir, readFile, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { runRecordRead } from '../record-paths.js';
 import { DEFAULT_FILM, isFilmName, parseRunRecord, parseTimeline, parseTimelineHead } from '../run-record.js';
 import type { FileProblem, Read, RunRead, TimelineHead } from '../run-record.js';
 import type { RunFolderFacts } from '../take.js';
@@ -71,10 +72,19 @@ async function readJsonFile(file: string, max: number, o: ReadFileOptions): Prom
   }
 }
 
-/** A run.json: the stored record, or the problem. */
+/**
+ * A parsed run.json whose record's paths are absolute, resolved against `dir` — its run folder (core record-paths.ts).
+ */
+export function runReadIn(read: RunRead, dir: string): RunRead {
+  if (read.ok) return { ...read, value: runRecordRead(read.value, dir) };
+  if (read.problem === 'unknown-status') return { ...read, record: runRecordRead(read.record, dir) };
+  return read;
+}
+
+/** A run.json: the stored record (its paths absolute: runReadIn), or the problem. */
 export async function readRunRecord(file: string, o: ReadFileOptions = {}): Promise<RunRead> {
   const r = await readJsonFile(file, RUN_RECORD_MAX, o);
-  return 'problem' in r ? r.problem : parseRunRecord(r.value);
+  return 'problem' in r ? r.problem : runReadIn(parseRunRecord(r.value), dirname(file));
 }
 
 /** The head of a timeline.json (mode, scenario, run, film), or the problem. For a caller that needs this one file (today: tests; the folder readers below read it themselves). */
@@ -137,7 +147,7 @@ async function mayHoldFilm(fs: RunFolderFs, dir: string): Promise<boolean> {
 async function readFiles(dir: string, o: ReadFileOptions & { whole?: boolean; timeline?: (record: RunRead) => boolean; filmFirst?: boolean }): Promise<FolderFiles & { whole?: Read<Timeline> }> {
   const fs = o.fs ?? NODE_FS;
   const rec = await readJsonFile(join(dir, 'run.json'), RUN_RECORD_MAX, o);
-  const record: RunRead = 'problem' in rec ? rec.problem : parseRunRecord(rec.value);
+  const record: RunRead = 'problem' in rec ? rec.problem : runReadIn(parseRunRecord(rec.value), dir);
   if ((o.timeline && !o.timeline(record)) || (o.filmFirst && !(await mayHoldFilm(fs, dir)))) {
     // Not opened: said to be there or not, and a link or not (a folder with neither file is no run folder at all).
     const kind = await kindOf(fs, join(dir, 'timeline.json'), false);

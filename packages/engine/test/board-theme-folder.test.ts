@@ -10,7 +10,8 @@
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { realpathSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { themeContentHash } from '@retake/editor/plan';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject, projectTemplateFolderId, templateFolderId } from '@retake/core/io';
@@ -35,7 +36,7 @@ let yaml: string;
 const retakeHome = scratchHome();
 
 /** renders/<id>.json and its (empty) video: the case's record under another id, theme folder and date. */
-async function record(id: string, created_at: string, folder: string | undefined): Promise<void> {
+async function record(id: string, created_at: string, folder: string | undefined, extra: Record<string, unknown> = {}): Promise<void> {
   const dir = join(project.dir, 'renders');
   const r = {
     ...demo.record,
@@ -47,6 +48,7 @@ async function record(id: string, created_at: string, folder: string | undefined
     edit: { from: 'scenario', sha256: sha(SCENARIO_YAML) },
     file: join(dir, `${id}.mp4`),
     record: join(dir, `${id}.json`),
+    ...extra,
   } as unknown as RenderRecord;
   if (folder === undefined) delete (r as { template_folder?: string }).template_folder;
   await writeFile(join(dir, `${id}.mp4`), '');
@@ -139,13 +141,14 @@ describe("a theme's identity is its folder (BL-164)", () => {
 
   it("today's folder of a reference, by the editor's rule: a path against the project, a name in the workspace's themes, else the starter's", async () => {
     const p = await loadProject('demo', ws.root);
-    expect(await projectTemplateFolderId(p, OWN)).toBe('projects/demo/themes/brand');
+    // A folder inside the project: project-relative, the records' older workspace-relative form read as the same.
+    expect(await projectTemplateFolderId(p, OWN)).toBe('/project:themes/brand');
     expect(await projectTemplateFolderId(p, SHARED)).toBe('shared/brand');
     // The workspace's templates_dir is the starters' folder here (the test workspace): a name is a starter.
     expect(await projectTemplateFolderId(p, 'editorial')).toBe('/starter:editorial');
     expect(await projectTemplateFolderId(p, undefined)).toBeUndefined();
     // A folder that does not exist has an identity all the same.
-    expect(await projectTemplateFolderId(p, './themes/gone')).toBe('projects/demo/themes/gone');
+    expect(await projectTemplateFolderId(p, './themes/gone')).toBe('/project:themes/gone');
   });
 
   it('two folders of one name are two themes: the row holds the render of the folder the project names today', async () => {
@@ -226,6 +229,52 @@ describe("an export's re-render plans with the master's theme folder", () => {
     const crafted = { template: 'brand', template_folder: '/starter:../../shared/brand' };
     expect(await outcome(exportThemeRef(project, crafted, { trust: 'author' }))).toMatch(/^RenderError: the theme folder this render was made with cannot be found from the workspace/);
     expect(await outcome(exportThemeRef(project, crafted, { trust: 'mcp' }))).toMatch(/^PlanTrustError: refused through MCP/);
+  });
+
+  it("a project theme's render (`/project:` id) is matched on the board and re-exported by its name; a crafted `/project:` id leaving the project is refused", async () => {
+    await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), join(project.dir, 'templates', 'mine'), { recursive: true });
+    await clearRenders();
+    await record('quote-v1', '2026-10-20T11:00:00.000Z', '/project:templates/mine');
+    try {
+      await setTheme('mine');
+      expect(await row()).toEqual(['quote-v1', true, 'mine']);
+      const project = await p();
+      for (const trust of ['author', 'mcp'] as const) {
+        expect(await exportThemeRef(project, { template: 'mine', template_folder: '/project:templates/mine' }, { trust })).toBe('mine');
+        // The older workspace-relative form of the same folder: the same theme.
+        expect(await exportThemeRef(project, { template: 'mine', template_folder: 'projects/demo/templates/mine' }, { trust })).toBe('mine');
+      }
+      // At a terminal, a project folder the project no longer names: the folder itself, inside the project.
+      expect(await exportThemeRef(project, { template: 'x', template_folder: '/project:templates/mine' }, { trust: 'author' })).toBe('mine');
+      const crafted = { template: 'x', template_folder: '/project:../../shared/brand' };
+      expect(await outcome(exportThemeRef(project, crafted, { trust: 'author' }))).toMatch(/^RenderError: the theme folder this render was made with cannot be found from the workspace/);
+    } finally {
+      await writeFile(join(project.dir, 'project.yaml'), yaml);
+      await rm(join(project.dir, 'templates'), { recursive: true, force: true });
+    }
+  });
+
+  it("a theme the project adopted since: a record of the workspace folder whose content hash is the project copy's still matches, on the board and at export; another hash does not", async () => {
+    const copy = join(project.dir, 'templates', 'brand');
+    await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), copy, { recursive: true });
+    const files = { readdir: (d: string) => readdirSync(d), lstat: (f: string) => lstatSync(f), readFile: (f: string) => readFileSync(f) };
+    const h = themeContentHash(copy, files);
+    await clearRenders();
+    // quote-v1: made with the workspace's brand (gone since: moved into the project), the copy's hash; quote-v2, newer: another hash.
+    await record('quote-v1', '2026-10-20T11:00:00.000Z', 'templates/brand', { template_sha256: h });
+    await record('quote-v2', '2026-10-20T12:00:00.000Z', 'templates/brand', { template_sha256: '0123456789abcdef' });
+    try {
+      await setTheme('brand');
+      expect(await row()).toEqual(['quote-v1', true, 'brand']);
+      const project = await p();
+      for (const trust of ['author', 'mcp'] as const) {
+        expect(await exportThemeRef(project, { template: 'brand', template_folder: 'templates/brand', template_sha256: h }, { trust })).toBe('brand');
+      }
+      expect(await outcome(exportThemeRef(project, { template: 'brand', template_folder: 'templates/brand', template_sha256: '0123456789abcdef' }, { trust: 'mcp' }))).toMatch(/^PlanTrustError/);
+    } finally {
+      await writeFile(join(project.dir, 'project.yaml'), yaml);
+      await rm(join(project.dir, 'templates'), { recursive: true, force: true });
+    }
   });
 
   it("an export submitted through the engine: a vertical of a render of the project's own folder is planned; one of another folder of that name is refused", async () => {

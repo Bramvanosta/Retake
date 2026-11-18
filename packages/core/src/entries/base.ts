@@ -16,6 +16,8 @@ export * from '../hidden-chars.js';
 export * from '../printable.js';
 export * from '../line-diff.js';
 export * from '../path-inside.js';
+export * from '../record-paths.js';
+export * from '../archive-names.js';
 export * from '../templating.js';
 export { isoDay, parseDay } from '../dates.js';
 export { bestEffort } from '../best-effort.js';

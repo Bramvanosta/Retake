@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -149,5 +149,46 @@ describe('retake components', () => {
     // --out left the component's own preview (editorial) alone.
     expect(JSON.parse(await readFile(join(dir, 'preview.json'), 'utf8')).theme).toBe('editorial');
     expect((await retake('components', 'preview')).code).toBe(EXIT.failure);
+  }, 300_000);
+
+  it("--project: create into the project's components/ (preview and README there, journaled with its slug), list it first as the project's, validate and preview it", async () => {
+    await mkdir(join(ws, 'projects', 'demo'), { recursive: true });
+    await writeFile(join(ws, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
+    // An id of the workspace's: made for the project, the shell says what it hides.
+    const r = await retake('components', 'create', 'acme/chapter', '--kind', 'card', '--description', "The project's chapter card.", '--project', 'demo');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    const dir = join(ws, 'projects', 'demo', 'components', 'acme', 'chapter');
+    expect(r.err).toContain(`created card component acme/chapter in`);
+    expect(r.err).toContain("overrides the workspace component of the same id in project demo's renders");
+    expect(r.err).toContain('retake components validate acme/chapter --project demo');
+    expect(existsSync(join(dir, 'preview.png'))).toBe(true);
+    expect(await readFile(join(dir, 'README.md'), 'utf8')).toContain('](preview.png)');
+    const journal = (await readFile(join(ws, '.retake', 'journal.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { what?: string; path?: string; project?: string });
+    expect(journal.filter((e) => e.what === 'component' && e.path?.includes('projects/demo/components/acme/chapter')).every((e) => e.project === 'demo')).toBe(true);
+    expect(journal.some((e) => e.what === 'component' && e.path === 'projects/demo/components/acme/chapter/README.md')).toBe(true);
+    const list = await retake('components', 'list', '--kind', 'card', '--project', 'demo');
+    expect(list.out).toMatch(/acme\/chapter\s+card\s+project\s+0\.1\.0\s+The project's chapter card\./);
+    expect(list.err).toContain('project component acme/chapter overrides the workspace one');
+    const json = JSON.parse((await retake('components', 'list', '--kind', 'card', '--project', 'demo', '--json')).out) as {
+      project_components_dir: string;
+      components: Array<{ id: string; source: string; dir: string }>;
+    };
+    expect(json.project_components_dir).toBe(join(ws, 'projects', 'demo', 'components'));
+    expect(json.components.find((c) => c.id === 'acme/chapter')).toMatchObject({ source: 'project', dir });
+    // Without --project: the workspace's, as before (no project key).
+    const plain = JSON.parse((await retake('components', 'list', '--kind', 'card', '--json')).out) as Record<string, unknown> & { components: Array<{ id: string; source: string }> };
+    expect('project_components_dir' in plain).toBe(false);
+    expect(plain.components.find((c) => c.id === 'acme/chapter')?.source).toBe('workspace');
+    expect((await retake('components', 'validate', 'acme/chapter', '--project', 'demo')).err).toContain(`✓ component acme/chapter`);
+    const again = await retake('components', 'preview', 'acme/chapter', '--project', 'demo', '--json');
+    expect(again.code, again.err).toBe(EXIT.ok);
+    expect(JSON.parse(again.out).previews).toEqual([expect.objectContaining({ id: 'acme/chapter', file: join(dir, 'preview.png') })]);
+    // studio/ is never a project's namespace, whoever scaffolds.
+    const studio = await retake('components', 'create', 'studio/mine', '--kind', 'card', '--project', 'demo', '--no-preview');
+    expect(studio.code).not.toBe(EXIT.ok);
+    expect(studio.err).toMatch(/"studio\/" namespace belongs to the built-in library/);
   }, 300_000);
 });

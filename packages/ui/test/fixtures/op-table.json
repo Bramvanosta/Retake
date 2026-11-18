@@ -1569,7 +1569,7 @@
   {
    "name": "preview_allow",
    "title": "Allow a workspace component in the preview",
-   "description": "The person allows one workspace component, at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).",
+   "description": "The person allows one workspace component — or, with project, one of the project's own — at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).",
    "annotations": {
     "readOnlyHint": false,
     "destructiveHint": false,
@@ -1587,6 +1587,12 @@
      "hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{16}$"
+     },
+     "project": {
+      "description": "The project whose preview held it: its own components first (a project's component of a workspace id is its own folder).",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      }
     },
     "required": [
@@ -2583,6 +2589,12 @@
       "type": "string",
       "maxLength": 100,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+     },
+     "project": {
+      "description": "The project whose own themes (projects/<slug>/templates/) are found first, and where a new or copied theme is made; omitted: the workspace's.",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      }
     },
     "required": [
@@ -2608,6 +2620,12 @@
       "type": "string",
       "maxLength": 100,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+     },
+     "project": {
+      "description": "The project whose own themes (projects/<slug>/templates/) are found first, and where a new or copied theme is made; omitted: the workspace's.",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      },
      "if_match": {
       "type": "string",
@@ -2900,13 +2918,19 @@
       "type": "string",
       "maxLength": 100,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
-      "description": "The theme to copy (a starter, another workspace theme)."
+      "description": "The theme to copy (a starter, a workspace theme, a theme of the project)."
      },
      "name": {
       "type": "string",
       "maxLength": 60,
       "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "The new theme folder of templates_dir."
+      "description": "The new theme folder (of the project's templates/ with project, else of templates_dir)."
+     },
+     "project": {
+      "description": "The project whose own themes (projects/<slug>/templates/) are found first, and where a new or copied theme is made; omitted: the workspace's.",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      }
     },
     "required": [
@@ -2934,6 +2958,12 @@
       "maxLength": 60,
       "pattern": "^[a-z0-9][a-z0-9-]*$",
       "description": "Name of the new theme (its folder in templates/): lower-case, not a starter's or an existing folder's."
+     },
+     "project": {
+      "description": "Make it the project's own theme (projects/<slug>/templates/<name>/; its brand files looked for in the project folder first): recommended — a theme is a brand's. Omitted: a workspace theme (templates_dir).",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      },
      "base": {
       "description": "Theme whose components, frame, captions, motion and durations are kept (default editorial).",
@@ -3044,7 +3074,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+          "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
          },
          {
           "type": "object",
@@ -3053,7 +3083,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
-            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+            "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
            },
            "weight": {
             "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3092,7 +3122,7 @@
            "type": "string",
            "minLength": 1,
            "maxLength": 300,
-           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+           "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
           },
           {
            "type": "object",
@@ -3101,7 +3131,7 @@
              "type": "string",
              "minLength": 1,
              "maxLength": 300,
-             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+             "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
             },
             "weight": {
              "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3376,6 +3406,12 @@
        "font"
       ],
       "description": "Image files (logos, wordmarks) or font files."
+     },
+     "project": {
+      "description": "The project whose own themes (projects/<slug>/templates/) are found first, and where a new or copied theme is made; omitted: the workspace's.",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      }
     },
     "required": [

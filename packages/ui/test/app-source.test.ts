@@ -3478,7 +3478,8 @@ describe('the Library, the Themes list and the theme editor', () => {
     const files = await appSources();
     const edits = files.flatMap(([f, text]) => opCalls(text, new Set(['theme_edit'])).map((c) => ({ f, ...c })));
     expect(edits.map((c) => c.f).sort()).toEqual(['library/LibraryInspector.tsx', 'library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx']);
-    for (const c of edits) expect(c.keys, `${c.f}:${c.line}`).toEqual(['theme', 'if_match', 'edit']);
+    // Each names its project too: the theme its screen shows (the project's own first).
+    for (const c of edits) expect(c.keys, `${c.f}:${c.line}`).toEqual(['theme', 'project', 'if_match', 'edit']);
     const scenario = opCalls(files.find(([f]) => f === 'themes/ThemeEditor.tsx')![1], new Set(['scenario_edit']));
     expect(scenario.length).toBe(2);
     for (const c of scenario) expect(c.keys).toContain('hash');

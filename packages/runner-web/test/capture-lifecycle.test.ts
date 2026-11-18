@@ -143,7 +143,9 @@ describe('the capture lifecycle over a driver', () => {
     const timeline = TimelineSchema.parse(JSON.parse(await readFile(join(rec.dir, 'timeline.json'), 'utf8')));
     expect(timeline.capture).toMatchObject({ file: '', frames: 3 });
     expect(timeline.capture.duration).toBeGreaterThanOrEqual(2);
-    expect(JSON.parse(await readFile(join(rec.dir, 'run.json'), 'utf8'))).toMatchObject({ status: 'succeeded', timeline: join(rec.dir, 'timeline.json') });
+    // run.json names its timeline relative to the run folder (core record-paths.ts); the record handed back, absolute.
+    expect(JSON.parse(await readFile(join(rec.dir, 'run.json'), 'utf8'))).toMatchObject({ status: 'succeeded', dir: '.', timeline: 'timeline.json' });
+    expect(rec.timeline).toBe(join(rec.dir, 'timeline.json'));
     expect(existsSync(join(rec.dir, 'scenario.yaml')) && existsSync(join(rec.dir, 'hooks-journal.json'))).toBe(true);
   });
 

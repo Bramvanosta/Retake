@@ -395,6 +395,13 @@ describe('the render records at a terminal, state by state', () => {
       exportNamed: '0 export quote-v2 (1920×1080, 1.00 s) → <root>/projects/r-v2/exports/quote-v2',
       prune: '0 would delete run OLD older capture nothing uses · N / 1 item (N) can go; kept: 1 take, 2 renders (the last 3 per scenario), 0 reviews — retake prune r-v2 --yes deletes them',
     },
+    'v2-relative': {
+      reviewLatest: '1 review starts',
+      reviewNamed: '1 review starts',
+      exportLatest: '0 export quote-v2 (1920×1080, 1.00 s) → <root>/projects/r-v2-relative/exports/quote-v2',
+      exportNamed: '0 export quote-v2 (1920×1080, 1.00 s) → <root>/projects/r-v2-relative/exports/quote-v2',
+      prune: '0 would delete run OLD older capture nothing uses · N / 1 item (N) can go; kept: 1 take, 2 renders (the last 3 per scenario), 0 reviews — retake prune r-v2-relative --yes deletes them',
+    },
     // N3 — named, it exports (did not move). moved: rows 1, 20 and 21 — `latest` of review and export answer quote-v1 and say the file passed over,
     // the review by name starts, prune answers its first list (before: a raw TypeError in all four)
     'no-created': {
@@ -558,13 +565,13 @@ describe('the render records at a terminal, state by state', () => {
       prune: '0 would delete run OLD older capture nothing uses · N / 1 item (N) can go; kept: 1 take, 2 renders (the last 3 per scenario), 0 reviews — retake prune r-variant-cube --yes deletes them',
     },
     // moved: row 10 — named: the newer-Retake sentence (before: `… is not a render record`); `latest` says the file passed over; prune: row 10
-    'version-2': {
+    'version-3': {
       reviewLatest: '1 ! 1 newer file of renders/ passed over — quote-v2.json: written by a newer Retake / review starts',
-      reviewNamed: '1 ✗ <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      exportLatest: '0 ! 1 newer file of renders/ passed over — quote-v2.json: written by a newer Retake / export quote-v1 (1920×1080, 1.00 s) → <root>/projects/r-version-2/exports/quote-v1',
-      exportNamed: '1 ✗ <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      reviewNamed: '1 ✗ <root>/projects/r-version-3/renders/quote-v2.json: this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      exportLatest: '0 ! 1 newer file of renders/ passed over — quote-v2.json: written by a newer Retake / export quote-v1 (1920×1080, 1.00 s) → <root>/projects/r-version-3/exports/quote-v1',
+      exportNamed: '1 ✗ <root>/projects/r-version-3/renders/quote-v2.json: this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
       prune:
-        '0 nothing to prune in r-version-2 (kept: 2 takes, 1 render and 1 other file of renders/, 0 reviews) / kept run OLD a file of renders/ that is no render names it / kept render quote-v2.json written by a newer Retake',
+        '0 nothing to prune in r-version-3 (kept: 2 takes, 1 render and 1 other file of renders/, 0 reviews) / kept run OLD a file of renders/ that is no render names it / kept render quote-v2.json written by a newer Retake',
     },
     // N7 — named at a terminal, read through the link (did not move). moved: row 14 — `latest` takes quote-v1 and says the file it passed over (before: quote-v2)
     link: {

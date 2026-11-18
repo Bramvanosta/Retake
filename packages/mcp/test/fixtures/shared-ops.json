@@ -1742,7 +1742,7 @@
        "ref": "runs/<queued-run>/run.json",
        "path": "<ws>/projects/northfield-fixture/runs/<queued-run>/run.json",
        "kind": "run",
-       "bytes": 558
+       "bytes": 427
       }
      ],
      "screenshots": [],
@@ -1796,7 +1796,7 @@
        "ref": "runs/<queued-run>/run.json",
        "path": "<ws>/projects/northfield-fixture/runs/<queued-run>/run.json",
        "kind": "run",
-       "bytes": 558
+       "bytes": 427
       }
      ],
      "screenshots": [],
@@ -3770,7 +3770,7 @@
         "ref": "runs/<queued-run>/run.json",
         "path": "<ws>/projects/northfield-fixture/runs/<queued-run>/run.json",
         "kind": "run",
-        "bytes": 561
+        "bytes": 427
        }
       ],
       "screenshots": [],
@@ -3826,7 +3826,7 @@
         "ref": "runs/<queued-run>/run.json",
         "path": "<ws>/projects/northfield-fixture/runs/<queued-run>/run.json",
         "kind": "run",
-        "bytes": 561
+        "bytes": 427
        }
       ],
       "screenshots": [],

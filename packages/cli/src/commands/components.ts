@@ -7,22 +7,43 @@ import {
   componentListEntries,
   componentPreviewTargets,
   componentPreviewTheme,
-  componentReadmeWriter,
+  componentReadmeWriters,
   componentValidateShell,
   personScope,
   previewsWork,
 } from '@retake/engine/shell';
 import type { ComponentEntry, ComponentRef, EnginePorts, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
+
+type ComponentSource = ComponentEntry['source'];
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural, truncate } from '../ui.js';
-import { openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ComponentsListOptions {
   kind?: ComponentKind;
+  /** A project: its own components (projects/<slug>/components/) first. */
+  project?: string;
   json?: boolean;
+}
+
+/** How a list line names where a component comes from (one word, padded alike). */
+function sourceLabel(ui: Ui, source: ComponentSource): string {
+  const c = ui.c;
+  switch (source) {
+    case 'project':
+      return c.magenta('project  ');
+    case 'workspace':
+      return c.cyan('workspace');
+    case 'builtin':
+      return c.dim('built-in ');
+    default: {
+      const never: never = source;
+      return never;
+    }
+  }
 }
 
 function info(c: ComponentEntry) {
@@ -54,10 +75,10 @@ function printNotices(ui: Ui, notices: readonly RegistryNoticeView[]): void {
   }
 }
 
-/** `retake components list [--kind K] [--json]`: workspace components, then the built-in library. */
+/** `retake components list [--kind K] [--project P] [--json]`: the project's own components, the workspace's, then the built-in library. */
 export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts: ComponentsListOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const reg = await componentListEntries(ws, opts.kind);
+  const reg = await componentListEntries(ws, opts.kind, opts.project);
   const list = reg.components;
   if (opts.json) {
     ui.result(
@@ -65,6 +86,7 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
         {
           root: ws.root,
           components_dir: reg.components_dir,
+          ...(reg.project_components_dir !== undefined ? { project_components_dir: reg.project_components_dir } : {}),
           builtin_dir: reg.builtin_dir,
           components: list.map(info),
           notices: reg.notices.map((n) => ({ severity: n.severity, message: n.message, dir: n.dir, id: n.id, issues: n.issues ?? [] })),
@@ -76,7 +98,8 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
     return EXIT.ok;
   }
   const c = ui.c;
-  ui.result(`${c.bold('Components')} ${c.dim(`${ui.path(reg.components_dir)} → built-in library`)}`);
+  const head = reg.project_components_dir !== undefined ? `${ui.path(reg.project_components_dir)} → ${ui.path(reg.components_dir)}` : ui.path(reg.components_dir);
+  ui.result(`${c.bold('Components')} ${c.dim(`${head} → built-in library`)}`);
   if (list.length === 0) {
     ui.result(
       c.dim(
@@ -90,7 +113,7 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
   const kindWidth = Math.max(0, ...list.map((i) => i.kind.length));
   for (const item of list) {
     const m = item;
-    const source = item.source === 'workspace' ? c.cyan('workspace') : c.dim('built-in ');
+    const source = sourceLabel(ui, item.source);
     ui.result(`  ${c.bold(m.id.padEnd(idWidth))}  ${m.kind.padEnd(kindWidth)}  ${source}  ${c.dim(m.version.padEnd(6))}  ${truncate(m.description, 70)}`);
   }
   printNotices(ui, reg.notices);
@@ -98,6 +121,8 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
 }
 
 export interface ComponentsValidateOptions {
+  /** A project: its own component of an id first; with no id, its own components too. */
+  project?: string;
   json?: boolean;
 }
 
@@ -112,7 +137,7 @@ function refOf(arg: string): ComponentRef {
  */
 export async function componentsValidateCommand(ui: Ui, global: GlobalOptions, arg: string | undefined, opts: ComponentsValidateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const validated = await componentValidateShell(ws, arg !== undefined ? refOf(arg) : { workspace: true });
+  const validated = await componentValidateShell(ws, arg !== undefined ? refOf(arg) : { workspace: true }, opts.project);
   const results = validated.components;
   const failed = results.some((r) => !r.ok);
   if (opts.json) {
@@ -135,6 +160,8 @@ export interface ComponentsCreateOptions {
   kind: ComponentKind;
   description?: string;
   name?: string;
+  /** A project: the component is made in its own components folder (projects/<slug>/components/). */
+  project?: string;
   json?: boolean;
   /** Theme of the generated preview (default editorial). */
   theme?: string;
@@ -142,30 +169,39 @@ export interface ComponentsCreateOptions {
   preview?: boolean;
 }
 
-/** The preview README writer of the workspace's components, journaled as the CLI's (engine componentReadmeWriter). */
-function componentReadmes(ws: OpenedWorkspace, ports: EnginePorts) {
-  return componentReadmeWriter(ws, personScope(ws.root, ports));
+/** The preview README writers of the workspace's components and the project's own, journaled as the CLI's (engine componentReadmeWriters). */
+function componentReadmes(ws: OpenedWorkspace, ports: EnginePorts, project: string | undefined) {
+  return componentReadmeWriters(ws, project, personScope(ws.root, ports));
 }
 
-/** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
+/** The registry a shell's preview reads: the project's (its own components first) when one is named. */
+async function registryOf(ws: OpenedWorkspace, project: string | undefined) {
+  return project === undefined ? ws.registries.load(ws.root) : ws.registries.load(ws.root, { projectDir: (await openProject(ws, project)).dir });
+}
+
+/** `retake components create <id> --kind K [--description D] [--name N] [--project P]`: scaffold a workspace (or a project's) component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const created = await componentCreateShell(ws, { id, kind: opts.kind, description: opts.description, name: opts.name }, personScope(ws.root, global.ports));
+  const created = await componentCreateShell(
+    ws,
+    { id, kind: opts.kind, description: opts.description, name: opts.name, ...(opts.project !== undefined ? { project: opts.project } : {}) },
+    personScope(ws.root, global.ports),
+  );
   // The preview (preview.png + preview.json + the README block) — skipped with a warning when no browser can render.
   let preview: Awaited<ReturnType<typeof previewsWork>>[number] | undefined;
   let previewTheme: string | undefined;
   let previewError: string | undefined;
   if (opts.preview !== false) {
     try {
-      const { theme, template } = await componentPreviewTheme(ws, opts.theme);
+      const { theme, template } = await componentPreviewTheme(ws, opts.theme, opts.project);
       previewTheme = theme;
       [preview] = await previewsWork({
         renderer: global.ports.renderer,
         workPolicy: ws.policy,
-        readmes: componentReadmes(ws, global.ports),
+        readmes: await componentReadmes(ws, global.ports, opts.project),
         root: ws.root,
         // The registry as it is now, the new component in it (read here, where the preview loaded it before).
-        registry: await ws.registries.load(ws.root),
+        registry: await registryOf(ws, opts.project),
         template,
         targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
       });
@@ -184,6 +220,7 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
           files: created.files,
           issues: created.issues,
           ...(created.overrides ? { overrides: created.overrides } : {}),
+          ...(created.hides ? { hides: created.hides } : {}),
           ...(preview ? { preview: preview.file } : {}),
           ...(previewError ? { preview_error: previewError } : {}),
         },
@@ -199,11 +236,13 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   ui.line(c.dim('  index.tsx       implementation: theme tokens + unit, frame-driven, imports react / remotion / the kit'));
   ui.line(c.dim('  README.md       notes for whoever edits it (+ the generated preview block)'));
   if (preview) ui.line(c.dim(`  preview.png     generated preview (${preview.meta?.theme ?? previewTheme} theme, at ${preview.at} s): ${ui.path(preview.file)}`));
-  if (previewError) ui.warn(`no preview rendered (${previewError}): run \`retake components preview ${created.manifest.id}\` when a browser is available`);
+  const inProject = opts.project !== undefined ? ` --project ${opts.project}` : '';
+  if (previewError) ui.warn(`no preview rendered (${previewError}): run \`retake components preview ${created.manifest.id}${inProject}\` when a browser is available`);
   if (created.overrides) ui.warn(`${created.manifest.id} overrides the built-in component of the same id`);
+  if (created.hides) ui.warn(`${created.manifest.id} overrides the workspace component of the same id in project ${opts.project}'s renders (${ui.path(created.hides)})`);
   for (const i of created.issues) ui.line(`  ${ui.issue(i, join(created.dir, i.file))}`);
   ui.line(
-    `next: edit index.tsx, then ${c.bold(`retake components validate ${created.manifest.id}`)} and ${c.bold(`retake components preview ${created.manifest.id}`)}; ` +
+    `next: edit index.tsx, then ${c.bold(`retake components validate ${created.manifest.id}${inProject}`)} and ${c.bold(`retake components preview ${created.manifest.id}${inProject}`)}; ` +
       `use it from a template (components: {${opts.kind}: ${created.manifest.id}}) or a scenario`,
   );
   return EXIT.ok;
@@ -213,8 +252,10 @@ export interface ComponentsPreviewOptions {
   all?: boolean;
   /** Only previews that are missing or stale. */
   stale?: boolean;
-  /** Only workspace components (with --all). */
+  /** Only the person's own components (with --all): the workspace's, and the project's with --project. */
   workspace?: boolean;
+  /** A project: its own components first (and its own theme of --theme's name). */
+  project?: string;
   theme?: string;
   out?: string;
   json?: boolean;
@@ -237,6 +278,7 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
   const picked = await componentPreviewTargets(ws, arg !== undefined ? { ref: refOf(arg) } : { all: true, workspaceOnly }, {
     ...(opts.theme !== undefined ? { theme: opts.theme } : {}),
     ...(opts.stale ? { stale: true } : {}),
+    ...(opts.project !== undefined ? { project: opts.project } : {}),
   });
   if ('invalid' in picked) {
     for (const i of picked.invalid.issues) ui.line(`  ${ui.issue(i, join(picked.invalid.dir, i.file))}`);
@@ -251,13 +293,13 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
     else ui.ok('every preview is up to date');
     return EXIT.ok;
   }
-  const { template } = await componentPreviewTheme(ws, themeName);
+  const { template } = await componentPreviewTheme(ws, themeName, opts.project);
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
   const done = await previewsWork({
     renderer: global.ports.renderer,
     workPolicy: ws.policy,
-    readmes: componentReadmes(ws, global.ports),
+    readmes: await componentReadmes(ws, global.ports, opts.project),
     root: ws.root,
     registry,
     template,

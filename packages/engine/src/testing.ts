@@ -50,3 +50,4 @@ export { systemClock } from './clock.js';
 export { diskOutputs } from './outputs/disk-outputs.js';
 export { diskProjectStores } from './store/project-store.js';
 export { diskWorkspaceReads } from './workspace-reads/disk-reads.js';
+export { MemorySandboxShare, MemorySandboxes } from './sandboxes/memory-sandboxes.js';

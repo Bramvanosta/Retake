@@ -29,9 +29,11 @@ type Hex = string;
 export type Checks = [
   Holds<Exact<Args<'theme_list'>, { project: string }>>,
   Holds<Exact<Data<'theme_list'>, ThemeListAnswer>>,
-  Holds<Exact<Args<'theme_view'>, { theme: string }>>,
+  // the project whose own themes are found first.
+  Holds<Exact<Args<'theme_view'>, { theme: string; project?: string | undefined }>>,
   Holds<Exact<Data<'theme_view'>, Omit<ThemeEditView, 'yaml'> & { yaml: ThemeEditView['yaml'] }>>,
   Holds<Exact<Args<'theme_edit'>['theme'], string>>,
+  Holds<Exact<Args<'theme_edit'>['project'], string | undefined>>,
   Holds<Exact<Args<'theme_edit'>['if_match'], string>>,
   Holds<
     Exact<
@@ -43,11 +45,11 @@ export type Checks = [
     >
   >,
   Holds<Exact<Data<'theme_edit'>, ThemeEditResult>>,
-  Holds<Exact<Args<'theme_copy'>, { from: string; name: string }>>,
+  Holds<Exact<Args<'theme_copy'>, { from: string; name: string; project?: string | undefined }>>,
   Holds<Exact<Data<'theme_copy'>, ThemeCopied>>,
   Holds<Exact<Args<'theme_create'>, Omit<z.input<typeof BrandInputSchema>, 'replace'>>>,
   Holds<Exact<Data<'theme_create'>, Omit<ThemeCreated, 'dir'>>>,
-  Holds<Exact<Args<'brand_files'>, { kind: 'image' | 'font' }>>,
+  Holds<Exact<Args<'brand_files'>, { kind: 'image' | 'font'; project?: string | undefined }>>,
   Holds<Exact<Data<'brand_files'>, BrandFileList>>,
   Holds<Exact<Args<'site_list'>, { url?: string | undefined }>>,
   Holds<Exact<Data<'site_list'>, SiteListAnswer>>,

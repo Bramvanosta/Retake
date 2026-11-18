@@ -6,7 +6,8 @@
  * finding messages (a caption carrying an injection) appear only under `untrusted`; export writes its files and a record
  * pointing outside the project is refused. stdout carries JSON-RPC only. Plus the caps of `imageResult` in isolation.
  */
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { readNamedRender } from '@retake/core/io';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -163,13 +164,16 @@ describe.skipIf(!can)('retake mcp: reviews and exports as jobs, images inline', 
       expect(r.content[0].text).toMatch(/export quote-v1 → mp4_1080p, gif_preview in demo: succeeded · 2 files/);
       expect(r.content[0].text).toContain('manifest: ');
       const renders = join(ws.project.dir, 'renders');
-      const good = JSON.parse(await readFile(join(renders, 'quote-v1.json'), 'utf8')) as { file: string };
+      // The record as the readers hand it (its paths absolute: on the disk they are relative to renders/).
+      const read = await readNamedRender(join(renders, 'quote-v1.json'));
+      if (!read.read.ok) throw new Error(read.read.problem);
+      const good = read.read.value;
       await copyFile(good.file, join(ws.root, 'outside', 'master.mp4'));
       await writeFile(join(renders, 'evil-v1.json'), JSON.stringify({ ...good, id: 'evil-v1', scenario: 'evil', file: join(ws.root, 'outside', 'master.mp4') }));
       for (const tool of ['export', 'review', 'review_get']) {
         const e = await call(tool, { project: 'demo', render_id: 'evil-v1' });
         expect(e.isError, tool).toBe(true);
-        expect((e.structuredContent as { error: { code: string; message: string } }).error).toMatchObject({ code: 'refused', message: expect.stringContaining('is outside the project folder') });
+        expect((e.structuredContent as { error: { code: string; message: string } }).error).toMatchObject({ code: 'refused', message: expect.stringContaining('names a file outside its project') });
       }
       const bad = await call('export', { project: 'demo', render_id: 'quote-v1', out: '/tmp/x' });
       expect((bad.structuredContent as { error: { code: string } }).error.code).toBe('invalid');

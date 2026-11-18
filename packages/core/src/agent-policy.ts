@@ -71,6 +71,31 @@ export function agentWritable(rel: string): boolean {
   return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
 }
 
+/**
+ * A project's own library folders (core layout PROJECT_LIBRARY_DIRS): its themes (`templates/`), components
+ * (`components/`) and brand files (`brand/`). A tool writes them (a theme made from brand files, a component's scaffold,
+ * a person's `retake project adopt`), never an agent's free text — yet MCP can make a theme there, so no code is run from
+ * them by reference (a hook's sql / js file, an eval file, a Lottie file a scenario names: projectFileProblem) and an
+ * agent-written shell command never names them (agentWritablePath). A theme's own files (its Lottie, video, fonts) are
+ * trusted like a workspace theme's: no MCP writer puts anything but template.yaml, its provenance and brand files there.
+ */
+export const PROJECT_LIBRARY_PATHS: readonly string[] = ['templates/', 'components/', 'brand/'];
+
+/** Whether a project-relative path (`/` or the platform separator) lies in one of the project's library folders (PROJECT_LIBRARY_PATHS), without case. */
+export function projectLibraryPath(rel: string): boolean {
+  const p = rel
+    .split(sep)
+    .join('/')
+    .replace(/^(?:\.\/)+/, '')
+    .toLowerCase();
+  return PROJECT_LIBRARY_PATHS.some((w) => p === w.slice(0, -1) || p.startsWith(w));
+}
+
+/** Whether an agent may have made the file at a project-relative path: agent-writable (agentWritable) or a library folder's (projectLibraryPath) — never run as code. */
+export function agentMade(rel: string): boolean {
+  return agentWritable(rel) || projectLibraryPath(rel);
+}
+
 // ── Agent-written shell commands ────────────────────────────────────────────────────────────────────────────────────
 
 /** The longest agent-written shell command (`run`, `rollback` or `cwd`, rendered), read before anything else. */
@@ -133,8 +158,8 @@ function projectPlace(path: string, o: AgentShellOptions & { tilde?: boolean }):
 export function agentWritablePath(path: string, o: AgentShellOptions & { tilde?: boolean }): string | null {
   const at = projectPlace(path, o);
   if (!at) return null;
-  if ('own' in at) return agentWritable(at.own) ? at.own.split(sep).join('/') : null;
-  return agentWritable(at.rest) ? `../${at.beside.split(sep).join('/')}` : null;
+  if ('own' in at) return agentMade(at.own) ? at.own.split(sep).join('/') : null;
+  return agentMade(at.rest) ? `../${at.beside.split(sep).join('/')}` : null;
 }
 
 /** A person's own file of a project (or of one beside it): `hooks/…` or `project.yaml`, project-relative; else null. */

@@ -29,6 +29,17 @@ describe('the registry of a plan or a render', () => {
     expect(handedRegistry(REG, 'render')).toBe(REG);
   });
 
+  it("a project's work asks the loader with its folder (its own components first)", async () => {
+    const asked: Array<[string, string | undefined]> = [];
+    const load = async (root: string, o?: { projectDir?: string }) => (asked.push([root, o?.projectDir]), REG);
+    expect(await registryFrom(load, '/ws', 'plan', '/ws/projects/demo')).toBe(REG);
+    expect(await registryFrom(load, '/ws', 'plan')).toBe(REG);
+    expect(asked).toEqual([
+      ['/ws', '/ws/projects/demo'],
+      ['/ws', undefined],
+    ]);
+  });
+
   it('none (or anything else) is refused in the words of the work, never loaded', async () => {
     for (const given of [undefined, null, 'components', { list: [] }]) {
       await expect(registryFrom(given as never, '/ws', 'plan'), String(given)).rejects.toMatchObject({ name: 'RenderError', message: `plan: ${NO_REGISTRY}` });

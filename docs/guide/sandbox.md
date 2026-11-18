@@ -699,6 +699,82 @@ mailbox: {provider: mailpit, url: http://localhost:4925}
 - `retake sandbox up <project> --env stage` pulls the images the first time (`docker login` to a private registry
   first, in your terminal); `retake run <project> <scenario> --env stage --sandbox` resets it before each take.
 
+### Handing a sandbox over (a project archive)
+
+`retake project export <project> --with-sandbox` (at a terminal; never through Claude) carries the project's sandboxes
+in its project archive, so another Mac can start the same product after the import:
+
+- **The compose subset.** A sandbox is handed over only when its compose files stay within a small subset Retake
+  reads itself (no docker), at export, at import and at trust; anything outside it and `--with-sandbox` refuses,
+  naming each key and file — an import of an archive that holds one is refused, and the sandbox of an archive made
+  without `--with-sandbox` that is outside it never starts through Retake. The subset:
+  - **every file:** one YAML document; no directive (`%YAML`, `%TAG`), anchor, alias, merge key (`<<`) or explicit tag
+    (`!reset`, `!!str`…); no interpolation (`${…}`, `$NAME`, `$$` too) except in a service's `environment` values —
+    which may pass a variable of this machine through (`[HOME]`, `${X}`: docker gets only Retake's allow-list of the
+    environment, and the sandbox's env file); all compose files in one folder (the folder every
+    relative path resolves from: Retake gives it to docker compose as `--project-directory`, and runs docker there);
+  - **top level:** `services`, `volumes` (each empty or `{name, labels}`, its `name` its key: no driver, driver options
+    or external volume), `networks` (each empty or `{name, labels, internal}`, its `name` its key), `name`, `version` — nothing else (no `include`, `secrets`,
+    `configs`, `models`, `x-…`);
+  - **a service:** `image`, `build` (a string or `{context, dockerfile, args, target}`: replaced by the image the
+    archive carries), `pull_policy`, `command`, `entrypoint`, `environment`, `env_file` (relative paths), `ports`,
+    `expose`, `depends_on`, `healthcheck`, `restart`, `working_dir`, `user`, `labels`, `volumes` (named volumes
+    declared at the top level, anonymous volumes, tmpfs, or binds whose source is a relative path; short-form mode `ro`,
+    `rw`, `z` or `Z` only), `networks` (names, with aliases), `tmpfs`, `stop_grace_period`, `init`, `platform`, `hostname` — nothing else (no `privileged`,
+    `*_mode`, `pid`, `ipc`, `uts`, `cgroup*`, `cap_add`, `devices`, `device_cgroup_rules`, `security_opt`, `sysctls`,
+    `runtime`, `volumes_from`, `extends`, `provider`, `develop`, `deploy`, `extra_hosts`, `secrets`, `configs`,
+    `post_start`…);
+  - **paths:** every `env_file` resolves inside the project from that folder — where it will be once imported; every
+    bind source resolves inside the sandbox's **data folder**, `data/` next to sandbox.yaml (read-write: the one place a
+    container may write into the project; never the project's code, layout or state — hooks, components, themes,
+    scenarios, sandbox.yaml, `.retake/`); on an import, a service that is built needs the image the archive carries
+    for it (so `--no-images` is refused for a sandbox with a built service).
+  - **the folder:** sandbox.yaml and its compose files in a folder of their own (`sandbox/`): a sandbox at the
+    project's root that is outside the subset cannot be exported at all (nothing there can be left out whole).
+- **The files.** sandbox.yaml must lie in the project (move it in otherwise). The compose files it names that lie
+  outside the project (the product's repository) are copied next to it, under `compose-files/` (all of them: they must
+  share one folder), and the archive's sandbox.yaml names them there (only those path values are rewritten). Their
+  relative paths then resolve there: **a build context is never copied** (the image is, below), **a bind mount
+  never** (`../data:/data` becomes `sandbox/data`: provide that folder, or the mount is empty), a service's `env_file`
+  never — each is listed with the place the importer puts it (`sandbox/compose-files/app.env`); a seed file or a
+  process service's `cwd` outside the project is listed too.
+- **The env files.** The sandbox's own env file (`--env-file`: `.env` next to the first compose file, or
+  `compose.env_file`) is never carried unless you add `--with-env`, which asks first, naming the file on your disk,
+  where it goes and its key count: whoever gets the archive reads its values. Its key names are always in the
+  manifest (read as a dotenv reader reads them). A service's `env_file`s are never carried — Retake's reader of the
+  subset names them (never `docker compose config`, which drops them) — with or without `--with-sandbox`; without it,
+  a sandbox outside the subset has every file of its compose folders left out but the compose files, sandbox.yaml and
+  its `seed/` folder.
+- **The images.** Every service's image — a built one by the name its build gives it — is saved by its image id
+  (`docker save <id>`, with `--platform` on Docker 25 and later: no tag in the file), gzipped, one entry each. The
+  export says their count, platform and sizes before writing (the free space it checks counts them before
+  compression: an estimate). An image this machine does not hold is refused: `retake sandbox up <project> --env <env>
+  --build` first (or `docker pull` a public one), or `--no-images` (the files only: the importer pulls; refused when a
+  service is built). Docker's containerd image store (`docker info` names a containerd snapshotter) is not supported
+  yet: its image ids are manifest digests — saving and loading there are refused.
+- **On the other Mac.** `retake project import` extracts the images into the workspace's state
+  (`.retake/imports/images/<slug>/`, their decompressed size measured: an image whose bytes pass its size is refused)
+  and loads nothing. The import and `retake project trust <slug>` read the compose files written against the subset
+  and list each service with its accepted settings (image or build, ports, mounts and env files with where they go,
+  named volumes, the other keys it sets) — nothing outside the subset can be in them. After the yes, each image is
+  read strictly and written afresh for `docker load` (security guide: an archive's images never re-point a tag of this
+  machine), tagged `retake-share-<slug>-<env>-<service>:<its whole image id>` (a tag that names another image is never re-pointed), and the sandbox's compose override is
+  written (`.retake/sandbox/<env>/compose.retake-images.yaml`): every service `build: !reset null` and
+  `pull_policy: never`, its carried tag where it has one. A service whose image is neither carried nor on this machine is
+  listed, and the sandbox does not start until it is there (build or pull it yourself, then `--images` again). The
+  override is read only while it matches what trust recorded, and docker is given that very text on its standard input
+  (`-f -`), never the file. It needs **Docker Compose v2.24 or later** (`!reset`);
+  the images must be saved by Docker 25 or later (its OCI layout: an older Docker's save is refused at trust), which also takes `docker save --platform` (where a Docker lacks it, the export saves without it). With Docker not running, an older Compose or a
+  refused load, the trust still holds and the images wait (what loaded stays loaded): `retake project trust <slug>
+  --images` loads the rest later (`--no-images` skips them at trust); until then `retake sandbox up` on that
+  environment is refused. An image built for another platform (linux/amd64 on an arm64 Mac) is warned about at import:
+  it runs under emulation, slowly, or not at all. Docker's disk is checked where its data root is a folder this machine
+  reads; Docker Desktop and OrbStack keep it in a VM — the size the images need there is said, not checked. `retake
+  project trust <slug> --discard` removes the extracted images of an import nobody trusted (`retake prune` does not look
+  there); a loaded image stays in Docker until you remove it.
+- **The rewrite of sandbox.yaml** changes only the path values of `compose.files` and `compose.env_file`, in place: the
+  rest of the file (comments, line endings, flow lists, long lines) is kept byte for byte.
+
 ### Limits
 
 - **Determinism.** A reset makes equal what the seed builds; not what the app does while it is filmed or between the

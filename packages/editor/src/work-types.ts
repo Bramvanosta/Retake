@@ -100,11 +100,16 @@ export interface BundleComponent {
   scaffold?: boolean;
 }
 
-/** A workspace component as the Studio's preview allow-list sees it: its id, kind and folder content hash (16 hex). */
+/**
+ * An own component (the workspace's, or a project's) as the Studio's preview allow-list sees it: its id, kind, folder
+ * content hash (16 hex), where it comes from, and what it hides when it overrides a component of its id.
+ */
 export interface WorkspaceComponent {
   id: string;
   kind: string;
   hash: string;
+  source: 'project' | 'workspace';
+  overrides?: 'workspace' | 'builtin';
 }
 
 /** Decides whether a workspace component (id, folder content hash) is allowed in the Studio's preview. */

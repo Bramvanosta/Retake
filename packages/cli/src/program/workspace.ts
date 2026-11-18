@@ -3,11 +3,15 @@ import { initCommand } from '../commands/init.js';
 import { listCommand, newCommand } from '../commands/project.js';
 import type { NewOptions } from '../commands/project.js';
 import { validateCommand } from '../commands/validate.js';
+import { projectAdoptCommand } from '../commands/adopt.js';
+import type { AdoptOptions } from '../commands/adopt.js';
 import type { ValidateOptions } from '../commands/validate.js';
+import { projectExportCommand, projectImportCommand, projectTrustCommand } from '../commands/project-archive.js';
+import type { ProjectExportOptions, ProjectImportOptions, ProjectTrustOptions } from '../commands/project-archive.js';
 import { collect } from './context.js';
 import type { ProgramContext } from './context.js';
 
-/** The workspace and its projects: init, new, list, validate. */
+/** The workspace and its projects: init, new, list, validate, project adopt / export / import / trust. */
 export function registerWorkspaceCommands({ program, action }: ProgramContext): void {
   program
     .command('init')
@@ -31,6 +35,56 @@ export function registerWorkspaceCommands({ program, action }: ProgramContext): 
     .description('list the projects (with their scenarios) and themes of the workspace')
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: { json?: boolean }) => listCommand(u, g, o)));
+
+  const project = program
+    .command('project')
+    .description("a project's own library (themes, components and brand files taken from the workspace into the project folder), and a project in one ZIP: export, import, trust");
+  project
+    .command('adopt')
+    .description(
+      "take workspace themes into the project's templates/, workspace components into its components/ and brand files into its brand/, so the project folder alone carries its look; moves them (the workspace's set aside under .retake/adopted/), refused while another project uses a theme or component or a job is queued or running — --copy leaves the workspace's",
+    )
+    .argument('<project>', 'project slug')
+    .option('--theme <name>', 'a workspace theme, by name (repeatable)', collect)
+    .option('--component <id>', 'a workspace component, by id "namespace/name" (repeatable)', collect)
+    .option('--brand <path>', "a brand file (an image, a font, a token file) relative to the workspace root, e.g. brand/logo.svg (repeatable, one file each): into the project's brand/", collect)
+    .option('--copy', "copy: the workspace's stay where they are")
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, slug: string, o: AdoptOptions) => projectAdoptCommand(u, g, slug, o)));
+  project
+    .command('export')
+    .description(
+      "write the project as one ZIP, a project archive (default: its exports/<slug>-project-<stamp>.zip): its files, its own themes and components and the workspace's it uses, a manifest; never .retake/, .env files, sessions, exports/ or key files",
+    )
+    .argument('<project>', 'project slug')
+    .option('--with-runs', 'also its runs, renders and reviews')
+    .option(
+      '--with-sandbox',
+      'also its sandboxes: the compose files sandbox.yaml names (copied in from outside the project, its paths rewritten) and the images the services run, saved by id (their sizes and platform said first); never a build context, a bind mount, a compose secret or the env file',
+    )
+    .option('--no-images', 'with --with-sandbox: the files only, no image (the importer builds or pulls them)')
+    .option('--with-env', "with --with-sandbox: the sandbox's env file too, with its values (asks first, naming it and its key count)")
+    .option('--out <path>', 'the archive file, or a folder for it (never inside the project but its exports/)')
+    .option('--dry-run', 'say what would go in, write nothing')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, slug: string, o: ProjectExportOptions) => projectExportCommand(u, g, slug, o)));
+  project
+    .command('import')
+    .description('make a project archive a project of this workspace: imported untrusted, nothing of it runs until `retake project trust`')
+    .argument('<archive>', 'the .zip file retake project export wrote')
+    .option('--as <slug>', 'the project slug here (default: the one it was exported as)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, archive: string, o: ProjectImportOptions) => projectImportCommand(u, g, archive, o)));
+  project
+    .command('trust')
+    .description("list what of an imported project runs (its code files, what project.yaml asks of this machine), then trust it on a person's yes at a terminal — or discard the import")
+    .argument('<project>', 'project slug')
+    .option('--list', 'list only')
+    .option('--discard', 'set the folder of an import nobody trusted aside under .retake/imports/discarded/, remove the images it extracted, and forget the import')
+    .option('--images', 'load the sandbox images a trusted import waits for (asks first)')
+    .option('--no-images', "trust without loading the sandbox's images (load them later with --images)")
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, slug: string, o: ProjectTrustOptions) => projectTrustCommand(u, g, slug, o)));
 
   program
     .command('validate')

@@ -72,7 +72,9 @@ async function shot(name: string, width: number, fullPage = false): Promise<void
   await page.screenshot({ path: join(SHOTS, `${name}-${width}.png`), fullPage });
 }
 
-const themeFile = (name = COPY) => join(ws, 'templates', name, 'template.yaml');
+// A copy or a new theme made from a project's screen is the project's own: projects/<P>/templates/<name>/.
+const projectThemes = () => join(ws, 'projects', P, 'templates');
+const themeFile = (name = COPY) => join(projectThemes(), name, 'template.yaml');
 const themeYaml = async (name = COPY) => parseYaml(await readFile(themeFile(name), 'utf8')).value as Record<string, Untyped>;
 const status = () => page.getByTestId('theme-status').innerText();
 const settles = async () => Number(await page.getByTestId('theme-preview').getAttribute('data-settles'));
@@ -537,14 +539,14 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
     await row.waitFor();
-    const before = execFileSync('ls', [join(ws, 'templates')]).toString();
+    const before = execFileSync('ls', [projectThemes()]).toString();
     await row.getByTestId('theme-row-copy').click();
     await page.locator('[data-testid="theme-row-copy-sheet"][open]').waitFor();
     expect(await page.getByTestId('theme-row-copy-name').inputValue()).toBe('motion-copy');
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('theme-row-copy-yes');
     await page.keyboard.press('Escape');
     await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
-    expect(execFileSync('ls', [join(ws, 'templates')]).toString()).toBe(before);
+    expect(execFileSync('ls', [projectThemes()]).toString()).toBe(before);
     expect(opsOf('theme_copy').filter((o) => JSON.parse(o.body).from === 'motion')).toHaveLength(0);
   });
 
@@ -557,7 +559,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.getByTestId('theme-row-copy-name').fill('motion-two');
     await page.getByTestId('theme-row-copy-name').press('Enter');
     await expect.poll(() => page.getByTestId('theme-editor').getAttribute('data-theme'), POLL).toBe('motion-two');
-    expect(JSON.parse(opsOf('theme_copy').at(-1)!.body)).toEqual({ from: 'motion', name: 'motion-two' });
+    expect(JSON.parse(opsOf('theme_copy').at(-1)!.body)).toEqual({ from: 'motion', name: 'motion-two', project: P });
     expect(await page.locator('dialog[open]').count()).toBe(0);
   });
 
@@ -609,6 +611,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.getByTestId('new-create').click();
     await page.getByTestId('theme-new-made').waitFor({ timeout: 30_000 });
     expect(JSON.parse(opsOf('theme_create').at(-1)!.body)).toEqual({
+      project: P,
       name: 'site-theme',
       base: 'editorial',
       colors: { accent: '#0f6e5a', text: '#1b1b1f', paper: '#fbfaf7' },

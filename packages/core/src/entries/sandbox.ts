@@ -13,3 +13,5 @@ export type { SandboxErrorCode } from '../sandbox-error.js';
 export { DEFAULT_COMPOSE_FILES, SNAPSHOT_DATABASE_MAX, checkSandbox, unmaskedPasswordReason, weakPasswordReason } from '../checks/sandbox.js';
 export type { SandboxCheckOptions } from '../checks/sandbox.js';
 export { SEED_KINDS, SandboxFileSchema, SeedStepSchema } from '../schemas/sandbox.js';
+export { readComposeSubset } from '../compose-subset.js';
+export type { SubsetRead, SubsetService } from '../compose-subset.js';

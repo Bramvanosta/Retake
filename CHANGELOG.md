@@ -6,6 +6,25 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Changed
+- Run, render and review records write the paths of a project's files relative to their own folder, so a project
+  folder copied to another workspace or another Mac renders, reviews and exports its copied captures and renders. Render
+  records move to format version 2: Retake 0.3.0 refuses them and asks to be updated (L9.1).
+
+### Added
+- A project can hold its own themes and brand files (`projects/<slug>/templates/`, `brand/`), used before the
+  workspace's; lists say where each theme comes from, writers made from a project go into it, and
+  `retake project adopt` (MCP `project_adopt`, copy only) brings workspace themes and brand files into a project (L9.2).
+- A project can hold its own components (`projects/<slug>/components/`), used before the workspace's and the
+  built-in library; the Studio holds them until you allow them, and `retake project adopt --component` brings a
+  workspace component into a project (L9.3).
+- `retake project export` writes a whole project to one ZIP file (themes and components it uses included, secrets
+  never), and `retake project import` installs it in another workspace; an imported project runs none of its code until
+  you review its code files and run `retake project trust` (L9.4).
+- `retake project export --with-sandbox` brings the project's sandbox along: its compose files and its images, saved
+  and loaded only once you trust the project; a sandbox's env files are never included unless you ask with
+  `--with-env` (L9.5).
+
 ## [0.3.0] — 2026-11-16
 
 The Studio uses the whole of a large screen, with a rebuilt Welcome and new pages for locations, settings and hooks,

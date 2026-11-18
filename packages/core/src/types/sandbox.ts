@@ -134,6 +134,12 @@ export interface LoadedSandbox {
   /** Warnings of sandbox.yaml. */
   issues: ValidationIssue[];
   /**
+   * The compose override `retake project trust` wrote for a trusted import whose archive carried the sandbox's images,
+   * with the sha256 its signed mark records and its text as read and checked: set by the engine's gate only (never read
+   * from sandbox.yaml); the compose provider gives docker that text (`-f -`), only while it hashes to the sha256.
+   */
+  imagesOverride?: { file: string; sha256: string; text: string };
+  /**
    * What its accounts' `{{compose_env:NAME}}` references read from the compose env file, by name (those names only):
    * secret values like `secrets`, never printed.
    */

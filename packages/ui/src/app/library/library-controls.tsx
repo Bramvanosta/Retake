@@ -2,7 +2,7 @@
 import { useId } from 'react';
 import type { LibraryItem, LibraryViewAnswer } from '../../server/library-ops.js';
 import { Txt, plural } from '../bits.js';
-import { KIND_ORDER, SOURCE_WORDS, filterCounts, isKind, kindHeading } from '../words/library-words.js';
+import { KIND_ORDER, SOURCE_WORDS, filterCounts, isKind, kindHeading, sourceChoices } from '../words/library-words.js';
 import type { LibraryFilter, SourceFilter } from '../words/library-words.js';
 import { hrefTo } from '../route.js';
 import { ChoiceChips, Disclosure, Segmented, Select, StatusMark, TextField } from '../ui-kit/index.js';
@@ -17,7 +17,7 @@ export function ThemeSelect({ view, slug }: { view: LibraryViewAnswer; slug: str
       onChange={(t) => (location.hash = hrefTo({ name: 'library', slug, theme: t }))}
       options={view.themes.map((t) => ({
         value: t.name,
-        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.source === 'project' ? ' (project folder)' : ''}`,
+        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.by_path ? ' (project folder)' : t.source === 'project' ? ' (project)' : ''}`,
       }))}
     />
   );
@@ -63,7 +63,7 @@ export function Filters({ items, filter, set }: { items: LibraryItem[]; filter: 
           size="sm"
           value={filter.source}
           onChange={(s) => set({ ...filter, source: s })}
-          options={(['all', 'builtin', 'workspace'] as const).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
+          options={sourceChoices(items, filter.source).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
         />
         <div className="lb-search">
           <TextField

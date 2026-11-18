@@ -101,8 +101,20 @@ const COMMENTS_STUDIO = [
   'thread_reopen',
   'thread_apply',
 ];
-/** The authoring, recording and project writes (MCP's eight — sandbox_init and the environment tools among them — and job_status; the Studio's scenario_edit and its seven record_* ops). */
-const AUTHORING_MCP = ['project_create', 'project_env_set', 'project_env_remove', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'sandbox_init', 'job_status'];
+/** The authoring, recording and project writes (MCP's eight — sandbox_init and the environment tools among them —, a project's archive, and job_status; the Studio's scenario_edit and its seven record_* ops). */
+const AUTHORING_MCP = [
+  'project_create',
+  'project_env_set',
+  'project_env_remove',
+  'project_prune',
+  'project_adopt',
+  'project_export',
+  'scenario_save',
+  'scenario_record',
+  'scenario_from_script',
+  'sandbox_init',
+  'job_status',
+];
 const AUTHORING_STUDIO = ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
@@ -379,7 +391,8 @@ describe('invoke', () => {
 });
 
 describe('serialize: one call of a key at a time, per engine', () => {
-  const engineA = { caller: callerOf('ui') } as unknown as Engine;
+  // A workspace's folders: a theme's key is the folder its name resolves to.
+  const engineA = { caller: callerOf('ui'), workspace: { projectsDir: '/w/projects', templatesDir: '/w/templates' } } as unknown as Engine;
   const engineB = { caller: callerOf('ui') } as unknown as Engine;
   /** A probe on library_render's name (served by the Studio) whose run waits until released. */
   const gated = (log: string[], refuse?: (n: string) => boolean) => {
@@ -412,18 +425,20 @@ describe('serialize: one call of a key at a time, per engine', () => {
     const keyed = OPERATIONS.filter((o) => o.serialize).map((o) => o.name);
     expect(keyed.sort()).toEqual(['library_render', 'record_save', 'scenario_edit', 'scenario_render', 'theme_copy', 'theme_create', 'theme_edit', 'thread_reopen', 'thread_reply', 'thread_resolve']);
     const { theme_edit, theme_copy, theme_create, library_render, scenario_render } = OPERATIONS_BY_NAME;
-    expect(theme_edit.serialize!({ theme: 'Mine', if_match: 'a'.repeat(64), edit: { kind: 'restore', text: '', text_hash: 'a'.repeat(64) } })).toBe('theme:mine');
-    expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' })).toBe('theme:mine');
-    expect(theme_create.serialize!({ name: 'mine' } as never)).toBe('theme:mine');
-    expect(library_render.serialize!({ project: 'p', items: [] } as never)).toBe('library:p');
+    // A theme's key is the folder its name resolves to (a project's own templates/<name> when there, else templates_dir's).
+    const e = { workspace: { projectsDir: '/w/projects', templatesDir: '/w/templates' } } as never;
+    expect(theme_edit.serialize!({ theme: 'Mine', if_match: 'a'.repeat(64), edit: { kind: 'restore', text: '', text_hash: 'a'.repeat(64) } }, e)).toBe('theme:/w/templates/mine');
+    expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' }, e)).toBe('theme:/w/templates/mine');
+    expect(theme_create.serialize!({ name: 'mine' } as never, e)).toBe('theme:/w/templates/mine');
+    expect(library_render.serialize!({ project: 'p', items: [] } as never, e)).toBe('library:p');
     // The Studio's scenario chain key (scenario_edit, thread_apply and record_save use it on the same chain).
-    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe('p\0quote');
-    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
+    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) }, e)).toBe('p\0quote');
+    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) }, e)).toBe(scenarioKey('p', 'quote'));
     // The Studio's other scenario writes on the same key. record_start declares none: the façade orders the
     // Studio's starts itself (chainsRecordings), so a second tab gets its 409 at once.
     const { scenario_edit, record_save, record_start } = OPERATIONS_BY_NAME;
-    expect(scenario_edit.serialize!({ project: 'p', name: 'quote', hash: 'a'.repeat(64), edit: { kind: 'replace_text', text: '' } })).toBe(scenarioKey('p', 'quote'));
-    expect(record_save.serialize!({ project: 'p', rec_id: `rec_${'0'.repeat(26)}`, name: 'quote', rev: 0, draft: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
+    expect(scenario_edit.serialize!({ project: 'p', name: 'quote', hash: 'a'.repeat(64), edit: { kind: 'replace_text', text: '' } }, e)).toBe(scenarioKey('p', 'quote'));
+    expect(record_save.serialize!({ project: 'p', rec_id: `rec_${'0'.repeat(26)}`, name: 'quote', rev: 0, draft: 'a'.repeat(64) }, e)).toBe(scenarioKey('p', 'quote'));
     expect(record_start.serialize).toBeUndefined();
   });
 
@@ -635,7 +650,7 @@ describe("the comment operations (the comments façade's caller rules as their c
 
   it("the thread writes run on their thread's key (never a scenario's); thread_apply declares none: its handler chains the scenario's key, then the thread's", () => {
     for (const n of ['thread_reply', 'thread_resolve', 'thread_reopen'] as const) {
-      const key = ops[n].serialize!({ project: 'p', comment_id: 'c_1' } as never);
+      const key = ops[n].serialize!({ project: 'p', comment_id: 'c_1' } as never, {} as never);
       expect(key, n).toBe('thread\0p\0c_1');
       expect(key, n).not.toBe(scenarioKey('p', 'c_1'));
     }

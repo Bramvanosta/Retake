@@ -4,6 +4,8 @@
  * Pure (the file facts are handed in): the planner entry exports them, so the engine's render use case builds and
  * checks a record without loading the renderer.
  */
+import { isAbsolute } from 'node:path';
+import { isPlanAssetUrl, printableText } from '@retake/core/base';
 import type { FileFacts } from '@retake/core/model';
 import type { Timeline } from '@retake/core/run';
 import { insideFolder } from '@retake/core/scenario';
@@ -29,17 +31,75 @@ export function sceneCaptions(timeline: Pick<Timeline, 'scenes' | 'events'>): Re
 }
 
 /**
- * Why a render may not be exported (or reviewed) by work submitted through MCP, or null: its video and its run folder
- * must lie in the project folder, symbolic links resolved through `files` (a record's paths are absolute: one edited
- * by hand, or of a moved workspace, could name any file).
+ * What a use of a render opens (recordPathProblem): `video` — an export, a comment, a frame — its video and its run
+ * folder; `review` — those, its plan's capture and its pages' tracks, and the caption fonts the review measures.
  */
-export function recordPathProblem(projectDir: string, record: Pick<RenderRecord, 'id' | 'file' | 'run_dir'>, files: FileFacts): string | null {
-  for (const [what, p] of [
+export type RecordReads = 'video' | 'review';
+
+/** A render a use may not read through MCP: the sentence (fixed words and the render id), and the path the record names (its text: untrusted). */
+export interface RecordPathRefusal {
+  message: string;
+  path: string;
+}
+
+/** A plan's members that the check reads, leniently (a stored plan is any object). */
+type PlanPaths = { source?: unknown; tracks?: unknown; assets?: unknown; brand?: unknown };
+
+const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+/** The font files a review measures a caption with (review checks-captions.ts planFontFiles): these extensions only. */
+const FONT_FILE = /\.(woff2?|ttf|otf)$/i;
+
+/** The caption faces of a plan (`brand.tokens.font_faces[].url`), read leniently. */
+function fontFaceUrls(plan: PlanPaths | undefined): unknown[] {
+  const tokens = isObject(plan?.brand) ? plan.brand.tokens : undefined;
+  const faces = isObject(tokens) ? tokens.font_faces : undefined;
+  return Array.isArray(faces) ? faces.map((f) => (isObject(f) ? f.url : undefined)) : [];
+}
+
+/**
+ * Why a use of a render submitted through MCP may not read it, or null — checking exactly what that use opens
+ * (`reads`). Every use: its video and its run folder inside the project folder, symbolic links resolved through
+ * `files`. A review also: its plan's capture and its pages' tracks inside the project, and each caption face a plan
+ * asset (a `font_faces[].url` that is a key of `plan.assets`) whose file is an absolute font file (.woff2 / .woff /
+ * .ttf / .otf) that, when it is there, is a regular file (links followed: no device, no pipe; a font that is not there
+ * is measured without) — the theme's fonts may lie anywhere
+ * a theme does (the install's starters, the workspace's, a folder the project names). A path must be absolute: the
+ * readers resolve a record's paths (core record-paths.ts), so a relative one is never judged against the server's
+ * folder. The sentence holds fixed words and the render id only — the path is the record's text, handed apart.
+ * (A record edited by hand, or written by someone else, could name any file.)
+ */
+export function recordPathProblem(
+  projectDir: string,
+  record: Pick<RenderRecord, 'id' | 'file' | 'run_dir'> & { plan?: unknown },
+  files: FileFacts,
+  o: { reads?: RecordReads } = {},
+): RecordPathRefusal | null {
+  const plan: PlanPaths | undefined = isObject(record.plan) ? record.plan : undefined;
+  const id = printableText(String(record.id));
+  const refuse = (what: string, p: unknown, why: string): RecordPathRefusal => ({
+    message: `the ${what} of render ${id} ${why} (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal`,
+    path: String(p),
+  });
+  const inProject: Array<[string, unknown]> = [
     ['video', record.file],
     ['run folder', record.run_dir],
-  ] as const) {
-    if (typeof p !== 'string' || !insideFolder(projectDir, p, files)) {
-      return `the ${what} of render ${record.id} (${String(p)}) is outside the project folder: through MCP a render is read only from the project`;
+  ];
+  if (o.reads === 'review') {
+    if (isObject(plan?.source) && plan.source.file !== undefined && plan.source.file !== '') inProject.push(['capture', plan.source.file]);
+    if (isObject(plan?.tracks)) for (const track of Object.values(plan.tracks)) if (isObject(track) && track.file !== undefined) inProject.push(['page track', track.file]);
+  }
+  for (const [what, p] of inProject) {
+    if (typeof p !== 'string' || p === '' || !isAbsolute(p)) return refuse(what, p, 'is no path Retake can read');
+    if (!insideFolder(projectDir, p, files)) return refuse(what, p, 'names a file outside its project');
+  }
+  if (o.reads === 'review') {
+    const assets = isObject(plan?.assets) ? plan.assets : {};
+    for (const url of fontFaceUrls(plan)) {
+      const file = typeof url === 'string' && isPlanAssetUrl(url) && Object.hasOwn(assets, url) ? assets[url] : undefined;
+      // A font that is not there is no danger (the review measures without it: a render made by another install of
+      // Retake names that install's starter fonts); one that is there must be a regular file.
+      const kind = typeof file === 'string' ? files.kind(file) : undefined;
+      if (typeof file !== 'string' || !isAbsolute(file) || !FONT_FILE.test(file) || (kind !== undefined && kind !== 'file')) return refuse('caption font', file ?? url, 'is no font file of its plan');
     }
   }
   return null;

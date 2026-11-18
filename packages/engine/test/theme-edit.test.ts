@@ -317,7 +317,7 @@ describe("a scenario's theme", () => {
     const s = await engine.scenarios.get('demo', 'other');
     const e = await failure(engine.scenarios.edit('demo', 'other', { hash: s.hash, edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'nope' } }));
     expect(e.code).toBe('invalid');
-    expect(e.message).toMatch(/"nope" is not a theme of this workspace \(themes: brand, default, editorial, motion\)/);
+    expect(e.message).toMatch(/"nope" is not a theme of this project \(themes: brand, default, editorial, motion\)/);
     const ok = await engine.scenarios.edit('demo', 'other', { hash: s.hash, edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'motion' } });
     expect(ok).toMatchObject({ label: 'Set the theme to motion', change: 'edit' });
     expect((await engine.templates.view('brand')).used_by.scenarios).toEqual([{ project: 'demo', scenario: 'q' }]);

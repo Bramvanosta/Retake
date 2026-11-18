@@ -107,7 +107,8 @@ export async function buildThemePreview(
   const loaded = await themeForWork(ws, p, a.theme);
   const problems = themeAssetProblems(loaded);
   if (problems.length) throw new EngineError('refused', `${problems.map((x) => pathFree(x, ws.root)).join('; ')}: a theme serves only its own files`);
-  const registry = (await o.registry.get(ws)).registry;
+  // The project's registry: its own components first (what its renders resolve).
+  const registry = (await o.registry.get(ws, p)).registry;
   const tpl = withDraft(loaded, a.draft);
   const targetKind = typeof a.target === 'string' ? a.target : 'component';
   const base: ThemePreviewBase = { theme: loaded.name, target: { kind: targetKind, ...(typeof a.target === 'object' ? { component: a.target.component } : {}) } };

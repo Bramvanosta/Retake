@@ -11,6 +11,8 @@ export { WORKER_CLIENT_RE } from './jobs/lock.js';
 export { runWorker } from './jobs/worker.js';
 export { runFolderOf } from './outputs/outputs.js';
 export { bindProduct, enginePorts, productBound } from './ports.js';
+export { guardUntrusted } from './project-archive/guard.js';
+export type { EngineEnv } from './env.js';
 export type { EnginePorts, Product, ProductAdapters } from './ports.js';
 export type { ComponentRegistries } from './registries/registries.js';
 export type { RenderMachine, Renderer } from './render/renderer.js';

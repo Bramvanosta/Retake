@@ -11,7 +11,7 @@ import { EngineError } from '../errors.js';
 import type { Clock } from '../clock.js';
 
 /** What kind of authored state a write changed. */
-export type JournalWhat = 'scenario' | 'readme' | 'thread' | 'theme' | 'component' | 'project' | 'workspace' | 'sandbox';
+export type JournalWhat = 'scenario' | 'readme' | 'thread' | 'theme' | 'component' | 'project' | 'workspace' | 'sandbox' | 'brand';
 
 /** A file written: its ref and path, the hex sha256 of the bytes written and their count. */
 export interface WriteResult {
@@ -48,6 +48,13 @@ export interface FolderStage {
   write(rel: string, data: string | Buffer): Promise<void>;
   /** Copy a file into the stage, never over one. */
   copy(rel: string, from: string): Promise<void>;
+  /**
+   * Write a new file from a stream of bytes (an import): its folders made one at a time, never `recursive` — a folder
+   * already there that this stage did not make (a name the disk takes for another: case, Unicode forms) refuses —,
+   * the file opened exclusively and never through a link, with the mode given exactly (0644 or 0755: never setuid).
+   * Answers the sha256 and the count of the bytes written.
+   */
+  writeFrom(rel: string, source: AsyncIterable<Buffer | Uint8Array>, o: { mode: 0o644 | 0o755 }): Promise<{ sha256: string; bytes: number }>;
 }
 
 /** The text of a file, the sha256 of its bytes and whether they are UTF-8 (storage.ts `Storage.readText`). */
@@ -82,6 +89,24 @@ export interface ProjectStore extends ProjectFolder {
    * `projects/`): refused as a write's ref is; not journaled (an empty folder holds no one's work).
    */
   makeFolder(ref: string): Promise<void>;
+  /**
+   * Copy the file `from` (a path anywhere: a person's brand file) to `ref`, which must not exist (a conflict otherwise),
+   * its folders made inside the store; journaled as a write.
+   */
+  copyFileIn(ref: string, from: string, o: { what: JournalWhat }): Promise<WriteResult>;
+  /**
+   * Move the folder or file `ref` to `to` (a ref of the same store, which must not exist; its parents made): under the
+   * write lock of `lockRef` when given (a file inside it whose saves take that lock — a save racing the move waits, then
+   * finds it gone: a conflict), after `check` (throws to refuse: the source changed since it was read); a rename, else
+   * (another volume: EXDEV) a copy then a removal. Journaled (`op: 'move'`, its path and `to`) whatever the outcome.
+   */
+  moveAside(ref: string, to: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }>;
+  /**
+   * Move a folder or file from anywhere (`from`, absolute: a templates_dir configured outside the workspace) to `to`, a
+   * ref of the store, as moveAside does — after `check`, a rename, else (EXDEV) a copy then a removal; journaled
+   * (`op: 'move'`) whatever the outcome. No write lock: nothing of the store writes `from`.
+   */
+  takeIn(from: string, to: string, o: { what: JournalWhat; check?: () => Promise<void> }): Promise<{ path: string; to: string }>;
   /** Create the folder `<parent>/<name>` whole: staged, checked, renamed into place, journaled with its files. */
   createFolder<T>(
     parent: string,

@@ -46,7 +46,10 @@ running: the MCP server keeps working without it.
   *New scenario*. The grid is one keyboard stop: the arrows move, Return opens, Escape clears. Nothing selected, the
   inspector shows the project (its README, recent runs, recent activity); a selected production shows its length,
   content, last take, capture, render, review and location, *Open* and *Render* (the timeline). The posters reflow to
-  the window (three a row at 1440 px, one at the desktop app's narrowest). The browser holds the open project:
+  the window (three a row at 1440 px, one at the desktop app's narrowest). A project imported from a project archive
+  and not trusted yet shows a banner, *Imported — not trusted*, with the command a person runs in a terminal
+  (`retake project trust <slug>`): until then its takes and renders are refused (its scenarios still read and edit).
+  The browser holds the open project:
   Productions and its smart groups *Ready to render*, *Needs a shoot*, *Failed*; the Library (Components, Themes); the
   Locations (clicking one shows its pages, the URLs the video shows and its personas in the inspector, even with a
   production selected); the Cast (each persona's session, its location under it; *Sessions* opens the Sessions panel);
@@ -403,12 +406,15 @@ running: the MCP server keeps working without it.
   renders (the direct loop). Apply and re-render is offered for a landscape comment whose render used the files'
   theme and no option (the Studio renders that way); otherwise Apply, then render from your terminal or ask Claude.
 - **Component library** (L4.7). **Components** in the project's pages (or *Open the library* on the project page,
-  `#/p/<project>/library`) shows every component of the workspace by kind — the built-in library and your own
-  `components/` — each card the component's poster in the project's theme; the *Theme* menu shows them in another
+  `#/p/<project>/library`) shows every component the project can use by kind — the built-in library, your workspace's
+  `components/` and the project's own `projects/<project>/components/` (found first for it) — each card the component's
+  poster in the project's theme; the *Theme* menu shows them in another
   (`#/p/<project>/library/<theme>`). Filter by kind, source and words: a kind's chip counts what it lists (the
   components of that kind and those that can also serve as one); in the full view a kind's section lists its own
-  components, and *+ N more that can also serve here* picks that kind's filter. A tag says where it comes from: *Built-in* or *Workspace* (made in this workspace, by you or with Claude:
-  the Studio cannot tell who). **Play** under a card shows the component moving — a looping GIF in place of the poster,
+  components, and *+ N more that can also serve here* picks that kind's filter. A tag says where it comes from: *Built-in*, *Workspace* (made in this workspace, by you or with Claude:
+  the Studio cannot tell who) or *Project* (the project's own; the Source filter offers *Project* when there is one).
+  A workspace's or a project's component used by a timeline or a theme preview waits for your **Allow** (by its
+  folder's content, for this Studio session) before the preview runs its code. **Play** under a card shows the component moving — a looping GIF in place of the poster,
   marked *Playing · loop* — and pressing it again shows the poster; loops never start by themselves. (L5.12c, in the
   shell: the browser lists the Library — Components, Themes — and the project's themes, each showing the components in
   it; the title bar's *Theme* menu does the same; a click on a card selects it and the inspector shows its facts —
@@ -459,7 +465,10 @@ running: the MCP server keeps working without it.
   (Undo puts the file back): every existing take of it uses the theme at its next render, no new capture — the cursor
   style is filmed, existing takes keep theirs; the same choice is the timeline inspector's *Theme (this scenario)*. The
   project's own theme stays a hand edit of project.yaml. **New theme…** makes one from your brand (colours, a logo and
-  fonts among the workspace's files, over a base theme) as Claude's template_create_from_brand does. Under **Logo**,
+  fonts among the project's files first, then the workspace's — each tagged —, over a base theme) as Claude's
+  template_create_from_brand {project} does. A theme made or copied from a project's Themes screen is the project's own
+  (`projects/<slug>/templates/<name>/`, its card tagged *Project*, "Used instead of the workspace's" when it hides one);
+  a workspace theme is made at a terminal (`retake theme create` without `--project`). Under **Logo**,
   *Logo kind* says how the logo is drawn: from its shape (3:1 and wider: a wordmark, drawn alone), a mark (the brand
   name beside it) or a wordmark; the body takes one to eight font files. **From a
   website**: the extractions already made (`retake theme from-site`, or Claude's template_from_site — the page's title

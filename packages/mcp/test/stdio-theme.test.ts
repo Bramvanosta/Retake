@@ -155,6 +155,26 @@ describe('retake mcp: a theme from brand files', () => {
     );
   });
 
+  it("a project's own theme over stdio — made into the project, listed as the project's; project_adopt copies a workspace theme, never moves it nor takes brand files", async () => {
+    const made = await call('template_create_from_brand', { ...brand, name: 'harbor-own', project: 'demo' });
+    expect(made.isError, JSON.stringify(made.content)).toBeFalsy();
+    expect(made.content[0].text).toContain(join(root, 'projects', 'demo', 'templates', 'harbor-own'));
+    const l = await call('template_list', { project: 'demo' });
+    expect(l.content[0].text).toMatch(/- harbor-own \(project, real\)/);
+    await makeHarbor();
+    const copied = await call('project_adopt', { project: 'demo', themes: ['harbor'] });
+    expect(copied.isError, JSON.stringify(copied.content)).toBeFalsy();
+    expect(copied.content[0].text).toMatch(/1 theme copied into project demo: harbor \(templates\/harbor\/, \d+ files\)/);
+    expect(await readdir(join(root, 'templates'))).toContain('harbor');
+    expect(await readdir(join(root, 'projects', 'demo', 'templates'))).toEqual(['harbor', 'harbor-own']);
+    const brandRefused = await call('project_adopt', { project: 'demo', themes: ['harbor'], brand: ['brand/mark.svg'] });
+    expect(brandRefused.isError).toBe(true);
+    expect(brandRefused.content[0].text).toMatch(/brand files are never adopted through MCP/);
+    const shadow = await call('template_create_from_brand', { ...brand, name: 'harbor', project: 'other-none' });
+    expect(shadow.isError).toBe(true);
+    await rm(join(root, 'projects', 'demo', 'templates'), { recursive: true, force: true });
+  });
+
   it.skipIf(!can)(
     'template_preview renders its stills through the preview job',
     async () => {
@@ -269,7 +289,12 @@ describe('retake mcp: open-licence fonts by reference (a loopback registry)', ()
       expect(asked[0]).toContain('[requests so far: 0]');
       expect(registry.requests).toEqual(['/@fontsource%2ftest-sans/latest', '/@fontsource/test-sans/-/test-sans-5.2.1.tgz']);
       expect(f.content[0].text).toMatch(/@fontsource\/test-sans 5\.2\.1 \(latest, resolved now: pin it next time\), OFL-1\.1/);
-      const c = await at('template_create_from_brand', { name: 'harbor-fonts', colors: { accent: '#3352b8' }, logo: 'brand/mark.svg', fonts: { display: 'fontsource:test-sans@5.2.1:700', body: ['fontsource:test-sans@5.2.1:400'] } });
+      const c = await at('template_create_from_brand', {
+        name: 'harbor-fonts',
+        colors: { accent: '#3352b8' },
+        logo: 'brand/mark.svg',
+        fonts: { display: 'fontsource:test-sans@5.2.1:700', body: ['fontsource:test-sans@5.2.1:400'] },
+      });
       expect(c.isError, JSON.stringify(c.content)).toBeFalsy();
       // The create read the store only: no new request reached the registry.
       expect(registry.requests).toHaveLength(2);

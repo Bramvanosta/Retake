@@ -1,6 +1,7 @@
 /**
  * The theme, component and library operations (MCP: template_list, template_create_from_brand, template_preview,
- * template_from_site, component_list, component_get, component_validate, component_preview, component_create; the
+ * template_from_site, component_list, component_get, component_validate, component_preview, component_create — a
+ * project's own components too, and project_adopt {components}; the
  * Studio: theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, library_view,
  * library_images, library_render, library_component), characterized through their shells before they became the
  * engine's operations: each call's answer through `retake mcp` over stdio (from the sources, the SDK's client)
@@ -123,6 +124,17 @@ const MCP_CALLS: Call[] = [
   { op: 'component_create', args: { id: 'acme/named', kind: 'intro', description: 'With a name.', name: 'Named intro' } },
   { op: 'component_validate', args: { component: 'acme/new-card' } },
   { op: 'component_list', args: { kind: 'intro' } },
+  // A project's own components: made in projects/<slug>/components, listed first as the project's; a workspace id refused.
+  { op: 'component_create', args: { id: 'acme/proj-card', kind: 'card', description: 'A card of the project.', project: P } },
+  { op: 'component_create', args: { id: 'acme/new-card', kind: 'card', description: 'A workspace id.', project: P } },
+  { op: 'component_list', args: { kind: 'card', project: P } },
+  { op: 'component_get', args: { component: 'acme/proj-card', project: P } },
+  { op: 'component_validate', args: { component: 'acme/proj-card', project: P } },
+  { op: 'component_get', args: { component: 'acme/proj-card' } },
+  { op: 'project_adopt', args: { project: P, components: ['acme/new-card'] } },
+  { op: 'project_adopt', args: { project: P, components: ['studio/card-title'] } },
+  { op: 'project_adopt', args: { project: P } },
+  { op: 'component_list', args: { kind: 'card', project: P } },
 ];
 
 /** The Studio calls, in order. */
@@ -391,6 +403,8 @@ describe('the theme, component and library operations through their shells (char
       'component_validate',
       'component_preview',
       'component_create',
+      // A project adopting a workspace component (the copy MCP may make).
+      'project_adopt',
     ];
     const studio = ['theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list', 'library_view', 'library_images', 'library_render', 'library_component'];
     expect([...new Set(mcpAnswers.map((a) => a.op))].sort()).toEqual([...mcp].sort());

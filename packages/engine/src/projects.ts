@@ -1,4 +1,5 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
+import { removeImportMark } from './project-archive/trust.js';
 import { join } from 'node:path';
 import { pathInside, errorMessage } from '@retake/core/base';
 import { environmentAccess, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
@@ -228,6 +229,8 @@ export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'r
  */
 export async function writeNewProject(ws: Pick<OpenedWorkspace, 'root' | 'reads'>, input: CreateProjectInput, scope: StoreScope): Promise<LoadedProject> {
   const plan = await ws.reads.planNewProject(ws.root, input);
+  // A mark of an import of that slug whose folder is gone (removed by hand) is stale: this new project is no import.
+  await removeImportMark(plan.wsRoot, plan.slug);
   const store = scope.stores.at(plan.dir, scope, { project: plan.slug });
   for (const f of plan.files) await store.writeText(f.ref, f.text, { ifMatch: null, what: 'project' });
   return ws.reads.loadProject(plan.dir, plan.wsRoot);

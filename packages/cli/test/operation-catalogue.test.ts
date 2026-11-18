@@ -7,9 +7,9 @@ import { CATALOGUE, cliCommandsOf, servedBy } from '@retake/engine/contract';
 import { commandPaths } from '../src/main.js';
 
 describe('the CLI commands and the operation catalogue', () => {
-  it('the commander tree and the catalogue name the same 51 commands', () => {
+  it('the commander tree and the catalogue name the same 56 commands', () => {
     expect([...commandPaths()].sort()).toEqual([...cliCommandsOf()].sort());
-    expect(commandPaths()).toHaveLength(51);
+    expect(commandPaths()).toHaveLength(56);
     expect(commandPaths()).toContain('worker');
     expect(commandPaths()).toContain('hooks run');
     expect(commandPaths()).toContain('hooks trust');

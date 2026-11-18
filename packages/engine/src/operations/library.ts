@@ -34,13 +34,14 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { COMPONENT_ID_RE } from '@retake/core/model';
 import { zThemeName } from '@retake/core/ids';
-import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { PROJECT_SLUG_RE, projectLibraryDir } from '@retake/core/project';
 import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
 import { componentCalls } from '../registries/component-calls.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';
 import { libraryCacheDir, readBuiltinPreview, readLibraryImage, statSignature } from '../library.js';
 import type { LibraryStatesView } from '../library.js';
+import type { ComponentSource } from '@retake/components/geometry';
 import { themeSignatures, treeSignature, watchBudget } from '../library-watch.js';
 import { openProjectBySlug } from '../projects.js';
 import { pathFree } from '../renders.js';
@@ -99,7 +100,9 @@ export interface LibraryItem {
   kind: string;
   kinds?: string[];
   version: string;
-  source: 'workspace' | 'builtin';
+  source: ComponentSource;
+  /** A project's component that hides a workspace or built-in one of its id. */
+  overrides?: 'workspace' | 'builtin';
   slots: string[];
   /** Themes listed for the project that pick it for some kind. */
   picked_by: string[];
@@ -116,7 +119,7 @@ export interface LibraryViewAnswer {
   project: string;
   theme: { name: string; hash: string; editorial_starter: boolean; project_default: boolean };
   /** The theme switcher: every theme the project may use (the project's own marked). */
-  themes: Array<{ name: string; source: TemplateSummary['source']; default: boolean }>;
+  themes: Array<{ name: string; source: TemplateSummary['source']; default: boolean; by_path?: true }>;
   items: LibraryItem[];
   /** Overrides of built-ins, invalid components, kit API mismatches: the command checks one. */
   notices: Array<{ severity: 'warning' | 'error'; id?: string; issues: number; command?: string; untrusted: { message: string } }>;
@@ -185,11 +188,12 @@ async function lastJobError(engine: Engine, slug: string, theme: string, project
 }
 
 /** A notice's words without a path; its id's validate command when it names one. */
-function noticeOf(engine: Engine, n: { severity: 'warning' | 'error'; message: string; id?: string; issues: number }): LibraryViewAnswer['notices'][number] {
+function noticeOf(engine: Engine, n: { severity: 'warning' | 'error'; message: string; id?: string; issues: number; project?: true }, slug: string): LibraryViewAnswer['notices'][number] {
   const root = engine.workspace.root;
   return {
     severity: n.severity,
-    ...(n.id ? { id: n.id, command: `${engine.cli} components validate ${n.id}` } : {}),
+    // A project's own component is validated as the project resolves it.
+    ...(n.id ? { id: n.id, command: `${engine.cli} components validate ${n.id}${n.project ? ` --project ${slug}` : ''}` } : {}),
     issues: n.issues,
     untrusted: { message: pathFree(n.message, root) },
   };
@@ -216,15 +220,19 @@ const viewSignature = async (engine: Engine, slug: string, asked: string | undef
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, slug);
   const t = await themeForWork(ws, p, asked);
-  const reg = await engine.components.registry();
+  const reg = await engine.components.registry({ project: slug });
   // One entry budget for the whole signature, as the event stream's scan.
   const budget = watchBudget();
   return [
     `theme ${t.name} ${t.dir} ${treeSignature(t.dir, budget)}`,
     `project ${statSignature(join(p.dir, 'project.yaml'))}`,
     `templates ${statSignature(ws.templatesDir)} ${[...(await themeSignatures(ws.templatesDir, budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
+    // The project's own themes: one made, copied or adopted there is listed and picks components too.
+    `project-templates ${statSignature(projectLibraryDir(p.dir, 'templates'))} ${[...(await themeSignatures(projectLibraryDir(p.dir, 'templates'), budget))].map(([n, sg]) => `${n}=${sg}`).join(',')}`,
     `builtin ${reg.builtinDir ? treeSignature(reg.builtinDir) : '-'}`,
     `components ${treeSignature(ws.componentsDir, budget)}`,
+    // The project's own components: one made, copied or adopted there is listed (and wins over its id elsewhere).
+    `project-components ${treeSignature(projectLibraryDir(p.dir, 'components'), budget)}`,
     `cache ${statSignature(libraryCacheDir(ws))}`,
   ].join('\n');
 };
@@ -243,7 +251,7 @@ export const libraryView = defineOperation({
     if (!m || m.sig !== sig) {
       const [states, list, themes] = await Promise.all([
         engine.components.library({ project: a.project, ...(a.theme ? { template: a.theme } : {}) }),
-        engine.components.list(),
+        engine.components.list(undefined, { project: a.project }),
         engine.templates.list({ project: a.project }),
       ]);
       m = { sig, states, list, themes };
@@ -281,6 +289,7 @@ export const libraryView = defineOperation({
         ...(c.kinds ? { kinds: c.kinds } : {}),
         version: c.version,
         source: c.source,
+        ...(c.overrides ? { overrides: c.overrides } : {}),
         slots: c.slots,
         picked_by,
         theme_default,
@@ -292,9 +301,9 @@ export const libraryView = defineOperation({
     const data: LibraryViewAnswer = {
       project: a.project,
       theme: { ...m.states.theme, project_default: m.themes.project_theme === m.states.theme.name },
-      themes: m.themes.templates.map((t) => ({ name: t.name, source: t.source, default: t.default === true })),
+      themes: m.themes.templates.map((t) => ({ name: t.name, source: t.source, default: t.default === true, ...(t.by_path ? { by_path: true as const } : {}) })),
       items,
-      notices: m.list.notices.map((n) => noticeOf(engine, n)),
+      notices: m.list.notices.map((n) => noticeOf(engine, n, a.project)),
       queued: queuedHere,
       ...(jobError ? { job_error: jobError } : {}),
     };
@@ -342,9 +351,10 @@ export const libraryImages = defineOperation({
     }
     if (a.committed?.length) {
       const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await componentCalls();
-      const reg = await engine.components.registry();
+      // The project's registry: a component of the project or the workspace of that id never shows the built-in's picture.
+      const reg = await engine.components.registry({ project: a.project });
       for (const id of [...new Set(a.committed)]) {
-        // A built-in only: a workspace component of that id (an override) never shows the built-in's picture.
+        // A built-in only: a workspace or project component of that id (an override) never shows the built-in's picture.
         const info = reg.has(id) ? reg.get(id) : undefined;
         if (info?.source !== 'builtin') {
           out.missing.push({ component: id, reason: 'not_builtin' });
@@ -424,7 +434,7 @@ export const libraryComponent = defineOperation({
   annotations: READ,
   async run(a, { engine }) {
     await openProjectBySlug(engine.workspace, a.project);
-    const c = await engine.components.get(a.component);
+    const c = await engine.components.get(a.component, { project: a.project });
     const data = await componentAnswer(c, engine.workspace.root);
     return { summary: `${data.component} (${data.kind}, ${data.source}): ${data.slots.length} slots, ${data.untrusted.params.length} params`, data: data };
   },
@@ -457,7 +467,9 @@ export interface LibraryComponentAnswer {
   kind: string;
   kinds?: string[];
   version: string;
-  source: 'workspace' | 'builtin';
+  source: ComponentSource;
+  /** A project's component that hides a workspace or built-in one of its id. */
+  overrides?: 'workspace' | 'builtin';
   /** A workspace component that replaces the built-in of the same id. */
   overrides_builtin?: true;
   /** The kit API major it needs (engines.kit; absent = 1) and the one this Retake provides. */
@@ -537,6 +549,7 @@ export async function componentAnswer(c: Awaited<ReturnType<Engine['components']
     version: c.version,
     source: c.source,
     ...(c.overrides_builtin ? { overrides_builtin: true as const } : {}),
+    ...(c.overrides ? { overrides: c.overrides } : {}),
     kit: { needs, provided: KIT_API_VERSION, compatible: needs === KIT_API_VERSION },
     ...(m.duration
       ? { duration: { default: m.duration.default, ...(m.duration.min !== undefined ? { min: m.duration.min } : {}), ...(m.duration.max !== undefined ? { max: m.duration.max } : {}) } }

@@ -79,7 +79,8 @@
       "@retake/test-support/take": ["./packages/test-support/src/take.ts"],
       "@retake/test-support/timing": ["./packages/test-support/src/timing.ts"],
       "@retake/test-support/timeline": ["./packages/test-support/src/timeline.ts"],
-      "@retake/test-support/workspace": ["./packages/test-support/src/workspace.ts"]
+      "@retake/test-support/workspace": ["./packages/test-support/src/workspace.ts"],
+      "@retake/test-support/zip-craft": ["./packages/test-support/src/zip-craft.ts"]
     }
   },
   "include": ["packages/*/test/**/*.ts", "packages/*/test/**/*.mts", "packages/*/test/**/*.tsx"],

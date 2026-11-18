@@ -50,7 +50,8 @@ function useSetDefault(item: LibraryItem, view: LibraryViewAnswer) {
   const start = async () => {
     setSt({ s: 'busy', what: 'Reading the theme…' });
     try {
-      const tv = await themeView({ theme });
+      // The project's theme of that name first (as the Library shows it), its edit and copies in the project.
+      const tv = await themeView({ theme, project: lib.slug });
       setSt({ s: 'plan', view: tv, plan: setDefaultPlan(tv, kind, item.component), kind });
     } catch (e) {
       fail(e);
@@ -63,7 +64,7 @@ function useSetDefault(item: LibraryItem, view: LibraryViewAnswer) {
       return;
     }
     setSt({ s: 'busy', what: 'Writing the theme…' });
-    const result = await themeEdit({ theme: target, if_match: tv.sha256, edit: plan.edit });
+    const result = await themeEdit({ theme: target, project: lib.slug, if_match: tv.sha256, edit: plan.edit });
     setSt({ s: 'done', theme: target, before: tv, result, ...(copied ? { copied } : {}) });
     if (copied) location.hash = hrefTo({ name: 'library', slug: lib.slug, theme: copied, component: item.component });
     else lib.reload();
@@ -73,8 +74,8 @@ function useSetDefault(item: LibraryItem, view: LibraryViewAnswer) {
     if (problem) return setSt({ s: 'error', message: problem });
     setSt({ s: 'busy', what: `Copying ${theme} to ${copyAs}…` });
     try {
-      const c = await themeCopy({ from: theme, name: copyAs });
-      const tv = await themeView({ theme: c.name });
+      const c = await themeCopy({ from: theme, name: copyAs, project: lib.slug });
+      const tv = await themeView({ theme: c.name, project: lib.slug });
       await write(c.name, tv, c.name);
     } catch (e) {
       fail(e);
@@ -84,7 +85,7 @@ function useSetDefault(item: LibraryItem, view: LibraryViewAnswer) {
     if (d.before.yaml === null) return;
     setSt({ s: 'busy', what: 'Undoing…' });
     try {
-      await themeEdit({ theme: d.theme, if_match: d.result.sha256, edit: { kind: 'restore', text: d.before.yaml, text_hash: d.before.sha256 } });
+      await themeEdit({ theme: d.theme, project: lib.slug, if_match: d.result.sha256, edit: { kind: 'restore', text: d.before.yaml, text_hash: d.before.sha256 } });
       setSt({ s: 'undone', theme: d.theme });
       lib.reload();
     } catch (e) {
@@ -209,7 +210,7 @@ export function ComponentInspector({
         )}
         <p className="lb-insp-id">
           <Txt className="k-mono" text={item.component} />
-          <SourceTag source={item.source} />
+          <SourceTag source={item.source} overrides={item.overrides} />
           <DefaultTag item={item} />
         </p>
         <ComponentFacts item={item} d={d} />

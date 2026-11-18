@@ -81,6 +81,9 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       expect(rec.timeline && existsSync(rec.timeline)).toBe(true);
       expect(rec.capture).toBeUndefined();
       expect((await onDisk(rec)).status).toBe('succeeded');
+      // run.json on the disk: its paths relative to the run folder (core record-paths.ts, R-SHR-01); the record handed back absolute.
+      expect(await onDisk(rec)).toMatchObject({ dir: '.', timeline: 'timeline.json' });
+      expect(rec.dir).toBe(join(c.project.dir, 'runs', rec.id));
       expect(events[0]?.type).toBe('run_start');
       expect(events.at(-1)?.type).toBe('run_end');
       const steps = events.flatMap((e) => (e.type === 'step_start' || e.type === 'step_end' ? [`${e.type} ${e.scene}.${e.step}`] : []));

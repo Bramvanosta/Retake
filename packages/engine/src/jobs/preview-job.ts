@@ -28,7 +28,7 @@ import type { PreviewJobInput } from './job-input.js';
 import type { ComponentRegistry, ComponentInfo, ResolvedComponentRef } from '@retake/components/geometry';
 import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor/plan';
 import { stampOf } from '../clock.js';
-import { checkComponentId, workspaceRegistry } from '../components.js';
+import { checkComponentId, projectRegistry } from '../components.js';
 import { componentCalls } from '../registries/component-calls.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
@@ -96,7 +96,8 @@ async function previewTheme(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'pro
   const template = await themeForWork(ws, project, req.template);
   const assets = themeAssetProblems(template);
   if (assets.length) throw new EngineError('refused', `${assets.join('; ')}: through MCP a theme serves only its own files`, { details: { problems: assets } });
-  return { template, registry: await workspaceRegistry(ws) };
+  // The project's registry: its own components first (what its renders resolve).
+  return { template, registry: await projectRegistry(ws, project) };
 }
 
 /**

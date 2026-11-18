@@ -300,6 +300,8 @@ describe('the held components', () => {
           id: i.manifest.id,
           kind: i.manifest.kind,
           hash: await componentFolderHash({ id: i.manifest.id, dir: i.dir, entry: i.entry, defaults: paramDefaults(i.manifest.params as JsonSchemaNode | undefined) }),
+          // Where it comes from (the Allow callout words it by origin).
+          source: 'workspace',
         })),
     );
     expect(listed).toEqual(expected);

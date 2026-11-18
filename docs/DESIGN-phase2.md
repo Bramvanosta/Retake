@@ -132,18 +132,25 @@ Reference-look rules shared by the six (all values design px × unit, every colo
 
 ### 1.3 Registry (`@retake/components`, implemented in L2.2)
 ```ts
-loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
-//  scans <components_dir>/<ns>/<name>/component.yaml (retake.yaml components_dir, default <root>/components) then
-//  packages/components/library/<ns>/<name>/; workspace ids override built-ins (warning notice); invalid folders are
-//  kept out of list() and reported in `notices` (get/resolve throw with their positioned issues)
+loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; projectComponentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
+//  scans a project's own <project>/components/<ns>/<name>/ first (projectComponentsDir, L9.3: ignored when it is the
+//  workspace's folder or the library), then <components_dir>/<ns>/<name>/component.yaml (retake.yaml components_dir,
+//  default <root>/components), then packages/components/library/<ns>/<name>/; an id found earlier wins with a warning
+//  notice ("project component X overrides the workspace one / the built-in one", "workspace component X overrides the
+//  built-in one"; a broken folder wins with its error); invalid folders are kept out of list() and reported in
+//  `notices` (get/resolve throw with their positioned issues)
 ComponentRegistry = {
   list(kind?): ComponentInfo[]; has(id); get(id): ComponentInfo /* ComponentError: not found + did you mean | invalid */;
   resolve(ref, kind): ResolvedComponentRef  /* {id, version, kind, params (schema defaults under the given params,
                                                validated), manifest, dir, entry, source}; kind mismatch → error */;
   resolveTheme(template): Record<ComponentKind, ResolvedComponentRef | null>  /* via core resolveThemeComponents */;
-  notices: RegistryNotice[]; componentsDir; builtinDir?
+  notices: RegistryNotice[]; componentsDir; projectComponentsDir?; builtinDir?
 }
-ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
+ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'project' | 'workspace' | 'builtin' }
+isOwnComponent(source)   // project or workspace: the person's code (held from the Studio's preview until allowed)
+RegistrySource = ComponentRegistry | (root, { projectDir? }?) => Promise<ComponentRegistry>
+//  a project's work (plan, render, review, preview, a theme's picks) loads with its project folder: the engine's
+//  ComponentRegistries port `load(root, { projectDir })`; the engine's RegistryMemo holds one per project
 evalLayoutGeometry(spec, params, { aspect? }): LayoutGeometry   // geometry expressions → design px (see below)
 DESIGN_SPACE / VARIANTS / GEOMETRY_KEYS   // landscape 1920×1080 `geometry`, vertical 1080×1920 `geometry_vertical`,
                                           // square 1080×1080 `geometry_square` (L2.8)
@@ -234,6 +241,34 @@ Validation of template.yaml warns when a `components` entry contradicts a legacy
 (the entry wins, so editing the legacy field would change nothing). The starter templates (default, editorial,
 motion) declare `brand` (fictional) and an explicit `components` map consistent with their legacy fields (tested).
 `FRAME_STYLE_LAYOUTS` (core) maps each FrameStyle to its built-in layout id.
+
+**Where a theme name is found (L9.2).** One rule (core io `template.ts` `folderOf`, its `ThemeScope`): a path-like
+reference resolved against the project folder (unchanged); a name, `<project>/templates/<name>/` when the work has a
+project and that folder exists, else `<templates_dir>/<name>/` when it exists, else the starter of that name — a folder
+of a name takes precedence with or without its template.yaml; a name never leaves the three folders. A project whose
+`templates/` is templates_dir or the starters' folder (real paths) has no theme of its own. Lists
+(`listTemplates(root, {projectDir})`) hold the winners only, each with its origin (`source: project | workspace |
+starter`) and, for a project theme hiding another, `shadows`; engine `templateList` adds `by_path` (the folder
+project.yaml names by its path — one row with the named theme when it is a folder of `templates/`), `notices` and
+`project_templates_dir`. Identity (`template_folder` of a render record): `/starter:<name>`, a folder inside the project
+`/project:<path relative to the project>` (moving or re-importing a project keeps it), else workspace-relative;
+`sameTemplateFolder` reads an older record's workspace-relative id of a project folder as the same (a board reads the
+real paths once: `templateFolderMatcher`). A theme adopted from the workspace: a record whose folder id is not the
+project's, whose theme name resolves today to `/project:…`, and whose `template_sha256` is that folder's content hash
+(a verbatim copy) is the same theme — on the board and at an export (`exportThemeRef`, both trusts: a name, never a
+record path). Writers (engine `theme-target.ts`): the named project's `templates/` through the project's store — refused
+when that folder is a link or leads out of the project, and the store's `createFolder` refuses a parent outside its own
+folder —, else templates_dir through its own (refused inside `PACKAGE_ROOT`); a project's library folders (`templates/`, `components/`, `brand/`: core
+`PROJECT_LIBRARY_PATHS`) are never code by reference (projectFileProblem, agent shell paths) — AGENT_WRITABLE_PATHS is
+unchanged. `retake project adopt` / MCP `project_adopt` (engine `project-adopt.ts`): copy keeps the source's provenance;
+a workspace theme of a starter's name keeps it. A move (a person only) is refused while another project uses the theme
+(`project-uses.ts`: the folder each reference loads), a project does not open, the adopting project names the folder
+by its path, or a job is queued or running; it sets the workspace folder aside under the workspace's
+`.retake/adopted/<stamp>-theme-<name>/` (store `moveAside` under the write lock of its template.yaml, the job queue read
+again and the folder re-hashed there — a job appeared: the copy removed; a templates_dir outside the workspace: the root
+store's `takeIn`, a rename or across volumes a copy then a removal; journal `op: 'move'`), and names other projects'
+renders of it. `--brand`: one regular file each, a brand file's extension, never from a project, templates_dir,
+components_dir or `.retake/`.
 
 ### 1.5 Scenario additions (additive, core types + schema)
 - `intro: false | { component?, params?, duration? }`, `outro: false | { component?, params?, tagline?, url?, duration? }`
@@ -447,7 +482,12 @@ letter, a backslash, NUL, `..`, an empty / `.` / hidden segment) or `site:<site_
   = `brand.url` when the base writes one (removed otherwise); a header comment (date, base). Validated with
   `parseTemplateYaml` (no issue allowed), then in the build folder with the loader, `themeAssetProblems` and the
   registry's `resolveTheme`.
-- **Files** (engine `brand/files.ts`). Sources under trust `mcp` (`brandSourceProblem`, links followed): inside the
+- **Files** (engine `brand/files.ts`). With a project named (L9.2), a reference is looked for in the project folder
+  first, then the workspace root (`brandFileLocation`; at a terminal a shell path — absolute, `~`, `./`, `../` — as
+  typed); through MCP a project file whose real path leaves the project is refused with no fallback, and inside the
+  project hidden segments, agent-writable folders and `components/` are refused; the file read says `found_in`,
+  recorded in a project theme's provenance (`found_in`), which template_update follows (none: the root). Sources under
+  trust `mcp` (`brandSourceProblem`, links followed): inside the
   workspace root; no hidden segment (`.retake/`…); not in `components_dir`; not in an agent-writable folder of
   any project (`agentWritable`, case ignored). Caps: image 2 MB, SVG 512 KB, font 10 MB, 25 MB together. Raster:
   PNG IHDR / JPEG SOF / WebP VP8 / VP8L / VP8X sizes, format = extension, height ≥ 64 (core `BRAND_IMAGE_MIN_HEIGHT`),
@@ -477,7 +517,9 @@ letter, a backslash, NUL, `..`, an empty / `.` / hidden segment) or `site:<site_
   / C1 controls, DEL and bidirectional formatting characters out), ≤ 400 characters, `untrusted.fonts` in results;
   in LICENSES.md every Markdown / HTML breaker is backslash-escaped (`` \ ` * _ [ ] ( ) ! < > | # ~ & ``: no link,
   image or tag from a font), file references in code spans without backticks or pipes.
-- **Folder** (`brand/create.ts`): refused when templates_dir lies inside `PACKAGE_ROOT` (the folder holding the
+- **Folder** (`brand/create.ts`, its target from `theme-target.ts`: the input's `project` → `<project>/templates/`):
+  through MCP a project theme never takes a workspace theme's name (`projectShadowCheck`; a terminal is warned). A
+  workspace target is refused when templates_dir lies inside `PACKAGE_ROOT` (the folder holding the
   starters: the repository as workspace or any folder in it). Names compared without case against the starters
   (`readdir`) and every entry of templates_dir (any type: a file, an empty folder, a dangling link) — refused
   (`conflict`), or with `replace` checked by `replaceProblem(dir, trust)`: a real folder whose `.retake-theme.json`
@@ -623,8 +665,10 @@ transport; `template_list`'s wording stays true).
   the template warning) is removed by the same write and named (`removed`). Every edit applies only while the file
   holds `from` there.
 - **Editability by real path** (critique B15): the theme folder a real folder directly in templates_dir (inside the
-  workspace, outside the Retake package), its template.yaml a regular file with one name; starters, the
-  repository's starters listed as `workspace`, a project's folder theme, links and hard links are read-only with why.
+  workspace, outside the Retake package) — or, a project's own theme (L9.2), directly in `<project>/templates/` (written
+  through the project's store, journaled with its slug) —, its template.yaml a regular file with one name; starters,
+  the repository's starters listed as `workspace`, the folder project.yaml names by its path outside `templates/`,
+  links and hard links are read-only with why. `used_by` is by the folder each reference loads (`project-uses.ts`).
 - **Write** (engine `theme-edit.ts` `editTheme`): `if_match` (conflict naming the current sha256; a stale `from`
   is a conflict with `details.stale`), the splice verified, no hidden character added on a changed line, the theme
   re-parsed, every file it names a regular file of its own folder reached without a symbolic link and with one name
@@ -639,7 +683,9 @@ transport; `template_list`'s wording stays true).
 - **Copy to edit** (engine `brand/copy.ts`): a listed theme's regular files verbatim (dot entries left out; a link or a
   special file refuses the copy), `name:` spliced, this tool's provenance file (`copy_of`, trust `mcp`), validated,
   renamed into place; the L3.5 name rules; refused inside the package.
-- **Lists**: `templates.files(image | font)` — workspace files under brand/files.ts's source rules (no hidden,
+- **Lists**: `templates.files(image | font, {project?})` — with a project its own files first (`origin: project`, its
+  refs relative to it), then the workspace's (`origin: workspace`, one the project's of the same ref hides left out),
+  one budget — workspace files under brand/files.ts's source rules (no hidden,
   components or agent-writable folder, no node_modules, links neither followed nor listed), names and sizes, bounded;
   `templates.sites()` — the newest extractions of `.retake/site/` (real folders, site.json read plainly): hex
   colours with contrast checks and existing candidate PNGs as the tool's fields, the URL and host (re-parsed) and page
@@ -666,7 +712,9 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 renderWork(opts: { project /* loaded */; run /* id or dir */; root?; scenario?; template?; overrides?; out?; onProgress?; signal?;
                    concurrency?; renderer; ws; clock }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +
-//  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
+//  overrides; version 2 since L9.1: its paths written relative to renders/ inside the project, the record returned
+//  absolute — DESIGN §3.5 "Paths in records"); measures the music track (ffprobe) and passes its length to planEdit
+//  (`musicDuration_s`)
 renderStill(opts: { plan; frame; out; root }): Promise<string>      // root: the workspace (never found from the cwd)
 renderStills(opts: { plan; frames: Array<{ frame; out }>; root }): Promise<string[]>   // one browser session for all frames
 renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest, slots?, params?, at?, file? }[];
@@ -682,8 +730,9 @@ exportRender(opts: { project /* loaded */; render /* id | path | latest */; form
 //  render/export-manifest.ts) writes manifest.json from what the editor made, beside the formats exported earlier. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
 //  GIF (480 px, 12 fps, palette, 15 s around the first marker else the first 15 s). Re-rendered from the run through
 //  the planner (same theme and overrides): vertical, square, and 4K from a non-4K master (capture upscaled, warning).
-//  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file` and
-//  `run_dir` inside the project (`recordPathProblem`), re-renders through planRun's gates; `network` / `onBrowser`
+//  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file`,
+//  `run_dir` inside the project (`recordPathProblem`: what an export opens; a review job also checks its plan's capture,
+//  tracks and caption fonts — L9.1), re-renders through planRun's gates; `network` / `onBrowser`
 //  passed to the re-renders (`guard` in the worker). `exportMethod(record, format)` says copy / transcode / render.
 generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
 listRenders(project): Promise<StoredRender[]>      // L7.6b: the complete records of their own file (core/io readRendersFolder, core renderRecordsOf), oldest first
@@ -1265,7 +1314,8 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
   is untouched. `reviewImages(files, {fps, markers, mode})` is the image list (contact sheet pages + marker key frames;
   `all`: every key frame, scene sheets, the diff sheet) — the thumbnails and the MCP's `review_get` both use it.
 - **Through MCP (L3.2)**: a `review` job (engine `jobs/review-job.ts`) runs `reviewRender` with `thumbnails: false`
-  (no image data in job.json); `review_get` (engine `reviews.ts`) reads report.json as data and rebuilds every path
+  (no image data in job.json; report.json's paths written relative to its own folder since L9.1, the result handed back
+  absolute); `review_get` (engine `reviews.ts`) reads report.json as data and rebuilds every path
   from `review/<id>/` (a known file name of that folder, symbolic links resolved inside it), lists the images with
   `reviewImages`, and the MCP server makes JPEG thumbnails on read (`thumbnailOf`, ≤ 1280 px; ≤ 4 images and ≤ 1.5 MB
   of base64 per result, the rest as paths). Finding messages, the environment and the diff's per-segment changes go
@@ -1784,3 +1834,87 @@ engine is client `mcp`; a reply's proposal is refused for any other caller by th
   replies: the entry tail and the budget), the slow `fixture-acceptance.test.ts` (a real render's proposal total
   commented, replied, resolved by the re-render). Only the tests that read a still need ffmpeg: without it the
   synthetic renders are empty files and the trust, lock, forgery and size tests of engine / cli / mcp still run.
+
+## 5. A project archive (engine `project-archive/`, `archive/`)
+
+**Format.** A ZIP written by Retake's own writer (`archive/zip-write.ts`, no dependency; `zlib.crc32`, deflate level 6,
+stored for media already compressed; UTF-8 names, flag bit 11 only, no data descriptor: each local header is reserved
+and patched; ZIP64 for an entry whose size reaches 0xF0000000 and for the end records when the count reaches 0xFFFF or
+the central directory's offset or size 0xFFFFFFFF; Unix modes 0644 / 0755; entries sorted by name). `project/<path>` for
+each file, the project tree as the import writes it; the manifest `retake-project.json` last (`project-archive/
+manifest.ts`, `format: "retake-project"`, version 1 = core `FORMAT_VERSIONS.project_archive`): `project {slug, name}`,
+`options {with_runs, with_sandbox?, with_env?, images?}`, `files[] {path, size, sha256 of the bytes streamed, mode,
+origin: project | workspace-theme | workspace-component | sandbox | env}`, `embedded {themes, components}`, `uses {starters, builtin_components}`, `needs {env_vars,
+keychain, pass_env, sessions[{env, persona}]}` (names only), `excluded {env, sensitive, links, special}`, `warnings
+{literal_tokens[{file, lines, what}]}`, `code_files` (informational); with the sandbox (L9.5) `sandbox[] {env, provider,
+copied[{from, to}], rewritten, outside[{ref, what}], host_mounts[{service, source, target}], env_file?{path, keys,
+included}, service_env_files[], images[{service, name, id}]}` and `images[] {id, entry, bytes, sha256, platform,
+size}`, each image an entry `images/sha256-<hex>.tar.gz` before `project/` (its cap: the free space only,
+`limits.ts archiveEntryMax`).
+
+**The sandbox** (`sandbox-part.ts`, `compose-read.ts` on core `compose-subset.ts`, `images-work.ts`; the Sandboxes
+port's `share`, sandbox package `share.ts` / `image-tar.ts`: the engine runs no docker). **The compose subset**
+(`readComposeSubset`, `readSandboxSubset`): an allow-list, fail closed — no anchor, alias, merge key or tag; no
+interpolation outside `environment`; top level `services`, `volumes` / `networks` without drivers or external ones,
+`name`, `version`; the service keys of the sandbox guide; every compose file in one folder (the `--project-directory`);
+every `env_file` inside the project from that folder and every bind source inside `<sandbox>/data/` (`folderAs`: where
+it will be once imported); no directive or explicit tag, one document, volume and network names equal to their keys,
+short bind modes ro/rw/z/Z; on an import a built service needs a carried image. Export (`with_sandbox`, a person only; `with_env` too; `--no-images` only
+with it, refused for a built service): sandbox.yaml in the project; outside compose files copied to
+`<sandbox>/compose-files/`, sandbox.yaml's path scalars rewritten (core `rewriteSandboxCompose`); the subset read in
+the archive's layout — any problem refuses the export, naming each; each service's `env_file` excluded (the reader's
+`env_here`, never `docker compose config`) and listed with `expected_at`; `share.compose` / `share.inspect` give the
+images (a missing one refused with the fix; the containerd store refused), `share.save` writes `docker save
+[--platform] <id>` gzipped. Without the sandbox, plan.ts excludes the reader's env files, or — a sandbox outside the
+subset — every file of its compose folders but the compose files, sandbox.yaml files and `seed/` (a sandbox at the
+project's root outside the subset refuses the export). Import: image entries
+listed both ways, streamed to `<root>/.retake/imports/images/<slug>/` (sha256, decompressed size measured, capped);
+with `with_sandbox`, a sandbox outside the subset refuses the import; the manifest's uses checked against the files;
+the mark records the images (signed with the trust) and `sandbox_notes`. Trust (`loadImportImages`): the subset and the
+uses again, Docker, its store and Compose ≥ 2.24, Docker's data root where readable, `share.load` (image-tar.ts read
+twice, the second written as a fresh tar to `docker load`; tag and id listings before — a failed one refuses the load —
+and after: moved or gone tags put back, new tags on created images removed, never an image that was here, every
+answer checked), `share.tag` `retake-share-<slug>-<env>-<service>:<64 hex>` (a tag on another image refused), the signed
+`loaded {at, images, overrides, missing}`, the override for every service. The guard: a trusted import's sandbox
+outside the subset never starts; the override read, its sha256 checked, its text handed as
+`LoadedSandbox.imagesOverride.text` and given to docker as `-f -` on stdin; compose runs with the compose folder as
+its cwd; starts refused while images wait, a service's image is missing or the override changed.
+
+**Export** (`export.ts`, `plan.ts`). The project folder walked (no link followed) minus the never-list (core
+`project-archive.ts` `neverArchived`, on the folded key of each segment: `.retake/`, `.env*`, `exports/`, key and
+credential names, `.git/`, `node_modules/`, `.DS_Store`), the outputs (`runs/`, `renders/`, `review/`) only with
+`with_runs`, and the files project.yaml names as secret (`auth.storage_state` / `profile`, the compose files'
+`secrets` / `configs` / `env_file`, sandbox.yaml's `compose.env_file`); plus the workspace themes the project's theme
+references resolve to (core `projectTemplateFolder`, `via: workspace`) under `templates/<name>/` and the workspace
+components its registry resolves that a project file names or a theme it uses picks, under `components/<id>/`. A path
+theme outside the project is refused (adopt it). With the runs, a render whose record names a file outside the project
+(a starter's or a workspace theme's assets) is left out with its files and review (`excluded.outside_renders`).
+Written to a `.partial` beside the target, put into place never over a file (`placeArchive`: a hard link, else on a
+volume without links an exclusive copy), the target's disk keeping 1 GB free; an entry whose deflated bytes would pass
+the reader's bomb ratio is stored (`limits.ts bombRatio`, one rule for both). MCP: no `with_runs`, no `out`, ≤ 1 GB, synchronous (no job kind).
+
+**Import** (`import.ts`, a person only). The reader (`archive/zip-read.ts`) accepts only what the writer writes (§
+security.md); the manifest parsed (≤ 64 MB, version checked), every entry under `project/` listed once and every listed
+file an entry, sizes and modes equal; every never-list kind refused (`.retake/`, env files, exports, key files, `.git/`,
+`node_modules/`, `.DS_Store`), and a layout name spelt otherwise than the layout (`layoutSpellingProblem`); each run / render / review
+record's written paths (core `writtenRecordPaths`) relative and inside their bound, else that run, render or review left
+out. A slug taken (case-insensitively) is a conflict. The store's `createFolder` stages the files (`FolderStage.writeFrom`:
+folders one by one without `recursive`, `O_EXCL | O_NOFOLLOW`, the mode set exactly, sha256 checked), computes the code
+files from them (`code-files.ts` `projectCodeFiles`), writes the marker `.retake/import.json {v, import_id}` and the
+workspace's mark `.retake/imports/<slug>.json {v, slug, import_id, imported_at, archive, from_retake, code_files}`, then
+the recheck (a folder of the slug there: conflict, never a replace) and the rename; a failure removes the mark.
+
+**Trust** (`trust.ts`, `trust-work.ts`, `guard.ts`). `importTrust(place, env)`: `none` (neither half), `trusted` (both
+halves, one id, a `trusted {at, files, sig}` stanza whose HMAC-SHA256 with the Retake home's key covers `{slug,
+import_id, at, files}`), else `untrusted` (fails closed). The gate: invoke (after the caller rules: an operation naming
+an untrusted `project` is refused unless `allowedOnUntrusted` — a read or one of catalogue `UNTRUSTED_WRITES`), the
+worker's `handleJob` (any job of an untrusted project), the CLI's `preAction` hook (`untrustedCommandRefusal`: a command
+is allowed only when every operation it serves is; its `<project>` argument or `--project`), and the product's adapters
+(compose `productAdapters` → engine `guardUntrusted`: the hook runner's run and rollbacks, a sandbox handle's every
+member but `down` / `killStartedSync`, the capture runner's run, recording, session check, sign-in and js-hook pages,
+the renderer's videos, stills and preview bundles by every folder a request names). Theme copies and adopt refuse a
+source folder inside an untrusted import (`untrustedSourceRefusal`). `retake project trust` lists the code files with
+`changed` / `new` since the import and what project.yaml asks of the machine (`settingsNotes`), refuses when the files
+changed while read, then signs on a person's y/N at a terminal (no `--yes`); `--discard` moves the folder to `.retake/imports/discarded/<stamp>-<slug>/` and removes its extracted images. A new
+project of a slug clears a stale mark (`writeNewProject`). The Studio's board answers `imported: {trusted: false,
+command}` for an untrusted project.

@@ -31,7 +31,8 @@ export type Effect = (typeof EFFECTS)[number];
 
 /**
  * Whose code it may run in a process of Retake: `project` — the project's own commands (hooks, sandbox seed steps and
- * services); `workspace` — the workspace's components and themes, rendered (a render, a still, a component preview);
+ * services); `workspace` — the components and themes rendered (a render, a still, a component preview): the built-in
+ * ones, the workspace's and a project's own (`projects/<slug>/components/`: a project's components are its code too);
  * `none` — neither (a browser on the filmed site runs that site's code, a preview frame runs in the person's browser).
  */
 export const CODE_RUNS = ['none', 'project', 'workspace'] as const;
@@ -182,6 +183,21 @@ const ENTRIES = [
   { name: 'project_env_set', ...W, cli: ['env add', 'env set'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
   { name: 'project_env_remove', ...D('an environment of project.yaml'), cli: ['env remove'], mcp: true, studio: no('no Studio screen edits environments: `retake env` in a terminal') },
   { name: 'project_prune', ...D('the runs, renders and reviews nothing needs any more'), cli: ['prune'], mcp: true, studio: no('no Studio screen frees disk space: `retake prune` in a terminal') },
+  { name: 'project_adopt', ...W, cli: ['project adopt'], mcp: true, studio: no('a person adopts workspace themes into a project from a terminal: retake project adopt') },
+  {
+    name: 'project_export',
+    ...W,
+    cli: ['project export'],
+    mcp: true,
+    studio: no('a person exports a project from a terminal: retake project export (runs and renders with --with-runs)'),
+  },
+  {
+    name: 'project_adopt_move',
+    ...D('the workspace theme or brand files moved into the project (set aside under .retake/adopted/, never deleted)'),
+    cli: ['project adopt'],
+    mcp: no('through MCP a workspace theme is only copied (project_adopt): a person moves it'),
+    studio: no('a person moves a workspace theme into a project from a terminal: retake project adopt'),
+  },
   { name: 'scenario_get', useCase: 'scenario.read', ...R, cli: no('a person opens scenarios/<name>.yaml'), mcp: true, studio: no('the scenario screen reads the file through scenario_blocks') },
   { name: 'scenario_validate', ...R, cli: ['validate'], mcp: true, studio: STUDIO },
   { name: 'scenario_save', useCase: 'scenario.save', ...W, cli: no('a person edits scenarios/<name>.yaml'), mcp: true, studio: no('one Studio write path for a scenario: scenario_edit') },
@@ -247,7 +263,7 @@ const ENTRIES = [
   { name: 'comments_list', useCase: 'comments.list', ...R, cli: ['comment list'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_reply', useCase: 'comments.reply', ...W, cli: ['comment reply'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_resolve', useCase: 'comments.resolve', ...W, cli: ['comment resolve'], mcp: true, studio: COMMENT_PAGE },
-  { name: 'template_list', useCase: 'themes.list', ...R, cli: ['list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
+  { name: 'template_list', useCase: 'themes.list', ...R, cli: ['list', 'theme list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
   {
     name: 'template_preview',
     useCase: 'themes.preview',
@@ -480,6 +496,27 @@ const ENTRIES = [
     mcp: no('env_reset replays pending rollbacks first'),
     studio: NO_HOOKS_IN_STUDIO,
   },
+  {
+    name: 'project_import',
+    ...W,
+    cli: ['project import'],
+    mcp: no('a person imports a project archive in a terminal (retake project import); nothing of it runs until retake project trust'),
+    studio: no('a person imports a project archive in a terminal: retake project import'),
+  },
+  {
+    name: 'project_trust',
+    ...W,
+    cli: ['project trust'],
+    mcp: no("a person trusts an imported project's code after reading the list of its code files, in a terminal: never Claude"),
+    studio: no("a person trusts an imported project's code after reading the list of its code files, in a terminal: retake project trust"),
+  },
+  {
+    name: 'project_trust_discard',
+    ...D('an imported project never trusted: its folder (set aside under .retake/imports/discarded/, never deleted) and its marks'),
+    cli: ['project trust'],
+    mcp: no('a person discards an import in a terminal: retake project trust --discard'),
+    studio: no('a person discards an import in a terminal: retake project trust --discard'),
+  },
   { name: 'hooks_trust', ...W, cli: ['hooks trust'], mcp: no("a person marks an agent's shell and sql hooks as theirs, after reading them, in a terminal: never Claude"), studio: NO_HOOKS_IN_STUDIO },
   {
     name: 'sandbox_down',
@@ -514,6 +551,35 @@ const ENTRIES = [
   { name: 'studio_serve', ...SERVES, cli: ['ui'], mcp: no("the Studio is the person's: Claude never opens it or calls its routes"), studio: no("the Studio's server itself") },
   { name: 'worker_run', ...SERVES, cli: ['worker'], mcp: no('the MCP server starts the worker in the background'), studio: no('the Studio starts the worker in the background') },
 ] as const satisfies readonly Operation[];
+
+/**
+ * The writes an imported project not trusted may still be the target of (core: it is inert until a person trusts it —
+ * engine project-archive/trust.ts): its authored files (a scenario, the README, its environments), freeing its disk,
+ * stopping a sandbox, its own export, its trust, and stopping or leaving what a screen shows. Every read is allowed too
+ * (a read runs no code: facetProblem); every other operation — one added later included — is refused on it.
+ */
+export const UNTRUSTED_WRITES: ReadonlySet<string> = new Set([
+  'project_update_readme',
+  'project_env_set',
+  'project_env_remove',
+  'project_prune',
+  'scenario_save',
+  'scenario_edit',
+  'project_export',
+  'project_trust',
+  'project_trust_discard',
+  'sandbox_down',
+  'run_cancel',
+  'render_cancel',
+  'sign_in_cancel',
+  'job_cancel',
+  'timeline_leave',
+]);
+
+/** Whether an operation may run on an imported project not trusted: a read, or one of UNTRUSTED_WRITES. */
+export function allowedOnUntrusted(op: Pick<Operation, 'name' | 'effect'>): boolean {
+  return op.effect === 'read' || UNTRUSTED_WRITES.has(op.name);
+}
 
 /** The name of an operation of the catalogue. */
 export type OperationName = (typeof ENTRIES)[number]['name'];

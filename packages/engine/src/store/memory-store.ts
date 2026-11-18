@@ -28,7 +28,7 @@
 import { isUtf8 } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { join, normalize, sep } from 'node:path';
+import { isAbsolute, join, normalize, sep } from 'node:path';
 import { errorKindOf } from '@retake/core/base';
 import { EngineError } from '../errors.js';
 import { conflictError, refOfIn, resolveIn, sha256Hex } from '../storage.js';
@@ -128,6 +128,55 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
     return this.writeText(this.refOf(path), text, opts);
   }
 
+  /** The source read from the disk (as `stage.copy`: the fake stands for writes only), never over a file of the Map. */
+  async copyFileIn(ref: string, from: string, o: { what: JournalWhat }): Promise<WriteResult> {
+    const file = this.resolve(ref);
+    const path = this.journalPathOf(file);
+    if (this.memory.files.has(file)) {
+      const e = new EngineError('conflict', `${ref} already exists: not copied over`, { details: { current: ref } });
+      this.journal({ op: 'write', what: o.what, path, if_match: null, outcome: outcomeOf(e) });
+      throw e;
+    }
+    const buf = await readFile(from);
+    this.memory.files.set(file, buf);
+    const res: WriteResult = { ref, path: file, sha256: sha256Hex(buf), bytes: buf.length };
+    this.journal({ op: 'write', what: o.what, path, if_match: null, sha256: res.sha256, bytes: res.bytes, outcome: 'ok' });
+    return res;
+  }
+
+  /** The files under `ref` (or the file itself) moved under `to`, which holds none; no lock file here (writes of the Map are not interleaved). */
+  async moveAside(ref: string, toRef: string, o: { what: JournalWhat; lockRef?: string; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    if (o.lockRef !== undefined) this.resolve(o.lockRef);
+    return this.move(this.resolve(ref), toRef, o);
+  }
+
+  /** The files of the Map under `from` (anywhere) moved under the store's `to`. */
+  async takeIn(from: string, toRef: string, o: { what: JournalWhat; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    if (!isAbsolute(from)) throw new EngineError('invalid', `takeIn: ${from} is not an absolute path`);
+    return this.move(normalize(from), toRef, o);
+  }
+
+  private async move(from: string, toRef: string, o: { what: JournalWhat; check?: () => Promise<void> }): Promise<{ path: string; to: string }> {
+    const to = this.resolve(toRef);
+    const entry = { op: 'move' as const, what: o.what, path: this.journalPathOf(from), to: this.journalPathOf(to) };
+    try {
+      await o.check?.();
+      const keys = [...this.memory.files.keys()];
+      if (keys.some((k) => k === to || k.startsWith(under(to)))) throw new EngineError('conflict', `${toRef} already exists: not moved`);
+      const moving = keys.filter((k) => k === from || k.startsWith(under(from)));
+      if (!moving.length) throw Object.assign(new Error(`ENOENT: no such file or directory, rename '${from}' -> '${to}'`), { code: 'ENOENT' });
+      for (const k of moving) {
+        this.memory.files.set(to + k.slice(from.length), this.memory.files.get(k)!);
+        this.memory.files.delete(k);
+      }
+    } catch (e) {
+      this.journal({ ...entry, outcome: outcomeOf(e) });
+      throw e;
+    }
+    this.journal({ ...entry, outcome: 'ok' });
+    return { path: from, to };
+  }
+
   /** The Map holds files only: a folder is the files under it, so an empty one is checked (its ref) and kept nowhere. */
   async makeFolder(ref: string): Promise<void> {
     this.resolve(ref);
@@ -146,6 +195,13 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
     const files = this.memory.files;
     const tmp = join(parent, `.tmp-${name}-${randomBytes(6).toString('hex')}`);
     const final = join(parent, name);
+    // The disk's containment rule, lexically (no links here): the folder is made inside the store's own folder.
+    const root = normalize(this.root);
+    if (normalize(parent) !== root && !normalize(parent).startsWith(under(root))) {
+      const e = new EngineError('refused', `${parent} leads out of ${this.root} (a symbolic link): ${name} not made`);
+      this.journal({ op: 'folder', what: o.what, path: this.journalPathOf(final), outcome: outcomeOf(e) });
+      throw e;
+    }
     const written: string[] = [];
     const put = (rel: string, data: Buffer, exists: () => Error): void => {
       const p = join(tmp, ...rel.split('/'));
@@ -159,6 +215,14 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
       copy: async (rel, from) => {
         const data = await readFile(from);
         put(rel, data, () => existsError('copyfile', join(tmp, ...rel.split('/')), from));
+      },
+      // No modes here; names compared byte for byte (the disk's folding is the disk's: see the header).
+      writeFrom: async (rel, source) => {
+        const chunks: Buffer[] = [];
+        for await (const c of source) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+        const data = Buffer.concat(chunks);
+        put(rel, data, () => existsError('open', join(tmp, ...rel.split('/'))));
+        return { sha256: sha256Hex(data), bytes: data.length };
       },
     };
     const path = this.journalPathOf(final);

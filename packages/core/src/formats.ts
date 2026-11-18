@@ -19,8 +19,13 @@ export const RETAKE_VERSION = '0.3.0';
  */
 export const RETAKE_REPOSITORY = 'https://github.com/Bramvanosta/Retake';
 
-/** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
-export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 1 } as const;
+/**
+ * The format version of each file this Retake reads and writes (a file without `version` is version 1). A render
+ * record is version 2 since its paths are written relative to its folder (core record-paths.ts); this Retake still
+ * reads version 1. run.json stays version 1: its relative paths read in every version that reads it (they are only
+ * ever joined to its folder).
+ */
+export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 2, project_archive: 1 } as const;
 
 /** A file's format, for the newer-version check: how messages name it and the highest version this Retake reads. */
 export interface FormatVersion {

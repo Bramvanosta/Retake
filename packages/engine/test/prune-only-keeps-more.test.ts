@@ -448,7 +448,7 @@ const TWIST: Record<string, (s: RenderFileSpec) => void> = {
   cancelled: (s) => void (s.set = { ...s.set, status: 'cancelled', error: 'x' }),
   paused: (s) => void (s.set = { ...s.set, status: 'paused' }),
   'no-status': (s) => void (s.unset = [...(s.unset ?? []), 'status']),
-  'version-2': (s) => void (s.set = { ...s.set, version: 2 }),
+  'version-3': (s) => void (s.set = { ...s.set, version: 3 }),
   'no-plan': (s) => void (s.unset = [...(s.unset ?? []), 'plan']),
   'plan-5': (s) => void (s.set = { ...s.set, plan: 5 }),
   'no-created': (s) => void (s.unset = [...(s.unset ?? []), 'created_at']),

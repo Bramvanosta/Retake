@@ -600,3 +600,52 @@ describe('no authored write around the store', () => {
     for (const f of former) expect(readFileSync(join(REPO, f), 'utf8'), f).not.toMatch(/\b(writeFile|writeFileSync|writeTextAtomic|copyFile|rename)\s*\(/);
   });
 });
+
+describe("FolderStage.writeFrom on the disk (an import's files)", () => {
+  const scope = () => ({ workspace: root, caller: callerOf('cli'), clock: systemClock, stores: diskProjectStores });
+  const bytes = async function* (t: string) {
+    yield Buffer.from(t);
+  };
+  const build = (fn: (stage: import('../src/store/store.js').FolderStage) => Promise<void>) =>
+    diskProjectStores.at(join(root, 'projects'), scope()).createFolder(join(root, 'projects'), 'imp', { what: 'project', build: fn, recheck: async () => ({ existing: false }) });
+
+  it('sets the mode exactly whatever the umask; refuses a link planted at the name (exclusive, never followed)', async () => {
+    const old = process.umask(0o077);
+    try {
+      await build(async (stage) => {
+        await stage.writeFrom('hooks/run.sh', bytes('echo\n'), { mode: 0o755 });
+        await stage.writeFrom('README.md', bytes('# x\n'), { mode: 0o644 });
+        await symlink(join(root, 'outside-target'), join(stage.dir, 'planted'));
+        const e = await stage.writeFrom('planted', bytes('x'), { mode: 0o644 }).then(
+          () => null,
+          (x: EngineError) => x,
+        );
+        expect(e?.message).toMatch(/two names are one on this disk/);
+        await rm(join(stage.dir, 'planted'));
+      });
+    } finally {
+      process.umask(old);
+    }
+    expect((await stat(join(root, 'projects', 'imp', 'hooks', 'run.sh'))).mode & 0o777).toBe(0o755);
+    expect((await stat(join(root, 'projects', 'imp', 'README.md'))).mode & 0o777).toBe(0o644);
+    expect(existsSync(join(root, 'outside-target'))).toBe(false);
+  });
+
+  it.skipIf(!caseInsensitive())('refuses a folder another spelling made on a case-insensitive disk (A/x, then a/y)', async () => {
+    const e = await build(async (stage) => {
+      await stage.writeFrom('A/x', bytes('1'), { mode: 0o644 });
+      await stage.writeFrom('a/y', bytes('2'), { mode: 0o644 });
+    }).then(
+      () => null,
+      (x: EngineError) => x,
+    );
+    expect(e?.message).toMatch(/two names are one on this disk .*a\/y/);
+    expect(existsSync(join(root, 'projects', 'imp'))).toBe(false);
+  });
+});
+
+/** Whether the temporary folder's disk folds case (APFS by default). */
+function caseInsensitive(): boolean {
+  const d = realpathSync(tmpdir());
+  return existsSync(d.toUpperCase()) && existsSync(d.toLowerCase());
+}

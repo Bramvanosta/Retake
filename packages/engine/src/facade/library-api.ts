@@ -13,6 +13,8 @@ import { readSite, siteHostConflicts, submitSiteJob } from '../jobs/site-job.js'
 import { fetchFonts } from '../brand/fontsource-fetch.js';
 import { tokensDraft } from '../brand/tokens.js';
 import { ENGINE_TRUST } from '../caller.js';
+import { openProjectBySlug } from '../projects.js';
+import { checkProjectSlug } from '../refs.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
@@ -34,11 +36,12 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
     fromTokens: (req) => tokensDraft(ws, req, { trust: ENGINE_TRUST, clock: scope.clock }),
     // An agent's fetch is asked of a person first (fontsource-approval.ts), before any network contact.
     fetchFonts: (req, o = {}) => fetchFonts(ws, req, { registry: ports.fontRegistry, clock: scope.clock, ask: agent, ...(o.approver ? { approver: o.approver } : {}), client: opts.client }),
-    view: (name) => themeEditView(ws, name, caches.themeEdit),
+    view: (name, o = {}) => themeEditView(ws, name, caches.themeEdit, o.project),
     editList: (project) => themeEditList(ws, project, caches.themeEdit),
-    edit: (name, req) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit }),
-    copy: (req) => copyTheme(ws, req, { scope }),
-    files: (kind) => brandFileList(ws, kind),
+    edit: (name, req, o = {}) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit, ...(o.project !== undefined ? { project: o.project } : {}) }),
+    // As create: the engine's agent trust (a copy into a project never hides a workspace theme of its name).
+    copy: (req) => copyTheme(ws, req, { scope, trust: ENGINE_TRUST, env: ports.env }),
+    files: (kind, o = {}) => brandFileList(ws, kind, o.project),
     sites: () => siteList(ws),
     siteConflicts: (host) => siteHostConflicts(ws, ports.hosts, host),
     previewSpec: (req, o) => buildThemePreview(ws, req, { start: o.start, registry: caches.registry, samples: caches.previewSamples }),
@@ -54,10 +57,10 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
 export function componentsApi(ctx: EngineContext): Engine['components'] {
   const { ws, scope, submitCtx, startWorker, caches } = ctx;
   return {
-    registry: async () => (await caches.registry.get(ws)).registry,
-    list: (kind) => componentList(ws, kind),
-    get: (id) => componentGet(ws, id),
-    validate: (id) => componentValidate(ws, id),
+    registry: async (o = {}) => (await caches.registry.get(ws, o.project !== undefined ? await openProjectBySlug(ws, checkProjectSlug(o.project)) : undefined)).registry,
+    list: (kind, o = {}) => componentList(ws, kind, o.project),
+    get: (id, o = {}) => componentGet(ws, id, o.project),
+    validate: (id, o = {}) => componentValidate(ws, id, o.project),
     create: (req) => componentCreate(ws, req, scope),
     preview: async (req) => {
       const r = await submitPreviewJob(submitCtx, {

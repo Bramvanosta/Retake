@@ -32,7 +32,7 @@ beforeAll(() => {
   writeFileSync(join(dir, '.hidden.json'), record('quote-v9'));
   writeFileSync(join(dir, 'cut.json'), '{"version": 1, "id": "quo');
   writeFileSync(join(dir, 'list.json'), '[]');
-  writeFileSync(join(dir, 'newer.json'), record('newer', { set: { version: 2 } }));
+  writeFileSync(join(dir, 'newer.json'), record('newer', { set: { version: 3 } }));
   writeFileSync(join(root, 'outside', 'quote-v3.json'), record('quote-v3'));
   symlinkSync(join(root, 'outside', 'quote-v3.json'), join(dir, 'quote-v3.json'));
   symlinkSync(join(root, 'outside', 'gone.json'), join(dir, 'dangling.json'));

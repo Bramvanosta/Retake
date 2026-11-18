@@ -132,6 +132,7 @@ describe('the render a review works on, state by state', () => {
   const RTABLE: Record<string, Row> = {
     ctl: ['quote-v1', 'taken quote-v1', 'none'],
     v2: ['quote-v2', 'taken quote-v2', 'quote-v1'],
+    'v2-relative': ['quote-v2', 'taken quote-v2', 'quote-v1'],
     // moved: rows 1 and 21 — latest answers quote-v1; named, the review finds no render to compare with (before: a raw TypeError in both)
     'no-created': ['quote-v1', 'taken quote-v2', 'none'],
     // moved: rows 1 and 21 — as above
@@ -163,9 +164,9 @@ describe('the render a review works on, state by state', () => {
     failed: ['quote-v1', 'taken quote-v2', 'quote-v1'],
     'variant-cube': ['quote-v2', 'taken quote-v2', 'none'],
     // moved: row 10 — named: the newer-Retake sentence (before: `… is not a render record (renders/<id>.json)`)
-    'version-2': [
+    'version-3': [
       'quote-v1',
-      'ReviewError: <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      'ReviewError: <root>/projects/r-version-3/renders/quote-v2.json: this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
       '-',
     ],
     // moved: row 14 — latest is quote-v1, the link passed over (before: quote-v2); named, read through the link as before

@@ -6,7 +6,11 @@ Every `retake` command and its flags. Part of the [Retake guide](README.md).
 
 ```
 retake new <slug> [--name N] [--theme T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too); --template: the old name of --theme
-retake list [--json]                                  # projects (with scenarios) and themes
+retake list [--json]                                  # projects (with scenarios and their own themes) and themes
+retake project adopt <project> [--theme T]… [--component ID]… [--brand FILE]… [--copy] [--json]   # take workspace themes / components / brand files into the project (moves; --copy leaves them)
+retake project export <project> [--with-runs] [--with-sandbox [--no-images] [--with-env]] [--out FILE|DIR] [--dry-run] [--json]   # the project in one ZIP (exports/<slug>-project-<stamp>.zip): its files, the workspace themes / components it uses, a manifest; --with-sandbox: its compose files and images (saved by id), --with-env: its env file (asks first)
+retake project import <archive> [--as SLUG] [--json]  # a project archive made a project here, untrusted: nothing of it runs until trusted
+retake project trust <project> [--list] [--discard] [--images | --no-images] [--json]   # list what of an imported project runs, then trust it (a y/N at a terminal, always) and load its sandbox's images, or discard the import; --images: load the images a trusted import waits for
 retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
 retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--yes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
@@ -25,15 +29,16 @@ retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose 
 retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)
 retake sandbox status <project> [--env E] [--json]   # exit 0 when up and healthy
 retake sandbox logs <project> [service] [--env E] [--lines N] [--follow]
-retake components list [--kind K] [--json]            # workspace components, then the built-in library
-retake components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
-retake components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
-retake components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
+retake components list [--kind K] [--project P] [--json]   # the project's own (--project), the workspace's, then the built-in library
+retake components validate [id|dir] [--project P] [--json]   # manifest, params, previews, entry compile (all when omitted)
+retake components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--project P] [--no-preview] [--json]   # --project: into projects/<P>/components/
+retake components preview [id|dir] [--all] [--stale] [--workspace] [--project P] [--theme T] [--out DIR] [--json]   # preview.png + README
+retake theme list [--project P] [--json]              # the themes a render can name, each with its origin (project, workspace, starter)
 retake theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
               [--wordmark FILE] [--display-font FILE|REF] [--body-font FILE|REF]… [--brand-name N] [--brand-url U]
               [--logo-kind mark|wordmark] [--cursor arrow-dark|arrow-light] [--cursor-size PX]
               [--component KIND=ID]… [--param KIND.NAME=VALUE]…
-              [--no-adjust] [--replace] [--json]   # a new workspace theme from brand files (Themes from your brand)
+              [--no-adjust] [--replace] [--project P] [--json]   # a new theme from brand files: the project's own with --project (Themes from your brand)
 retake theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
 retake theme from-tokens <file> [--map ROLE=TOKEN]… [--base T] [--name N] [--json]   # proposed colour roles and a draft from a design-token file; writes nothing (Themes from design tokens)
 retake theme fetch-font <fontsource:id[@version][:weight[italic]]>… [--json]   # open-licence fonts from registry.npmjs.org into the font store; REF above names them (Themes from your brand)

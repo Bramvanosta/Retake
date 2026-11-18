@@ -29,7 +29,7 @@ export { fillSlots } from './slots.js';
 export type { SlotContext } from './slots.js';
 export { LOGO_WORDMARK_ASPECT, fontFileFace, fontFileRange, fontWeightDescriptor, resolveLogoKind, themeTokens, weightCovers } from './theme.js';
 export { parseCsv } from './data.js';
-export { ARTEFACT_SLOT_TYPES, NO_REGISTRY_HANDED } from './types.js';
+export { ARTEFACT_SLOT_TYPES, NO_REGISTRY_HANDED, componentOverride, isOwnComponent } from './types.js';
 export type {
   AnchorSpec,
   ArtefactSlotType,
@@ -47,7 +47,7 @@ export type {
   ThemeFontFace,
   ThemeTokens,
 } from './types.js';
-export type { ComponentRegistry, RegistrySource } from './registry.js';
+export type { ComponentRegistry, RegistryScope, RegistrySource } from './registry.js';
 // The catalogue's disk work as the engine's ComponentRegistries port names it (types only).
 export type { ComponentValidation } from './validate.js';
 export type { CreateComponentOptions, CreatedComponent } from './create.js';

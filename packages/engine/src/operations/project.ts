@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zThemeName } from '@retake/core/ids';
+import { COMPONENT_ID_RE } from '@retake/core/model';
 import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
 import { outsideWorkspace, staleThisEngine, workerOfAnotherCopy } from '../engine-copy.js';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
@@ -185,7 +186,11 @@ function envChangeSummary(r: EnvironmentChangeView): string {
       : []),
     `default environment (scenarios without env:): ${r.default_env.after ?? 'none'}${r.default_env.before !== r.default_env.after ? ` (was ${r.default_env.before ?? 'none'})` : ''}`,
     ...r.warnings.map((w) => `warning: ${w}`),
-    ...(r.removed?.scenarios.length ? [`${plural(r.removed.scenarios.length, 'scenario')} still name ${r.env} in env: (${r.removed.scenarios.join(', ')}): they no longer run until changed — offer to change them (scenario_get, scenario_save)`] : []),
+    ...(r.removed?.scenarios.length
+      ? [
+          `${plural(r.removed.scenarios.length, 'scenario')} still name ${r.env} in env: (${r.removed.scenarios.join(', ')}): they no longer run until changed — offer to change them (scenario_get, scenario_save)`,
+        ]
+      : []),
     // Persona names read from the Retake home's folders: under untrusted.sessions, a count here.
     ...(r.removed?.sessions
       ? [
@@ -200,7 +205,7 @@ function envChangeSummary(r: EnvironmentChangeView): string {
 const ENV_REMOVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
 const ENV_RULES =
-  'Only when the user asks. Free: pages on origins the project already has (another display, another path), marking an environment production or read-only, display URLs. Asked to the user in an approval form (a client that cannot ask gets needs_approval, a decline is refused — with the `retake env …` command a human runs; do not retry on your own): a page on an origin new to the project (where its captures and hooks may go), removing production or read-only (or a page of such an environment), making a production or read-only environment the one scenarios without env: use, sign-in details (user:password@) in a page URL. Also asked: a production environment that allows writes (access: read-write). Refused: a sandbox environment (its sandbox.yaml), a page of a read-write environment on a production or read-only host of any project, an environment left without pages, a result project.yaml with errors (each issue named). Only environments.<env> and default_env change: every other setting of project.yaml (read_only, auth…) stays the user\'s, and so do the comments outside that environment — an environment written on one line ({…}) is rewritten in block form.';
+  "Only when the user asks. Free: pages on origins the project already has (another display, another path), marking an environment production or read-only, display URLs. Asked to the user in an approval form (a client that cannot ask gets needs_approval, a decline is refused — with the `retake env …` command a human runs; do not retry on your own): a page on an origin new to the project (where its captures and hooks may go), removing production or read-only (or a page of such an environment), making a production or read-only environment the one scenarios without env: use, sign-in details (user:password@) in a page URL. Also asked: a production environment that allows writes (access: read-write). Refused: a sandbox environment (its sandbox.yaml), a page of a read-write environment on a production or read-only host of any project, an environment left without pages, a result project.yaml with errors (each issue named). Only environments.<env> and default_env change: every other setting of project.yaml (read_only, auth…) stays the user's, and so do the comments outside that environment — an environment written on one line ({…}) is rewritten in block form.";
 
 export const projectEnvSet = defineOperation({
   name: 'project_env_set',
@@ -307,6 +312,96 @@ export const projectPrune = defineOperation({
         ...r.problems.map((p) => `could not delete ${p}`),
       ].join('\n'),
       data: r,
+    };
+  },
+});
+
+export const projectAdopt = defineOperation({
+  name: 'project_adopt',
+  title: 'Copy a workspace theme or component into a project',
+  description:
+    "Make a project carry its own look: each workspace theme named (a folder of the workspace's templates/, by name: template_list says each one's origin) is copied whole into the project's own folder, projects/<slug>/templates/<name>/ — its files verbatim, its provenance kept — so the project folder alone holds it (another Mac, a person it is handed to). Each workspace component named (by id: component_list says each one's source) is copied the same way into projects/<slug>/components/<namespace>/<name>/. The project's copy is found before the workspace's theme or component of that name from then on (for that project only); project.yaml and the scenarios are not changed. Through this server a theme or a component is only copied, never moved, and brand files are never adopted: a person runs retake project adopt <project> --theme <name> / --component <id> to move one (refused while another project uses it) or --brand <path> for brand files. Refused: a starter theme (no workspace theme: make the project's own with template_create_from_brand {project}), a built-in component, a component that does not validate, a name the project already has (conflict). The project's earlier renders made with a theme still match it (the copy has the same content).",
+  // Themes, components or both (none named: the engine's own refusal says what to name).
+  input: z.strictObject({
+    project: projectSlug,
+    themes: z.array(zThemeName('a theme name (template_list names them), never a path')).max(20).optional().describe('Workspace themes to copy into the project, by name.'),
+    components: z
+      .array(z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name" (component_list names them), never a path'))
+      .max(20)
+      .optional()
+      .describe('Workspace components to copy into the project, by id.'),
+    brand: z.array(z.string().max(1024)).max(20).optional().describe('Refused here (the answer says so): a person adopts brand files with retake project adopt --brand.'),
+  }),
+  annotations: WRITE_FILES,
+  async run({ project, themes, components, brand }, { engine }) {
+    const r = await engine.projects.adopt({ project, themes: themes ?? [], ...(components?.length ? { components } : {}), ...(brand?.length ? { brand } : {}), mode: 'copy' });
+    const comps = r.components ?? [];
+    return {
+      summary: [
+        ...(r.themes.length || !comps.length
+          ? [`${plural(r.themes.length, 'theme')} copied into project ${r.project}: ${r.themes.map((t) => `${t.name} (templates/${t.name}/, ${plural(t.files.length, 'file')})`).join(', ')}`]
+          : []),
+        ...(comps.length
+          ? [`${plural(comps.length, 'component')} copied into project ${r.project}: ${comps.map((c) => `${c.id} (components/${c.id}/, ${plural(c.files.length, 'file')})`).join(', ')}`]
+          : []),
+        ...r.notes.map((n) => `note: ${n}`),
+        comps.length
+          ? `next: ${[...(r.themes.length ? [`template_list {project: "${r.project}"}`] : []), `component_list {project: "${r.project}"}`].join(' and ')} show them as the project's own`
+          : `next: template_list {project: "${r.project}"} shows them as the project's own`,
+      ].join('\n'),
+      data: { ...r, themes: r.themes.map(({ dir: _dir, ...t }) => t), ...(r.components ? { components: r.components.map(({ dir: _dir, ...c }) => c) } : {}) },
+    };
+  },
+});
+
+export const projectExport = defineOperation({
+  name: 'project_export',
+  title: 'Export a project as one ZIP (a project archive)',
+  description:
+    "Write the project as one ZIP file, a project archive, into its own exports/ folder (exports/<slug>-project-<stamp>.zip): its project.yaml, README, scenarios, hooks, assets and data, its own themes and components, and — so that the archive alone carries its look — the workspace themes and workspace components it uses (they land in the project's own templates/ and components/ when the archive is imported); starters and built-in components are named, not embedded. Never in it: the state folder (.retake/), .env files, sessions, exports/, key and credential files (*.pem, *.key, id_*, .netrc, .npmrc…), the files project.yaml names as a sign-in's saved state, the secrets of its sandbox's compose files. Its manifest (retake-project.json) lists every file with its sha256, and what the project needs on another machine by name only: environment variables and keychain items its {{env:…}} / {{keychain:…}} references name, the variables passed on, the personas to sign in. Values that look like literal tokens are flagged (file and lines, never the value). Through this server: without the runs, renders and reviews, and without the sandbox's compose files, images and env file (a person adds them with retake project export --with-runs / --with-sandbox), at most 1 GB, written at once (no job); dry_run: true says what would go in, writing nothing. A theme named by a path outside the project is refused (copy it into the project first). A person imports the archive elsewhere with retake project import; nothing of an imported project runs until a person trusts it there (retake project trust).",
+  input: z.strictObject({
+    project: projectSlug,
+    dry_run: z.boolean().optional().describe('Only say what would go in (files, bytes, embedded themes and components, needs, exclusions): nothing written.'),
+  }),
+  annotations: WRITE_FILES,
+  async run({ project, dry_run }, { engine }) {
+    const r = await engine.projects.exportArchive({ project, ...(dry_run ? { dryRun: true } : {}) });
+    const embedded = [...r.embedded.themes.map((t) => `theme ${t}`), ...r.embedded.components.map((c) => `component ${c}`)];
+    const left = r.excluded.env.length + r.excluded.sensitive.length + r.excluded.links.length + r.excluded.special.length;
+    const tokens = r.warnings.literal_tokens;
+    const needs = r.needs.env_vars.length + r.needs.keychain.length + r.needs.sessions.length;
+    const { file, ...rest } = r;
+    return {
+      summary: [
+        `${r.dry_run ? 'would export' : 'exported'} project ${r.project}: ${plural(r.files, 'file')}, ${formatBytes(r.bytes)}${r.archive_bytes !== undefined ? ` (${formatBytes(r.archive_bytes)} zipped)` : ''}${embedded.length ? `, with the workspace's ${embedded.join(', ')}` : ''}`,
+        ...(left ? [`left out: ${plural(left, 'file')} (.env files, key files, links: their paths in untrusted.excluded)`] : []),
+        ...(r.excluded.outside_renders.length
+          ? [`left out: ${plural(r.excluded.outside_renders.length, 'render')} rendered with a theme outside the project (re-render after import; ids in untrusted.excluded.outside_renders)`]
+          : []),
+        ...(needs
+          ? [
+              `needs on another machine (names in untrusted.needs): ${plural(r.needs.env_vars.length, 'environment variable')}, ${plural(r.needs.keychain.length, 'keychain item')}, ${plural(r.needs.sessions.length, 'persona')} to sign in`,
+            ]
+          : []),
+        ...(tokens.length
+          ? [`warning: ${plural(tokens.length, 'file')} hold what looks like a literal token (files and lines in untrusted.warnings) — it is in the archive: move it into {{env:…}} and export again`]
+          : []),
+        r.dry_run
+          ? 'next: project_export {project} without dry_run writes it'
+          : "the archive is in the project's exports/ folder (its path in data.file): a person imports it elsewhere with retake project import",
+      ].join('\n'),
+      data: {
+        ...(file !== undefined ? { file } : {}),
+        project: rest.project,
+        dry_run: rest.dry_run,
+        files: rest.files,
+        bytes: rest.bytes,
+        ...(rest.archive_bytes !== undefined ? { archive_bytes: rest.archive_bytes } : {}),
+        embedded: rest.embedded,
+        uses: rest.uses,
+        // Names read from the project's files (environment variables, personas, paths): project text.
+        untrusted: { needs: rest.needs, excluded: rest.excluded, warnings: rest.warnings, code_files: rest.code_files },
+      },
     };
   },
 });

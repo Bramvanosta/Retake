@@ -8,6 +8,13 @@ import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
 /** engine.projects. */
+import { adoptIntoProject } from '../project-adopt.js';
+import { fileSha256 } from '../project-archive/code-files.js';
+import { exportProjectArchive } from '../project-archive/export.js';
+import { importProjectArchive } from '../project-archive/import.js';
+import { discardImport, projectTrustView, trustImportedProject } from '../project-archive/trust-work.js';
+import { loadImportImages } from '../project-archive/images-work.js';
+
 export function projectsApi(ctx: EngineContext): Engine['projects'] {
   const { opts, agent, ws, scope, project, studio, queue, boards, ports } = ctx;
   const envContext = (approver: EnvironmentChangeContext['approver']): EnvironmentChangeContext => ({
@@ -51,5 +58,49 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
     setEnvironment: async (slug, env, change, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'set', mode: o.mode ?? 'upsert', env, change }),
     removeEnvironment: async (slug, env, o = {}) => changeProjectEnvironment(envContext(o.approver), await project(slug), { kind: 'remove', env }),
     board: (slug) => boards.board(slug),
+    // MCP (agent trust) copies themes and components only; a person's CLI moves, copies and adopts brand files (project-adopt.ts).
+    adopt: (req) =>
+      adoptIntoProject(ws, req, {
+        scope,
+        trust: scope.caller.trust,
+        activeJobs: async () => (await queue.list({ states: ['queued', 'running'] })).map((j) => `${j.input.kind} ${j.id}`),
+        env: ports.env,
+      }),
+    // A project archive (project-archive/): export by anyone (MCP: no runs, no --out), import and trust by a person only.
+    exportArchive: async (req, o = {}) =>
+      exportProjectArchive(ws, await project(req.project), req, {
+        trust: scope.caller.trust,
+        env: ports.env,
+        now: new Date(ports.clock.now()),
+        share: ports.sandboxes.share,
+        policy: ws.policy,
+        ...(o.onFile ? { onFile: o.onFile } : {}),
+        ...(o.onImage ? { onImage: o.onImage } : {}),
+        ...(o.onImageBytes ? { onImageBytes: o.onImageBytes } : {}),
+        ...(o.beforeWrite ? { beforeWrite: o.beforeWrite } : {}),
+      }),
+    importArchive: async (file, o = {}) =>
+      importProjectArchive(ws, file, {
+        ...(o.as !== undefined ? { as: o.as } : {}),
+        trust: scope.caller.trust,
+        scope,
+        env: ports.env,
+        now: new Date(ports.clock.now()).toISOString(),
+        archiveSha256: await fileSha256(file),
+        share: ports.sandboxes.share,
+        policy: ws.policy,
+      }),
+    trustView: (slug) => projectTrustView(ws, slug, { trust: scope.caller.trust, env: ports.env }),
+    trust: (slug, listed) => trustImportedProject(ws, slug, listed, { trust: scope.caller.trust, env: ports.env, now: new Date(ports.clock.now()).toISOString() }),
+    loadImages: (slug, o = {}) =>
+      loadImportImages(ws, slug, {
+        trust: scope.caller.trust,
+        env: ports.env,
+        now: new Date(ports.clock.now()).toISOString(),
+        share: ports.sandboxes.share,
+        policy: ws.policy,
+        ...(o.onProgress ? { onProgress: o.onProgress } : {}),
+      }),
+    discardImport: (slug) => discardImport(ws, slug, { trust: scope.caller.trust, env: ports.env, now: new Date(ports.clock.now()).toISOString(), scope }),
   };
 }

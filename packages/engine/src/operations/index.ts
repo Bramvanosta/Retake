@@ -15,7 +15,7 @@ import { envReset, hooksRun } from './hooks.js';
 import { pageInspect } from './inspect.js';
 import { jobCancel, jobList, jobStatus } from './jobs.js';
 import { libraryComponent, libraryImages, libraryRender, libraryView } from './library.js';
-import { engineInfo, projectCreate, projectEnvRemove, projectEnvSet, projectGet, projectList, projectPrune, projectUpdateReadme } from './project.js';
+import { engineInfo, projectAdopt, projectCreate, projectExport, projectEnvRemove, projectEnvSet, projectGet, projectList, projectPrune, projectUpdateReadme } from './project.js';
 import { recordAnnotate, recordDiscard, recordOptionsOp, recordSave, recordStartOp, recordStop, recordView } from './record.js';
 import { scenarioGet, scenarioValidate } from './reads.js';
 import { renderReview, reviewImage, scenarioRenders } from './render-screen.js';
@@ -27,7 +27,22 @@ import { scenarioEdit } from './scenario-edit.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
 import { renderCancel, reviewExport, runPause, scenarioRender, scenarioRun, signInCancel } from './studio-jobs.js';
 import { exportRender, render, review, runCapture, runDry } from './submit.js';
-import { brandFiles, fontFetch, siteList, templateCreateFromBrand, templateFromSite, templateFromTokens, templateList, templatePreview, templateUpdate, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
+import {
+  brandFiles,
+  fontFetch,
+  siteList,
+  templateCreateFromBrand,
+  templateFromSite,
+  templateFromTokens,
+  templateList,
+  templatePreview,
+  templateUpdate,
+  themeCopy,
+  themeCreate,
+  themeEdit,
+  themeList,
+  themeView,
+} from './themes.js';
 
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share; MCP's reads of scenarios,
@@ -44,6 +59,8 @@ export const OPERATIONS = [
   projectEnvSet,
   projectEnvRemove,
   projectPrune,
+  projectAdopt,
+  projectExport,
   scenarioGet,
   scenarioValidate,
   scenarioSave,

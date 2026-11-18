@@ -261,7 +261,7 @@ async function openRun(opts: RunOptions, s: RunSettings): Promise<OpenedRun> {
   // Secret values ({{env:…}}, {{keychain:…}}) are masked wherever the run writes: run.json, log.jsonl, the progress
   // events, timeline.json, error snippets and the returned record (R-RUN-17).
   const secrets = new RunSecrets(opts.resolveSecret);
-  const files = new RunFiles(dir, record, (r) => secrets.redactRecord(r));
+  const files = new RunFiles(dir, record, opts.project.dir, (r) => secrets.redactRecord(r));
   const emit = (e: RunProgress) => {
     const safe = secrets.redactProgress(e);
     files.progress(safe);

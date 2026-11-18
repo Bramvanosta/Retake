@@ -125,7 +125,7 @@ export function ProjectInspector({ p }: { p: ProjectView }) {
 }
 
 /** The inspector of a selected production. */
-export function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView; live: LiveRuns }) {
+export function ProductionInspector({ s, p, live, imported }: { s: BoardScenario; p: ProjectView; live: LiveRuns; imported?: string }) {
   const st = productionState(s);
   const running = s.running ? { ...s.running, ...(live.get(s.running.id) ?? {}) } : null;
   return (
@@ -161,7 +161,12 @@ export function ProductionInspector({ s, p, live }: { s: BoardScenario; p: Proje
           <LinkButton to={{ name: 'scenario', slug: p.slug, scenario: s.name, tab: 'blocks' }} variant="primary" testId="scenario-link">
             Open
           </LinkButton>
-          {s.capture ? (
+          {imported !== undefined ? (
+            // An import not trusted: the server refuses its renders; the reason is the banner's (its command).
+            <Button disabled why={`Imported, not trusted: a person runs ${imported} in a terminal first.`} data-testid="production-render">
+              Render
+            </Button>
+          ) : s.capture ? (
             // (BL-128) Render acts — the status bar's own action on this production (the scenario in context).
             <Button data-testid="production-render" onClick={() => runShellCommand('render')}>
               Render

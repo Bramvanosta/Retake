@@ -9,6 +9,7 @@ import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path
 import { isRenderId } from '../id-grammar.js';
 import { projectRef } from '../layout.js';
 import { printableText } from '../printable.js';
+import { renderRecordRead } from '../record-paths.js';
 import { byIdProblem, latestNamedRender, namedRenderProblem, parseRenderRecord, renamedProblem, renderNotWords, renderOutputName, renderRecordsOf, renderUnreadDetail } from '../render-record.js';
 import type { NamedRenderPick, RenderEntry, RenderLatestPick, RenderRead, StoredRenderRecord, UnknownStatusRender, WithStoredPlan } from '../render-record.js';
 import { NODE_RECORD_FS } from './record-file.js';
@@ -28,6 +29,22 @@ export interface RenderFolderOptions {
   links?: 'refuse' | 'follow';
 }
 
+/**
+ * A read whose record's paths are resolved against `file` (core record-paths.ts); when that changed any, the record as
+ * the file holds it rides along as `written` (what an answer quotes under `untrusted`).
+ */
+function resolvedPaths(read: RenderRead, file: string): RenderRead {
+  if (read.ok) {
+    const value = renderRecordRead(read.value, file);
+    return value === read.value ? read : { ...read, value, written: read.value };
+  }
+  if (read.problem === 'unknown-status') {
+    const record = renderRecordRead(read.record, file);
+    return record === read.record ? read : { ...read, record, written: read.record };
+  }
+  return read;
+}
+
 async function readEntry(fs: RecordFs, file: string, name: string, o: { max: number; follow: boolean }): Promise<RenderEntry> {
   const r = await fs.text(file, o);
   if (!r.ok) return { name, link: r.link, read: { ok: false, problem: r.problem } };
@@ -37,7 +54,8 @@ async function readEntry(fs: RecordFs, file: string, name: string, o: { max: num
   } catch {
     return { name, link: r.link, read: { ok: false, problem: 'not-json' } };
   }
-  const read: RenderRead = parseRenderRecord(value);
+  // Paths: absolute in memory, whatever the disk says (core record-paths.ts) — resolved against the file read.
+  const read: RenderRead = resolvedPaths(parseRenderRecord(value), file);
   return { name, link: r.link, read };
 }
 

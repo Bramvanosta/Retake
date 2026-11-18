@@ -131,7 +131,10 @@ export class ComposeRunner {
   /** A compose command of this project. */
   protected compose(ref: ComposeProjectRef, args: string[], opts: DockerRunOptions = {}): Promise<DockerResult> {
     return this.run([...composeArgs(ref), ...args], {
+      // A fixed folder (never the caller's): what compose resolves against the process's cwd resolves there.
+      cwd: ref.dir,
       ...opts,
+      ...(ref.overrideText !== undefined ? { input: ref.overrideText } : {}),
       ...(ref.envKeys?.length ? { unset: ref.envKeys } : {}),
       ...(ref.pass?.length ? { pass: ref.pass } : {}),
       onSpawn: (c) => {

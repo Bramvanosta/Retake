@@ -10,6 +10,7 @@
  * Every string from the server or the frame is a text node.
  */
 import type { TimelineViewAnswer } from '../../server/ops.js';
+import { heldItemWords, heldSubject, heldTitle } from '../words/timeline-words.js';
 import { Txt, plural } from '../bits.js';
 import { hrefTo } from '../route.js';
 import { Button, Callout, Disclosure, LinkButton, StatusMark, Tag } from '../ui-kit/index.js';
@@ -60,21 +61,16 @@ export function EditNotices({
         </Callout>
       )}
       {held.length > 0 && (
-        <Callout
-          state="warn"
-          role="note"
-          title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}
-          testId="preview-held"
-        >
+        <Callout state="warn" role="note" title={heldTitle(held)} testId="preview-held">
           <p className="ed-quiet">
-            Components of this workspace are code: the preview runs one only once you allow it, for this Studio session (until it stops, or the component changes). Its stand-in draws until then; a
+            <Txt text={heldSubject(held)} /> are code: the preview runs one only once you allow it, for this Studio session (until it stops, or the component changes). Its stand-in draws until then; a
             render uses it either way.
           </p>
           <ul className="ed-held">
             {held.map((c) => (
               <li key={c.id} data-testid="held-component" data-id={c.id}>
                 <Txt className="k-mono" text={c.id} />
-                <Txt className="ed-quiet" text={` (${c.kind}, folder ${c.hash}) `} />
+                <Txt className="ed-quiet" text={heldItemWords(c)} />
                 <Button size="sm" data-testid="allow-component" disabled={allowing !== null} onClick={() => onAllow(c)}>
                   {allowing === c.id ? 'Allowing…' : 'Allow in the preview'}
                 </Button>

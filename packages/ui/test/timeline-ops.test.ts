@@ -10,7 +10,7 @@
  * - pinned arguments (a path, an extra key → 400); no capture → 404; a take the trust gates refuse → `blocked` with
  *   the command, and no capability URL;
  * - ⚑ A workspace component is held out of the frame's bundle until `preview_allow` (the hash shown, this session; no
- *   MCP tool reaches it); ⚑ the project's preview URLs are revoked when the last page holding a lease leaves
+ *   MCP tool reaches it); a project's own component too, allowed through that project (`preview_allow {project}`); ⚑ the project's preview URLs are revoked when the last page holding a lease leaves
  *   (`timeline_leave`), a re-read gets new ones.
  */
 import { createHash } from 'node:crypto';
@@ -53,6 +53,7 @@ let studio: StudioServer;
 const retakeHome = scratchHome();
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const MARK = 'MARKED-COMPONENT-5e2b';
+const OWN_MARK = 'PROJECT-COMPONENT-71c4';
 const LEASE_A = 'leaseAAAAAAAAAAAAAAAAA';
 const LEASE_B = 'leaseBBBBBBBBBBBBBBBBB';
 
@@ -98,6 +99,18 @@ beforeAll(async () => {
     video: { title: { text: 'Timeline' }, intro: false, outro: false, template: 'editorial' },
   });
   await writeTake(dir, 'wc', { run: '20260101-120000-wc', text: wcText, timeline: wct, codec: 'h264-x264', seconds: 3 });
+  // A take whose card is the project's own component (projects/demo/components/): held the same way, allowed by project.
+  const own = join(dir, 'components', 'acme', 'own-card');
+  await mkdir(own, { recursive: true });
+  await cp(scaffoldDir('card'), own, { recursive: true });
+  await writeFile(join(own, 'component.yaml'), (await readFile(join(own, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/own-card'));
+  await writeFile(join(own, 'index.tsx'), `import { AbsoluteFill } from 'remotion';\nexport default function M() { return <AbsoluteFill>{${JSON.stringify(OWN_MARK)}}</AbsoluteFill>; }\n`);
+  const pct = synthTimeline({
+    duration: 3,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }, { card: { id: 'c1', component: 'acme/own-card', slots: { title: 'Chapter two' } } }],
+    video: { title: { text: 'Timeline' }, intro: false, outro: false, template: 'editorial' },
+  });
+  await writeTake(dir, 'pc', { run: '20260101-120000-pc', text: wcText.replace('acme/marked', 'acme/own-card'), timeline: pct, codec: 'h264-x264', seconds: 3 });
   studio = await startStudioServer({ root: ws, startWorker: false });
 }, 120_000);
 
@@ -188,7 +201,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
       return (await raw(studio.player.port, 'GET', src)).body;
     };
     const a = await viewOf({ project: 'demo', name: 'wc' });
-    expect(a.preview_held).toEqual([{ id: 'acme/marked', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/) }]);
+    expect(a.preview_held).toEqual([{ id: 'acme/marked', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/), source: 'workspace' }]);
     const hash = a.preview_held![0].hash;
     // Its code is not in the bundle the frame gets (built-ins are).
     const before = await frameBundle(a.frame_url);
@@ -202,7 +215,9 @@ describe.skipIf(!canRun)('timeline_view', () => {
     for (const bad of [
       { id: '../x', hash },
       { id: 'acme/marked', hash: 'ABC' },
-      { id: 'acme/marked', hash, project: 'demo' },
+      // An extra key (`project` is preview_allow's own since a project's components are held too).
+      { id: 'acme/marked', hash, dir: '/tmp' },
+      { id: 'acme/marked', hash, project: '../demo' },
     ])
       expect((await call('preview_allow', bad)).status, JSON.stringify(bad)).toBe(400);
     expect(studio.previewAllow.size).toBe(0);
@@ -216,6 +231,24 @@ describe.skipIf(!canRun)('timeline_view', () => {
     const b = await viewOf({ project: 'demo', name: 'wc' });
     expect(b.preview_held).toBeUndefined();
     expect(await frameBundle(b.frame_url)).toContain(MARK);
+  }, 180_000);
+
+  it("⚑ a project's own component is held too, named by preview_held, and allowed only through that project's registry", async () => {
+    const a = await viewOf({ project: 'demo', name: 'pc' });
+    expect(a.preview_held).toEqual([{ id: 'acme/own-card', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/), source: 'project' }]);
+    const hash = a.preview_held![0].hash;
+    const doc = await raw(studio.player.port, 'GET', new URL(a.frame_url).pathname);
+    const src = /<script src="(\/s\/[A-Za-z0-9_-]{43}\/b\.[0-9a-f]{16}\.js)" defer>/.exec(doc.body)![1];
+    expect((await raw(studio.player.port, 'GET', src)).body).not.toContain(OWN_MARK);
+    // Not a workspace component: the workspace's registry does not hold it.
+    expect((await call('preview_allow', { id: 'acme/own-card', hash })).status).toBe(404);
+    const ok = await call('preview_allow', { id: 'acme/own-card', hash, project: 'demo' });
+    expect(ok.status, ok.body).toBe(200);
+    const b = await viewOf({ project: 'demo', name: 'pc' });
+    expect(b.preview_held).toBeUndefined();
+    const doc2 = await raw(studio.player.port, 'GET', new URL(b.frame_url).pathname);
+    const src2 = /<script src="(\/s\/[A-Za-z0-9_-]{43}\/b\.[0-9a-f]{16}\.js)" defer>/.exec(doc2.body)![1];
+    expect((await raw(studio.player.port, 'GET', src2)).body).toContain(OWN_MARK);
   }, 180_000);
 
   it("⚑ the project's preview URLs live while a page holds a lease; the last one leaving revokes them, a re-read gets new ones", async () => {

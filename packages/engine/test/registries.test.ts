@@ -22,6 +22,7 @@ const dir = await mkdtemp(join(tmpdir(), 'retake-registries-'));
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 const COMPONENT = 'acme/contract-card';
+const PROJECT_ONLY = 'acme/project-card';
 /** A workspace with one card of its own, and one whose retake.yaml does not parse. */
 const made = (async () => {
   const root = join(dir, 'ws');
@@ -34,7 +35,11 @@ const made = (async () => {
   const componentDir = join(root, 'components', COMPONENT);
   const notComponent = join(dir, 'not-a-component');
   await mkdir(notComponent, { recursive: true });
-  return { root, broken, componentDir, notComponent };
+  // A project with its own card of the workspace's id, and one only it holds.
+  const projectDir = join(root, 'projects', 'demo');
+  const write = async (file: string, text: string) => (await mkdir(dirname(file), { recursive: true }), await writeFile(file, text));
+  for (const id of [COMPONENT, PROJECT_ONLY]) await createComponent(root, { id, kind: 'card', componentsDir: join(projectDir, 'components'), write });
+  return { root, broken, componentDir, notComponent, projectDir, projectOnly: PROJECT_ONLY };
 })();
 
 registriesContract('the components package (packageRegistries)', async () => ({ registries: packageRegistries(), component: COMPONENT, ...(await made) }));
@@ -48,7 +53,8 @@ registriesContract('in memory (MemoryRegistries)', async () => {
     previews: { [w.componentDir]: await disk.previewStatus(w.componentDir) },
     files: { [w.componentDir]: await disk.sourceFiles(w.componentDir) },
   };
-  return { registries: new MemoryRegistries({ [w.root]: await loadComponentRegistry({ root: w.root }) }, seed), component: COMPONENT, ...w };
+  const project = await loadComponentRegistry({ root: w.root, projectComponentsDir: join(w.projectDir, 'components') });
+  return { registries: new MemoryRegistries({ [w.root]: await loadComponentRegistry({ root: w.root }), [w.projectDir]: project }, seed), component: COMPONENT, ...w };
 });
 
 describe('the in-memory registries', () => {
@@ -76,6 +82,11 @@ describe('the loader the engine hands a plan or a review', () => {
     expect(m.loads).toEqual([]);
     expect(await load('/ws/a')).toBe(reg);
     expect(m.loads).toEqual(['/ws/a']);
+    // A project's: the port is asked with its folder (the work's project), never a load of the workspace's alone.
+    const own = emptyRegistry('/ws/a/projects/p/components');
+    const m2 = new MemoryRegistries({ '/ws/a': reg, '/ws/a/projects/p': own });
+    expect(await registryLoader(m2)('/ws/a', { projectDir: '/ws/a/projects/p' })).toBe(own);
+    expect([m2.loads, m2.projects]).toEqual([['/ws/a'], ['/ws/a/projects/p']]);
   });
 
   it('refuses a missing port at once (a caller outside the type checker), never a load of its own', () => {

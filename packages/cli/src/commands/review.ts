@@ -81,7 +81,7 @@ export async function runReview(
       policy: opts.policy,
       project: opts.project,
       render: opts.render,
-      registry: (root) => opts.registries.load(root),
+      registry: (root, o) => opts.registries.load(root, o),
       scenario: opts.scenario,
       fps: opts.fps,
       previous: opts.previous,

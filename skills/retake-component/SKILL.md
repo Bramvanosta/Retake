@@ -6,7 +6,8 @@ description: Create a new Retake component (an intro, outro, card, interstitial,
 # Retake: components
 
 Everything visual in the edit is a component with an id `namespace/name`: the built-in library uses `studio/`, the
-workspace's `components/` folder holds the user's own. No tool writes component code: `component_create` writes the
+workspace's `components/` folder holds the user's own, and a project's own `projects/<slug>/components/` holds those of
+that project (found first for its renders: the brand's components travel with the project folder). No tool writes component code: `component_create` writes the
 tool's own scaffold, and the code is then edited by the user, or by you with your file tools once the user agrees.
 This skill is the long form of the Retake server's instructions; when those instructions or a tool's description
 say something else, they win.
@@ -29,8 +30,8 @@ start: look first, then scaffold only if nothing existing does it.
 
 ## Look first: an existing component may already do it
 
-1. `component_list {kind: intro}` (or the kind the user means) lists the components by id with their slots and
-   preview. `component_get {component: studio/intro-stack}` gives one's slots, params with their defaults and its
+1. `component_list {kind: intro, project}` (or the kind the user means) lists the components the project can use by id
+   with their source (`project`, `workspace`, `builtin`), slots and preview. `component_get {component: studio/intro-stack}` gives one's slots, params with their defaults and its
    README.
 2. Try what exists with the user's theme before writing code:
    `component_preview {project, component: studio/intro-stack, params, slots}` (a still; `params` over the defaults,
@@ -40,9 +41,13 @@ start: look first, then scaffold only if nothing existing does it.
 ## Create one
 
 1. **Scaffold.** `component_create {id: acme/intro-split, kind: intro, description: "Logo on the left, title on the
-   right."}`. The namespace is the user's (their team or brand, lower-case), never `studio/` and never a built-in
-   id. It writes `components/acme/intro-split/` (component.yaml, index.tsx, README.md) from the scaffold of its kind
-   and validates it.
+   right.", project}`. The namespace is the user's (their team or brand, lower-case), never `studio/` and never a
+   built-in id. With `project` (a component for one brand: the usual case) it writes
+   `projects/<slug>/components/acme/intro-split/`, else the workspace's `components/acme/intro-split/` (for every
+   project) — ask the user when it is not clear. It writes component.yaml, index.tsx and README.md from the scaffold of
+   its kind and validates it. Into a project an id of a workspace component is refused: to give the project its own
+   copy of a workspace component, `project_adopt {project, components: [acme/intro-split]}` copies it (only the user moves one, with
+   `retake project adopt <slug> --component <id>`).
 2. **Ask before editing the code.** Component code is JavaScript that runs in the render's browser. Say which files
    you will change (index.tsx, component.yaml of that folder only) and what the component will look like, and wait
    for the user's yes. Without it, show the user the change to make themselves.
@@ -55,7 +60,7 @@ start: look first, then scaffold only if nothing existing does it.
      times `unit`; text through `FitText` or `CapText`;
    - slots (the texts and images it shows) and params (its options, each with a default) declared in component.yaml,
      with preview samples for the required slots.
-4. **Validate.** `component_validate {component: acme/intro-split}` until it is clean: every issue has a file, a
+4. **Validate.** `component_validate {component: acme/intro-split, project}` until it is clean: every issue has a file, a
    line and a col (the manifest, the params schema, the imports, a misspelt kit name, a non-deterministic call).
 5. **Preview in the user's theme.** `component_preview {project, component: acme/intro-split}` renders a still with
    the project's theme (pass `template` for another of the user's themes; `at_s` for another moment). Look at it:

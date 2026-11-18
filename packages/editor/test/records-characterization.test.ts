@@ -318,6 +318,13 @@ describe('the render records as the editor answers them, state by state', () => 
       export: 'export quote-v2 → exports/quote-v2 (copy, the film)',
       exportMcp: 'export quote-v2 → exports/quote-v2 (copy, the film)',
     },
+    'v2-relative': {
+      list: 'quote-v1 quote-v2',
+      latest: 'quote-v2',
+      named: 'taken quote-v2',
+      export: 'export quote-v2 → exports/quote-v2 (copy, the film)',
+      exportMcp: 'export quote-v2 → exports/quote-v2 (copy, the film)',
+    },
     // N3 — named, it exports (did not move). moved: row 1 — list and latest answer quote-v1, the file passed over (before: a raw TypeError)
     'no-created': {
       list: 'quote-v1',
@@ -464,12 +471,12 @@ describe('the render records as the editor answers them, state by state', () => 
       exportMcp: 'ExportError: render quote-v2: its record says a variant this Retake does not export (landscape, vertical or square)', // moved: fix pass, M4 (before: the word, in a sentence for MCP)
     },
     // moved: row 10 — named and exported: the newer-Retake sentence (before: `… is not a render record (renders/<id>.json)`)
-    'version-2': {
+    'version-3': {
       list: 'quote-v1',
       latest: 'quote-v1',
-      named: 'ExportError: <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      export: 'ExportError: <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      exportMcp: 'ExportError: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      named: 'ExportError: <root>/projects/r-version-3/renders/quote-v2.json: this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      export: 'ExportError: <root>/projects/r-version-3/renders/quote-v2.json: this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
+      exportMcp: 'ExportError: render "quote-v2": this render record is version 3: it was made for a newer Retake (this one reads version 2) — update Retake',
     },
     // N7 — named at a terminal, read through the link (did not move). moved: row 14 — the list without it, latest is quote-v1 (said at a terminal), under trust mcp refused (before: listed, latest, exported)
     link: {
@@ -549,7 +556,7 @@ describe('the render records as the editor answers them, state by state', () => 
       latest: 'quote-v2',
       named: 'taken quote-v2',
       export: 'export quote-v2 → exports/quote-v2 (copy, other bytes)',
-      exportMcp: 'ExportError: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
+      exportMcp: 'ExportError: the video of render quote-v2 names a file outside its project (its record was edited by hand, or written elsewhere): through MCP the files of a render must lie in its project — render it again, or work on it at a terminal',
     },
     // moved: row 6 — the list names quote-v1 once (before: twice); named, it exports (at a terminal row 8 adds one line)
     'keep-json': {
@@ -603,13 +610,26 @@ describe('the render records as the editor answers them, state by state', () => 
       'quote-v3 succeeded h264_videotoolbox bundled run -',
       'quote-v4 succeeded libx264 none run library',
     ]);
-    // What a version wrote is handed on as the file holds it: every member, in the file's order.
+    // What a version wrote is handed on as the file holds it: every member, in the file's order — but for its paths
+    // inside the project it was written in (`/workspace/projects/northfield-fixture`), rebased onto this one (R-SHR-02:
+    // whatever the folder's name).
     for (const f of PAST) {
-      const value = recordFixture(`past/${f}`) as { id: string };
+      const value = recordFixture(`past/${f}`) as { id: string; run_id: string };
       const r = await findRenderRecord(project, value.id);
-      expect(JSON.stringify(r), f).toBe(JSON.stringify(value));
+      const moved = { ...value, file: join(b.renders, `${value.id}.mp4`), record: join(b.renders, `${value.id}.json`), run_dir: join(b.dir, 'runs', value.run_id) };
+      expect(JSON.stringify(r), f).toBe(JSON.stringify(moved));
     }
     expect((await findRenderRecord(project, 'latest', 'quote')).id).toBe('quote-v4');
+    // R-SHR-02: in a project of the name they were written in (`northfield-fixture`), the same.
+    const same = buildRenderState(root, 'ctl', { slug: 'northfield-fixture' });
+    rmSync(join(same.renders, 'quote-v1.json'));
+    for (const f of PAST) {
+      const value = recordFixture(`past/${f}`) as { id: string; run_id: string; file: string; record: string; run_dir: string };
+      writeFileSync(join(same.renders, `${value.id}.json`), `${JSON.stringify(value, null, 2)}\n`);
+      const r = await findRenderRecord(await loadProject(same.slug, root), value.id);
+      const moved = { ...value, file: join(same.renders, `${value.id}.mp4`), record: join(same.renders, `${value.id}.json`), run_dir: join(same.dir, 'runs', value.run_id) };
+      expect(JSON.stringify(r), f).toBe(JSON.stringify(moved));
+    }
   });
 
   it('a video that is missing is said with the path the record names made printable, or — no `file` in the record — in fixed words; through MCP never with the path', async () => {

@@ -339,6 +339,67 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   `Sec-Fetch-Site` other than `same-origin` or `none`) 403. A port another program already holds on `::1` is never
   used: a render that picks its port takes another one, a render given its port (every render the worker runs) fails.
   Like every loopback server, it can be reached by another account of the same Mac while the render runs.
+- **A project archive is read as hostile.** `retake project import` reads only what Retake's own ZIP writer writes
+  (no dependency): the end record exactly at the end with no comment, entries back to back from the first byte with
+  no gap, overlap or data descriptor, no extra field but ZIP64's, strict UTF-8 names; refused before a byte is written:
+  a name absolute, with `..`, a backslash, a control or invisible format character, or one a Mac's disk would take for
+  another (case, Unicode forms); a link, a device or any mode but 0644 / 0755; more than 100 000 entries, an entry over
+  8 GB, a total over the free space less 1 GB, a compression ratio over 1000:1; an entry inflating to more or fewer
+  bytes than declared, or with another crc32 or sha256 than listed; `.retake/`, `.env*` or a key file; a run, render or
+  review record naming a path outside its folder (left out, said); `.git/`, `node_modules/` and `.DS_Store` (never
+  archived by Retake); a layout name spelt otherwise than Retake spells it (`Runs/`, `RUN.JSON`). The writer stores an
+  entry whose deflated bytes would pass the bomb ratio, so an archive Retake writes always imports. Files are written into a stage beside the final
+  folder, opened exclusively and never through a link, then renamed into place; an existing project is never replaced.
+- **An imported project is inert until a person trusts it.** Its mark has two halves with one import id: the
+  workspace's (`.retake/imports/<slug>.json`, written before the folder lands, outside every folder an agent writes)
+  and the project's own marker (`.retake/import.json`, never archived). It is trusted only when both agree and the
+  workspace's holds a trust signed with this Retake home's key; a folder moved or copied in, a marker removed while the
+  workspace's mark is there, an edited or another home's trust read as untrusted. (A copy whose marker is removed and
+  whose workspace holds no mark of it reads as an ordinary project: removing the marker is a person's act on the disk.)
+  Until then only reads, its authored files (scenarios, README, environments), its export, pruning and stopping a
+  sandbox run on it — every other operation is refused through every channel (a terminal, MCP, the Studio, a job written
+  by hand; a later operation is refused by default; a link to it is judged as it), and below them the hook runner, the
+  sandboxes (their `status` and `logs` too, though reads: they run `docker compose` on its files), every browser the
+  runner launches and the renderer refuse it too; `retake doctor --project` reaches none of its hosts. Nothing of it is
+  copied out (a theme copy, an adopt). Its media are still read by the open reads (run thumbnails, frames go through
+  ffmpeg). `retake project trust` lists the code files computed from its files (never the archive's word) and needs a
+  person's yes at a terminal, always: there is no `--yes` (an agent's shell cannot be told from a person's script by its
+  environment).
+- **A sandbox in an archive** (`retake project export --with-sandbox`, a person's option; never through Claude) is
+  handed over only within a compose subset Retake reads itself — fail closed: a YAML directive, anchor, alias, merge
+  key or explicit tag, a second document, interpolation outside `environment` values, a volume or network `name` other
+  than its key, a bind outside the sandbox's own `data/` folder or with a propagation mode, a key outside a short allow-list (no `include`, `extends`, `provider`,
+  `secrets`, `configs`, `privileged`, host namespaces, capabilities, devices, cgroup rules, security options, sysctls,
+  runtime, `volumes_from`, volume or network drivers…), a bind or env file that does not resolve inside the project,
+  compose files in more than one folder: the export refuses, an import of an archive holding it is refused, and an
+  imported sandbox outside it never starts through Retake (the sandbox guide lists the subset). Its env file only with
+  `--with-env`, after a y/N naming the file read on this machine and its key count (the archive then holds those values
+  in clear; the import takes an env file only when the manifest says a person carried it); never a build context, a
+  bind mount, nor a service's env file (named by Retake's reader of the subset — never by `docker compose config`,
+  which drops them); without the sandbox, a sandbox outside the subset has every file of its compose folders left out
+  but its compose files, sandbox.yaml and `seed/`, and one at the project's root is refused. `environment` values may
+  pass a variable of this machine through to the container (docker gets only Retake's allow-list of the environment).
+- **An archive's images never re-point a tag.** Images are saved by id. At `retake project trust`, after the yes, each
+  image file is read strictly — regular files and folders only (a link, a device, a contiguous file, a GNU header, a
+  pax record of another kind refused), every name already clean (no `..`, no leading `/` or `./`, no NUL, none twice once
+  folded), only the names a by-id save writes (never `repositories`), each blob's sha256 its name, the JSON files read
+  strictly (a duplicate key, or `repotags` for `RepoTags`, refused), no tag and no name annotation, exactly the image
+  ids recorded, its sha256 and its decompressed size those measured at import — and docker load never sees it: Retake
+  writes a fresh tar of the blobs its manifests reference and its own `manifest.json` (`RepoTags: null`), `index.json`
+  (no annotation) and `oci-layout`. Docker's answer must be those ids and no tag; the tags of this machine are read
+  before and after the load (no load when that listing fails): a tag that moved or went is put back, a tag that
+  appeared on an image this load created is removed, an image that was here before is never removed, and every docker
+  answer is checked (a failure said). Retake then tags the images itself (`retake-share-<slug>-…:<whole image id>`,
+  never re-pointing a tag that names another image). Docker's containerd image store is refused (not supported yet).
+- **What an imported sandbox runs is read from its files.** The import and `retake project trust` list every service
+  with its accepted settings, read against the subset; the archive's own account is shown apart ("the exporter says").
+  An image the manifest puts on a service the compose files lack, or on one whose compose file names another image, is
+  refused. The override trust writes covers every service (`build: !reset null`, `pull_policy: never`): a service
+  whose image is neither carried nor here keeps its sandbox from starting. The images and their services are signed
+  with the trust; what trust loaded and the override's sha256 are signed too; the gate reads the override, checks it
+  against that sha256 and gives docker compose its text on standard input (`-f -`), so a planted or swapped file is
+  never read. Docker compose runs with the compose folder as its working folder, never the caller's. An untrusted
+  import's sandbox is never read with docker to export it.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, the database of a seed step or of a

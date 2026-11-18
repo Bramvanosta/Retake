@@ -8,7 +8,7 @@
  * what a shell and a client have always been told).
  */
 import { basename, extname, join, resolve } from 'node:path';
-import { errorKindOf, errorMessage } from '@retake/core/base';
+import { errorKindOf, errorMessage, renderRecordOnDisk } from '@retake/core/base';
 import { formatRenderId } from '@retake/core/ids';
 import type { LoadedProject } from '@retake/core/project';
 import type { LoadedTemplate } from '@retake/core/theme';
@@ -124,7 +124,7 @@ interface RecordBase {
 function baseFields(b: RecordBase): RenderFields<EditPlan, EditOverrides> {
   const { run, timeline, template, overrides, plan, edit } = b.planned;
   return {
-    version: 1,
+    version: 2,
     id: b.id,
     project: b.project.slug,
     scenario: timeline.scenario,
@@ -301,7 +301,7 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
   // the try below may throw and leave that version locked.
   const templateSha256 = themeContentHash(template.dir, NODE_THEME_FILES);
   const concurrency = await plannedConcurrency(o.workPolicy, o.settings, o.concurrency);
-  const templateFolder = o.ws.reads.templateFolderId(template.dir, project.root);
+  const templateFolder = o.ws.reads.templateFolderId(template.dir, project.root, project.dir);
   const { file, version, release } = await renderDestination({ o, dir, planned, reservedRelease });
   const recordFile = file.replace(/\.mp4$/i, '.json');
   const base: RecordBase = {
@@ -333,7 +333,9 @@ export async function renderVideoWork(o: RenderVideoOptions): Promise<RenderReco
       ...(o.settings ? { settings: o.settings } : {}),
     });
     const record = finishedRecord(base, res, t0);
-    await renders.writeJson(recordFile, record);
+    // On the disk, its paths by the rule of core record-paths.ts (relative inside the project: a project copied
+    // elsewhere still names its own video and run); the record handed back keeps them absolute.
+    await renders.writeJson(recordFile, renderRecordOnDisk(record, { file: recordFile, project: project.dir }));
     emit({ stage: 'done', progress: 1, overall: 1, totalFrames: plan.durationInFrames });
     return record;
   } catch (e) {

@@ -1,5 +1,6 @@
 /** The façade's `comments` (createEngine): threads on renders — read, add and reopen (a person's), reply (a proposal: Claude's), resolve, anchor, apply a proposal, counts. */
 import type { CommentAuthor } from '@retake/core/comments';
+import type { LoadedProject } from '@retake/core/project';
 import type { EngineError } from '../errors.js';
 import { MCP_AUTHOR_NAME, addComment, anchorAt, applyProposal, defaultAuthorName, getComment, getProposal, listComments, reopenComment, replyComment, resolveComment } from '../comments.js';
 import { commentReplyRefused, commentResolveRefused, proposalApplyRefused, threadAddRefused, threadReopenRefused } from '../comments/rules.js';
@@ -14,7 +15,8 @@ const refuse = (e: EngineError | undefined): void => {
 /** engine.comments. */
 export function commentsApi(ctx: EngineContext): Engine['comments'] {
   const { caller, ws, scope, project, commentIndex, caches } = ctx;
-  const registry = async () => (await caches.registry.get(ws)).registry;
+  // A project's registry: its own components first (a proposal is planned with what the project renders with).
+  const registryOf = (p: LoadedProject) => async () => (await caches.registry.get(ws, p)).registry;
   const seen = caches.scenarioVersions;
   // What the views read through: the renders port, and the stores port's folders (a thread's scenario text today).
   const reads = { renders: ws.outputs.renders, stores: scope.stores };
@@ -30,9 +32,10 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
     },
     reply: async (slug, id, text, o = {}) => {
       refuse(commentReplyRefused(caller, o.proposal));
-      return replyComment(await project(slug), id, text, commentAuthor(), {
+      const p = await project(slug);
+      return replyComment(p, id, text, commentAuthor(), {
         ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
-        registry,
+        registry: registryOf(p),
         seen,
         scope,
         renders: ws.outputs.renders,
@@ -57,8 +60,9 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
     anchorAt: async (slug, req) => anchorAt(reads, await project(slug), req),
     apply: async (slug, id, req) => {
       refuse(proposalApplyRefused(caller, req.if_match));
-      return applyProposal(await project(slug), id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {
-        registry,
+      const p = await project(slug);
+      return applyProposal(p, id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {
+        registry: registryOf(p),
         seen,
         scope,
         renders: ws.outputs.renders,
@@ -66,7 +70,10 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         reads: ws.reads,
       });
     },
-    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry, seen, files: ctx.files, reads: ws.reads, stores: scope.stores }),
+    proposal: async (slug, id, entryId) => {
+      const p = await project(slug);
+      return getProposal(p, id, entryId, { registry: registryOf(p), seen, files: ctx.files, reads: ws.reads, stores: scope.stores });
+    },
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
   };
 }

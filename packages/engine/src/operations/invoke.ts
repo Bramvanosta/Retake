@@ -11,6 +11,7 @@ import { catalogueOperation, servedBy } from '../catalogue.js';
 import type { Shell } from '../catalogue.js';
 import type { Engine } from '../engine.js';
 import { EngineError, toEngineError } from '../errors.js';
+import { untrustedOperationRefusal } from '../project-archive/trust.js';
 import { argumentProblems } from './define.js';
 import type { Progress, ToolCallOutcome, ToolContext, ToolDef } from './define.js';
 
@@ -61,7 +62,8 @@ function parsed<S extends z.ZodType>(t: ToolDef<S, object>, args: unknown): { ok
 /**
  * One call of `op` by `shell`, in order: (1) the catalogue serves it in that shell, else `not_found` — a second line
  * behind each shell's own list (MCP's TOOLS, the Studio's 404), which keep their words; (2) the parse (problems named
- * per argument); (3) the operation's caller rules (`callers`) with the engine's caller; (4) the handler — after the
+ * per argument); (3) the operation's caller rules (`callers`) with the engine's caller, then the refusal of an
+ * operation an imported project not trusted may not be the target of (project-archive/trust.ts); (4) the handler — after the
  * earlier calls of its key when it declares `serialize` (operationChain); (5) any error typed (toEngineError).
  * `engine` is the engine or a getter of it (a getter that fails is an error, not a throw).
  * Admission is not checked here: it stays inside the submits (the run rule is checked again at reserve).
@@ -75,8 +77,12 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
     const e = typeof engine === 'function' ? await engine() : engine;
     const refused = op.callers?.(e.caller, p.data);
     if (refused) return { ok: false, error: refused };
+    // An imported project not trusted is inert: only reads and the catalogue's allow-list run on it (project-archive/trust.ts).
+    // (An engine without a workspace — a test's stand-in — opens no project.)
+    const untrusted = e.workspace ? await untrustedOperationRefusal(op.name, p.data, e.workspace, e.envVars ?? {}) : undefined;
+    if (untrusted) return { ok: false, error: untrusted };
     const ctx: ToolContext = { engine: e, startedIn: o.startedIn, signal: o.signal, ...(o.progress ? { progress: o.progress } : {}), ...(o.approver ? { approver: o.approver } : {}) };
-    const key = op.serialize?.(p.data);
+    const key = op.serialize?.(p.data, e);
     if (key === undefined) return { ok: true, output: await op.run(p.data, ctx) };
     return { ok: true, output: await operationChain(e)(key, () => op.run(p.data, ctx)) };
   } catch (e) {

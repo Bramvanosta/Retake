@@ -177,6 +177,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L8.2 | Sandboxes (field feedback 2, points 9, 28, 29): an outdated snapshot starts from a base taken before the seed, persona sessions after the accounts are put back, `sandbox_init` over MCP | M | **done** (2026-11-16; first committed on its work branch with `engine-entries.test.ts` red, repaired by L8.2b before main; no live Firebase Auth emulator take, `sandbox-docker.test.ts` not run: MACOS-CHECKLIST §18) |
 | L8.2b | A project's environments by tool (field feedback 2, point 1: `project_env_set` / `project_env_remove`, `retake env`), no loading state filmed after a client-side route change (point 27) | M | **done** (2026-11-16; `retake env` on a real project and a real app's route by hand: MACOS-CHECKLIST §19) |
 | L8.3 | The app's native menus, the rest (BL-166): menu updates on the main thread only, the shell's own items following its state, one command table each side, Help › Keyboard Shortcuts, ⌘, on Set Up, File › Show Workspace in Finder, native context menus on the Productions posters | M | **done** (2026-11-15; the menus by hand: MACOS-CHECKLIST 14h) |
+| L9.1 | Records with project-relative paths (field feedback 2, point 32): run, render and review records write the paths of the project's files relative to their own folder, older absolute records read where they now lie, render records at format version 2, MCP checks only the files each reader opens | M | **done** (2026-11-17) |
+| L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | **done** (2026-11-18) |
+| L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | **done** (2026-11-18) |
+| L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | **done** (2026-11-18) |
+| L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | **done** (2026-11-18) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1446,6 +1451,65 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   COMMANDS registry (every key cap derived from it) compared with menu.rs; Help › Keyboard Shortcuts, ⌘, on Set Up,
   File › Show Workspace in Finder; context menus on the Productions posters behind a real secondary click.
   Requirements R-DSK-05 – R-DSK-07 (R-DSK-03's gap); by hand: MACOS-CHECKLIST 14h.
+
+### L9.1 — Records with project-relative paths (M; decided 2026-11-17)
+- **Goal:** a project folder copied to another workspace or another Mac renders its copied runs and reviews and
+  exports its copied renders (`docs/FIELD-FEEDBACK-2.md` point 32, the first of five lots L9.1 – L9.5).
+- **Done (2026-11-17):** run.json, render records and review reports write the paths of the project's files relative
+  to their own folder (core `record-paths.ts`; DESIGN §3.5 "Paths in records"); older absolute records are rebased
+  where they now lie, never rewritten; a relative path climbing out of its bound reads as missing; render records at
+  format version 2 (0.3.0 refuses them with its newer-format sentence); MCP checks only what each reader opens.
+  Requirements R-SHR-01 – R-SHR-05.
+
+### L9.2 — Themes and brand files of a project (L; decided 2026-11-17)
+- **Goal:** a project folder carries its own themes and brand files (`projects/<slug>/templates/`, `brand/`), so it
+  no longer loses them when copied alone (point 32, the second of L9.1 – L9.5).
+- **Done (2026-11-18):** a theme name resolves project → workspace → starter, lists say each theme's origin and what
+  it shadows, a project theme's identity is project-relative (`/project:<path>`, older ids still read, an adopted
+  theme's earlier renders matched by `template_sha256`); theme writers (create, copy, update, edit, the Studio from a
+  project's screen) write into the project when one is named, and MCP refuses a project theme that takes a workspace
+  theme's name; brand files are looked up in the project first, then the workspace root; `retake project adopt`
+  moves (or `--copy` copies) themes and brand files into a project, refused while another project or a job uses them,
+  under the theme's write lock, the old folder set aside in `.retake/adopted/`; MCP `project_adopt` copies themes only.
+  Requirements R-SHR-10 – R-SHR-16; what is left: BL-193.
+
+### L9.3 — Components of a project (M; decided 2026-11-17)
+- **Goal:** a project folder carries its own components (`projects/<slug>/components/<ns>/<name>/`), the third of
+  L9.1 – L9.5 (point 32).
+- **Done (2026-11-18):** a component id resolves project → workspace → built-in library with a notice for each
+  override; every plan, render, review, preview and Studio view reads the project's registry (memo and view keys per
+  project); lists and the Library say the origin and what a component is used instead of; `component_create` /
+  `retake components create|preview --project` write into the project; a project's components are its code: held in
+  the Studio until the person allows them (`preview_allow {project}`, the callout names the origin), the player's
+  bundle per project; `retake project adopt --component` moves (or copies), checking every item before acting, and
+  `studio/` ids are refused; MCP `project_adopt {components}` copies. Requirements R-SHR-20 – R-SHR-25; what is left:
+  BL-193.
+
+### L9.4 — Project export and import (M; decided 2026-11-17)
+- **Goal:** hand a whole project to someone or move it to another Mac as one file (point 32, the fourth of
+  L9.1 – L9.5).
+- **Done (2026-11-18):** `retake project export` (MCP `project_export`, synchronous, no runs) writes a ZIP with our own
+  writer under the project's `exports/`: the project, its own themes and components and the workspace ones it uses,
+  a manifest; never `.retake/`, env, key or credential files, sessions, storage states, git folders or `node_modules`
+  (literal tokens warned); `--with-runs` carries runs, renders and reviews (renders made with a theme outside the
+  project left out). `retake project import <zip> [--as]` (CLI only) reads only what our writer writes and refuses
+  zip-slip, links, odd spellings, bombs and records leading outside; an imported project is inert — every operation
+  outside an allow-list refused in the engine, the jobs, the CLI and the product adapters — until a person runs
+  `retake project trust` at a terminal after the list of its code files (recomputed from the files, never the
+  manifest); the mark has two halves sharing one import id and fails closed; `--discard` sets an import aside.
+  The Studio shows a banner. Requirements R-SHR-30 – R-SHR-39; what is left: BL-194.
+
+### L9.5 — The sandbox in the export (M; decided 2026-11-17)
+- **Goal:** a shared project brings its sandbox along (point 32, the last of L9.1 – L9.5).
+- **Done (2026-11-18):** `retake project export --with-sandbox` (CLI only) carries the compose files sandbox.yaml
+  names, with its paths rewritten, and the images it uses saved by id (`docker save`, gzip, no tags; size and
+  platform said, disk estimated); env, secret and config files never, the sandbox's own `.env` only with `--with-env`
+  after a y/N (its key names in the manifest). A handed-over sandbox must fit a documented subset of Compose (an
+  allow-list read by Retake itself: binds only into the sandbox's `data/`, no privileged or host settings, no
+  includes, tags or merge keys), checked at export, import and trust. Import extracts the images and loads nothing;
+  `project trust` loads them after the yes from a fresh tar Retake writes itself, checks the loaded ids, restores any
+  tag that moved, tags them `retake-share-<slug>-…` and hands Compose a signed override (`build: !reset null`,
+  `pull_policy: never`) on stdin. Requirements R-SHR-40 – R-SHR-48; what is left: BL-195.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

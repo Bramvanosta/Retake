@@ -22,7 +22,7 @@ import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml, stepGuard, PERSON_POLICY } from '@retake/core';
+import { FORMAT_VERSIONS, parseYaml, stepGuard, PERSON_POLICY } from '@retake/core';
 import { captureInfo } from '../src/views/timeline-view.js';
 import { createEngine } from '../src/index.js';
 import { planSignature } from '../src/renders.js';
@@ -345,7 +345,8 @@ describe('timeline view', () => {
       ['no status', async () => record(plan, theme, { status: undefined })],
       ['unknown status', async () => record(plan, theme, { status: 'paused' })],
       ['failed', async () => record(plan, theme, { status: 'failed', error: 'stopped' })],
-      ['newer Retake', async () => record(plan, theme, { version: 2 })],
+      // A newer format than this build reads, whatever this build's is.
+      ['newer Retake', async () => record(plan, theme, { version: FORMAT_VERSIONS.render + 1 })],
       ['another id', async () => record(plan, theme, { id: 'tl-v9' })],
       ['another time', async () => record(plan, theme, { created_at: '2026-01-01T14:00:00.000Z' })],
       // A background read takes a listing's cap (16 MiB), as before the lot: the record of this very plan, its notes

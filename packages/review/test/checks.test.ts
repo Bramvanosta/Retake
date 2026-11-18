@@ -531,6 +531,14 @@ describe('variants (vertical, square) and the theme zoom', () => {
 });
 
 describe('helpers', () => {
+  it('fonts: a face is measured through an asset of the plan only — a url that is a path, or an asset the plan lacks, is never opened', () => {
+    const plan = plans.catalogue.plan;
+    const faces = plan.brand.tokens.font_faces ?? [];
+    expect(faces.length).toBeGreaterThan(0);
+    const crafted = { ...plan, brand: { ...plan.brand, tokens: { ...plan.brand.tokens, font_faces: [{ ...faces[0]!, url: '/etc/hosts' }, { ...faces[0]!, url: '../../../dev/zero' }, { ...faces[0]!, url: 'retake-asset:font-none.woff2' }, faces[0]!] } } };
+    expect(planFontFiles(crafted).map((f) => f.file)).toEqual([plan.assets[faces[0]!.url]]);
+  });
+
   it('fonts: real advances, the estimate for unknown families, null for unreadable files', async () => {
     const files = planFontFiles(plans.catalogue.plan);
     expect(files.map((f) => f.weight).sort()).toEqual([400, 400, 600, 700]);

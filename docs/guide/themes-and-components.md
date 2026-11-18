@@ -5,13 +5,53 @@ How a video looks: themes, the components that draw it, and your own media and m
 ## Themes
 
 A theme's files live in `templates/<name>/` (the folder and file keep their earlier name; see the
-[glossary](../GLOSSARY.md)).
+[glossary](../GLOSSARY.md)) — the project's own in `projects/<slug>/templates/<name>/`, the workspace's in its
+`templates/` (`templates_dir`).
 
 `templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
 captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
 defaults; start from a starter theme (`templates/README.md`). The starter themes `default`, `editorial` and
 `motion` are always available by name, also in a workspace without a `templates/` folder (`retake list` marks them
 "starter"); a workspace theme of the same name takes precedence.
+
+### A project's own themes
+
+A theme is a brand's, so it belongs with the project: a theme in `projects/<slug>/templates/<name>/` travels with the
+project folder (another Mac, a person you hand it to). A name is looked for in this order, for that project's work:
+
+1. the project's own `templates/<name>/`;
+2. the workspace's `templates/<name>/`;
+3. the starter of that name.
+
+A folder of a name takes precedence even without a `template.yaml` (its load error says so). A project theme that hides
+a workspace theme or a starter of its name is said once (`retake theme list --project <slug>`, MCP `template_list
+{project}`: `notices`; the Studio's card: "Used instead of the workspace's"). Other projects keep the workspace's. A
+project.yaml that names a folder by its path (`template: ./templates/brand`) keeps working; when that folder is one of
+`templates/`, it is the named theme (one row, editable). A render record holds a project theme's folder relative to the
+project (`/project:templates/brand`), so moving or renaming the project keeps its renders matched.
+
+- **Make one in the project**: `retake theme create <name> --project <slug> …`, MCP `template_create_from_brand
+  {project, …}`, the Studio's New theme and Copy to edit (a project's screen always makes into that project). Without
+  `--project` / `project` a theme is the workspace's, as before.
+- **List them**: `retake theme list [--project <slug>]` (each theme's origin: project, workspace, starter), `retake list`
+  (each project's own themes), MCP `template_list {project}`.
+- **Take a workspace theme into a project**: `retake project adopt <slug> --theme <name>` moves it into
+  `projects/<slug>/templates/<name>/` — refused while another project or scenario uses it (they are listed), while a
+  project does not open (whether it uses it cannot be told), while the project itself names the folder by its path
+  (name it by its name first: a path never finds the project's copy) or while a job is queued or running; the
+  workspace's folder is set aside under the workspace's `.retake/adopted/<stamp>-theme-<name>/` (from a templates_dir
+  outside the workspace too; never deleted: remove it once you no longer need it). Other projects' older renders of it
+  are named. A workspace theme of a starter's name keeps its name. `--copy` leaves the workspace's where it is; Claude's
+  `project_adopt {project, themes}` only copies. The copy keeps its provenance (a theme Claude made can still be
+  updated through `template_update {name, project}`). The project's renders made before still match it, on the board
+  and at an export (their theme name finds the project's copy, whose content hash is the one they hold; a theme with
+  files beyond the hash's byte budget is matched by size and date, so a copy of one reads as another theme).
+- **Brand files of a project**: `projects/<slug>/brand/` is looked for first (see below); `retake project adopt <slug>
+  --brand brand/logo.svg` (one brand file each — an image, a font or a token file —, repeatable; never from the
+  workspace's themes, components or state folders; `--copy` to leave the original) copies or moves the workspace's
+  into it. Claude never moves brand files.
+- A project's `templates/`, `components/` and `brand/` hold no code a scenario runs: a hook's `sql` / `js` file, an
+  `eval` file or a Lottie file a scenario names there is refused through MCP (`hooks/` and `assets/` are the places).
 
 ```yaml
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
@@ -55,8 +95,9 @@ retake theme create acme --accent '#0e7c66' --logo brand/logo.svg --wordmark bra
   --brand-name Acme --brand-url acme.example
 ```
 
-or ask Claude (MCP `template_create_from_brand`, same inputs, the files named relative to the workspace root). It writes
-one **new** folder `templates/acme/`: `template.yaml` over a base theme (`--base`, default `editorial`: its components,
+or ask Claude (MCP `template_create_from_brand`, same inputs, the files named relative to the workspace root — or, with
+`project`, to the project folder first). It writes one **new** folder `templates/acme/` (with `--project <slug>` /
+`project`: `projects/<slug>/templates/acme/`): `template.yaml` over a base theme (`--base`, default `editorial`: its components,
 frame, captions, motion and durations are kept), the logo and wordmark copied as `logo.<ext>` / `wordmark.<ext>`, the
 fonts as `fonts/display-<Weight>.<ext>` / `fonts/body-<Weight>[Italic].<ext>` (the renderer reads a face's weight from
 its file name; no fonts given: the base's are copied), `LICENSES.md` (where each file came from, what each font
@@ -106,8 +147,15 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   records who made it, `made_via`; a theme made before Retake recorded it is no longer replaced through MCP). Refused when the
   workspace's templates folder lies inside the Retake folder (the repository is not a workspace for your brand:
   set `RETAKE_ROOT` or a `retake.yaml`).
+- **Where a brand file is looked for**: with a project named, `brand/logo.svg` is the project's
+  `projects/<slug>/brand/logo.svg` when it exists, else the workspace's `brand/logo.svg` — at a terminal, a path that
+  is absolute or starts with `./` or `../` is read as you typed it. Through MCP a file of the project that leads out of
+  it (a link) is refused, never looked for again in the workspace. A project theme records where each input was found
+  (its provenance `found_in`): `template_update` reads an input again there (a theme without the record: the
+  workspace root). With a project, a new theme never takes a workspace theme's name through MCP (it would hide it for
+  the project: `retake project adopt` copies that one).
 - Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.retake/`),
-  `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` (case ignored), never through
+  `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`, `components/` (case ignored), never through
   a link leaving the workspace. A human typing `retake theme create` names any file. These rules hold against what
   Retake's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
   a file in `brand/` — the content checks above apply to it all the same.
@@ -237,9 +285,11 @@ components/<namespace>/<name>/     # in your workspace (retake.yaml components_d
   README.md                        # your notes + a generated block showing the preview, slots and params
 ```
 
-**Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. Ids
-resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
-marketplace cache: a workspace component with a built-in id overrides it (`retake components list` warns). The built-in
+**Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. For a
+project's work, ids resolve from the project's own `projects/<slug>/components/` first, then the workspace
+`components/` folder, then the built-in library (`studio/…`), then — later — a marketplace cache: a component with an
+id found further down overrides it (`retake components list` warns: "project component X overrides the workspace
+one", "workspace component X overrides the built-in one"; see [a project's own components](#a-projects-own-components)). The built-in
 library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
 fields of `template.yaml` use, plus a tablet layout — every one theme-driven, in the family of the **reference look** of
 `docs/reference/look.md` (the six measured on renders carry the tag `reference-look`), each with its committed preview:
@@ -408,6 +458,29 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `<Picture media>`, `pictureAspect` | a `PictureMedia`: an image, or a frame of the capture video frozen at its time |
 | `placeBeside({target, w, h, bounds, gap, order})` | a box beside a target, inside bounds, never over it (badges, the loupe) |
 
+### A project's own components
+
+A component made for one brand belongs with its project: `projects/<slug>/components/<namespace>/<name>/` travels with
+the project folder and is found first for that project's renders, previews, theme picks and timeline (other projects
+keep the workspace's). A project's components are its code: they run in the render browser only, never from a hook, and
+the Studio's preview holds each one until you allow it, as a workspace one.
+
+- **Make one in the project**: `retake components create <id> --kind <kind> --project <slug>`, MCP `component_create
+  {…, project}`. The `studio/` namespace is never a project's. Through MCP an id of a workspace component is refused
+  (copy that one in with `project_adopt`); at a terminal it is made and the hidden workspace folder is said.
+- **List, check, preview**: `retake components list|validate|preview --project <slug>` (each component's origin:
+  project, workspace, built-in; `preview --project` writes the preview and the README block into the project's folder),
+  MCP `component_list|component_get|component_validate {project}`, the Studio's Library (a **Project** badge and source
+  filter).
+- **Take a workspace component into a project**: `retake project adopt <slug> --component <id>` moves its folder into
+  `projects/<slug>/components/<id>/` — refused while a workspace theme picks it, while another project's themes,
+  project.yaml or scenarios name it (and that project has no component of its own of that id), while a project does not
+  open, or while a job is queued or running; the workspace's folder is set aside under `.retake/adopted/<stamp>-component-<namespace>-<name>/`.
+  `--copy` leaves the workspace's; Claude's `project_adopt {project, components}` only copies. A `studio/` id (a
+  workspace override of a built-in stays the workspace's), an id the project already holds or a component that does
+  not validate is refused. Every item of one adopt is checked before any is moved; should one still fail midway, the
+  refusal names what was already done (`--json`: `done`).
+
 ### Creating, checking and previewing components
 
 ```
@@ -429,7 +502,7 @@ params schema and defaults, preview samples, layout geometry inside the design s
 and compiles the entry with esbuild: syntax errors, imports other than react / remotion / the kit (named), misspelt
 named imports (`"remotion" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`), and
 non-deterministic or networked APIs — every message as `file:line:col`. Without an argument it validates every
-workspace component (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
+workspace component — and with `--project <slug>` the project's own too (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
 `resolve(ref, kind)`, `resolveTheme(template)`), `validateComponent(dir)`, `createComponent(root, {id, kind,
 description})`, `themeTokens(template, urls)` from `@retake/components`.
 

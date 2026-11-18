@@ -160,6 +160,46 @@ describe('theme_copy, theme_view, theme_edit', () => {
     expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ themes: ['mine'] });
   });
 
+  it("the watch names a project's own components <slug>/<namespace>: a file of one changed is that namespace only", async () => {
+    const own = join(ws, 'projects', P, 'components', 'acme', 'own');
+    await mkdir(own, { recursive: true });
+    try {
+      await writeFile(join(own, 'component.yaml'), 'id: acme/own\n');
+      const o = { root: ws, componentsDir: join(ws, 'components'), templatesDir: join(ws, 'templates'), projectsDir: join(ws, 'projects') };
+      const before = await libraryWatchScan(o);
+      expect([...before.keys()]).toContain(`components:${P}/acme`);
+      await writeFile(join(own, 'index.tsx'), 'export default function C() { return null; }\n');
+      expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ components: [`${P}/acme`] });
+      // Without projectsDir the project's are not watched (the workspace's scan as before).
+      expect([...(await libraryWatchScan({ ...o, projectsDir: undefined })).keys()].some((k) => k.startsWith(`components:${P}/`))).toBe(false);
+    } finally {
+      await rm(join(ws, 'projects', P, 'components'), { recursive: true, force: true });
+    }
+  });
+
+  it("a project's own theme through the Studio's ops — listed as the project's, viewed, edited and copied in the project; the watch names it <slug>/<name>", async () => {
+    const own = join(ws, 'projects', P, 'templates', 'brand-own');
+    await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), own, { recursive: true });
+    try {
+      const l = await ok<{ themes: Array<{ name: string; source: string; editable: unknown }> }>('theme_list', { project: P });
+      expect(l.data.themes.find((t) => t.name === 'brand-own')).toMatchObject({ source: 'project', editable: true });
+      const o = { root: ws, componentsDir: join(ws, 'components'), templatesDir: join(ws, 'templates'), projectsDir: join(ws, 'projects') };
+      const before = await libraryWatchScan(o);
+      const v = await ok<{ sha256: string; source: string; background: unknown }>('theme_view', { theme: 'brand-own', project: P });
+      expect(v.data.source).toBe('project');
+      await ok('theme_edit', { theme: 'brand-own', project: P, if_match: v.data.sha256, edit: { kind: 'set_background', from: v.data.background, to: { type: 'solid', color: '#fafafa' } } });
+      expect(await readFile(join(own, 'template.yaml'), 'utf8')).toContain('#fafafa');
+      expect(libraryChanges(before, await libraryWatchScan(o))).toEqual({ themes: [`${P}/brand-own`] });
+      // Without the project the workspace has no theme of that name.
+      expect((await call('theme_view', { theme: 'brand-own' })).status).toBe(404);
+      const c = await ok<{ name: string; project?: string }>('theme_copy', { from: 'brand-own', name: 'brand-own-2', project: P });
+      expect(c.data).toMatchObject({ name: 'brand-own-2', project: P });
+      expect(await readFile(join(ws, 'projects', P, 'templates', 'brand-own-2', 'template.yaml'), 'utf8')).toMatch(/name: brand-own-2/);
+    } finally {
+      await rm(join(ws, 'projects', P, 'templates'), { recursive: true, force: true });
+    }
+  });
+
   it('⚑ one entry budget per scan; past it, folders get a coarse signature (their own stat), nothing walked', async () => {
     const comps = join(ws, 'watch-budget', 'components');
     for (const ns of ['aa', 'bb', 'cc']) {
@@ -282,7 +322,7 @@ describe('theme_preview', () => {
   it('⚑ a workspace component the preview renders is held until the person allows it (preview_allow)', async () => {
     await mine();
     const d = await previewOf({ theme: 'mine', target: { component: 'acme/held' } });
-    expect(d.preview_held).toEqual([{ id: 'acme/held', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/) }]);
+    expect(d.preview_held).toEqual([{ id: 'acme/held', kind: 'card', hash: expect.stringMatching(/^[0-9a-f]{16}$/), source: 'workspace' }]);
     const allowed = await call('preview_allow', { id: 'acme/held', hash: d.preview_held![0].hash });
     expect(allowed.status).toBe(200);
     expect((await previewOf({ theme: 'mine', target: { component: 'acme/held' } })).preview_held).toBeUndefined();
@@ -344,7 +384,13 @@ describe('theme_list', () => {
     for (const t of r.data.themes) for (const v of Object.values(t.colors)) expect(v).toMatch(/^#[0-9a-f]{3,6}$/);
     // The project whose theme is its own folder: listed first, read-only (by hand), never a folder path beyond its own ref.
     const o = await ok<List>('theme_list', { project: 'own' });
-    expect(o.data.themes[0]).toMatchObject({ name: './theme', source: 'project', default: true, editable: { why: expect.stringMatching(/project's own theme folder/) } });
+    expect(o.data.themes[0]).toMatchObject({
+      name: './theme',
+      source: 'project',
+      by_path: true,
+      default: true,
+      editable: { why: expect.stringMatching(/the theme folder project\.yaml names by its path/) },
+    });
     pathFree(o.body);
     // Pinned input: a path for a project → 400.
     expect((await call('theme_list', { project: '../x' })).status).toBe(400);

@@ -31,6 +31,31 @@ export const PROJECT_DIRS = {
 } as const;
 export type ProjectDir = keyof typeof PROJECT_DIRS;
 
+/**
+ * A project's own library: its themes, components and brand files, found before the workspace's of the same
+ * name (project → workspace → starters / built-in). Fixed names, apart from PROJECT_DIRS: a tool writes them (core
+ * agent-policy PROJECT_LIBRARY_PATHS: no code is run from them by reference).
+ */
+export const PROJECT_LIBRARY_DIRS = {
+  /** templates/<theme>/: the project's own themes. */
+  templates: 'templates',
+  /** components/<namespace>/<name>/: the project's own components. */
+  components: 'components',
+  /** brand/: the project's brand files (logos, fonts) a theme is made from. */
+  brand: 'brand',
+} as const;
+export type ProjectLibraryDir = keyof typeof PROJECT_LIBRARY_DIRS;
+
+/** `<project>/<library folder>[/<rest>…]`: a library folder of a project (PROJECT_LIBRARY_DIRS), or a path inside it. */
+export function projectLibraryDir(projectDir: string, dir: ProjectLibraryDir, ...rest: string[]): string {
+  return join(projectDir, PROJECT_LIBRARY_DIRS[dir], ...rest);
+}
+
+/** The project-relative POSIX ref of a path in a project's library folder (`templates/brand/template.yaml`). */
+export function projectLibraryRef(dir: ProjectLibraryDir, ...rest: string[]): string {
+  return posix.join(PROJECT_LIBRARY_DIRS[dir], ...rest);
+}
+
 /** The machine-local state folder of a workspace or a project (git-ignored). */
 export const STATE_DIR = '.retake';
 
@@ -60,8 +85,18 @@ export const STATE_DIRS = {
   cache: 'cache',
   /** A workspace's: the font store (fontsource packages fetched by font_fetch / `retake theme fetch-font`). */
   fonts: 'fonts',
+  /** A workspace's: the themes (and brand files) `retake project adopt` moved into a project, set aside (`<stamp>-<what>-<name>/`). */
+  adopted: 'adopted',
+  /** A workspace's: the marks of the projects imported from a project archive (`<slug>.json`: untrusted until a person trusts it). */
+  imports: 'imports',
 } as const;
 export type StateDir = keyof typeof STATE_DIRS;
+
+/**
+ * The file a project imported from a project archive holds in its own state folder (`<project>/.retake/import.json`):
+ * its import id, which the workspace's mark (`.retake/imports/<slug>.json`) must name too. Never archived.
+ */
+export const IMPORT_MARKER_FILE = 'import.json';
 
 /** `<project>/<folder>[/<rest>…]`: a folder of a project, or a path inside it. */
 export function projectPath(projectDir: string, dir: ProjectDir, ...rest: string[]): string {
@@ -129,6 +164,18 @@ export interface SandboxPaths {
 export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
   const dir = join(projectDir, SANDBOX_STATE_DIR, env);
   return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
+}
+
+/**
+ * The compose override `retake project trust` writes for a sandbox of an imported project whose archive carried its
+ * images: each service's image the `retake-share-*` tag given here, never built nor pulled. compose-project.ts adds it
+ * to the sandbox's compose files when it is there.
+ */
+export const SANDBOX_IMAGES_OVERRIDE = 'compose.retake-images.yaml';
+
+/** `<project>/.retake/sandbox/<env>/compose.retake-images.yaml` (SANDBOX_IMAGES_OVERRIDE). */
+export function sandboxImagesOverride(projectDir: string, env: string): string {
+  return join(sandboxPaths(projectDir, env).dir, SANDBOX_IMAGES_OVERRIDE);
 }
 
 /** A service's log file (the previous one is `<file>.1`). */

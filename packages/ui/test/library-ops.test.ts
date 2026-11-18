@@ -125,6 +125,36 @@ describe('library_view', () => {
   });
 });
 
+describe("a project's own components in the library (R-SHR-21)", () => {
+  it("⚑ listed as the project's (over a built-in of its id: never the built-in's picture); a rewrite of its file is a new key", async () => {
+    const own = join(ws, 'projects', P, 'components', 'studio', 'card-title');
+    onTestFinished(() => rm(join(ws, 'projects', P, 'components'), { recursive: true, force: true }));
+    await mkdir(own, { recursive: true });
+    await cp(scaffoldDir('card'), own, { recursive: true });
+    await writeFile(join(own, 'component.yaml'), (await readFile(join(own, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: studio/card-title'));
+    await writeFile(join(own, 'index.tsx'), markedCode(7));
+    const { data: v } = await viewOf();
+    const it0 = item(v, 'studio/card-title');
+    expect(it0).toMatchObject({ source: 'project', overrides: 'builtin', poster: { state: 'missing' } });
+    expect(v.notices.find((n) => n.id === 'studio/card-title')).toMatchObject({
+      severity: 'warning',
+      command: expect.stringMatching(/ components validate studio\/card-title --project northfield-fixture$/),
+      untrusted: { message: 'project component studio/card-title overrides the built-in one' },
+    });
+    // The workspace's own stays the workspace's.
+    expect(item(v, 'acme/marked').source).toBe('workspace');
+    // The committed poster of the built-in is never answered for the project's component of its id.
+    const { data: imgs } = await ok<LibraryImagesAnswer>('library_images', { project: P, keys: [], committed: ['studio/card-title'] });
+    expect(imgs.missing).toEqual([{ component: 'studio/card-title', reason: 'not_builtin' }]);
+    // The detail is the project's.
+    const { data: d } = await ok<LibraryComponentAnswer>('library_component', { project: P, component: 'studio/card-title' });
+    expect(d).toMatchObject({ source: 'project', overrides: 'builtin' });
+    // Rewritten in place: a new key at once (the view's signature reads the project's components).
+    await writeFile(join(own, 'index.tsx'), markedCode(8));
+    expect(item((await viewOf()).data, 'studio/card-title').poster.key).not.toBe(it0.poster.key);
+  });
+});
+
 describe('library_images', () => {
   it('cached posters and loops by key (magic-checked); ⚑ committed posters of built-ins only; the largest committed poster fits', async () => {
     const v = (await viewOf()).data;

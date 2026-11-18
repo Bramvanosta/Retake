@@ -6,7 +6,9 @@
  * upscaled, with a warning, unless it was captured at scale 2). Outputs go to `<project>/exports/<render-id>/` with a
  * `manifest.json` describing each file (format, method, size, duration, codecs, the ffprobe of the file).
  */
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { themeContentHash } from '../theme-hash.js';
+import type { ThemeFiles } from '../theme-hash.js';
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { GUIDE, missingOrInvalid, printableText, bestEffort, errorMessage } from '@retake/core/base';
@@ -14,6 +16,7 @@ import { isThemeName } from '@retake/core/ids';
 import { isTemplatePath } from '@retake/core/scenario';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import {
+  PROJECT_FOLDER_ID_PREFIX,
   STARTER_FOLDER_ID_PREFIX,
   STARTER_TEMPLATES_DIR,
   ffmpegBin,
@@ -23,6 +26,7 @@ import {
   nodeFileFacts,
   projectTemplateFolderId,
   realpathOr,
+  sameTemplateFolder,
   runMediaTool,
   stderrLines,
   templateFolderId,
@@ -93,11 +97,17 @@ export class ExportError extends Error {
  * rendered with (its record's `template_folder`), named so that the editor's folder rule (core io
  * projectTemplateFolderId) finds that very folder — the project's own `template:`, the record's theme name (a theme of
  * the workspace, or a starter's) or a starter's name, the first whose folder is the record's. At a terminal, else, the
- * folder itself (`/starter:<name>`: that starter's folder; a path: against the workspace root). Through MCP never a
+ * folder itself (`/starter:<name>`: that starter's folder; `/project:<path>`: against the project folder; a path:
+ * against the workspace root); a theme the project adopted since (its name resolving to the project's copy, of the
+ * record's `template_sha256`) by its name. Through MCP never a
  * path the record holds: a folder the project could not name is refused (PlanTrustError), in words that quote nothing
  * of the record. An older record (no folder) is re-rendered with its theme's name.
  */
-export async function exportThemeRef(project: LoadedProject, record: Pick<NamedRender, 'template'> & { template_folder?: unknown }, o: { trust?: PlanTrust } = {}): Promise<string> {
+export async function exportThemeRef(
+  project: LoadedProject,
+  record: Pick<NamedRender, 'template'> & { template_folder?: unknown; template_sha256?: unknown },
+  o: { trust?: PlanTrust } = {},
+): Promise<string> {
   const folder = record.template_folder;
   if (typeof folder !== 'string' || folder === '') return record.template;
   const starter = folder.startsWith(STARTER_FOLDER_ID_PREFIX) ? folder.slice(STARTER_FOLDER_ID_PREFIX.length) : undefined;
@@ -105,19 +115,48 @@ export async function exportThemeRef(project: LoadedProject, record: Pick<NamedR
   const candidates = [...(typeof project.config.template === 'string' ? [project.config.template] : []), ...names];
   for (const ref of candidates) {
     const id = await bestEffort(projectTemplateFolderId(project, ref), "a theme reference that does not resolve is simply not this render's theme");
-    if (id === folder) return ref;
+    if (id !== undefined && sameTemplateFolder(folder, id, project)) return ref;
   }
+  // A theme the project has since adopted (a verbatim copy in its templates/): the record's theme name resolves to the
+  // project's own folder, whose content hash is the one the record holds — the same theme, named (both trusts).
+  if (await adoptedTheme(project, record, folder)) return record.template;
   if (o.trust === 'mcp') {
     throw new PlanTrustError([
       'the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again',
     ]);
   }
-  const dir = starter !== undefined ? join(STARTER_TEMPLATES_DIR, starter) : resolve(realpathOr(project.root, resolve(project.root)), ...folder.split('/'));
+  const inProject = folder.startsWith(PROJECT_FOLDER_ID_PREFIX) ? folder.slice(PROJECT_FOLDER_ID_PREFIX.length) : undefined;
+  const dir =
+    starter !== undefined
+      ? join(STARTER_TEMPLATES_DIR, starter)
+      : inProject !== undefined
+        ? resolve(realpathOr(project.dir, resolve(project.dir)), ...inProject.split('/'))
+        : resolve(realpathOr(project.root, resolve(project.root)), ...folder.split('/'));
   // The folder rule both ways: the folder found is the one the record names (a starter's name that is no name, a path
   // of another spelling: refused, never another folder).
-  if (templateFolderId(dir, project.root) !== folder)
+  if (!sameTemplateFolder(folder, templateFolderId(dir, project.root, project.dir), project))
     throw new RenderError(`the theme folder this render was made with cannot be found from the workspace (${printableText(folder)}): re-render the scenario`);
   return dir;
+}
+
+/** The node file layer of the theme hash (theme-hash.ts reads no disk itself). */
+const NODE_FILES: ThemeFiles = { readdir: (d) => readdirSync(d), lstat: (p) => lstatSync(p), readFile: (p) => readFileSync(p) };
+
+/**
+ * Whether the record's theme was a workspace theme the project adopted since: its folder id is no project folder, its
+ * theme name resolves today to `/project:…`, and that folder hashes to the record's `template_sha256`.
+ */
+async function adoptedTheme(project: LoadedProject, record: { template: string; template_sha256?: unknown }, folder: string): Promise<boolean> {
+  if (folder.startsWith(PROJECT_FOLDER_ID_PREFIX) || typeof record.template_sha256 !== 'string') return false;
+  if (typeof record.template !== 'string' || !isThemeName(record.template) || isTemplatePath(record.template)) return false;
+  const id = await bestEffort(projectTemplateFolderId(project, record.template), 'a theme name that does not resolve is not an adopted theme');
+  if (id === undefined || !id.startsWith(PROJECT_FOLDER_ID_PREFIX)) return false;
+  const dir = resolve(project.dir, ...id.slice(PROJECT_FOLDER_ID_PREFIX.length).split('/'));
+  try {
+    return themeContentHash(dir, NODE_FILES) === record.template_sha256;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -383,8 +422,9 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportMad
   const name = found.output;
   const label = printableText(name);
   if (trust === 'mcp') {
+    // Its video and its run folder (what an export opens); the engine's gate (renderForWork) ran the same check before.
     const problem = recordPathProblem(project.dir, record, nodeFileFacts);
-    if (problem) throw new ExportError(problem);
+    if (problem) throw new ExportError(problem.message);
   }
   if (record.status !== 'succeeded')
     throw new ExportError(
