@@ -492,3 +492,108 @@ dialog.k-sheet[data-testid='update-sheet'] {
 dialog.k-sheet[data-testid='update-sheet'] .k-progress {
   width: 100%;
 }
+
+/* BL-192: the app's Tools — the Set-up item's rows (a well under the text, as the mockup), the status bar's control,
+   the update's Tools. */
+.sh-tools-parts {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin: var(--ui-space-4) 0 0;
+  padding: var(--ui-space-5) var(--ui-space-6);
+  list-style: none;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-canvas);
+}
+.sh-tools-part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 72px;
+  align-items: baseline;
+  gap: var(--ui-space-5);
+  min-width: 0;
+}
+.sh-tools-part .k-progress {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.sh-tools-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-text);
+}
+.sh-tools-v,
+.sh-tools-use {
+  color: var(--ui-text-3);
+}
+.sh-tools-num {
+  text-align: end;
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sh-tools-note {
+  margin: var(--ui-space-3) 0 0;
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.sh-tools-why,
+.sh-tools-licences {
+  display: block;
+  margin-top: var(--ui-space-2);
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.sh-tools-terms {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: var(--ui-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.sh-tools-term-name {
+  font-weight: var(--ui-weight-strong);
+}
+.sh-tools-needed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-4);
+}
+.sh-update-tools {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: var(--ui-space-5) var(--ui-space-6);
+  list-style: none;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-canvas);
+}
+.sh-update-tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-5);
+}
+.sh-update-tool-state {
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .sh-tools-part {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+  .sh-tools-use {
+    display: none;
+  }
+}
+.sh-update-tool-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A row's figure on the right of its label (Checked, Next, the megabytes), as the mockup's third column. */
+.sh-tools-part .k-progress-value {
+  float: inline-end;
+  margin-inline-start: var(--ui-space-4);
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

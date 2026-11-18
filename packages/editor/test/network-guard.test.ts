@@ -155,13 +155,26 @@ export default function Closing() {
 }
 
 /** The render browsers (headless shells with a profile under this run's temp folder) alive now, by pid. */
+/**
+ * The render browsers this test process started (its descendants): a render of another file running at the same time
+ * in the full suite starts one in the same temporary folder, and is not this render's leak.
+ */
 function renderBrowsers(): number[] {
-  const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
+  const out = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' });
   const tmp = tmpdir().replace(/\/$/, '');
-  return out
+  const rows = out
     .split('\n')
-    .filter((l) => l.includes('puppeteer_dev_chrome_profile') && l.includes(tmp) && !l.includes('--type='))
-    .map((l) => Number(l.trim().split(/\s+/)[0]));
+    .filter((l) => l.trim())
+    .map((l) => {
+      const [pid, ppid, ...cmd] = l.trim().split(/\s+/);
+      return { pid: Number(pid), ppid: Number(ppid), command: cmd.join(' ') };
+    });
+  const parent = new Map(rows.map((r) => [r.pid, r.ppid]));
+  const ours = (pid: number): boolean => {
+    for (let p = parent.get(pid), i = 0; p !== undefined && p > 1 && i < 64; p = parent.get(p), i++) if (p === process.pid) return true;
+    return false;
+  };
+  return rows.filter((r) => r.command.includes('puppeteer_dev_chrome_profile') && r.command.includes(tmp) && !r.command.includes('--type=') && ours(r.pid)).map((r) => r.pid);
 }
 
 /** A workspace intro component playing an audio file of B: Remotion downloads it in Node. */

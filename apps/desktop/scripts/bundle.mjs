@@ -33,16 +33,20 @@
  *   node/bin/node        the Node.js running this script (major 22), re-signed ad hoc
  *   node/guard.cjs       the module lookup guard (+ guard-hooks.mjs; apps/desktop/bundle/): every Node.js the app starts
  *                        loads it first (`--require`), so the app's code never resolves a module above the app
+ *   bundle.json          also `tools`: the Tools this version downloads instead of carrying them — the browser, the
+ *                        render browser and the compositor (apps/desktop/bundle/tools.json's darwin-arm64 entries, checked
+ *                        against the deployed playwright-core and compositor: tools.mjs) — sealed with the app
  *   engine/              `pnpm deploy --prod` of @retake/cli, hoisted (no machine path), pruned (maps, .d.ts, .bin,
- *                        playwright-core's browser-channel installer scripts — PRUNED);
- *                        Remotion's compositor with its install names rewritten to @loader_path; engine/templates/
- *                        (the git-tracked starter themes)
- *   browsers/            the Chromium and headless shell revisions the deployed playwright-core pins, from Playwright's cache
- *                        (less the framework's self-install script, which can run as root — PRUNED)
+ *                        playwright-core's browser-channel installer scripts, Remotion's compositor package — a Tool
+ *                        now: PRUNED); engine/templates/ (the git-tracked starter themes)
  *   ffmpeg/bin/          ffmpeg + ffprobe from --ffmpeg (relocatable: system libraries only), else none (ffmpeg: null)
  *   plugin/              the Claude plugin marketplace (.claude-plugin/marketplace.json + the git-tracked skills/)
- *   licenses/            Node.js, Chromium, Remotion, THIRD-PARTY.md (the deployed npm packages), apps/desktop/licenses/
- *                        (our ffmpeg's and Remotion's compositor's GPL notices and source offers)
+ *   licenses/            Node.js, Remotion, THIRD-PARTY.md (the deployed npm packages), apps/desktop/licenses/ (our
+ *                        ffmpeg's GPL notice and source offer; tools/: our short notice of each Tool, which the stage
+ *                        refuses when it does not name its Tool's version)
+ *
+ *   No browser and no compositor: the app downloads them into <RETAKE_HOME>/tools (tools.mjs: `bundle.mjs record-tools`
+ *   records tools.json from the real archives, `bundle.mjs check-tools` checks it).
  *
  *   (`build` adds launch.json — version 2, paths inside the app — and bin/retake, the launcher, before signing.)
  *
@@ -66,7 +70,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, closeSync, constants as fsConstants, copyFileSync, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -74,6 +78,7 @@ import { MinisignError, decodePublicKey, verifyMinisign } from '../../../scripts
 import { APP_CATEGORY, LOCAL_NETWORK_USAGE, icns } from './desktop.mjs';
 import { finishApp } from './release.mjs';
 import { SignError, readTable, signApp, signPayload, signer, verifyApp } from './sign.mjs';
+import { COMPOSITOR_PACKAGE, TOOLS_FILE, ToolsError, checkArchives, coreTools, fetchAndCheck, noticeProblems, readTools, recordTools, repoPins } from './tools.mjs';
 
 const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(APP_DIR, '..', '..');
@@ -84,21 +89,18 @@ export const MINIMUM_MACOS = '15.0';
  * binary (apps/desktop/bundle/node.json) — a release never ships a Node.js nobody chose.
  */
 export const NODE_PIN = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'node.json'), 'utf8'));
-/**
- * The browsers the stage copies: each Playwright revision folder's tree digest (`browserDigest`),
- * recorded from a known install (apps/desktop/bundle/browsers.json) — Playwright's installer checks no hash.
- */
-export const BROWSER_PINS = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'browsers.json'), 'utf8'));
-/** Marker files playwright-core's registry checks in each browser folder (they must stay empty: the app seals them). */
-export const BROWSER_MARKERS = ['INSTALLATION_COMPLETE', 'DEPENDENCIES_VALIDATED'];
 /** What the stage writes in its folder first, so a later stage may replace it (and nothing else). */
 const STAGE_MARK = '.retake-stage';
 /** What a build writes in its `--out` folder first: a later build may write there again (and nowhere else). */
 export const BUILD_MARK = '.retake-bundle';
 /** The module lookup guard's place in the payload (core BUNDLE_GUARD: the worker and MCP registration load it too). */
 export const GUARD = 'node/guard.cjs';
-/** What the stage removes from the payload: installer scripts nothing of Retake runs (one can run as root). */
-export const PRUNED = ['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh'];
+/**
+ * What the stage removes from the payload: playwright-core's browser-channel installer scripts (nothing of Retake runs
+ * them; one can run as root) and Remotion's compositor package (a Tool: the app downloads it, and every call of the
+ * rendering library names its folder).
+ */
+export const PRUNED = ['engine/node_modules/playwright-core/bin', `engine/node_modules/${COMPOSITOR_PACKAGE}`];
 /**
  * What patches/@remotion__renderer@<version>.patch (root package.json `pnpm.patchedDependencies`) leaves in each file
  * of @remotion/renderer it changes, and how many times: on macOS the render browser keeps Chromium's OS sandbox and
@@ -131,7 +133,7 @@ const within = (dir, p) => {
  * registry or cloud token) reaches any of them. A name that reads as a credential is dropped
  * even where a prefix allows it (CARGO_REGISTRY_TOKEN). `extra`: the build's own explicit variables.
  */
-const ENV_ALLOWED = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'TERM', 'CI', 'NO_COLOR', 'SDKROOT', 'DEVELOPER_DIR', 'MACOSX_DEPLOYMENT_TARGET', 'RUSTFLAGS', 'RUSTDOCFLAGS', 'PNPM_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'PLAYWRIGHT_BROWSERS_PATH']);
+const ENV_ALLOWED = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'TERM', 'CI', 'NO_COLOR', 'SDKROOT', 'DEVELOPER_DIR', 'MACOSX_DEPLOYMENT_TARGET', 'RUSTFLAGS', 'RUSTDOCFLAGS', 'PNPM_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME']);
 const ENV_PREFIXES = /^(?:LC_|CARGO_|RUSTUP_|RUSTC|COREPACK_|npm_config_)/;
 const ENV_CREDENTIAL = /TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|PRIVATE|(?:^|_)KEY(?:_|$)/i;
 export function buildEnv(env = process.env, extra = {}) {
@@ -256,33 +258,6 @@ export function checkNode({ execPath = process.execPath, version = process.versi
   if (got !== want) throw new StageError(`${execPath} is not the official Node.js ${pin.version} binary apps/desktop/bundle/node.json pins (sha256 ${got}, pinned ${want}): install Node.js ${pin.version} from the Node.js project's downloads, or record a checked upgrade there`);
 }
 
-/**
- * A browser revision folder's digest: the sha256 of its treeDigest (every path, link target, file size, executable bit
- * and file sha256, in path order) less Playwright's marker files (the stage writes them anew).
- */
-export function browserDigest(dir) {
-  const tree = treeDigest(dir, { skip: BROWSER_MARKERS });
-  const h = createHash('sha256');
-  for (const k of [...tree.keys()].sort()) h.update(`${k.split(sep).join('/')}\t${tree.get(k)}\n`);
-  return h.digest('hex');
-}
-
-/**
- * The browser folder `from` (Playwright's cache, revision `folder`) is the pinned one (BROWSER_PINS). StageError, in one
- * sentence, otherwise.
- */
-export function checkBrowser(from, folder, pins = BROWSER_PINS) {
-  const want = pins.digests?.[folder];
-  if (!want) throw new StageError(`apps/desktop/bundle/browsers.json pins no digest for ${folder}: record it from a checked install (node apps/desktop/scripts/bundle.mjs browser-digest ${from})`);
-  const got = browserDigest(from);
-  if (got !== want) throw new StageError(`${from} is not the ${folder} apps/desktop/bundle/browsers.json pins (digest ${got}, pinned ${want}): reinstall it (rm -rf it, then playwright-core's install), or record a checked one there`);
-}
-
-/** Playwright's browser cache (PLAYWRIGHT_BROWSERS_PATH, else its default on macOS). */
-function playwrightCache() {
-  return process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== '0' ? resolve(process.env.PLAYWRIGHT_BROWSERS_PATH) : join(homedir(), 'Library', 'Caches', 'ms-playwright');
-}
-
 /** Block the thread for `ms` (no event loop to give back to: the build is synchronous). */
 export function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -311,11 +286,13 @@ function sizeOf(p) {
 }
 
 /**
- * The layout check (also the tests'): bundle.json's paths inside the stage and present; every symbolic link relative
- * and resolving inside the stage; no regular file with more than one hard link (a link shared with the checkout or a
- * store: a write to either changes the other); no `machinePaths` (the build machine's home and checkout) in any text
- * file of the stage (TEXT_FILE, up to TEXT_MAX_BYTES each); the browser markers empty; one playwright-core; the
- * engine's @remotion/renderer patched (RENDERER_PATCH_MARKS); every Mach-O listed. Returns `{ problems, machO }`.
+ * The layout check (also the tests'): bundle.json version 2, its paths inside the stage and present, its `tools` valid
+ * (core's parser: the Tools' hosts, sha256 and tree digests) and described by the stage's licenses/tools notices, no
+ * browser carried (`paths.browsers`, a browsers/ folder); every symbolic link relative and resolving inside the stage;
+ * no regular file with more than one hard link (a link shared with the checkout or a store: a write to either changes
+ * the other); no `machinePaths` (the build machine's home and checkout) in any text file of the stage (TEXT_FILE, up to
+ * TEXT_MAX_BYTES each); one playwright-core; the engine's @remotion/renderer patched (RENDERER_PATCH_MARKS); nothing
+ * PRUNED left; every Mach-O listed. Returns `{ problems, machO }`.
  */
 export function checkStage(dir, opts = {}) {
   const root = realpathSync(resolve(dir));
@@ -328,8 +305,8 @@ export function checkStage(dir, opts = {}) {
     problems.push(`bundle.json: ${e.message}`);
   }
   if (manifest) {
-    if (manifest.v !== 1) problems.push('bundle.json: v must be 1');
-    for (const key of ['node', 'engine', 'browsers', 'templates', 'plugin', 'ffmpeg']) {
+    if (manifest.v !== 2) problems.push('bundle.json: v must be 2');
+    for (const key of ['node', 'engine', 'templates', 'plugin', 'ffmpeg']) {
       const rel = manifest.paths?.[key];
       if (rel === null && key === 'ffmpeg') continue;
       if (typeof rel !== 'string' || !rel || isAbsolute(rel)) {
@@ -342,14 +319,15 @@ export function checkStage(dir, opts = {}) {
     }
     if (manifest.paths?.engine && !existsSync(join(root, manifest.paths.engine, 'dist', 'bin.js'))) problems.push('engine/dist/bin.js is missing');
     if (typeof manifest.paths?.engine === 'string' && existsSync(join(root, manifest.paths.engine))) problems.push(...rendererPatchProblems(join(root, manifest.paths.engine, 'node_modules', '@remotion', 'renderer')));
-    for (const rev of [manifest.playwright?.chromium && `chromium-${manifest.playwright.chromium}`, manifest.playwright?.headless_shell && `chromium_headless_shell-${manifest.playwright.headless_shell}`].filter(Boolean)) {
-      for (const m of BROWSER_MARKERS) {
-        const f = join(root, manifest.paths?.browsers ?? 'browsers', rev, m);
-        if (!existsSync(f)) problems.push(`${relative(root, f)} is missing`);
-        else if (statSync(f).size !== 0) problems.push(`${relative(root, f)} is not empty`);
-      }
+    if (manifest.paths && 'browsers' in manifest.paths) problems.push('bundle.json: paths.browsers — the app carries no browser (the Tools are downloaded)');
+    try {
+      const tools = coreTools().parseToolEntries(manifest.tools, 'bundle.json');
+      problems.push(...noticeProblems(tools, join(root, 'licenses', 'tools')));
+    } catch (e) {
+      problems.push(e.message);
     }
   }
+  if (existsSync(join(root, 'browsers'))) problems.push('browsers/: the app carries no browser (the Tools are downloaded)');
   const machO = [];
   let playwrights = 0;
   for (const p of walk(root)) {
@@ -376,8 +354,8 @@ export function checkStage(dir, opts = {}) {
       if (kind) machO.push({ path: rel, kind });
     }
   }
-  if (manifest && playwrights !== 1) problems.push(`the engine holds ${playwrights} copies of playwright-core (one is pinned to the bundled browsers)`);
-  for (const p of prunedIn(root)) problems.push(`${relative(root, p)}: an installer script the payload must not carry (PRUNED)`);
+  if (manifest && playwrights !== 1) problems.push(`the engine holds ${playwrights} copies of playwright-core (one: its revisions are the Tools' browsers)`);
+  for (const p of prunedIn(root)) problems.push(`${relative(root, p)}: the payload must not carry it (PRUNED)`);
   return { problems, machO };
 }
 
@@ -417,31 +395,6 @@ export function prunedIn(root) {
     found.push(...level);
   }
   return found;
-}
-
-/** The install names of a Mach-O that are bare file names (no folder: found only through DYLD_LIBRARY_PATH). */
-export function bareInstallNames(otoolL) {
-  return otoolL
-    .split('\n')
-    .slice(1)
-    .map((l) => l.trim().split(' (')[0])
-    .filter((n) => n && !n.includes('/'));
-}
-
-/** Rewrite the compositor's bare install names to @loader_path/<name> (the hardened runtime ignores DYLD_LIBRARY_PATH). */
-function relinkCompositor(dir) {
-  const files = readdirSync(dir).filter((f) => machOKind(join(dir, f)));
-  for (const f of files) {
-    const file = join(dir, f);
-    const args = [];
-    if (f.endsWith('.dylib')) args.push('-id', `@loader_path/${f}`);
-    for (const name of bareInstallNames(run('otool', ['-L', file]))) if (name !== f || !f.endsWith('.dylib')) args.push('-change', name, `@loader_path/${name}`);
-    if (args.length) run('install_name_tool', [...args, file], { stdio: ['ignore', 'pipe', 'pipe'] });
-    run('codesign', ['--force', '-s', '-', file]);
-    const left = bareInstallNames(run('otool', ['-L', file])).filter((n) => !(f.endsWith('.dylib') && n === f));
-    if (left.length) throw new StageError(`${file}: install names left bare: ${left.join(', ')}`);
-  }
-  return files;
 }
 
 /** ffmpeg / ffprobe handed with --ffmpeg: both present, run, system libraries only; their -version / -buildconf. */
@@ -646,6 +599,28 @@ function copyTracked(repo, rel, to, o = {}) {
 }
 
 /**
+ * The Tools of a stage: tools.json's entries (`file`), checked against what the stage deployed into `engine` — the
+ * revisions and browser version of its playwright-core, its compositor package's version (and the lockfile's integrity)
+ * — and described by our notices (licenses/tools). Returns `{ tools, playwright, compositor }` (playwright-core's and
+ * the compositor's versions, for bundle.json); StageError, saying what to do, otherwise.
+ */
+export function stageTools(engine, { file = TOOLS_FILE, notices } = {}) {
+  try {
+    const pwDir = join(engine, 'node_modules', 'playwright-core');
+    const pins = repoPins({ playwright: pwDir });
+    const compositor = JSON.parse(readFileSync(join(engine, 'node_modules', ...COMPOSITOR_PACKAGE.split('/'), 'package.json'), 'utf8')).version;
+    if (compositor !== pins.compositor.version) throw new StageError(`the engine deployed ${COMPOSITOR_PACKAGE} ${compositor}, pnpm-lock.yaml pins ${pins.compositor.version}: pnpm install, then stage again`);
+    const tools = readTools(file, pins);
+    const notes = noticeProblems(tools, ...(notices ? [notices] : []));
+    if (notes.length) throw new StageError(`our notices of the Tools are stale:\n  ${notes.join('\n  ')}`);
+    return { tools, playwright: JSON.parse(readFileSync(join(pwDir, 'package.json'), 'utf8')).version, compositor };
+  } catch (e) {
+    if (e instanceof StageError) throw e;
+    throw new StageError(e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
  * The stage (see the module comment). Returns the manifest written. Whatever happens, the checkout must be as it was
  * (`repoSnapshot` before and after): a stage that changed it fails loudly, naming both states.
  */
@@ -696,11 +671,11 @@ function stageInto({ out, ffmpeg, env = process.env }) {
     else if (st.isFile() && /\.(map|d\.ts|d\.mts|d\.cts|tsbuildinfo)$/.test(base)) rmSync(p, { force: true });
   }
   copyTracked(REPO, 'templates', join(engine, 'templates'));
-  const compositorDir = join(engine, 'node_modules', '@remotion', 'compositor-darwin-arm64');
-  const compositor = relinkCompositor(compositorDir);
-  // The relinked compositor runs without DYLD_LIBRARY_PATH (what the hardened runtime ignores).
-  run(join(compositorDir, 'ffprobe'), ['-hide_banner', '-version'], { env: { PATH: '/usr/bin:/bin' } });
-  say(`engine pruned, compositor relinked (${compositor.length} files)`);
+  // The Tools: tools.json checked against what was deployed (its playwright-core, its compositor), before the compositor
+  // package is pruned — the app downloads it, and the browsers, into <RETAKE_HOME>/tools.
+  const { tools, playwright, compositor } = stageTools(engine);
+  for (const p of prunedIn(dir)) rmSync(p, { recursive: true, force: true });
+  say(`engine pruned (no compositor: ${tools.length} Tools downloaded by the app)`);
 
   // Node.js: this one (major 22), system libraries only, re-signed ad hoc (part b signs it for real).
   const nodeBin = join(dir, 'node', 'bin', 'node');
@@ -714,28 +689,6 @@ function stageInto({ out, ffmpeg, env = process.env }) {
   // The module lookup guard every Node.js of the app loads first (apps/desktop/bundle/guard.cjs: DESIGN §4p).
   for (const [from, to] of [['guard.cjs', GUARD], ['guard-hooks.mjs', join(dirname(GUARD), 'guard-hooks.mjs')]]) copyFileSync(join(APP_DIR, 'bundle', from), join(dir, to));
   say('node copied');
-
-  // Browsers: the revisions the deployed playwright-core pins, from Playwright's cache (never downloaded here).
-  const pwDir = join(engine, 'node_modules', 'playwright-core');
-  const pw = JSON.parse(readFileSync(join(pwDir, 'package.json'), 'utf8'));
-  const pins = JSON.parse(readFileSync(join(pwDir, 'browsers.json'), 'utf8')).browsers;
-  const rev = (name) => pins.find((b) => b.name === name)?.revision;
-  const cache = playwrightCache();
-  const browsers = join(dir, 'browsers');
-  mkdirSync(browsers, { recursive: true });
-  for (const folder of [`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`]) {
-    const from = join(cache, folder);
-    if (!existsSync(join(from, 'INSTALLATION_COMPLETE'))) throw new StageError(`${from} is missing: run (with a network) node ${relative(REPO, join(REPO, 'node_modules', 'playwright-core', 'cli.js'))} install chromium chromium-headless-shell — playwright-core ${pw.version} pins ${folder}`);
-    checkBrowser(from, folder);
-    run('ditto', [from, join(browsers, folder)]);
-    for (const m of BROWSER_MARKERS) {
-      writeFileSync(join(browsers, folder, m), '');
-      // A fresh mark: playwright-core re-validates (and rewrites, empty) one older than 30 days.
-      utimesSync(join(browsers, folder, m), new Date(), new Date());
-    }
-  }
-  for (const p of prunedIn(dir)) rmSync(p, { recursive: true, force: true });
-  say('browsers copied');
 
   // ffmpeg (optional): relocatable (system libraries only), else the system's is used (ffmpeg: null).
   let ffmpegInfo = null;
@@ -760,43 +713,33 @@ function stageInto({ out, ffmpeg, env = process.env }) {
   const nodePrefix = resolve(dirname(process.execPath), '..');
   if (existsSync(join(nodePrefix, 'LICENSE'))) cpSync(join(nodePrefix, 'LICENSE'), join(lic, 'node', 'LICENSE'));
   else throw new StageError(`no LICENSE beside ${process.execPath} (Node.js's licence must ship with it)`);
-  mkdirSync(join(lic, 'chromium'), { recursive: true });
-  writeFileSync(
-    join(lic, 'chromium', 'NOTICE.md'),
-    `# Chromium\n\nChromium ${pins.find((b) => b.name === 'chromium')?.browserVersion ?? ''} as built by the Playwright project (playwright-core ${pw.version}, revisions ${rev('chromium')} / ${rev('chromium-headless-shell')}).\nChromium is distributed under the BSD 3-clause licence of The Chromium Authors and the licences of its third-party components;\nthe complete list is built into the browser (chrome://credits). Playwright: Apache-2.0 (engine/node_modules/playwright-core/LICENSE).\n`,
-  );
   mkdirSync(join(lic, 'remotion'), { recursive: true });
   const remotionLicence = join(engine, 'node_modules', 'remotion', licenceOf(join(engine, 'node_modules', 'remotion')) ?? 'LICENSE.md');
   if (existsSync(remotionLicence)) cpSync(remotionLicence, join(lic, 'remotion', 'LICENSE.md'));
-  // Remotion's compositor carries its own GPL ffmpeg: its notice and source offer (apps/desktop/licenses/remotion-compositor)
-  // must name the version deployed.
-  const compositorVersion = JSON.parse(readFileSync(join(compositorDir, 'package.json'), 'utf8')).version;
-  const compositorNotice = join(APP_DIR, 'licenses', 'remotion-compositor', 'README.md');
-  if (!existsSync(compositorNotice) || !readFileSync(compositorNotice, 'utf8').includes(`@remotion/compositor-darwin-arm64 ${compositorVersion}`)) {
-    throw new StageError(`${relative(REPO, compositorNotice)} must describe @remotion/compositor-darwin-arm64 ${compositorVersion} (its ffmpeg version, configuration and source): update it with the Remotion upgrade`);
-  }
+  // apps/desktop/licenses: our ffmpeg's notice and source offer, and tools/ — our notice of each Tool, which must name
+  // the version this app downloads (checked by stageTools before anything was copied, and by checkStage).
   copyTracked(REPO, relative(REPO, join(APP_DIR, 'licenses')), lic, { untracked: true });
   writeFileSync(join(lic, 'THIRD-PARTY.md'), thirdParty(engine));
   say('plugin and licences');
 
-  // Stage hygiene: no extended attributes (provenance / quarantine on the copied browsers).
+  // Stage hygiene: no extended attributes (provenance / quarantine on the copied files).
   run('xattr', ['-cr', dir]);
 
   const cliPkg = JSON.parse(readFileSync(join(engine, 'package.json'), 'utf8'));
-  const compositorPkg = JSON.parse(readFileSync(join(compositorDir, 'package.json'), 'utf8'));
   const manifest = {
-    v: 1,
+    v: 2,
     app: cliPkg.version,
     node: process.versions.node,
-    playwright: { core: pw.version, chromium: rev('chromium'), headless_shell: rev('chromium-headless-shell') },
-    compositor: compositorPkg.version,
+    playwright: { core: playwright },
+    compositor,
+    tools,
     ffmpeg: ffmpegInfo,
     minimum_macos: MINIMUM_MACOS,
-    paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: ffmpegInfo ? 'ffmpeg/bin' : null, templates: 'engine/templates', plugin: 'plugin' },
+    paths: { node: 'node/bin/node', engine: 'engine', ffmpeg: ffmpegInfo ? 'ffmpeg/bin' : null, templates: 'engine/templates', plugin: 'plugin' },
     sha256: { node: sha256(nodeBin) },
     sizes: {},
   };
-  for (const part of ['node', 'engine', 'browsers', 'ffmpeg', 'plugin', 'licenses']) if (existsSync(join(dir, part))) manifest.sizes[part] = sizeOf(join(dir, part));
+  for (const part of ['node', 'engine', 'ffmpeg', 'plugin', 'licenses']) if (existsSync(join(dir, part))) manifest.sizes[part] = sizeOf(join(dir, part));
   writeFileSync(join(dir, 'bundle.json'), `${JSON.stringify(manifest, null, 1)}\n`);
   rmSync(join(dir, STAGE_MARK), { force: true });
   const { problems, machO } = checkStage(dir);
@@ -850,7 +793,7 @@ export function infoPlistExtras() {
 /**
  * The configuration overlay `tauri build --config <file>` merges into tauri.conf.json (written to `<out>`, never
  * committed): the bundle on, the app only, the payload through `bundle.macOS.files` — each top-level item of the stage
- * to `Resources/<name>` (never `bundle.resources`, which dereferences links and breaks Chromium's framework)
+ * to `Resources/<name>` (never `bundle.resources`, which dereferences links)
  * — the generated icns, the Info.plist extras, macOS 15. No signing identity (we sign: sign.mjs), no updater, no
  * plugin, nothing `dangerous`.
  */
@@ -1475,27 +1418,33 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
     } else if (command === 'check-node') {
       checkNode();
       process.stdout.write(`Node.js ${NODE_PIN.version}, the pinned binary\n`);
-    } else if (command === 'check-pins') {
-      // The release workflow's build job, before its long steps: the Node.js running it and the browsers in Playwright's
-      // cache are the pinned ones (the stage checks both again).
-      checkNode();
-      const pins = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
-      const rev = (name) => pins.find((b) => b.name === name)?.revision;
-      for (const folder of [`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`]) checkBrowser(join(playwrightCache(), folder), folder);
-      process.stdout.write(`Node.js ${NODE_PIN.version} and the browsers are the pinned ones\n`);
-    } else if (command === 'browser-digest') {
-      // What apps/desktop/bundle/browsers.json records for a browser revision folder (read only).
-      if (!rest[0]) throw new StageError('browser-digest <Playwright revision folder, e.g. …/ms-playwright/chromium-1194>');
-      process.stdout.write(`${browserDigest(resolve(rest[0]))}\n`);
+    } else if (command === 'record-tools') {
+      // tools.json from the real archives (tools.mjs): a folder of them, or downloaded from the publishers first.
+      const from = flag('--from');
+      const fetchInto = flag('--fetch');
+      if (!from === !fetchInto) throw new StageError('record-tools --from <folder of the archives> | --fetch <folder to download them to> [--out <file>]');
+      const entries = await recordTools({ from, fetchInto, out: flag('--out') ?? TOOLS_FILE, log: (l) => process.stderr.write(`record-tools: ${l}\n`) });
+      process.stdout.write(`${entries.map((e) => `${e.id} ${e.version}: ${e.bytes} bytes, sha256 ${e.sha256}, tree ${e.tree}`).join('\n')}\n`);
+    } else if (command === 'check-tools') {
+      // tools.json against the repository's pins; with --archives (or --fetch: the release workflow's build job, the
+      // installer's downloader), each archive against its record, extracted and checked as the installer would.
+      const file = flag('--manifest') ?? TOOLS_FILE;
+      const entries = readTools(file);
+      const archives = flag('--archives');
+      const into = flag('--fetch');
+      if (archives && into) throw new StageError('check-tools [--archives <folder> | --fetch <folder>]: one of them');
+      const problems = archives ? await checkArchives(entries, resolve(archives)) : into ? await fetchAndCheck(entries, resolve(into)) : [];
+      if (problems.length) throw new StageError(`the Tools are not the ones ${relative(REPO, file)} records:\n  ${problems.join('\n  ')}`);
+      process.stdout.write(`${relative(REPO, file)} names the repository's pins${archives || into ? ', and every archive is the recorded one' : ''} (${entries.map((e) => `${e.id} ${e.version}`).join(', ')})\n`);
     } else if (command === 'check') {
       const { problems, machO } = checkStage(rest[0] ?? '.');
       process.stdout.write(`${JSON.stringify({ problems, machO: machO.length }, null, 1)}\n`);
       process.exit(problems.length ? 1 : 0);
     } else {
-      throw new StageError('usage: bundle.mjs build --out <dir> [--ffmpeg <dir>] [--stage <dir>] [--offline] [--release | --app-only] | stage --out <dir> [--ffmpeg <dir>] | check <dir> | check-node | check-pins | browser-digest <dir>');
+      throw new StageError('usage: bundle.mjs build --out <dir> [--ffmpeg <dir>] [--stage <dir>] [--offline] [--release | --app-only] | stage --out <dir> [--ffmpeg <dir>] | check <dir> | check-node | record-tools --from <dir> | --fetch <dir> [--out <file>] | check-tools [--archives <dir> | --fetch <dir>]');
     }
   } catch (e) {
-    process.stderr.write(`bundle: ${e instanceof StageError || e instanceof SignError ? e.message : e.stack}\n`);
+    process.stderr.write(`bundle: ${e instanceof StageError || e instanceof SignError || e instanceof ToolsError ? e.message : e.stack}\n`);
     process.exit(1);
   }
 }

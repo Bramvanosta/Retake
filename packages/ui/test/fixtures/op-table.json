@@ -77,7 +77,13 @@
   "setup_notifications",
   "setup_done",
   "desktop_update_status",
-  "desktop_update"
+  "desktop_update",
+  "tools_status",
+  "tools_install",
+  "tools_control",
+  "tools_check",
+  "tools_prune",
+  "tools_reveal"
  ],
  "status": {
   "render_frame": {
@@ -4446,6 +4452,114 @@
     "required": [
      "action"
     ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_status",
+   "title": "The app's Tools",
+   "description": "The browser, the render browser and the compositor the app downloads: their state, the download's progress, the folder. Any Studio page reads it; only the desktop app's own server acts.",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_install",
+   "title": "Download the Tools",
+   "description": "Download the Tools this version names from their publishers, check each against its digest, then keep them in the Retake home (or resume a paused download). Starts it and returns: tools_status follows it. The desktop app's own server only; the person's click.",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "input": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_control",
+   "title": "Pause or cancel the download",
+   "description": "Pause the Tools' download (what arrived is kept: tools_install resumes) or cancel it (what arrived is removed) — this server's or another process's. The desktop app's own server only.",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {
+     "action": {
+      "type": "string",
+      "enum": [
+       "pause",
+       "cancel"
+      ],
+      "description": "pause: keep what arrived; cancel: remove it."
+     }
+    },
+    "required": [
+     "action"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_check",
+   "title": "Check the Tools again",
+   "description": "Every installed Tool's whole tree against the digest this version records; a Tool that differs is marked damaged until it is downloaded again. The desktop app's own server only.",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_prune",
+   "title": "Remove older Tools",
+   "description": "Remove the Tools folders this version does not name and no copy of Retake used in the last 30 days (another app's current Tools, an update's, a running worker's are kept). The desktop app's own server only; the person's click.",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "tools_reveal",
+   "title": "Show the Tools in Finder",
+   "description": "Ask the desktop app to show its Tools folder in Finder (the shell's own home's: no path comes from the page). The desktop app's own server only.",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false
+   },
+   "input": {
+    "type": "object",
+    "properties": {},
     "additionalProperties": false
    }
   }

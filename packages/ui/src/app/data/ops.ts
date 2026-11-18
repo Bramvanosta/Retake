@@ -80,3 +80,7 @@ export type InstallLocation = NonNullable<SetupStatus['location']>;
 export type UpdateFailure = NonNullable<UpdateStatus['failure']>;
 /** Why the app does not update itself (desktop_update_status `reason`, the server's own left out). */
 export type UpdateOffReason = Exclude<NonNullable<UpdateStatus['reason']>, 'not_supervised'>;
+/** tools_status: the app's downloaded Tools (shell/tools.ts). */
+export type ToolsView = Result<'tools_status'>;
+/** One Tool of tools_status. */
+export type ToolView = ToolsView['tools'][number];

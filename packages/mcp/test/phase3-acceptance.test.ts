@@ -39,7 +39,7 @@ import { flowYaml, parseYaml, scenarioChangedMessage } from '@retake/core';
 import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
 import { TEMPLATES } from '@retake/test-support/repo';
-import { linkSharedCache } from '@retake/test-support/render';
+import { linkSharedCache, renderFailure } from '@retake/test-support/render';
 import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -781,8 +781,8 @@ describe.skipIf(!ENABLED)(
         const r = await call('render', args);
         ids.render1 = data<{ render_id: string }>(r).render_id;
         const rs = await follow('render_status', { project: PROJECT, render_id: ids.render1 }, runDone);
-        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
-        expect(view.status, rs.content[0].text).toBe('succeeded');
+        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[]; error?: string } }>(rs);
+        expect(view.status, renderFailure(root, rs.content[0].text, view)).toBe('succeeded');
         expect(view.record).toMatchObject({ template: THEME, run_id: ids.run1 });
         expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
         const rv = await call('review', { project: PROJECT, render_id: ids.render1, wait_s: 25, detail: 'full' });
@@ -906,8 +906,8 @@ describe.skipIf(!ENABLED)(
         ids.render2 = data<{ render_id: string }>(r).render_id;
         expect(ids.render2).not.toBe(ids.render1);
         const rs = await follow('render_status', { project: PROJECT, render_id: ids.render2 }, runDone);
-        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
-        expect(view.status, rs.content[0].text).toBe('succeeded');
+        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[]; error?: string } }>(rs);
+        expect(view.status, renderFailure(root, rs.content[0].text, view)).toBe('succeeded');
         expect(view.record).toMatchObject({ template: THEME, run_id: ids.run2 });
         expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
         await call('review', { project: PROJECT, render_id: ids.render2, wait_s: 0 });

@@ -41,6 +41,7 @@ import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
 import { AppShell } from './shell/AppShell.js';
 import { GalleryScreen } from './project/GalleryScreen.js';
+import { ToolsScreen } from './project/ToolsScreen.js';
 import { Callout, EmptyState, LinkButton, Progress, TextArea, studioShell } from './ui-kit/index.js';
 import './tokens.css';
 import './base.css';
@@ -77,6 +78,7 @@ const TITLES: Record<Route['name'], string> = {
   record: 'Record',
   ui: 'UI gallery',
   setup: 'Set up',
+  'setup-tools': 'Tools',
   'not-found': 'Not found',
 };
 
@@ -133,6 +135,7 @@ function Studio() {
       {route.name === 'themes' && <ThemesScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} />}
       {route.name === 'record' && <RecordScreen key={route.slug} slug={route.slug} {...(route.rec ? { rec: route.rec } : {})} />}
       {route.name === 'ui' && <GalleryScreen />}
+      {route.name === 'setup-tools' && <ToolsScreen />}
       {route.name === 'not-found' && (
         <div className="sc-screen">
           <EmptyState level={1} title="Nothing here" actions={<LinkButton to={{ name: 'projects' }}>Back to the projects</LinkButton>}>

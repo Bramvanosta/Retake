@@ -3228,3 +3228,39 @@ ul.tm-cards {
   margin: 0;
   color: var(--ui-text-2);
 }
+
+/* BL-192: Welcome's Tools card and the Tools page (`#/setup/tools`). */
+.wl-tools-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+}
+.wl-tools-actions,
+.tl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+}
+.tl-head {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.tl-state {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 760px;
+}
+.tl-tool {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+.tl-use,
+.tl-folders {
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.tl-confirm {
+  display: grid;
+  gap: var(--ui-space-4);
+}

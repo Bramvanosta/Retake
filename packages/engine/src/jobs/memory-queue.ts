@@ -16,6 +16,8 @@ import type { JobFileRead, JobQueues, JobRangeRead, TakeHold } from './job-queue
 import { JobFiles } from './queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
+import type { ToolsGate } from './job-queue.js';
+import type { ProjectBrowser } from '../tools/tool-need.js';
 
 function gone(id: string): Error {
   return Object.assign(new Error(`ENOENT: job ${id} is gone`), { code: 'ENOENT' });
@@ -115,6 +117,10 @@ export interface MemoryJobQueueOptions {
   clock?: Clock;
   /** The environment whose Retake home signs its approvals (default this process's: tests). */
   env?: EngineEnv;
+  /** The needs of the app's Tools missing now (default the gate of `env`'s home and this engine's app: none in a checkout). */
+  tools?: ToolsGate;
+  /** The `browser:` of a project (default none read: the kind's need; tools/tool-need.ts). */
+  browsers?: ProjectBrowser;
 }
 
 /** The locks of the queues on one set of entries (MemoryJobQueue.exclusive). */
@@ -130,6 +136,8 @@ export class MemoryJobQueue extends StoredJobQueue {
     entries: JobEntries = new MemoryEntries(o.clock ?? systemClock),
   ) {
     super(root, o.cli ?? 'retake', entries, o.clock ?? systemClock, o.env ?? process.env);
+    if (o.tools) this.tools = o.tools;
+    if (o.browsers) this.browsers = o.browsers;
     this.hold = o.filming?.();
   }
 

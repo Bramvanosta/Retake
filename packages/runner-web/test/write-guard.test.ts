@@ -14,8 +14,8 @@ import type { AddressInfo } from 'node:net';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/core';
-import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
-import { closePage } from '../src/write-guard.js';
+import type { BrowserConfig, LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
+import { SERVICE_WORKER_NETWORK_OFF, closePage } from '../src/write-guard.js';
 import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession } from '../src/index.js';
 import type { GuardedWrite } from '../src/write-guard.js';
@@ -135,7 +135,9 @@ function env(over: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
 }
 
 /** A guarded session; `seen` collects what the guard reports. */
-async function guarded(o: { env?: ResolvedEnvironment; mocks?: WriteMockSpec[]; realms?: string[] } = {}): Promise<{ session: BrowserSession; seen: GuardedWrite[]; sockets: string[] }> {
+async function guarded(
+  o: { env?: ResolvedEnvironment; mocks?: WriteMockSpec[]; realms?: string[]; browser?: BrowserConfig } = {},
+): Promise<{ session: BrowserSession; seen: GuardedWrite[]; sockets: string[] }> {
   const seen: GuardedWrite[] = [];
   const sockets: string[] = [];
   const session = await openSession({
@@ -144,6 +146,7 @@ async function guarded(o: { env?: ResolvedEnvironment; mocks?: WriteMockSpec[]; 
     height: 600,
     scale: 1,
     kit: kitConfigFor(undefined),
+    ...(o.browser ? { browser: o.browser } : {}),
     writes: { policy: compileWritePolicy(o.env ?? env(), { scenarioMocks: o.mocks }), onWrite: (w) => seen.push(w), onWebSocket: (h) => sockets.push(h) },
     ...(o.realms ? { realms: o.realms.map((name) => ({ name })), realmOf: (id: string) => (o.realms!.includes(id) ? id : '') } : {}),
   });
@@ -398,6 +401,26 @@ describe('writes sent while a page unloads never leak', () => {
     }
     expect(seen).toBeGreaterThan(0);
   });
+
+  it('with browser.args disabling Chromium features of its own (Chromium reads only the last list): a navigation away still leaks nothing, its unload writes are stopped', async () => {
+    // As above, a round may see none (cancelled with its document); the rounds together see some.
+    let seen = 0;
+    for (let round = 0; round < 3; round++) {
+      const s = await guarded({ browser: { args: ['--disable-features=Translate'] } });
+      try {
+        const page = await s.session.page('app');
+        await page.goto(`${A}/unload.html`);
+        await page.goto(`${A}/`);
+        await settle(500);
+        expect(hits, `round ${round}`).toEqual([]);
+        expect(s.seen.every((w) => w.outcome === 'blocked')).toBe(true);
+        seen += s.seen.length;
+      } finally {
+        await s.session.close();
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
 });
 
 describe('service workers: what a service worker sends meets the guard', () => {
@@ -426,6 +449,33 @@ describe('service workers: what a service worker sends meets the guard', () => {
       expect(hits).toEqual([]);
       expect(brief(s.seen).sort()).toEqual(['blocked page POST app:/api/from-sw', 'blocked page POST app:/api/sw-background']);
     } finally {
+      await s.session.close();
+    }
+  });
+
+  it(`an inherited ${SERVICE_WORKER_NETWORK_OFF} does not take a service worker's writes out of the guard`, async () => {
+    process.env[SERVICE_WORKER_NETWORK_OFF] = '1';
+    const s = await guarded();
+    try {
+      expect(process.env[SERVICE_WORKER_NETWORK_OFF]).toBeUndefined();
+      const page = await s.session.page('app');
+      await page.goto(`${A}/`);
+      const background = await page.evaluate(async () => {
+        await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+        for (let i = 0; i < 40 && !navigator.serviceWorker.controller; i++) await new Promise((r) => setTimeout(r, 50));
+        return new Promise((resolve) => {
+          navigator.serviceWorker.onmessage = (e) => resolve(e.data);
+          navigator.serviceWorker.controller!.postMessage('go');
+          setTimeout(() => resolve('timeout'), 3000);
+        });
+      });
+      await settle(300);
+      expect(background).toBe('bg blocked');
+      expect(hits).toEqual([]);
+      expect(brief(s.seen)).toContain('blocked page POST app:/api/sw-background');
+    } finally {
+      delete process.env[SERVICE_WORKER_NETWORK_OFF];
       await s.session.close();
     }
   });

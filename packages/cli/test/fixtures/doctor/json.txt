@@ -10,8 +10,8 @@
     },
     {
       "status": "ok",
-      "name": "Chromium",
-      "detail": "141.0.7390.37 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms"
+      "name": "Browser",
+      "detail": "159.0.8154.6 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms"
     },
     {
       "status": "ok",

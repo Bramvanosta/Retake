@@ -3,7 +3,7 @@
  * opt-in `RETAKE_TEST_CHROME=1` (skipped when Google Chrome is not installed or ffmpeg is missing): the Studio end
  * to end through its screens on the fixture product, in the installed Google Chrome (Playwright `channel: 'chrome'`, a
  * temporary profile Playwright creates and deletes — never the person's own; captures are H.264, which Playwright's
- * Chromium cannot play), on a copy of projects/northfield-fixture whose environments point at the fixture started on
+ * Chromium up to 1.56 could not play), on a copy of projects/northfield-fixture whose environments point at the fixture started on
  * free ports (never 4401–4404). The Studio starts the worker itself on the first job (as a person's Studio does; the
  * live worker of the workspace's lock — its start time checked, never a pid read earlier that may be reused — is killed at
  * the end, whatever happened). Every action is a click or a key on the page:

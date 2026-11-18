@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { JOB_ID_RE } from '@retake/core/ids';
 import { JOB_STATES } from '../jobs/job-input.js';
+import { needsWords } from '../jobs/held.js';
 import { JOB_CANCEL, READ } from './annotations.js';
 import { recordOutput } from './authoring.js';
 import { detail } from './compact.js';
@@ -48,7 +49,8 @@ export const jobId = z
   .describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
 
 /** Where a queued job stands, in words (a heavy job a take holds waits for it whatever its place). */
-function queueWords(position: { ahead: number; running?: string; held_by?: 'take' }): string {
+function queueWords(position: { ahead: number; running?: string; held_by?: 'take' | 'tools'; needs?: 'browser' | 'render' }): string {
+  if (position.held_by === 'tools') return `waiting for ${needsWords(position.needs)} to be downloaded (the person downloads the Tools: the Studio's set-up, or \`retake tools install\`; it starts by itself once checked)`;
   if (position.held_by === 'take') return `waiting for a take to finish${position.ahead ? ` (${plural(position.ahead, 'job')} ahead)` : ''}`;
   return position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue';
 }

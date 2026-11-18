@@ -43,13 +43,7 @@ const put = (root: string, rel: string, data: string | Buffer = '', mode = 0o644
   chmodSync(join(root, rel), mode);
 };
 
-const CHR = 'browsers/chromium-1194/chrome-mac/Chromium.app';
-const FW = `${CHR}/Contents/Frameworks/Chromium Framework.framework`;
-const V = `${FW}/Versions/141.0.7390.37`;
-const HS = 'browsers/chromium_headless_shell-1194/chrome-mac';
-const COMP = 'engine/node_modules/@remotion/compositor-darwin-arm64';
-
-/** A payload laid out as the real stage is, every native file a few bytes of Mach-O magic (one FAT). */
+/** A payload laid out as the real stage is, every native file a few bytes of Mach-O magic (one FAT): no browser, no compositor. */
 function fakePayload(): string {
   const root = dir('payload');
   const macho = (rel: string, data = THIN) => put(root, rel, data, 0o755);
@@ -61,30 +55,42 @@ function fakePayload(): string {
   macho('engine/node_modules/@img/sharp-darwin-arm64/lib/sharp-darwin-arm64.node');
   macho('engine/node_modules/@img/sharp-libvips-darwin-arm64/lib/libvips-cpp.8.17.3.dylib');
   macho('engine/node_modules/@rspack/binding-darwin-arm64/rspack.darwin-arm64.node');
-  for (const f of ['libavcodec.dylib', 'libavutil.dylib', 'remotion', 'ffmpeg', 'ffprobe']) macho(`${COMP}/${f}`);
-  put(root, `${COMP}/package.json`, '{}');
   put(root, 'engine/dist/bin.js', '#!/usr/bin/env node\n');
+  return root;
+}
+
+// A nested bundle layout (an app holding a framework with helpers and versioned links), signed through a table of its own:
+// the real table names no bundle any more, the walk still supports them.
+const APPB = 'tools/Example.app';
+const FW = `${APPB}/Contents/Frameworks/Example Framework.framework`;
+const V = `${FW}/Versions/1.2.3`;
+const BUNDLE_TABLE = [
+  { id: 'fw-libraries', kind: 'file', path: `${APPB}/Contents/Frameworks/Example Framework.framework/Versions/*/Libraries/*.dylib`, entitlements: null, dryDLV: false },
+  { id: 'fw-helper', kind: 'bundle', path: `${APPB}/Contents/Frameworks/Example Framework.framework/Versions/*/Helpers/Example Helper.app`, entitlements: null, dryDLV: true },
+  { id: 'fw-helper-gpu', kind: 'bundle', path: `${APPB}/Contents/Frameworks/Example Framework.framework/Versions/*/Helpers/Example Helper (GPU).app`, entitlements: null, dryDLV: true },
+  { id: 'framework', kind: 'bundle', path: `${APPB}/Contents/Frameworks/Example Framework.framework`, entitlements: null, dryDLV: false },
+  { id: 'app', kind: 'bundle', path: APPB, entitlements: null, dryDLV: true },
+];
+function fakeBundles(root: string): string {
+  const macho = (rel: string) => put(root, rel, THIN, 0o755);
   for (const f of ['libEGL.dylib', 'libGLESv2.dylib']) macho(`${V}/Libraries/${f}`);
-  for (const f of ['chrome_crashpad_handler', 'app_mode_loader', 'web_app_shortcut_copier']) macho(`${V}/Helpers/${f}`);
-  for (const h of ['Chromium Helper', 'Chromium Helper (Renderer)', 'Chromium Helper (GPU)', 'Chromium Helper (Plugin)', 'Chromium Helper (Alerts)']) {
+  for (const h of ['Example Helper', 'Example Helper (GPU)']) {
     macho(`${V}/Helpers/${h}.app/Contents/MacOS/${h}`);
     put(root, `${V}/Helpers/${h}.app/Contents/Info.plist`, '<plist/>');
   }
-  macho(`${V}/Chromium Framework`);
+  macho(`${V}/Example Framework`);
   put(root, `${V}/Resources/Info.plist`, '<plist/>');
   for (const [link, to] of [
-    ['Versions/Current', '141.0.7390.37'],
-    ['Chromium Framework', 'Versions/Current/Chromium Framework'],
+    ['Versions/Current', '1.2.3'],
+    ['Example Framework', 'Versions/Current/Example Framework'],
     ['Resources', 'Versions/Current/Resources'],
     ['Libraries', 'Versions/Current/Libraries'],
     ['Helpers', 'Versions/Current/Helpers'],
   ]) {
     symlinkSync(to, join(root, FW, link));
   }
-  macho(`${CHR}/Contents/MacOS/Chromium`);
-  put(root, `${CHR}/Contents/Info.plist`, '<plist/>');
-  for (const f of ['headless_shell', 'libEGL.dylib', 'libGLESv2.dylib']) macho(`${HS}/${f}`);
-  put(root, `${HS}/resources.pak`, 'not code');
+  macho(`${APPB}/Contents/MacOS/Example`);
+  put(root, `${APPB}/Contents/Info.plist`, '<plist/>');
   return root;
 }
 
@@ -105,7 +111,7 @@ describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle sectio
   it('the overlay: the app only, the payload through macOS.files (never resources), macOS 15, our Info.plist keys; no signing, updater or plugin', async () => {
     const { bundleOverlay, infoPlistExtras, MINIMUM_MACOS, tauriBuildArgs } = await bundleModule();
     const stage = dir('stage');
-    for (const d of ['node', 'engine', 'browsers', 'plugin', 'licenses', 'bin']) mkdirSync(join(stage, d));
+    for (const d of ['node', 'engine', 'plugin', 'licenses', 'bin']) mkdirSync(join(stage, d));
     for (const f of ['bundle.json', 'launch.json', '.retake-stage']) writeFileSync(join(stage, f), '');
     const o = bundleOverlay({ stage, icon: '/scratch/icon.icns', infoPlist: '/scratch/Info.plist' });
     expect(MINIMUM_MACOS).toBe('15.0');
@@ -119,7 +125,7 @@ describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle sectio
     expect(o.bundle.macOS.hardenedRuntime).toBe(true);
     expect(o.bundle.macOS.infoPlist).toBe('/scratch/Info.plist');
     expect('signingIdentity' in o.bundle.macOS).toBe(false);
-    expect(o.bundle.macOS.files).toEqual(Object.fromEntries(['bin', 'browsers', 'bundle.json', 'engine', 'launch.json', 'licenses', 'node', 'plugin'].map((x) => [`Resources/${x}`, join(stage, x)])));
+    expect(o.bundle.macOS.files).toEqual(Object.fromEntries(['bin', 'bundle.json', 'engine', 'launch.json', 'licenses', 'node', 'plugin'].map((x) => [`Resources/${x}`, join(stage, x)])));
     expect(JSON.stringify(o)).not.toMatch(/dangerous|updater|pubkey|endpoints|signingIdentity|entitlements|"plugins"/i);
     const plist = infoPlistExtras();
     expect(plist).toContain('<key>NSLocalNetworkUsageDescription</key>');
@@ -210,15 +216,20 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
   put(stage, 'node/guard-hooks.mjs', readFileSync(join(APP, 'bundle', 'guard-hooks.mjs')));
   put(stage, 'engine/dist/bin.js', '');
   mkdirSync(join(stage, 'engine', 'node_modules', 'playwright-core'), { recursive: true });
-  for (const d of ['browsers', 'engine/templates', 'plugin']) mkdirSync(join(stage, d), { recursive: true });
+  for (const d of ['engine/templates', 'plugin']) mkdirSync(join(stage, d), { recursive: true });
+  const notices = join(APP, 'licenses', 'tools');
+  for (const f of readdirSync(notices)) put(stage, `licenses/tools/${f}`, readFileSync(join(notices, f)));
   put(
     stage,
     'bundle.json',
     JSON.stringify({
-      v: 1,
+      v: 2,
       app: '0.3.0',
+      playwright: { core: '1.65.1' },
+      compositor: '4.0.534',
+      tools: JSON.parse(readFileSync(join(APP, 'bundle', 'tools.json'), 'utf8')).platforms['darwin-arm64'],
       ffmpeg: null,
-      paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
+      paths: { node: 'node/bin/node', engine: 'engine', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
       sha256: { node: 'stale' },
     }),
   );
@@ -364,43 +375,33 @@ describe('one allow-listed environment for every child of the build', () => {
 });
 
 describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
-  it('release entitlements: the least the probe proved — allow-jit for Node.js, the Renderer / GPU helpers and the headless shell; DLV only for Node and the Plugin helper; no library carries any; no get-task-allow', async () => {
+  it('release entitlements: the least the probe proved — allow-jit and DLV for Node.js only; no library carries any; no get-task-allow; no row names a Tool (the app carries no browser and no compositor)', async () => {
     const { readTable, entitlementsFor, entitlementKeys, DLV, ENTITLEMENTS_DIR } = await signModule();
     const entries = readTable();
     const release = Object.fromEntries(entries.map((e: Untyped) => [e.id, entitlementsFor(e, 'release')]));
-    expect(
-      entries
-        .filter((e: Untyped) => release[e.id].includes(DLV))
-        .map((e: Untyped) => e.id)
-        .sort(),
-    ).toEqual(['chromium-helper-plugin', 'node']);
     const JIT = 'com.apple.security.cs.allow-jit';
     expect(release.node).toEqual([JIT, DLV]);
-    for (const id of ['chromium-helper-renderer', 'chromium-helper-gpu', 'headless-shell']) expect(release[id], id).toEqual([JIT]);
-    // The browser process and the plain (utility, network) helper JIT nothing: no entitlement.
-    for (const id of ['chromium', 'chromium-helper']) expect(release[id], id).toEqual([]);
-    // allow-unsigned-executable-memory: the Plugin helper only (Chromium's own set; Retake never starts it).
-    expect(entries.filter((e: Untyped) => release[e.id].includes('com.apple.security.cs.allow-unsigned-executable-memory')).map((e: Untyped) => e.id)).toEqual(['chromium-helper-plugin']);
-    expect(release['chromium-helper-plugin']).toEqual(['com.apple.security.cs.allow-unsigned-executable-memory', DLV]);
-    expect(release['chromium-helper-alerts']).toEqual([]);
-    for (const id of ['ffmpeg', 'ffprobe', 'esbuild', 'compositor-remotion']) expect(release[id], id).toEqual([]);
+    // Node.js alone carries any entitlement.
+    expect(entries.filter((e: Untyped) => release[e.id].length).map((e: Untyped) => e.id)).toEqual(['node']);
+    for (const id of ['ffmpeg', 'ffprobe', 'esbuild', 'esbuild-darwin-arm64', 'sharp', 'sharp-libvips', 'rspack']) expect(release[id], id).toEqual([]);
     const library = (e: Untyped) => /\.(dylib|node)$/.test(e.path) || e.path.endsWith('.framework');
     for (const e of entries.filter(library)) {
       expect(e.entitlements, e.id).toBeNull();
       expect(e.dryDLV, e.id).toBe(false);
     }
+    // The Tools are downloaded into the Retake home, never signed by the app: no row for a browser, the headless shell or
+    // the compositor package.
+    expect(entries.map((e: Untyped) => e.id).sort()).toEqual(['esbuild', 'esbuild-darwin-arm64', 'ffmpeg', 'ffprobe', 'node', 'rspack', 'sharp', 'sharp-libvips']);
+    for (const e of entries) expect(e.path, e.id).not.toMatch(/^browsers\/|chrom|headless|compositor/i);
     for (const f of readdirSync(ENTITLEMENTS_DIR)) {
       const keys = entitlementKeys(readFileSync(join(ENTITLEMENTS_DIR, f), 'utf8'));
       expect(keys.length, f).toBeGreaterThan(0);
-      for (const k of keys) expect(['com.apple.security.cs.allow-jit', 'com.apple.security.cs.allow-unsigned-executable-memory', DLV], `${f}: ${k}`).toContain(k);
-      expect(readFileSync(join(ENTITLEMENTS_DIR, f), 'utf8')).not.toMatch(/get-task-allow|allow-dyld-environment|disable-executable-page-protection/);
+      for (const k of keys) expect([JIT, DLV], `${f}: ${k}`).toContain(k);
+      expect(readFileSync(join(ENTITLEMENTS_DIR, f), 'utf8')).not.toMatch(/get-task-allow|allow-dyld-environment|disable-executable-page-protection|allow-unsigned-executable-memory/);
     }
-    // Every plist the table names exists, and every plist is used.
-    expect([...new Set(entries.map((e: Untyped) => e.entitlements).filter(Boolean))].sort()).toEqual(
-      readdirSync(ENTITLEMENTS_DIR)
-        .map((f) => f.replace(/\.plist$/, ''))
-        .sort(),
-    );
+    // Every plist the table names exists, and every plist is used (the browsers' JIT and Plugin sets are gone).
+    expect(readdirSync(ENTITLEMENTS_DIR).sort()).toEqual(['node.plist']);
+    expect([...new Set(entries.map((e: Untyped) => e.entitlements).filter(Boolean))].sort()).toEqual(['node']);
   });
 
   it('the dry set is the release set plus disable-library-validation where the table says so — nothing else', async () => {
@@ -419,22 +420,37 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
 
   it('the walk: every Mach-O (thin and FAT) of a payload is covered, inside-out; a stray one, an unmatched entry or two entries for one file fail', async () => {
     const { signPlan, readTable, insideOut } = await signModule();
-    const root = fakePayload();
-    const plan = signPlan(root);
+    const plan = signPlan(fakePayload());
     expect(plan.problems).toEqual([]);
-    expect(plan.machO).toHaveLength(28);
+    expect(plan.machO).toHaveLength(8);
     expect(plan.machO.find((m: Untyped) => m.path === 'node/bin/node').kind).toBe('fat');
     expect(insideOut(plan.items)).toBe(true);
-    const at = (p: string) => plan.items.findIndex((i: Untyped) => i.path === p);
+
+    // A browser or the compositor package left in a payload: Mach-O files the table does not name (refused).
+    const withTools = fakePayload();
+    put(withTools, 'browsers/chromium-1255/chrome-mac-arm64/Example.app/Contents/MacOS/Example', THIN, 0o755);
+    put(withTools, 'engine/node_modules/@remotion/compositor-darwin-arm64/remotion', THIN, 0o755);
+    const pt = signPlan(withTools).problems.join('\n');
+    expect(pt).toMatch(/browsers\/chromium-1255\/.*Example: a Mach-O \(thin\) the signing table does not name/);
+    expect(pt).toMatch(/compositor-darwin-arm64\/remotion: a Mach-O \(thin\) the signing table does not name/);
+
+    // Bundles (a table of their own): helpers and libraries before the framework, the framework before the app.
+    const table = [...readTable(), ...BUNDLE_TABLE];
+    const root = fakeBundles(fakePayload());
+    const bplan = signPlan(root, table);
+    expect(bplan.problems).toEqual([]);
+    expect(bplan.machO).toHaveLength(14);
+    expect(insideOut(bplan.items)).toBe(true);
+    const at = (p: string) => bplan.items.findIndex((i: Untyped) => i.path === p);
     expect(at(`${V}/Libraries/libEGL.dylib`)).toBeLessThan(at(FW));
-    expect(at(`${V}/Helpers/Chromium Helper (Renderer).app`)).toBeLessThan(at(FW));
-    expect(at(FW)).toBeLessThan(at(CHR));
-    expect(plan.items.find((i: Untyped) => i.path === CHR).entry.id).toBe('chromium');
+    expect(at(`${V}/Helpers/Example Helper (GPU).app`)).toBeLessThan(at(FW));
+    expect(at(FW)).toBeLessThan(at(APPB));
+    expect(bplan.items.find((i: Untyped) => i.path === APPB).entry.id).toBe('app');
     // The links of the framework are not followed (each file once).
-    expect(new Set(plan.machO.map((m: Untyped) => m.path)).size).toBe(plan.machO.length);
+    expect(new Set(bplan.machO.map((m: Untyped) => m.path)).size).toBe(bplan.machO.length);
     // A helper's main executable is its bundle's; the framework's binary is the framework's.
-    expect(plan.machO.find((m: Untyped) => m.path.endsWith('MacOS/Chromium Helper (GPU)')).entry.id).toBe('chromium-helper-gpu');
-    expect(plan.machO.find((m: Untyped) => m.path === `${V}/Chromium Framework`).entry.id).toBe('chromium-framework');
+    expect(bplan.machO.find((m: Untyped) => m.path.endsWith('MacOS/Example Helper (GPU)')).entry.id).toBe('fw-helper-gpu');
+    expect(bplan.machO.find((m: Untyped) => m.path === `${V}/Example Framework`).entry.id).toBe('framework');
 
     const stray = fakePayload();
     put(stray, 'engine/node_modules/some-native/build/Release/addon.node', FAT, 0o644);
@@ -443,15 +459,15 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
     expect(p2).toMatch(/some-native\/build\/Release\/addon\.node: a Mach-O \(fat\) the signing table does not name/);
     expect(p2).toMatch(/some-tool\/bin\/tool: a Mach-O \(thin\) the signing table does not name/);
 
-    const nested = fakePayload();
-    put(nested, `${CHR}/Contents/MacOS/extra-tool`, THIN, 0o755);
-    expect(signPlan(nested).problems).toEqual([]); // an app's Contents/MacOS is its own
-    put(nested, `${V}/Helpers/Chromium Helper.app/Contents/Frameworks/x.dylib`, THIN, 0o755);
-    expect(signPlan(nested).problems.join('\n')).toMatch(/Chromium Helper\.app\/Contents\/Frameworks\/x\.dylib: a Mach-O/);
+    const nested = fakeBundles(fakePayload());
+    put(nested, `${APPB}/Contents/MacOS/extra-tool`, THIN, 0o755);
+    expect(signPlan(nested, table).problems).toEqual([]); // an app's Contents/MacOS is its own
+    put(nested, `${V}/Helpers/Example Helper.app/Contents/Frameworks/x.dylib`, THIN, 0o755);
+    expect(signPlan(nested, table).problems.join('\n')).toMatch(/Example Helper\.app\/Contents\/Frameworks\/x\.dylib: a Mach-O/);
 
-    const noBrowser = fakePayload();
-    rmSync(join(noBrowser, HS), { recursive: true });
-    expect(signPlan(noBrowser).problems.join('\n')).toMatch(/entry headless-shell .* matches nothing/);
+    const noEsbuild = fakePayload();
+    rmSync(join(noEsbuild, 'engine', 'node_modules', 'esbuild'), { recursive: true });
+    expect(signPlan(noEsbuild).problems.join('\n')).toMatch(/entry esbuild .* matches nothing/);
     const noFfmpeg = fakePayload();
     rmSync(join(noFfmpeg, 'ffmpeg'), { recursive: true });
     expect(signPlan(noFfmpeg).problems).toEqual([]); // optional: an app without ffmpeg of its own
@@ -462,10 +478,10 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
 
   it('table paths: * stays inside one path segment', async () => {
     const { pathPattern } = await signModule();
-    const re = pathPattern('browsers/chromium-*/chrome-mac/Chromium Helper (GPU).app');
-    expect(re.test('browsers/chromium-1194/chrome-mac/Chromium Helper (GPU).app')).toBe(true);
-    expect(re.test('browsers/chromium-1194/x/chrome-mac/Chromium Helper (GPU).app')).toBe(false);
-    expect(re.test('browsers/chromium-1194/chrome-mac/Chromium Helper xGPUx.app')).toBe(false);
+    const re = pathPattern('tools/example-*/bin/Example Helper (GPU).app');
+    expect(re.test('tools/example-1255/bin/Example Helper (GPU).app')).toBe(true);
+    expect(re.test('tools/example-1255/x/bin/Example Helper (GPU).app')).toBe(false);
+    expect(re.test('tools/example-1255/bin/Example Helper xGPUx.app')).toBe(false);
   });
 });
 
@@ -1222,21 +1238,27 @@ describe('the manifest, the pruned installers, the generated folder of the check
     expect(refreshManifestHashes(d)).toMatchObject({ ffmpeg: null, sha256: { node: sha('signed node') } });
   });
 
-  it("the installer scripts nothing runs (playwright-core's sudo installers, the framework's install.sh) are pruned, and the layout check fails on them", async () => {
+  it("what the payload never carries (playwright-core's sudo installers, the compositor package: a Tool) is pruned, and the layout check fails on it", async () => {
     const { prunedIn, checkStage, PRUNED } = await bundleModule();
-    expect(PRUNED).toEqual(['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh']);
+    expect(PRUNED).toEqual(['engine/node_modules/playwright-core/bin', 'engine/node_modules/@remotion/compositor-darwin-arm64']);
     const d = dir('pruned');
     put(d, 'engine/node_modules/playwright-core/bin/reinstall_chrome_stable_mac.sh', '#!/bin/sh\nsudo true\n', 0o755);
-    put(d, `${V}/Resources/install.sh`, '#!/bin/sh\n', 0o755);
-    put(d, `${V}/Resources/Info.plist`, '<plist/>');
+    put(d, 'engine/node_modules/@remotion/compositor-darwin-arm64/remotion', THIN, 0o755);
+    put(d, 'engine/node_modules/@remotion/renderer/package.json', '{}');
     expect(
       prunedIn(d)
         .map((p: string) => p.slice(d.length + 1))
         .sort(),
-    ).toEqual(['engine/node_modules/playwright-core/bin', `${V}/Resources/install.sh`].sort());
+    ).toEqual(['engine/node_modules/@remotion/compositor-darwin-arm64', 'engine/node_modules/playwright-core/bin']);
     const problems = checkStage(d, { machinePaths: [] }).problems.join('\n');
-    expect(problems).toMatch(/engine\/node_modules\/playwright-core\/bin: an installer script the payload must not carry \(PRUNED\)/);
-    expect(problems).toMatch(/Resources\/install\.sh: an installer script the payload must not carry/);
+    expect(problems).toMatch(/engine\/node_modules\/playwright-core\/bin: the payload must not carry it \(PRUNED\)/);
+    expect(problems).toMatch(/engine\/node_modules\/@remotion\/compositor-darwin-arm64: the payload must not carry it \(PRUNED\)/);
+    // The stage prunes after its Tools are checked against the deployed compositor (bundle.mjs stageInto).
+    const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
+    const stageInto = src.slice(src.indexOf('function stageInto('), src.indexOf('// ——— The app and the DMG'));
+    expect(stageInto.indexOf('stageTools(engine)')).toBeGreaterThan(0);
+    expect(stageInto.indexOf('for (const p of prunedIn(dir)) rmSync(p, { recursive: true, force: true });')).toBeGreaterThan(stageInto.indexOf('stageTools(engine)'));
+    expect(stageInto).not.toMatch(/relinkCompositor|install_name_tool|playwrightCache|checkBrowser|join\(dir, 'browsers'\)|chromium/);
   });
 
   it('apps/desktop/gen (tauri-build writes it, git ignores it): the snapshot covers it, and the build puts it back as it was', async () => {

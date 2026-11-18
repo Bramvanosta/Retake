@@ -50,6 +50,7 @@ import { NO_FILTER, alsoServing, alsoServingWords, filterItems, groupByKind, isK
 import type { LibraryFilter } from '../words/library-words.js';
 import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
+import { ToolsNeeded } from '../shell/tools-parts.js';
 import { Button, Callout, LinkButton, StatusMark } from '../ui-kit/index.js';
 
 export { nextCard } from './library-grid-keys.js';
@@ -233,6 +234,8 @@ function LibraryActions({ v, slug, pump, loopsToRender }: { v: LibraryViewAnswer
 function LibraryAlerts({ v, pump, pumpError }: { v: LibraryViewAnswer; pump: RenderPump; pumpError: string | null }) {
   return (
     <>
+      {/* Posters and loops are rendered (preview jobs): they wait for the render tools. */}
+      <ToolsNeeded need="render" what="Rendering the components' posters and loops" testId="library-tools" />
       {pumpError && (
         <Callout state="warn" role="alert" title="No preview was queued">
           <Txt text={pumpError} />{' '}

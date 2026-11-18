@@ -62,8 +62,8 @@ export interface CodecProbe {
 }
 
 /**
- * Whether this browser plays the capture's codec. Playwright's Chromium plays no H.264; the
- * real Chrome, Safari and Firefox on macOS do. Unknown codec or no way to ask: playable (the frame says if it fails).
+ * Whether this browser plays the capture's codec. A Chromium build without proprietary codecs plays no
+ * H.264 (Playwright's own, up to 1.56); Chrome, Chrome for Testing, Safari and Firefox on macOS do. Unknown codec or no way to ask: playable (the frame says if it fails).
  */
 export async function canPlay(codec: string | undefined, probe: CodecProbe, size: { width: number; height: number; fps: number }): Promise<boolean> {
   const type = codecType(codec);

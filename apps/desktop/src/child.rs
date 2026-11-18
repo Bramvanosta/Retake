@@ -168,6 +168,11 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                     crate::update_request(a);
                     continue;
                 }
+                // The server's answer on the update's Tools: the wait before the quit goes on, or fails.
+                PipeMsg::UpdateTools { version, answer } => {
+                    crate::update::tools_answer(version, answer);
+                    continue;
+                }
                 // The window page's state of its commands in the menu (through the server's desktop_menu op).
                 PipeMsg::Menu(items) => {
                     crate::menu::apply(items);

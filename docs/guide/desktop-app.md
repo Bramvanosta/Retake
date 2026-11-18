@@ -4,9 +4,10 @@ Installing Retake.app, releasing an update, and the desktop shell. Part of the [
 
 ## Install the app (macOS)
 
-**Retake.app** carries everything it needs — its own Node.js, engine, Chromium and render browser, ffmpeg, starter
-themes and Claude plugin (L5.16): no repository, Node.js, Homebrew or Playwright download on the Mac that runs it.
-macOS 15 or later, Apple silicon.
+**Retake.app** carries its own Node.js, engine, ffmpeg, starter themes and Claude plugin (L5.16): no repository,
+Node.js or Homebrew on the Mac that runs it. Three programs it does not carry — the **Tools**: the browser (Chrome for
+Testing), the render browser (Chrome Headless Shell) and the rendering library's compositor — it downloads once, on
+your click, from their publishers (BL-192; *The Tools* below). macOS 15 or later, Apple silicon.
 
 1. Open `Retake_<version>_aarch64.dmg` and drag **Retake** onto **Applications**.
 2. Open Retake from Applications. A release built with a Developer ID (the release page says "notarised by Apple")
@@ -58,7 +59,8 @@ macOS 15 or later, Apple silicon.
    No MCP tool can install the command or register Retake with Claude: these are the Studio's own operations, on the
    app's own server only.
 6. The command line is inside the app either way: `/Applications/Retake.app/Contents/Resources/bin/retake doctor`
-   (every tool says `bundled`). Link to it rather than copying it (a copy outside the app refuses to run). The app's
+   (ffmpeg and ffprobe say `bundled`; the browser, the render browser and the compositor `downloaded Tools`, or
+   "not downloaded yet"). Link to it rather than copying it (a copy outside the app refuses to run). The app's
    code only loads its own modules: a `node_modules` folder above the app (in /Applications, your home…) is never read.
    Hooks and sandbox commands run with the app's Node.js first on their PATH (BL-141).
 7. **Two copies of Retake** (the app and a repository checkout, or two apps) share your workspaces and the Retake home:
@@ -72,12 +74,18 @@ macOS 15 or later, Apple silicon.
    click opens a sheet with its release notes (plain text) and **Later · Install and Restart** — nothing installs
    without that click. Install and Restart downloads the update (https only, at most 1.5 GB, stopped after a minute
    without data; Later stops it) and checks its signature against the public key compiled into the app (and that it
-   was signed for that very version, never an older one), keeps it in the app's cache folder, waits while a job of
+   was signed for that very version, never an older one), keeps it in the app's cache folder, downloads and checks
+   the Tools the new version needs that this Mac does not have yet (the step **Tools** in the sheet; nothing when the
+   new version uses the same ones — the current app's Tools are not touched, so it keeps working meanwhile; a failure
+   there installs nothing and says `tools`, with Try again; an update whose list of Tools this version cannot read —
+   a newer format — downloads nothing here and goes on: the new version asks for its Tools at its first start), waits while a job of
    this workspace runs or waits (Later stops waiting and removes the download), asks the usual quit question if a tab
    holds unsaved text — your answer holds however long the question stays open — stops the Studio server, swaps the
-   app in place and restarts it. The sheet lists these steps and says the one under way: the download with its
+   app in place and restarts it. The new version, once its Tools are all here, removes the older Tools folders no
+   copy of Retake still needs. The sheet lists these steps and says the one under way: the download with its
    megabytes and percent and a bar (the status bar's button shows the percent too, and so does the app's Dock icon,
-   seen from another app or with the window closed), the signature check, the jobs it waits for, the quit. The app
+   seen from another app or with the window closed), the signature check, the new Tools, the jobs it waits for, the
+   quit. The app
    comes back under the icon you keep in the Dock: it starts again only once the old one has quit. Its window is gone
    for those few seconds (the Dock icon shows ↻), and the restarted app says **Updated to vX** once. A check while an install is under way is refused, with a word why. An update that
    cannot be installed keeps the app you have and says so at its next start, which checks the feed again at once (the
@@ -88,6 +96,30 @@ macOS 15 or later, Apple silicon.
    version from its disk image. `RETAKE_DISABLE_UPDATE_CHECK=1` in the app's environment turns the checks off;
    `retake doctor` shows the last successful check (`App updates`). A build without a feed — the developer app, a
    bundle built without the two variables — says "Updates are off in this build" (doctor too).
+9. **The Tools** (BL-192). The Set-up sheet's first item, **Browser and render tools**, lists the three Tools (name,
+   version, publisher, size), the folder they go to (`<Retake home>/tools/`, so `~/.retake/tools/` unless
+   `RETAKE_HOME` says otherwise) and **Download · 315 MB** (the size of the three archives; about 600 MB on disk). Nothing
+   downloads before that click, and no agent can start it. While it downloads, the item shows one bar per Tool, Pause
+   and Cancel; Done closes the sheet and the download goes on, its percent in the status bar (and in a card of the
+   Welcome screen's Set up column). The render browser comes first, then the compositor, then the browser. Each
+   archive comes from its publisher only — Google's Chrome for Testing downloads for the two browsers, the npm
+   registry for the compositor, https at every redirect — and is checked against the sha256 the app records before
+   anything of it is opened; each folder is checked again once extracted (its tree digest), then made read-only. A lost
+   connection keeps what arrived (Resume goes on from there; Retake retries for a while by itself first); a file that
+   does not match is deleted, nothing of it extracted, and the item shows the expected and the received sha256 with
+   Try again (extracted files whose tree digest does not match are discarded the same way). Captures, sign-ins, recordings, renders and stills asked for meanwhile **wait in the queue** and start by
+   themselves once what they need is checked (a project that films with a browser of its own, `browser.executable` or
+   an installed Chrome, does not wait for the browser; Shoot says "Waiting for the browser" only while the queue holds
+   the job) (the status bar says what they wait for — the browser, or the render tools; Cancel still
+   cancels them). **The Tools page** (`#/setup/tools`, from the item's Show details…) lists each Tool's version, source,
+   download and disk size and state, the folder (Show in Finder), when they were last checked (**Check again** reads
+   every file, not while a download runs: a changed Tool is marked damaged until downloaded again, and one download
+   repairs it), Terms of each tool… (who publishes it, its
+   licence, that Retake downloads it from the publisher and does not redistribute it, and the licence files of its
+   folder), and **Older versions · N MB · Remove…** (folders this version no longer uses; never one another copy of
+   Retake started with in the last 30 days, or an update just downloaded). The same from a terminal: `retake tools`,
+   `retake tools install`, `retake tools check`, `retake tools prune` ([CLI](cli.md)). `retake doctor` says the state
+   on its Tools, Browser, Render browser and Compositor lines.
 
 **Building the app and the DMG** (from a checkout, offline once the caches are filled):
 
@@ -105,7 +137,7 @@ allow-listed environment: no credential of your shell (Apple, updater keys, regi
 cargo's build scripts or anything else (the updater's private key reaches only the command that signs the update archive: *Releasing an update* below). Everything lands in the folder you name — a folder of its own: empty (or a
 previous build's), never in the checkout, /Applications, ~/Library, your home folder itself or the Desktop / Documents
 / Downloads folder itself (a folder inside them is fine) — `app/Retake.app`, `Retake_<version>_aarch64.dmg` and
-`bundle-report.json` (≈ 1 GB app, ≈ 420 MB DMG, ≈ 3 min with a cold cargo cache; the folder needs ≈ 4 GB free while
+`bundle-report.json` (≈ 490 MB app, ≈ 200 MB DMG since the Tools are downloaded instead (BL-192), ≈ 3 min with a cold cargo cache; the folder needs ≈ 4 GB free while
 it builds: stage, app, DMG and cargo's target). `--ffmpeg` takes a relocatable build (`node scripts/build-ffmpeg.mjs`);
 without it the app uses the system's ffmpeg. `--stage <dir>` reuses a stage (`bundle.mjs stage`) of the app's own
 version: one staged before a version bump is refused before Tauri builds anything (stage again). Cargo runs with
@@ -125,8 +157,10 @@ pre-release). The workflow builds the ad hoc app on one runner (`pnpm desktop:bu
 another that runs only this repository's scripts (`node apps/desktop/scripts/release.mjs sign --app <…/Retake.app>
 --out <folder> [--release] [--app-version <v>] [--tauri-cli <folder>]`): the signing keys never share a runner with a
 dependency's code; the update archive is signed by a fresh copy of the pinned Tauri CLI, made right before and
-removed right after. The stage refuses a Node.js or a browser build other than the ones `apps/desktop/bundle/node.json`
-and `browsers.json` pin (`node apps/desktop/scripts/bundle.mjs check-pins`). The same release run by hand — your
+removed right after. The stage refuses a Node.js other than the one `apps/desktop/bundle/node.json` pins, and a
+`apps/desktop/bundle/tools.json` that does not name what the lockfile's playwright-core and compositor pin; the
+workflow checks each Tool's published archive against tools.json (`node apps/desktop/scripts/bundle.mjs check-tools
+--fetch <folder>`). The same release run by hand — your
 Developer ID, notarisation, stapling — is `pnpm desktop:release --out <folder> --ffmpeg <folder>` (the ad hoc build,
 then the same signing step; MACOS-CHECKLIST 15b). It refuses before anything runs unless `APPLE_SIGNING_IDENTITY` ("Developer ID
 Application: <name> (<TEAM>)"), `APPLE_TEAM_ID` and a notarisation credential are set: `APPLE_KEYCHAIN_PROFILE`, a
@@ -382,22 +416,22 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
 - **The standalone app's payload (L5.16, in progress).** `node apps/desktop/scripts/bundle.mjs stage --out <scratch dir>
   [--ffmpeg <dir with ffmpeg and ffprobe>]` stages, offline, everything the app will carry in
   `Contents/Resources`: this Node.js (major 22, re-signed ad hoc), the engine (`pnpm deploy --prod`, hoisted, without
-  maps or `.d.ts`), the Chromium and headless shell revisions the engine's playwright-core pins (copied from
-  Playwright's cache, never downloaded), Remotion's compositor relinked to `@loader_path`, ffmpeg (relocatable builds
+  maps or `.d.ts`; since BL-192 without the compositor package: the app downloads it), ffmpeg (relocatable builds
   only; without `--ffmpeg` the system's is used), the starter themes, the Claude plugin, the licences and `bundle.json`
-  (versions, relative paths, sha256, sizes). ≈ 980 MB with ffmpeg. `bundle.mjs check <dir>` re-runs its layout check
+  (versions, relative paths, sha256, sizes, and the Tools to download: `tools.json`'s entries). No browser: the app
+  downloads its Tools. ≈ 470 MB with ffmpeg. `bundle.mjs check <dir>` re-runs its layout check
   (links relative and inside, no file with a second hard link, no path of the build machine in any text file, one
-  playwright-core, the browser markers empty). The stage never writes the checkout: pnpm hard-links the injected
+  playwright-core, no browser and no compositor left). The stage never writes the checkout: pnpm hard-links the injected
   workspace packages to the repository's files, so the stage gives each of them a copy of its own before writing
   anything, copies only git-tracked templates and skills, and ends by comparing the checkout's `git status` (and the
   bytes of every file it lists) with what it was. The staged engine runs as is: `<stage>/node/bin/node
-  <stage>/engine/dist/bin.js doctor` names every tool `bundled` (a damaged `bundle.json` is an "App bundle" FAIL line,
+  <stage>/engine/dist/bin.js doctor` names ffmpeg and ffprobe `bundled` and the Tools not downloaded yet (a damaged `bundle.json` is an "App bundle" FAIL line,
   never a crash). Nothing writes inside a bundle (a workspace or one of its folders there, a project folder linked into
   it, a `$RETAKE_HOME` there, any command's `--out` there, or a component preview next to a built-in component, is
   refused; from it, `components preview --all` means `--workspace`). Licences: `apps/desktop/licenses/` holds our
-  ffmpeg's notices and written source offer, and the notice of Remotion's compositor (its own GPL FFmpeg build; the
-  stage refuses a compositor version the notice does not name). That compositor build also compiles in fdk-aac next to
-  the GPL (BACKLOG BL-138): a licence risk accepted on 2026-11-04 for the releases this repository publishes — public
-  GitHub releases, so a distribution to anyone who downloads them, not only our own use — to be resolved before any
-  sale. The app and its DMG: [Install the app
+  ffmpeg's notices and written source offer, and `tools/`: our own short notice of each Tool (its publisher, its
+  download URL, its licence, and that Retake downloads it and does not redistribute it; the stage refuses a notice that
+  does not name its Tool's version). Since BL-192 the app no longer carries Remotion's compositor and its GPL FFmpeg
+  build with fdk-aac compiled in: it is downloaded on the person's click from the npm registry, as `pnpm install` does
+  (BACKLOG BL-138). The app and its DMG: [Install the app
   (macOS)](#install-the-app-macos).

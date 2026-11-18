@@ -6,13 +6,14 @@
  * receive it; the real window with a person switching to the Studio is MACOS-CHECKLIST 13i). The window is headless;
  * `RETAKE_TEST_HEADED=1` shows it.
  *
- * Record (the shop's quote flow) → a caption with a kicker and a zoom (the theme's max_zoom, 1.4×) waiting in the Studio, taken by the next
- * action (Request a quote) → a pick among that click's verified alternatives → Increase twice → a mark, taken by the bag
- * size → a message typed, committed by a Studio visit → a wait for a text and a hold 2 s at the end → Stop and keep →
- * the check replay passed → Save → a dry run and a capture of the saved scenario from the Studio (`scenario_run`) → a
- * render and its review (`scenario_render`): the plan holds the caption, the zoom and the marker on the steps they were
- * placed on, and the frames at those moments are cut (`RETAKE_UI_SHOTS=<folder>`: screenshots, the frames and the
- * timings there). Every stage is timed.
+ * Record (the shop's quote flow: a wheel from rest to a coffee, a look down its page) → a caption with a kicker and
+ * a zoom (the theme's max_zoom, 1.4×) waiting in the Studio, taken by the next action (Request a quote) → a pick
+ * among that click's verified alternatives → Increase twice → a mark, taken by the bag size → a message typed,
+ * committed by a Studio visit → a wait for a text and a hold 2 s at the end → Stop and keep → the check replay passed
+ * → Save → a dry run and a capture of the saved scenario from the Studio (`scenario_run`) → a render and its review
+ * (`scenario_render`): the plan holds the caption, the zoom and the marker on the steps they were placed on, and the
+ * frames at those moments are cut (`RETAKE_UI_SHOTS=<folder>`: screenshots, the frames and the timings there). Every
+ * stage is timed.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -92,6 +93,8 @@ async function person(w: Window): Promise<void> {
   await w.waitForTimeout(800);
   await w.getByText('Selowa Ridge').first().click();
   await w.getByRole('button', { name: 'Request a quote' }).waitFor();
+  // A look down the product page before asking for a quote: the scroll of the quote's click.
+  await w.mouse.wheel(0, 200);
   await w.waitForTimeout(1500);
 
   // A caption and a zoom wait in the Studio for the next action.
@@ -240,10 +243,15 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     expect(quoteClick!.caption).toMatchObject({ text: CAPTION, kicker: KICKER });
     expect(quoteClick!.camera).toMatchObject({ zoom: 1.4 });
     expect(JSON.stringify(quoteClick!.click)).toContain('Request a quote');
+    // The wheel from rest on the home page: the scroll to the coffee clicked, before its click.
+    expect(steps[0].scroll, text).toEqual({ to: steps[1].click });
     // The pick is the click's target, and the recorder's wait and scroll before it follow it.
     expect(quoteClick!.click).toEqual(pick!.options[1].target);
     const helpers = steps.slice(steps.indexOf(quoteClick!) - 2, steps.indexOf(quoteClick!));
-    expect(helpers.map((h) => Object.keys(h).find((k) => k !== 'scene'))).toEqual(['wait_for', 'scroll']);
+    expect(
+      helpers.map((h) => Object.keys(h).find((k) => k !== 'scene')),
+      text,
+    ).toEqual(['wait_for', 'scroll']);
     expect(helpers[0].wait_for).toMatchObject({ target: pick!.options[1].target });
     expect(helpers[1].scroll).toEqual({ to: pick!.options[1].target });
     // The mark on the bag size.

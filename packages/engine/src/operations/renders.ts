@@ -31,7 +31,7 @@ export function renderStatusSummary(r: RenderStatusView): string {
   const q = job?.queue;
   const waiting =
     r.status === 'queued' && q
-      ? `queued: ${q.held_by === 'take' ? (job?.yield ? yieldWords(job.yield) : 'waiting for a take to finish') : q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
+      ? `queued: ${q.held_by === 'take' || q.held_by === 'tools' ? (job?.yield ? yieldWords(job.yield) : q.held_by === 'tools' ? 'waiting for the render tools to be downloaded' : 'waiting for a take to finish') : q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
       : undefined;
   const p = job?.progress;
   // Slowed during a take (background priority), said with its progress.

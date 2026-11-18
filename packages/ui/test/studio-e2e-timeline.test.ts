@@ -1,5 +1,6 @@
 /**
- * The timeline screen end to end in headless Chromium (playwright-core's build: it plays VP9, not H.264),
+ * The timeline screen end to end in headless Chromium (playwright-core's build: Chrome for Testing since 1.57, which
+ * plays H.264 — an init script (NO_H264) makes this page's Chromium say it cannot, as the old build could not),
  * against a real Studio server, its player origin and the real preview bundle, on a synthetic take whose every
  * capture frame shows its own index in binary (test-support take.ts):
  * - the scenario screen's "Open timeline" (R-UI-15: disabled with why without a capture) → the timeline route; the
@@ -9,7 +10,7 @@
  *   tracks, a drag of the scrubber and the keys (arrows, Shift+arrows, Home, End, ], Space) — after each, the frame shown
  *   in the iframe (a screenshot of its region, decoded) is exactly the source frame the plan maps that output frame to,
  *   in a scene at normal speed and in a scene at 2×; zoom fit and in; "Show in timeline" (a step's route);
- * - a take encoded as the capture encodes (libx264, H.264): Playwright's Chromium cannot play it — the real message, no
+ * - a take encoded as the capture encodes (libx264, H.264) in a browser that says it cannot play it — the real message, no
  *   frame, the tracks and the scrubber still working, the codec and the slow-scrub note shown.
  * - inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
  * - R4-Edit: Edit in the shell — the Mode's Edit current, the browser pane hidden, no tabs (the modes and the
@@ -36,6 +37,23 @@ const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const RUN = '20260101-120000-bits';
 const H264_RUN = '20260101-120000-h264';
+
+/**
+ * A browser without H.264 (Playwright's Chromium up to 1.56; Chrome for Testing plays it): MediaSource and media
+ * elements answer "no" for avc1 / mp4a types, so the screen takes its "cannot play" path. VP9 takes are untouched.
+ */
+function NO_H264(): void {
+  const h264 = (t: string) => /avc1|avc3|mp4a/i.test(String(t));
+  const MS = globalThis.MediaSource;
+  if (MS) {
+    const is = MS.isTypeSupported.bind(MS);
+    Object.defineProperty(MS, 'isTypeSupported', { value: (t: string) => !h264(t) && is(t) });
+  }
+  const can = HTMLMediaElement.prototype.canPlayType;
+  HTMLMediaElement.prototype.canPlayType = function canPlayType(t: string) {
+    return h264(t) ? '' : can.call(this, t);
+  };
+}
 let ws: string;
 let dir: string;
 let studio: StudioServer;
@@ -113,6 +131,7 @@ beforeAll(async () => {
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  await context.addInitScript(NO_H264);
   await context.addInitScript(() => {
     (window as unknown as { __csp: number }).__csp = 0;
     document.addEventListener('securitypolicyviolation', () => (window as unknown as { __csp: number }).__csp++);

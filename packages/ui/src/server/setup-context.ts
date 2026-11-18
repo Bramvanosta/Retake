@@ -99,10 +99,18 @@ export function applyShellLine(setup: { state: SetupState; context(): SetupConte
     if (setup.pipe) writeCliState(setup.pipe, setup.context());
     return setup.pipe !== undefined;
   }
-  // The update's state (update-ops.ts), kept for desktop_update_status.
+  // The update's state (update-ops.ts), kept for desktop_update_status; a state that leaves the update's Tools step
+  // gives its download up (update-tools.ts).
   if (m.type === 'update') {
     update?.apply(m);
+    update?.tools?.follow(m);
     return update !== undefined;
+  }
+  // the update downloaded and verified — its Tools, before the restart (the answer goes back on the pipe).
+  if (m.type === 'update_archive') {
+    if (!update?.tools) return false;
+    void update.tools.prepare(m);
+    return true;
   }
   if (m.type === 'cli_folder') setup.state.chose(m.path, setup.context(), workspace);
   else if (m.type === 'cli_folder_open') setup.state.chosen = { panel: 'open' };
@@ -124,8 +132,11 @@ export function refused(reason: string, message: string, extra: Record<string, u
   return new EngineError('conflict', message, { details: { reason, ...extra } });
 }
 
-/** The ops' common gate: the installed app's own server (and, `placed`, an app moved to Applications). */
-export function gate(pipe: DesktopPipe, ctx: SetupContext, state: SetupState, placed: boolean): BundleInfo {
+/**
+ * The ops' common gate: the installed app's own server (and, `placed`, an app moved to Applications); `rate` false
+ * for a write that only stops something (the Tools' Pause and Cancel): not counted in the minute's writes.
+ */
+export function gate(pipe: DesktopPipe, ctx: SetupContext, state: SetupState, placed: boolean, rate = true): BundleInfo {
   if (!pipe.supervised) throw refused('not_supervised', "set-up is the installed app's: this Studio server is not the desktop app's");
   const b = appBundle(ctx);
   if (!b) throw refused('not_bundled', "set-up is the installed app's: this Retake runs from a repository checkout (use retake mcp --print-config there)");
@@ -133,7 +144,7 @@ export function gate(pipe: DesktopPipe, ctx: SetupContext, state: SetupState, pl
     const loc = locationOf(b, ctx);
     if (loc !== 'ok') throw refused('location', `${installLocationWords(loc)}: ${MOVE_TO_APPLICATIONS}`, { location: loc });
   }
-  if (!state.take()) throw new EngineError('busy', `too many set-up requests this minute (at most ${SETUP_WRITES_PER_MIN}): wait a moment`, { details: { reason: 'rate' } });
+  if (rate && !state.take()) throw new EngineError('busy', `too many set-up requests this minute (at most ${SETUP_WRITES_PER_MIN}): wait a moment`, { details: { reason: 'rate' } });
   return b;
 }
 

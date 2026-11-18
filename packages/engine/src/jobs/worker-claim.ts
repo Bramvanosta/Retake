@@ -37,16 +37,24 @@ export async function scanOpenJobs(w: Worker): Promise<PickRecord[]> {
     const kind = String((stored.input as { kind?: unknown } | undefined)?.kind ?? stored.kind);
     // A cancelled queued take holds nothing: only takes are asked (one marker read each).
     const cancelled = stored.state === 'queued' && isFilming(stored.input) && (await w.queue.cancelOf(id)) !== undefined;
-    out.push({ id, state: stored.state, kind, input: stored.input, claimed, ...(cancelled ? { cancelled } : {}) });
+    // What it needs of the Tools missing now (its project's own browser needs none): read only while one is missing.
+    const missing = stored.state === 'queued' ? w.tools() : undefined;
+    const needs = missing?.size ? await w.queue.toolNeed({ kind, input: stored.input }, missing) : undefined;
+    out.push({ id, state: stored.state, kind, input: stored.input, claimed, ...(cancelled ? { cancelled } : {}), ...(needs !== undefined ? { needs } : {}) });
   }
   return out;
 }
 
+/**
+ * A queued job this worker could claim (its idle exit looks once more before it goes): one held by the app's Tools
+ * (`yield.cause: 'tools'`) does not count — the worker exits rather than wait busy, and the install, the Studio
+ * or the next engine to open starts it again once they are ready (an update's Install and Restart is not blocked).
+ */
 export async function hasQueued(w: Worker): Promise<boolean> {
   for (const id of await w.queue.ids()) {
     if (w.done.has(id)) continue;
-    const rec = await w.queue.get(id);
-    if (rec?.state === 'queued') return true;
+    const rec = await w.queue.get(id, { tools: w.tools });
+    if (rec?.state === 'queued' && rec.yield?.cause !== 'tools') return true;
   }
   return false;
 }

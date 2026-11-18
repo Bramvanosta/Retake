@@ -15,6 +15,15 @@ export function expandHome(p: string): string {
   return p;
 }
 
+/**
+ * A size in decimal megabytes, as every Tools' line says it (the Studio, `retake tools`, the installer): "315 MB" for
+ * 315 358 794 bytes, one decimal under 10 MB ("8.4 MB").
+ */
+export function megabytes(n: number): string {
+  const mb = n / 1_000_000;
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
 /** Deterministic PRNG in [0,1) from a string seed (mulberry32 over an FNV-1a hash). */
 export function seededRandom(seed: string): () => number {
   let h = 2166136261 >>> 0;

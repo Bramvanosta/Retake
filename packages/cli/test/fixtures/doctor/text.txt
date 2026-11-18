@@ -1,6 +1,6 @@
 retake doctor
   OK    Node.js                 22.12.0
-  OK    Chromium                141.0.7390.37 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms
+  OK    Browser                 159.0.8154.6 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms
   OK    Chromium sandbox        on · read from the capture browser's command line
   OK    Render browser          /opt/chromium/headless_shell · Playwright cache
   WARN  GPU                     the capture browser renders in software · SwiftShader · in software: webgl

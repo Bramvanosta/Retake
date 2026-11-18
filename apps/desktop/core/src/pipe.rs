@@ -122,7 +122,7 @@ wire_enum!(JobState { Running = "running", Queued = "queued" });
 wire_enum!(
     /// What the Set-up sheet asks the shell (ui desktop.ts SETUP_ACTIONS): the notification permission, the
     /// native folder panel for the `retake` command.
-    SetupAction { Notifications = "notifications", CliFolder = "cli_folder" }
+    SetupAction { Notifications = "notifications", CliFolder = "cli_folder", ToolsFolder = "tools_folder" }
 );
 wire_enum!(
     /// What the Studio's update sheet asks the shell (ui desktop.ts UPDATE_ACTIONS): Install and Restart, or Later
@@ -265,6 +265,10 @@ pub enum PipeMsg {
     Setup(SetupAction),
     /// The update sheet's click (through the server's `desktop_update` op: the person's).
     Update(UpdateAction),
+    /// The server's answer on the update's Tools (ui update-tools.ts, after the shell's `update_archive` line): the
+    /// version's Tools are ready (`ready`), could not be had (`failed`), or are left to its first start (`skip`: this
+    /// version cannot read the new version's manifest whole).
+    UpdateTools { version: String, answer: crate::update_flow::ToolsAnswer },
     /// The window page's state of the menu's page commands (through the server's `desktop_menu` op).
     Menu(Vec<MenuItemState>),
     /// The window page asks for a context menu of the shell's (an id's shape; the shell's table decides).
@@ -366,6 +370,20 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
             match v.get("action").and_then(Json::as_str).and_then(UpdateAction::parse) {
                 Some(a) => PipeMsg::Update(a),
                 None => PipeMsg::Ignored("an update action this app does not know"),
+            }
+        }
+        Some("update_tools") => {
+            // Strict: exactly `type`, `version` (its shape) and `state` (ready | failed | skip).
+            let Json::Obj(fields) = &v else { return PipeMsg::Ignored("not JSON") };
+            if fields.len() != 3 || !fields.iter().all(|(k, _)| k == "type" || k == "version" || k == "state") {
+                return PipeMsg::Ignored("an update_tools line with other fields");
+            }
+            let Some(version) = v.get("version").and_then(Json::as_str).filter(|s| crate::update_flow::version_ok(s)) else { return PipeMsg::Ignored("an update_tools line without a version") };
+            match v.get("state").and_then(Json::as_str) {
+                Some("ready") => PipeMsg::UpdateTools { version: version.to_string(), answer: crate::update_flow::ToolsAnswer::Ready },
+                Some("failed") => PipeMsg::UpdateTools { version: version.to_string(), answer: crate::update_flow::ToolsAnswer::Failed },
+                Some("skip") => PipeMsg::UpdateTools { version: version.to_string(), answer: crate::update_flow::ToolsAnswer::Skip },
+                _ => PipeMsg::Ignored("an update_tools state this app does not know"),
             }
         }
         Some("menu") => match menu_items(&v) {
@@ -528,6 +546,7 @@ mod tests {
     fn setup_lines_are_strict() {
         assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"notifications"}"#), PipeMsg::Setup(SetupAction::Notifications));
         assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"cli_folder"}"#), PipeMsg::Setup(SetupAction::CliFolder));
+        assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"tools_folder"}"#), PipeMsg::Setup(SetupAction::ToolsFolder));
         for bad in [
             r#"{"type":"setup","action":"install"}"#,
             r#"{"type":"setup"}"#,
@@ -550,6 +569,27 @@ mod tests {
             r#"{"type":"update","action":"install","url":"https://example.com/x.tar.gz"}"#,
             r#"{"type":"update","action":true}"#,
             r#"["update","install"]"#,
+        ] {
+            assert!(matches!(parse_pipe_line(bad), PipeMsg::Ignored(_)), "{bad}");
+        }
+    }
+
+    /// The server's answer on the update's Tools — exactly `type`, a version's shape and ready | failed | skip.
+    #[test]
+    fn update_tools_lines_are_strict() {
+        use crate::update_flow::ToolsAnswer;
+        assert_eq!(parse_pipe_line(r#"{"type":"update_tools","version":"0.4.0","state":"ready"}"#), PipeMsg::UpdateTools { version: "0.4.0".into(), answer: ToolsAnswer::Ready });
+        assert_eq!(parse_pipe_line(r#"{"type":"update_tools","version":"0.4.0-rc.1","state":"failed"}"#), PipeMsg::UpdateTools { version: "0.4.0-rc.1".into(), answer: ToolsAnswer::Failed });
+        assert_eq!(parse_pipe_line(r#"{"type":"update_tools","version":"0.4.0","state":"skip"}"#), PipeMsg::UpdateTools { version: "0.4.0".into(), answer: ToolsAnswer::Skip });
+        for bad in [
+            r#"{"type":"update_tools","version":"0.4.0","state":"Skip"}"#,
+            r#"{"type":"update_tools","version":"0.4.0","state":"skip","why":"x"}"#,
+            r#"{"type":"update_tools","version":"0.4.0"}"#,
+            r#"{"type":"update_tools","version":"0.4.0","state":"done"}"#,
+            r#"{"type":"update_tools","version":"latest","state":"ready"}"#,
+            r#"{"type":"update_tools","version":"0.4.0","state":"ready","path":"/tmp/x"}"#,
+            r#"{"type":"update_tools","state":"ready"}"#,
+            r#"{"type":"update_tools","version":4,"state":"ready"}"#,
         ] {
             assert!(matches!(parse_pipe_line(bad), PipeMsg::Ignored(_)), "{bad}");
         }

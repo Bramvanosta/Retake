@@ -386,7 +386,11 @@ describe('download retries (R-FLD-13)', () => {
     expect(events[0].data).toMatchObject({ name: 'proforma', mime: 'application/pdf', attempts: 2 });
     expect(events[1].data).toMatchObject({ name: 'terms', via: 'tab', attempts: 2 });
     expect(hits.get('/files/tab-flaky')).toBe(3);
-    expect(warnings.some((w) => w.includes('download "terms": socket hang up — trying again in 1 s (attempt 2 of 3)'))).toBe(true);
+    // playwright-core 1.57 onwards adds the error code: "socket hang up (ECONNRESET)".
+    expect(
+      warnings.some((w) => /download "terms": socket hang up \(ECONNRESET\) — trying again in 1 s \(attempt 2 of 3\)/.test(w)),
+      warnings.join('\n'),
+    ).toBe(true);
     // 404: once, no retry. Unreachable: three attempts, then the step fails.
     expect(rec.optional_failures!.map((f) => [f.step, f.error.replace(/ at http\S+/, '')])).toEqual([
       [2, 'download: the document answered HTTP 404'],

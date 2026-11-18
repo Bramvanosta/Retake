@@ -12,6 +12,7 @@ import { plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, signInPersona } from './auth.js';
+import { browserRefusal } from '../tool-needs.js';
 
 export interface NewOptions {
   name?: string;
@@ -176,7 +177,10 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
 async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>, policy: WorkPolicy): Promise<ExitCode> {
   const later: string[] = [];
   const command = loginCommandFor(global);
-  let asking = true;
+  // In the app, a sign-in window needs the browser: while it is not downloaded, nothing is offered (said once).
+  const refused = browserRefusal({ env: global.ports.env, clock: global.ports.clock }, project.config.browser, false, 'signing in');
+  if (refused) ui.warn(refused);
+  let asking = !refused;
   let code: ExitCode = EXIT.ok;
   for (const [env, block] of Object.entries(auth)) {
     for (const name of Object.keys(block.personas ?? {})) {

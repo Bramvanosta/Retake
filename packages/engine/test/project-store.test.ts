@@ -530,7 +530,10 @@ describe('the engine journals its writes as its caller', () => {
   });
 });
 
-/** The expression a `.writeText(` at `at` is called on: back over balanced brackets and member accesses. */
+/**
+ * The expression a `.writeText(` at `at` is called on: back over balanced brackets and member accesses (optional
+ * chaining included: `a?.b` is read as `a.b`).
+ */
 function receiverOf(text: string, at: number): string {
   let i = at;
   let depth = 0;
@@ -540,14 +543,14 @@ function receiverOf(text: string, at: number): string {
     else if (c === '(' || c === '[') {
       if (depth === 0) break;
       depth--;
-    } else if (depth === 0 && !/[\w.$]/.test(c)) {
+    } else if (depth === 0 && !/[\w.$]/.test(c) && !(c === '?' && text[i] === '.')) {
       // `new X(...)`: keep the keyword.
       if (c === ' ' && text.slice(Math.max(0, i - 4), i - 1) === 'new') i -= 4;
       break;
     }
     i--;
   }
-  return text.slice(i, at).replace(/\s+/g, ' ').trim();
+  return text.slice(i, at).replace(/\?\./g, '.').replace(/\?$/, '').replace(/\s+/g, ' ').trim();
 }
 
 /** Every source file of the packages (not tests, not dist). */

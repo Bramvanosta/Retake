@@ -2,6 +2,8 @@ import { Command, CommanderError } from 'commander';
 import { resolve } from 'node:path';
 import { RETAKE_VERSION } from '@retake/core/base';
 import { assertOutsideBundle, bundleInfoOrNull } from '@retake/core/io';
+import { EngineError } from '@retake/engine';
+import { commandRefusal } from './tool-needs.js';
 import { EXIT, errorMessage, errorText, exitCodeOf, isKnownError } from './errors.js';
 import type { ExitCode } from './errors.js';
 import { memoryIo, processIo } from './io.js';
@@ -15,6 +17,7 @@ import { registerLaterCommands } from './program/later.js';
 import { registerLookCommands } from './program/look.js';
 import { registerServiceCommands } from './program/services.js';
 import { registerSignInCommands } from './program/sign-in.js';
+import { registerToolsCommands } from './program/tools.js';
 import { registerUpkeepCommands } from './program/upkeep.js';
 import { registerWorkspaceCommands } from './program/workspace.js';
 import { Ui } from './ui.js';
@@ -36,6 +39,7 @@ const FAMILIES: readonly ((ctx: ProgramContext) => void)[] = [
   registerLookCommands,
   registerCommentCommands,
   registerUpkeepCommands,
+  registerToolsCommands,
   registerSignInCommands,
   registerServiceCommands,
   registerLaterCommands,
@@ -77,14 +81,28 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void, ports: () => En
       outputError: (s, write) => write(s),
     });
   // Nothing writes inside the app bundle (core bundle.ts): every command's --out is refused there, before it starts.
-  program.hook('preAction', (_program, command) => {
+  program.hook('preAction', async (_program, command) => {
     const out = command.opts<{ out?: unknown }>().out;
     if (typeof out === 'string' && out) assertOutsideBundle(resolve(out), `--out ${out}`, bundleInfoOrNull());
+    // in the app, a command that runs a browser or renders refuses before it starts while its Tools are not
+    // downloaded (a terminal has no queue to wait in); `retake tools install` downloads them (tool-needs.ts).
+    const refusal = await commandRefusal({ ...program.opts<ProgramOptions>(), ports: ports() }, commandPath(command), command);
+    if (refusal) throw new EngineError('refused', refusal);
   });
 
   for (const register of FAMILIES) register({ program, action });
 
   return program;
+}
+
+/** The commands that need a Tool of the app (tool-needs.ts). */
+export { CLI_TOOL_NEEDS } from './tool-needs.js';
+
+/** A command's path (`hooks run`), its program left out. */
+function commandPath(c: Command): string {
+  const names: string[] = [];
+  for (let at: Command | null = c; at?.parent; at = at.parent) names.unshift(at.name());
+  return names.join(' ');
 }
 
 /** The help of every command, the program's first and hidden ones included (the glossary's word guard reads it). */

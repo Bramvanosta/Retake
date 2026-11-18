@@ -57,6 +57,9 @@ retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]
 retake auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
 retake init [dir]                                     # make a folder a workspace (retake.yaml, projects/)
 retake doctor [--project P] [--json]                  # check this machine, the workspace and a project
+retake tools [status] [--json]                        # the app's Tools (browser, render browser, compositor): version, state, folder
+retake tools install [--from-archives DIR] [--from-playwright-cache [DIR]] [--no-wait] [--json]   # download and check them (the app)
+retake tools check [--json] · retake tools prune [--force] [--json]   # every Tool's files checked again · older Tools folders removed
 retake prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
 retake journal [--project P] [--writes | --hooks] [--limit N] [--json]   # the workspace journal: what Retake wrote and which hooks ran, who, when, the outcome
 retake mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
@@ -118,12 +121,20 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **login** signs a persona in and saves its session: a visible browser window (sign in, then close it) or, with
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
   or checked now with `--check`) — see [Signing in](environments.md#signing-in-personas-and-sessions).
-- **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
-  version and a real new-headless launch), its sandbox (**Chromium sandbox**: read from the launched browser's own
+- **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, **Tools** (the app's
+  downloaded Tools: ready with their versions, not downloaded yet — a warning: jobs that need them wait in the queue —,
+  or damaged — a failure —, and the folder, with `($RETAKE_HOME)` when that variable chose the home; from a checkout
+  "checkout: Playwright cache / node_modules"), **Browser** (the capture browser: path, version, where it comes from —
+  `downloaded Tools`, `Playwright cache`, `RETAKE_CHROMIUM` — and a real new-headless launch; it was the **Chromium**
+  line before BL-192), its sandbox (**Chromium sandbox**: read from the launched browser's own
   command line — a failure when it holds a switch that turns the sandbox or site isolation off, which only an
-  executable that adds switches itself can do; a Chromium that does not start as root on Linux says to run as a
-  regular user), **Render browser** (the headless shell renders use: a failure when there is none, with the command
-  that installs it), **Studio and MCP jobs** (a warning naming each program or `browser.args` entry that jobs of the
+  executable that adds switches itself can do, and when the browser does not report its command line at all:
+  captures, sign-ins and recordings refuse such a browser; a Chromium that does not start as root on Linux says to run
+  as a regular user), **Render browser** (the headless shell renders use: a failure when there is none, with the
+  command that installs it), **Compositor** (the rendering library's binaries: the app's downloaded ones, their version and
+  folder, else "node_modules · the library's own"). In the app a Tool not downloaded yet is a warning that says `run:
+  retake tools install`, a damaged one a failure that says `run: retake tools check, then retake tools install`; the
+  doctor never launches a browser that is not there. **Studio and MCP jobs** (a warning naming each program or `browser.args` entry that jobs of the
   Studio, the desktop app or an MCP client would refuse — see [Workspace](workspace.md)), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
   browser reports, VideoToolbox, the frames at a time, the ffmpeg that encodes the frames when it is this machine's
   (L7.3: on the GPU path, or anywhere with `render.ffmpeg: own`) — or why the rendering library's does when ours was
@@ -141,6 +152,27 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. A sandbox gets one line instead (up and healthy, or how to start it):
   its accounts sign in at every take and its pages answer only while it runs. It exits with `1` when any check fails; `--json` prints the checks.
+- **tools** (the macOS app; BL-192) manages the **Tools** the app downloads instead of carrying them — the browser,
+  the render browser and the compositor — in `<Retake home>/tools/` (`$RETAKE_HOME`, else `~/.retake`). **tools**
+  (or **tools status**) lists each one: its version, whether it is downloaded and checked, its folder, and the older
+  folders. **tools install** downloads them from their publishers (the render browser first, then the compositor,
+  then the browser), checks each archive's sha256 before anything is extracted and each folder's tree digest after,
+  and puts them in place read-only; a terminal shows one line of progress, `--json` one JSON line per step, then the
+  result. Ctrl-C pauses (what arrived is kept; exit 130): run it again to resume. While another process (the Studio,
+  another terminal) downloads them, it follows that download, or with `--no-wait` says who and exits. On success it
+  wakes the workspace's jobs worker: the jobs that waited for the Tools start. `--from-archives <dir>` installs from
+  archives already downloaded (the same checks), `--from-playwright-cache [dir]` copies the browsers from Playwright's
+  cache (each copy checked); the two together are a usage error. A Tool already there but not ready (damaged, a marker
+  or its stamp gone, a folder others may write) is replaced by the checked one. **tools check** reads every file of every Tool again: a changed one is marked damaged
+  until it is installed again (exit 1); while a download runs it says who holds the Tools and checks nothing. **tools prune** removes older Tools folders — never this version's, an
+  update's (for 30 days), those another copy of Retake started with in the last 30 days, or one a running process
+  uses; `--force` keeps only this version's Tools: an update's pre-downloaded ones go too. From a repository checkout `retake tools` says the checkout uses
+  Playwright's cache and node_modules, and the other subcommands refuse. In the app, `run`, `login`, `record`,
+  `inspect`, `theme from-site`, `auth status --check`, `export-capture` (not with `--cursor none`) (the browser) and
+  `render`, `still`, `export`, `components preview` (the render browser and the compositor) refuse before they start
+  while what they need is not downloaded — unless the project films with a browser of its own (`browser.executable`,
+  an installed channel). `retake new` does not offer to sign a persona in while the browser is missing: it says how
+  to sign in later.
 - **components** lists, validates and scaffolds components — see [Components](themes-and-components.md#components).
 - **plan** shows how a capture will be edited (segments, components, speeds, trims, zooms, captions, warnings)
   without rendering — see [Editing](editing.md#editing-the-edit-plan).

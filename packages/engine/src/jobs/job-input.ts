@@ -12,6 +12,7 @@ import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { INSPECT_PATH_MAX, inspectPathProblem } from '@retake/core/run';
 import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { siteUrlProblem } from '@retake/core/theme';
+import type { ToolNeed } from '@retake/core/io';
 
 export const JOB_INPUT_VERSION = 1;
 
@@ -46,6 +47,34 @@ export const JOB_CLASS = {
   preview: 'heavy',
   site: 'heavy',
 } as const satisfies Record<JobKind, JobClass>;
+
+/**
+ * What a kind needs of the app's downloaded Tools (core/io tools.ts): `browser` (a take, a dry run, a sign-in,
+ * a recording, an inspection, a site extraction), `render` (the render browser and the compositor: a render, an export
+ * — its re-rendered formats —, a preview), or nothing (hooks, resets and sandboxes run no browser of Retake's; a review
+ * is ffmpeg and sharp). A queued job whose need is missing waits (queue-core derive: `yield.cause: 'tools'`) and is not
+ * picked (pick.ts). Exhaustive by type: a new kind does not type-check until it says what it needs.
+ */
+export const JOB_TOOLS = {
+  run: 'browser',
+  hooks: null,
+  env_reset: null,
+  auth_login: 'browser',
+  sandbox_up: null,
+  sandbox_reset: null,
+  inspect: 'browser',
+  record: 'browser',
+  render: 'render',
+  review: null,
+  export: 'render',
+  preview: 'render',
+  site: 'browser',
+} as const satisfies Record<JobKind, ToolNeed | null>;
+
+/** What a stored kind needs of the Tools (an unknown kind: nothing — the worker refuses it anyway). */
+export function jobNeeds(kind: unknown): ToolNeed | null {
+  return typeof kind === 'string' && Object.hasOwn(JOB_TOOLS, kind) ? JOB_TOOLS[kind as JobKind] : null;
+}
 
 /** The class of a stored kind: an unknown one (a newer client's) is a capture, so the worker refuses it as before. */
 export function jobClass(kind: unknown): JobClass {

@@ -23,7 +23,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@retake/engine/testing';
 import { REPO } from '@retake/test-support/repo';
-import { linkSharedCache } from '@retake/test-support/render';
+import { linkSharedCache, renderFailure } from '@retake/test-support/render';
 import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -137,8 +137,8 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
       const r = await call('render', { project: 'northfield-fixture', scenario: 'quote', run_id: ids.run, template: 'editorial' });
       ids.editorial = data<{ render_id: string }>(r).render_id;
       const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.editorial }, (x) => data<{ finished: boolean }>(x).finished === true);
-      const view = data<{ status: string; record: { template: string; width: number }; untrusted: { warnings: string[] } }>(st);
-      expect(view.status, st.content[0].text).toBe('succeeded');
+      const view = data<{ status: string; record: { template: string; width: number }; untrusted: { warnings: string[]; error?: string } }>(st);
+      expect(view.status, renderFailure(root, st.content[0].text, view)).toBe('succeeded');
       expect(view.record).toMatchObject({ template: 'editorial', width: 1920 });
       expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
       const rv = await call('review', { project: 'northfield-fixture', render_id: ids.editorial, wait_s: 25 });
@@ -230,8 +230,8 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
       ids.motion = data<{ render_id: string }>(r).render_id;
       expect(ids.motion).not.toBe(ids.editorial);
       const st = await follow('render_status', { project: 'northfield-fixture', render_id: ids.motion }, (x) => data<{ finished: boolean }>(x).finished === true);
-      const view = data<{ status: string; record: { template: string }; untrusted: { warnings: string[] } }>(st);
-      expect(view.status, st.content[0].text).toBe('succeeded');
+      const view = data<{ status: string; record: { template: string }; untrusted: { warnings: string[]; error?: string } }>(st);
+      expect(view.status, renderFailure(root, st.content[0].text, view)).toBe('succeeded');
       expect(view.record.template).toBe('motion');
       expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
       await call('review', { project: 'northfield-fixture', render_id: ids.motion, wait_s: 0 });
@@ -278,7 +278,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
         state: string;
         result: { outputs: Array<{ format: string; file: string; width: number; height: number; method: string }>; failed: string[]; untrusted: { warnings: string[] } };
       }>(js);
-      expect(job.state, js.content[0].text).toBe('succeeded');
+      expect(job.state, renderFailure(root, js.content[0].text, data<{ untrusted?: { error?: string } }>(js))).toBe('succeeded');
       expect(job.result.failed).toEqual([]);
       const by = Object.fromEntries(job.result.outputs.map((o) => [o.format, o]));
       expect(by.mp4_1080p).toMatchObject({ width: 1920, height: 1080 });

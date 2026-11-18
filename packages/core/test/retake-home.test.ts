@@ -19,6 +19,24 @@ import { scratchHome, withHome } from '@retake/test-support/home';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
 
+/**
+ * The text of the call that opens at `at` (its name and its parenthesised arguments, brackets balanced), at most 1500
+ * characters: what an `env:` of that call can be found in — not an `env:` further down the file (another object, a type).
+ */
+function callWindow(text: string, at: number): string {
+  const open = text.indexOf('(', at);
+  let depth = 0;
+  for (let i = open; i >= 0 && i < text.length && i - at < 1500; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') {
+      depth--;
+      if (depth === 0) return text.slice(at, i + 1);
+    }
+  }
+  return text.slice(at, at + 1500);
+}
+
 /** Every .ts / .tsx / .mjs file under packages/<name>/test, and the tests' shared helpers (packages/test-support/src: test code too). */
 function testFiles(): string[] {
   const files: string[] = [];
@@ -160,7 +178,7 @@ describe('the test environment (vitest.config.ts)', () => {
         return depth < 3 && spread !== null && defs.has(spread[1]!) && ok(defs.get(spread[1]!)!, depth + 1);
       };
       for (const m of text.matchAll(/(?:new StdioClientTransport|\bspawn|\bspawnSync|\bexecFile|\bexecFileSync)\(/g)) {
-        const window = text.slice(m.index, m.index + 1500);
+        const window = callWindow(text, m.index);
         const env = /\benv:\s*(\{[^}]*\}|[\w.]+)/.exec(window)?.[1];
         if (!env || env.startsWith('process.env') || env === 'testChildEnv') continue;
         const lit = env.startsWith('{') ? env : defs.get(env);
@@ -194,7 +212,7 @@ describe('the test environment (vitest.config.ts)', () => {
       const defs = new Map<string, string>();
       for (const m of text.matchAll(/\b(env|runEnv)\s*=\s*(\{[^}]*\})/g)) defs.set(m[1]!, m[2]!);
       for (const m of text.matchAll(/(?:new StdioClientTransport|\bspawn|\bspawnSync|\bexecFile|\bexecFileSync)\(/g)) {
-        const window = text.slice(m.index, m.index + 1500);
+        const window = callWindow(text, m.index);
         const env = /\benv:\s*(\{[^}]*\}|[\w.]+)/.exec(window)?.[1];
         if (!env || env.startsWith('process.env') || env === 'testChildEnv') continue;
         if (/'--version'|vitest\.mjs/.test(window.slice(0, window.indexOf('env:')))) continue;

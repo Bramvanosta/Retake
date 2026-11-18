@@ -16,11 +16,18 @@ release — for the person about to click Install and Restart.
 - `retake sandbox down --forget`: forget the sandbox's seed, reset and snapshot records (nothing is deleted), for data
   you know is gone or disposable. `retake sandbox status` says where the database keeps its data when it is memory or
   the container's own layer.
+- The app downloads its browser, its render browser and the rendering library's compositor (its **Tools**) on your
+  click — "Download · 315 MB" in the Set-up sheet, the status bar, the Welcome card or Set Up › Tools — from their
+  publishers, each file checked against what this version records. Jobs asked before that wait in the queue and start
+  by themselves once the Tools are checked. `retake tools` (status, install, check, prune) does the same from a
+  terminal, and an update downloads a new version's Tools before its restart.
 
 ### Changed
 - An up that would build with an empty build secret is refused before anything is built, naming the service, the
   secret and the variable (docker compose passes it empty without a word). A failed build's message ends with the last
   lines of the step that failed (the install's own error), and the previous up's log stays as `compose-up.log.1`.
+- The app is about half the size (a 203 MB download instead of 422 MB): it no longer carries a browser or the
+  compositor. Captures and renders use Chrome for Testing 159 (Playwright 1.65.1) instead of Chromium 141.
 
 ### Fixed
 - The mail card (`studio/mail-view`) writes a captured mail's date the way the filmed pages write dates — in the
@@ -36,6 +43,8 @@ release — for the person about to click Install and Restart.
   volume, only when it is empty: a database restored from a dump is still refused rather than frozen into the base).
 - A refused reset proposes the command that works for where the database keeps its data: `--volumes` for a volume,
   a plain `down` for memory or the container's own layer, `--volumes --forget` when Retake cannot tell.
+- A recording keeps a scroll made with the mouse wheel from the top of a page (it was lost, or recorded the page's own
+  scroll back to the top in its place).
 
 ## [0.3.0] — 2026-11-16
 

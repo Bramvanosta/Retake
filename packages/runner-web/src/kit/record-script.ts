@@ -77,8 +77,38 @@ export function looksLikeToken(s: string): boolean {
   return [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter((re) => re.test(s)).length >= 3;
 }
 
+/** A scroll position and the time stamp of the scroll event that left it (scrollTrail). */
+export interface TrailPoint {
+  x: number;
+  y: number;
+  t: number;
+}
+
+/**
+ * The positions scroll events left each container at, time-stamped: the recorder's scroll baseline is where a container
+ * was before the input's time stamp (`before`). A passive wheel listener runs after the compositor scrolled (Chromium),
+ * so the position it reads is already the scrolled one: a wheel scroll from rest was lost, and the app's own scroll
+ * right after (a route's scroll to the top) recorded in its place. Installed with the document (before it has an
+ * element), it sees every scroll: a container no scroll event moved yet is at its origin.
+ * Self-contained: evaluated in the page, before the recorder, as `__retakeRecTrail` (recorderSource).
+ */
+export function scrollTrail(win: Pick<EventTarget, 'addEventListener'>, doc: Document) {
+  const trail = new WeakMap<object, TrailPoint[]>();
+  const seen = (key: EventTarget | null, c: Element | null, t: number): void => {
+    if (!key || typeof c?.scrollTop !== 'number') return;
+    trail.set(key, [...(trail.get(key) ?? []).slice(-7), { x: c.scrollLeft, y: c.scrollTop, t }]);
+  };
+  win.addEventListener('scroll', (e) => seen(e.target, e.target === doc ? (doc.scrollingElement ?? doc.documentElement) : (e.target as Element), e.timeStamp), { capture: true, passive: true });
+  const before = (key: EventTarget, stamp: number): { x: number; y: number } => {
+    const p = (trail.get(key) ?? []).filter((q) => q.t < stamp).at(-1);
+    return p ? { x: p.x, y: p.y } : { x: 0, y: 0 };
+  };
+  return { before };
+}
+
 declare const __retakeRecHash: typeof secretHash;
 declare const __retakeRecToken: typeof looksLikeToken;
+declare const __retakeRecTrail: ReturnType<typeof scrollTrail>;
 
 /**
  * The in-page recorder (see the file comment). Self-contained: serialised with `toString()`. Its state comes first,
@@ -577,7 +607,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
       const mods = modsOf(e);
       const k = e.key;
       const ed = editable(t);
-      if (!ed && SCROLL_KEYS.includes(k)) noteUserScroll(t);
+      if (!ed && SCROLL_KEYS.includes(k)) noteUserScroll(t, e.timeStamp);
       if (ed) {
         const f = begin(ed);
         f.keyed = now();
@@ -626,7 +656,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
       const t = deepTarget(e);
       // A press on a scrollbar (the document's, or an element's beyond its client box) starts a scroll.
       const scrollable = (n: Element) => n.clientWidth > 0 && (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1);
-      if (t && (t === document.documentElement || (scrollable(t) && (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight)))) noteUserScroll(t);
+      if (t && (t === document.documentElement || (scrollable(t) && (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight)))) noteUserScroll(t, e.timeStamp);
       if (field && !(t && (field.el === t || field.el.contains(t)))) commit(false);
       flushKey();
       const t0 = now();
@@ -671,15 +701,15 @@ export function pageRecorder(cfg: RecorderConfig): void {
   function posOf(c: Element): { x: number; y: number } {
     return { x: c.scrollLeft, y: c.scrollTop };
   }
-  /** Before a scroll the person starts: the positions of the document and of the target's scrolling ancestors. */
-  function noteUserScroll(t: Element | null): void {
+  /** Before a scroll the person starts (its input's time stamp): where the document and the target's scrolling ancestors were. */
+  function noteUserScroll(t: Element | null, stamp: number): void {
     userScrollAt = now();
     const d = docEl();
     const base = (key: EventTarget, c: Element, el: Element | null): void => {
       const s = starts.get(key);
       const p = posOf(c);
       // A baseline that has not moved is refreshed (the app may have scrolled it since); one that moved is kept.
-      if (!s || (s.x === p.x && s.y === p.y)) starts.set(key, { ...p, el, at: now() });
+      if (!s || (s.x === p.x && s.y === p.y)) starts.set(key, { ...__retakeRecTrail.before(key, stamp), el, at: now() });
     };
     base(document, d, null);
     for (let n: Element | null = t, i = 0; n && i < 32 && n !== d && n !== document.body; n = n.parentElement, i++) {
@@ -707,7 +737,7 @@ export function pageRecorder(cfg: RecorderConfig): void {
   }
   function listenScroll(): void {
     on('wheel', (e) => {
-      if (e.isTrusted) noteUserScroll(deepTarget(e));
+      if (e.isTrusted) noteUserScroll(deepTarget(e), e.timeStamp);
     });
     on('scroll', () => {
       if (now() - userScrollAt > 1000) return;
@@ -720,5 +750,5 @@ export function pageRecorder(cfg: RecorderConfig): void {
 
 /** The recorder's script, evaluated after the kit in its isolated world. */
 export function recorderSource(cfg: RecorderConfig): string {
-  return `(() => { var __name = (f) => f; var __retakeRecHash = (${secretHash.toString()}); var __retakeRecToken = (${looksLikeToken.toString()}); (${pageRecorder.toString()})(${JSON.stringify(cfg)}); })();`;
+  return `(() => { var __name = (f) => f; var __retakeRecHash = (${secretHash.toString()}); var __retakeRecToken = (${looksLikeToken.toString()}); var __retakeRecTrail = (${scrollTrail.toString()})(window, document); (${pageRecorder.toString()})(${JSON.stringify(cfg)}); })();`;
 }
