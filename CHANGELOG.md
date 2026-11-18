@@ -21,6 +21,9 @@ release — for the person about to click Install and Restart.
   publishers, each file checked against what this version records. Jobs asked before that wait in the queue and start
   by themselves once the Tools are checked. `retake tools` (status, install, check, prune) does the same from a
   terminal, and an update downloads a new version's Tools before its restart.
+- A project can hold its own themes and brand files (`projects/<slug>/templates/`, `brand/`), used before the
+  workspace's; lists say where each theme comes from, writers made from a project go into it, and
+  `retake project adopt` (MCP `project_adopt`, copy only) brings workspace themes and brand files into a project (L9.2).
 
 ### Changed
 - An up that would build with an empty build secret is refused before anything is built, naming the service, the

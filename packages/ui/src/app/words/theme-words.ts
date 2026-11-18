@@ -365,12 +365,22 @@ export type PreviewTarget = 'intro' | 'clip' | 'outro';
 export const TARGET_WORDS: Record<PreviewTarget, string> = { intro: 'Intro', clip: 'Clip with caption', outro: 'Outro' };
 
 /** The theme list's badges, in words. */
-export const SOURCE_BADGE: Record<ThemeListAnswer['themes'][number]['source'], string> = { workspace: 'Workspace', starter: 'Starter', project: 'Project folder' };
+export const SOURCE_BADGE: Record<ThemeListAnswer['themes'][number]['source'], string> = { workspace: 'Workspace', starter: 'Starter', project: 'Project' };
 
-/** Whether a theme of the list opens in the editor (a listed name; the project's own folder theme is edited by hand). */
-export const opensInEditor = (t: Pick<ThemeListAnswer['themes'][number], 'name' | 'source'>): boolean => t.source !== 'project' && okTheme(t.name);
+/** A theme's origin as its badge says it: the project's own (a folder of its templates/, or the one project.yaml names by its path), the workspace's, a starter. */
+export function originBadge(t: Pick<ThemeListAnswer['themes'][number], 'source'> & { by_path?: true }): string {
+  return t.by_path ? 'Project folder' : SOURCE_BADGE[t.source];
+}
+
+/** What a project theme hides, said on its card ("Used instead of the workspace's"), or null. */
+export function shadowWords(t: { shadows?: 'workspace' | 'starter' }): string | null {
+  return t.shadows === 'workspace' ? "Used instead of the workspace's" : t.shadows === 'starter' ? 'Used instead of the starter' : null;
+}
+
+/** Whether a theme of the list opens in the editor (a listed name; the folder project.yaml names by its path is edited by hand). */
+export const opensInEditor = (t: Pick<ThemeListAnswer['themes'][number], 'name' | 'source'> & { by_path?: true }): boolean => t.by_path !== true && okTheme(t.name);
 /** Whether "Copy to edit" is offered: a listed theme the Studio does not edit (a starter, a theme of the package…). */
-export const offersCopy = (t: Pick<ThemeListAnswer['themes'][number], 'name' | 'source' | 'editable'>): boolean => t.editable !== true && opensInEditor(t);
+export const offersCopy = (t: Pick<ThemeListAnswer['themes'][number], 'name' | 'source' | 'editable'> & { by_path?: true }): boolean => t.editable !== true && opensInEditor(t);
 
 /** "used by the project, 2 scenarios" — what a change re-renders. */
 export function usedByWords(u: ThemeEditView['used_by'], slug: string): string {
@@ -393,7 +403,8 @@ export function themeEventAction(e: StudioEvent, slug: string, theme?: string): 
   if (e.type === 'resync') return true;
   if (e.type !== 'workspace') return false;
   const themes = Array.isArray(e.themes) ? e.themes : [];
-  if (theme !== undefined) return themes.includes(theme) || (Array.isArray(e.components) && e.components.length > 0);
+  // A project's own theme moves under `<slug>/<name>` (library-watch.ts): this project's only.
+  if (theme !== undefined) return themes.includes(theme) || themes.includes(`${slug}/${theme}`) || (Array.isArray(e.components) && e.components.length > 0);
   return themes.length > 0 || (Array.isArray(e.components) && e.components.length > 0) || (Array.isArray(e.projects) && e.projects.includes(slug)) || e.site === true;
 }
 

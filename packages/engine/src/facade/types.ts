@@ -37,6 +37,7 @@ import type { InspectReport } from '@retake/runner-web/types';
 import type { LibraryStatesView } from '../library.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from '../components.js';
 import type { ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';
+import type { AdoptRequest, AdoptResult } from '../project-adopt.js';
 import type { ThemePreviewBuild, ThemePreviewRequest, ThemePreviewServe } from '../views/theme-preview.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { ThemeCopied } from '../brand/copy.js';
@@ -276,6 +277,12 @@ export interface Engine {
      * over the runs, one renders readdir, one queue read; memos apart from `scenarios.view`'s. Path-free.
      */
     board(project: string): Promise<ProjectBoardView>;
+    /**
+     * The project adopts workspace themes and brand files (project-adopt.ts, R-SHR-14): `copy` leaves the workspace's,
+     * `move` sets it aside under `.retake/adopted/` (refused while another project uses it or a job is queued or
+     * running). Under agent trust (MCP) copy only, themes only.
+     */
+    adopt(req: AdoptRequest): Promise<AdoptResult>;
   };
   scenarios: {
     get(project: string, name: string): Promise<ScenarioText>;
@@ -466,15 +473,16 @@ export interface Engine {
     >;
   };
   templates: {
-    /** Workspace and starter themes with their component per kind (with `project`: which one is its own). */
+    /** The project's own (with `project`, found first), workspace and starter themes with their component per kind and origin (with `project`: which one is its default). */
     list(o?: { project?: string }): Promise<TemplateListView>;
     /** One theme in detail: template.yaml, colours, fonts, assets, components with params. */
     get(o: { template?: string; project?: string }): Promise<TemplateDetail>;
     /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .retake/previews/. */
     preview(req: { project: string; template?: string }): Promise<PreviewSubmitted>;
     /**
-     * A new workspace theme from brand inputs (core BrandInputSchema), under trust `mcp`: brand files are
-     * workspace files outside agent-writable, hidden and components folders; never an existing theme, except `replace`
+     * A new theme from brand inputs (core BrandInputSchema), under trust `mcp` — the project's own with `project`
+     * (its brand files looked for in the project first), else the workspace's: brand files are files of the project or
+     * the workspace outside agent-writable, hidden and components folders; never an existing theme, except `replace`
      * of one this tool made that nobody changed. `retake theme create` calls createThemeFromBrand with trust `author`.
      */
     create(input: unknown): Promise<ThemeCreated>;
@@ -504,21 +512,21 @@ export interface Engine {
     /** A site extraction read back (site.json as a file of the workspace) with its draft; null view before it is written. */
     site(siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }>;
     /**
-     * One theme as the Studio's editor shows it — editable or read-only with why (by real path), template.yaml's
+     * One theme as the Studio's editor shows it (with `project`: its own themes found first) — editable or read-only with why (by real path), template.yaml's
      * text and sha256, the allow-listed fields, components, its font and image files checked, palette checks, used by.
      */
-    view(name: string): Promise<ThemeEditView>;
+    view(name: string, o?: { project?: string }): Promise<ThemeEditView>;
     /** The themes as the theme editor lists them (editable or why not, used by), the project's marked. */
     editList(project?: string): Promise<ThemeEditList>;
     /**
      * One verified write of a theme's template.yaml (core applyThemeEdit, if_match, re-parse, files served from
      * its folder only, the registry, the write lock; `restore` of a version shown or written). Refused for MCP.
      */
-    edit(name: string, req: ThemeEditRequest): Promise<ThemeEditResult>;
-    /** A new workspace theme copied from a listed one ("Copy to edit"; refused inside the Retake package). */
-    copy(req: { from: string; name: string }): Promise<ThemeCopied>;
+    edit(name: string, req: ThemeEditRequest, o?: { project?: string }): Promise<ThemeEditResult>;
+    /** A new theme copied from a listed one ("Copy to edit"): the project's own with `project`, else the workspace's (refused inside the Retake package). */
+    copy(req: { from: string; name: string; project?: string }): Promise<ThemeCopied>;
     /** The workspace's image or font files a new theme may take (names and sizes; brand source rules). */
-    files(kind: 'image' | 'font'): Promise<BrandFileList>;
+    files(kind: 'image' | 'font', o?: { project?: string }): Promise<BrandFileList>;
     /** The newest site extractions (hex colours and candidates; URL, host and page text under untrusted). */
     sites(): Promise<SiteList>;
     /** Why a host is never extracted as a site: a page of an environment of a project, a protected host (none: empty). */

@@ -2,7 +2,7 @@ import { Option } from 'commander';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from '../commands/components.js';
 import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from '../commands/components.js';
-import { themeCreateCommand, themeFetchFontCommand, themeFromSiteCommand, themeFromTokensCommand } from '../commands/theme.js';
+import { themeCreateCommand, themeFetchFontCommand, themeFromSiteCommand, themeFromTokensCommand, themeListCommand } from '../commands/theme.js';
 import type { ThemeCreateOptions } from '../commands/theme.js';
 import { collect } from './context.js';
 import type { ProgramContext } from './context.js';
@@ -46,11 +46,24 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string | undefined, o: ComponentsPreviewOptions) => componentsPreviewCommand(u, g, id, o)));
 
-  const theme = program.command('theme').description('workspace themes (templates/<name>/) from brand files or a site');
+  registerThemeCommands({ program, action } as ProgramContext);
+}
+
+/** Themes: theme list, create, from-site, from-tokens, fetch-font. */
+function registerThemeCommands({ program, action }: ProgramContext): void {
+  const theme = program.command('theme').description("themes: a project's own (projects/<slug>/templates/<name>/), the workspace's (templates/<name>/), made from brand files or a site");
+  theme
+    .command('list')
+    .description(
+      "the themes a render can name, each with its origin: with --project, the project's own first (a name of the project's hides the workspace's theme or the starter of that name), then the workspace's and the starters",
+    )
+    .option('--project <slug>', "list this project's own themes first and mark its theme")
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, o: { project?: string; json?: boolean }) => themeListCommand(u, g, o)));
   theme
     .command('create')
     .description(
-      'a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)',
+      "a new theme from a logo, hex colours and fonts over a base theme — the project's own with --project (projects/<slug>/templates/<name>/), else a workspace theme (templates/<name>/): palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)",
     )
     .argument('<name>', 'new theme name: lower-case letters, digits and "-", not a starter\'s or an existing folder\'s')
     .requiredOption('--accent <hex>', 'brand colour (#rrggbb): kicker, rules, clock hand, cursor ripple — never changed')
@@ -73,6 +86,10 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .option('--param <kind>.<name>=<value>', "a component param merged over the base theme's, e.g. outro.logo_size=72 (repeatable; the value is JSON or text)", collect)
     .option('--no-adjust', 'keep colours that miss a contrast threshold (warnings only)')
     .option('--replace', 'replace a theme Retake made under that name (this command or template_create_from_brand), when nobody changed it since')
+    .option(
+      '--project <slug>',
+      "make it the project's own theme; its brand files are looked for in the project folder first (brand/logo.svg: the project's, else the workspace's; ./ or an absolute path: as typed)",
+    )
     .option('--json', 'machine-readable output')
     .action(action((u, g, n: string, o: ThemeCreateOptions) => themeCreateCommand(u, g, n, o)));
   theme

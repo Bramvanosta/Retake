@@ -49,9 +49,12 @@ interface EntryBase {
   outcome: JournalOutcome;
 }
 
-/** A file written: `write` (replaced or created), or a folder created whole (`folder`: a theme, a component, a project). */
+/**
+ * A file written: `write` (replaced or created), a folder created whole (`folder`: a theme, a component, a project), or
+ * a folder or file moved aside (`move`: a workspace theme `retake project adopt` moved into a project, kept under `to`).
+ */
 export interface JournalWrite extends EntryBase {
-  op: 'write' | 'folder';
+  op: 'write' | 'folder' | 'move';
   what: JournalWhat;
   /**
    * The file or folder: workspace-relative POSIX when inside the workspace (its real path or the one given), else its
@@ -59,6 +62,8 @@ export interface JournalWrite extends EntryBase {
    * absolute path (journalPath).
    */
   path: string;
+  /** A move: where it was set aside (named as `path` is). */
+  to?: string;
   /** The hash the write was made on (`if_match`): a hash, null (must not exist) or absent (no check). */
   if_match?: string | null;
   /** The bytes written and their sha256 (a file that was written). */

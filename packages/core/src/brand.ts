@@ -4,14 +4,16 @@
  * schemas and the syntax rules of file references; the engine (brand/files.ts) resolves references on disk (links,
  * agent-writable folders, the components folder) and checks the bytes; the components package derives the palette.
  *
- * A file reference (`BrandFileRef`) is a path relative to the workspace root (recommended folder: `<workspace>/brand/`)
- * or `site:<site_id>/<candidate>`, a logo candidate of a site extraction (template_from_site: a PNG the worker made).
+ * A file reference (`BrandFileRef`) is a path relative to the project folder when the call names a project (looked for
+ * there first, then the workspace root; recommended folder: `<project>/brand/`), else to the workspace root
+ * (`<workspace>/brand/`), or `site:<site_id>/<candidate>`, a logo candidate of a site extraction (template_from_site: a PNG the worker made).
  */
 import { z } from 'zod';
 import { SITE_ID_RE } from './id-grammar.js';
 import { zNewThemeName, zThemeName } from './ids.js';
 import { fontsourceRefProblem, isFontsourceRef } from './fontsource-ref.js';
 import { LOGO_KINDS } from './image-size.js';
+import { PROJECT_SLUG_RE } from './project.js';
 import { componentIdSchema } from './schemas/primitives.js';
 import { COMPONENT_KINDS } from './types/model.js';
 
@@ -46,7 +48,7 @@ export function siteRef(ref: string): { site_id: string; candidate: string } | n
 
 /**
  * Why a brand file reference is refused by its syntax alone, or null (the engine then checks it on disk). A path is
- * relative to the workspace root: never absolute, `~`, a drive letter, a backslash, a NUL, an empty or `.` / `..`
+ * relative to the project folder or the workspace root: never absolute, `~`, a drive letter, a backslash, a NUL, an empty or `.` / `..`
  * segment, or a hidden one (`.retake/`, `.git/`… — hidden folders are tool or system folders).
  */
 export function brandRefSyntaxProblem(ref: string): string | null {
@@ -62,7 +64,8 @@ export function brandRefSyntaxProblem(ref: string): string | null {
     }
     return null;
   }
-  if (ref.startsWith('/') || ref.startsWith('~') || /^[A-Za-z]:/.test(ref)) return `${ref} is an absolute path: name a file relative to the workspace root (e.g. brand/logo.svg)`;
+  if (ref.startsWith('/') || ref.startsWith('~') || /^[A-Za-z]:/.test(ref))
+    return `${ref} is an absolute path: name a file relative to the project folder when a project is named, else the workspace root (e.g. brand/logo.svg)`;
   if (ref.includes('\\')) return `${ref}: use "/" between folders (no backslash)`;
   for (const seg of ref.split('/')) {
     if (seg === '' || seg === '.') return `${ref}: an empty or "." folder in the path`;
@@ -80,7 +83,9 @@ export const brandFileRefSchema = z
     const p = brandRefSyntaxProblem(v);
     if (p) ctx.addIssue({ code: 'custom', message: p });
   })
-  .describe('A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it.');
+  .describe(
+    'A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it.',
+  );
 
 export const hexColorSchema = z.string().regex(HEX_COLOR_RE, 'a hex colour: #rgb or #rrggbb (no names, rgb() or hsl())');
 
@@ -175,12 +180,20 @@ export type BrandCursor = z.output<typeof BrandCursorSchema>;
 export const BrandBackgroundSchema = z.union([hexColorSchema, z.strictObject({ type: z.enum(['radial', 'linear']), from: hexColorSchema, to: hexColorSchema })]);
 export type BrandBackground = z.output<typeof BrandBackgroundSchema>;
 
+/** A project's slug, as a theme writer names its target (core project PROJECT_SLUG_RE). */
+const brandProjectSchema = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug: lower-case letters, digits and "-" (project_list names them), never a path');
+
 function brandInputSchema(ref: z.ZodType<string, string>) {
   const fontRef = fontRefOf(ref);
   return z.strictObject({
     name: zNewThemeName('a new theme name: lower-case letters, digits and "-" (e.g. acme), never a path').describe(
       "Name of the new theme (its folder in templates/): lower-case, not a starter's or an existing folder's.",
     ),
+    project: brandProjectSchema
+      .optional()
+      .describe(
+        "Make it the project's own theme (projects/<slug>/templates/<name>/; its brand files looked for in the project folder first): recommended — a theme is a brand's. Omitted: a workspace theme (templates_dir).",
+      ),
     base: zThemeName('a theme name').optional().describe('Theme whose components, frame, captions, motion and durations are kept (default editorial).'),
     colors: BrandColorsSchema,
     background: BrandBackgroundSchema.optional().describe('A hex (solid) or {type: radial | linear, from, to} (default derived from the paper).'),
@@ -193,9 +206,7 @@ function brandInputSchema(ref: z.ZodType<string, string>) {
     wordmark: ref.optional().describe('Wordmark image of the outro (default none: the brand name is drawn as text).'),
     fonts: z
       .strictObject({
-        display: fontRef
-          .optional()
-          .describe("Display font (titles): .ttf, .otf, .woff or .woff2, or a fontsource:<id>[@<version>][:<weight>[italic]] font_fetch stored (default the base theme's)."),
+        display: fontRef.optional().describe("Display font (titles): .ttf, .otf, .woff or .woff2, or a fontsource:<id>[@<version>][:<weight>[italic]] font_fetch stored (default the base theme's)."),
         body: z
           .array(fontRef)
           .min(1)
@@ -248,6 +259,7 @@ export const BrandPatchSchema = z.strictObject({
   name: zNewThemeName('the name of a theme template_create_from_brand made: lower-case letters, digits and "-", never a path').describe(
     'The theme to update: one this tool made through MCP that nobody edited since.',
   ),
+  project: brandProjectSchema.optional().describe("The project whose own theme it is (projects/<slug>/templates/<name>/, found first); omitted: the workspace's theme."),
   base: zThemeName('a theme name').optional().describe('Another base theme (its components, frame, captions, motion and durations).'),
   colors: z
     .strictObject({
@@ -306,7 +318,8 @@ function mergeKeys(base: unknown, over: Obj, deep: (key: string) => boolean): Ob
  * entry left empty removed). An emptied section is removed. Pure: the result is checked by BrandInputSchema after.
  */
 export function mergeBrandPatch(inputs: Obj, patch: Obj): Obj {
-  const { name: _name, ...rest } = patch;
+  // The theme's name and its project say which theme, never an input it was made from.
+  const { name: _name, project: _project, ...rest } = patch;
   const out: Obj = structuredClone(inputs);
   for (const [k, v] of Object.entries(rest)) {
     if (v === undefined) continue;

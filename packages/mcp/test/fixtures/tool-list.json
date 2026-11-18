@@ -364,6 +364,53 @@
   }
  },
  {
+  "name": "project_adopt",
+  "title": "Copy a workspace theme into a project",
+  "description": "Make a project carry its own look: each workspace theme named (a folder of the workspace's templates/, by name: template_list says each one's origin) is copied whole into the project's own folder, projects/<slug>/templates/<name>/ — its files verbatim, its provenance kept — so the project folder alone holds it (another Mac, a person it is handed to). The project's copy is found before the workspace's theme of that name from then on (for that project only); project.yaml and the scenarios are not changed. Through this server a theme is only copied, never moved, and brand files are never adopted: a person runs retake project adopt <project> --theme <name> to move one (refused while another project uses it) or --brand <path> for brand files. Refused: a starter theme (no workspace theme: make the project's own with template_create_from_brand {project}), a name the project already has (conflict). The project's earlier renders made with it still match it (the copy has the same content).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "project": {
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[a-z0-9][a-z0-9-]*$",
+     "description": "Project slug (from project_list)."
+    },
+    "themes": {
+     "minItems": 1,
+     "maxItems": 20,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+     },
+     "description": "Workspace themes to copy into the project, by name."
+    },
+    "brand": {
+     "description": "Refused here (the answer says so): a person adopts brand files with retake project adopt --brand.",
+     "maxItems": 20,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "maxLength": 1024
+     }
+    }
+   },
+   "required": [
+    "project",
+    "themes"
+   ],
+   "additionalProperties": false
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
   "name": "scenario_get",
   "title": "Read a scenario",
   "description": "The YAML of a scenario and its hash (the if_match of scenario_save).",
@@ -2449,12 +2496,12 @@
  {
   "name": "template_list",
   "title": "List themes",
-  "description": "Themes (templates) a render can use, by name: the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; a theme a person made or changed is never edited here (a human edits it) — template_create_from_brand makes a new one, and template_update changes one it made through MCP that nobody changed.",
+  "description": "Themes (templates) a render can use, by name: with project, the project's own themes first (projects/<slug>/templates/: a name of the project's hides the workspace's theme or the starter of that name, said in notices), then the workspace's templates/ and the starter themes shipped with Retake (default, editorial, motion) — each with its origin (project, workspace, starter) and the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project's own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind's component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; a theme a person made or changed is never edited here (a human edits it) — template_create_from_brand makes a new one, and template_update changes one it made through MCP that nobody changed.",
   "inputSchema": {
    "type": "object",
    "properties": {
     "project": {
-     "description": "Mark this project's theme (and list its own theme folder, when project.yaml names one).",
+     "description": "List this project's own themes first and mark its theme (and its theme folder, when project.yaml names one by its path).",
      "type": "string",
      "maxLength": 100,
      "pattern": "^[a-z0-9][a-z0-9-]*$"
@@ -2625,7 +2672,7 @@
  {
   "name": "template_create_from_brand",
   "title": "Create a theme from brand files",
-  "description": "Create a NEW workspace theme, templates/<name>/, from the brand's logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
+  "description": "Create a NEW theme from the brand's logo, colours and fonts — the project's own, projects/<slug>/templates/<name>/, when project is named (recommended: a theme is a brand's, and the project's folder then carries it), else a workspace theme, templates/<name>/: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths the user put there, relative to the project folder when project is named (looked for there first, then the workspace root; recommended folder: brand/), else to the workspace root — never in a hidden folder (.retake/), components/, or a project's scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base's). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). A logo 3:1 or wider is a wordmark (drawn alone, sized by its width; logo_kind: mark keeps the brand name beside it). components {<kind>: {id?, params?}} go over the base's (e.g. {outro: {params: {logo_size: 72}}}, checked against each component), cursor {style, size} over its cursor — a palette of another tone than the base gets the cursor of its tone. Up to eight body font files, or a variable font {file, weight: \"200 800\"}. The name is lower-case and never a starter's or an existing folder's (with project, never a workspace theme's either: a person copies that one into the project with retake project adopt); replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a person made, with the CLI or in the Studio). Returns the folder, template.yaml, the palette with every ratio and change, notes, warnings; then call template_preview {project, template: name}, and template_update to adjust it.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -2634,6 +2681,12 @@
      "maxLength": 60,
      "pattern": "^[a-z0-9][a-z0-9-]*$",
      "description": "Name of the new theme (its folder in templates/): lower-case, not a starter's or an existing folder's."
+    },
+    "project": {
+     "description": "Make it the project's own theme (projects/<slug>/templates/<name>/; its brand files looked for in the project folder first): recommended — a theme is a brand's. Omitted: a workspace theme (templates_dir).",
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[a-z0-9][a-z0-9-]*$"
     },
     "base": {
      "description": "Theme whose components, frame, captions, motion and durations are kept (default editorial).",
@@ -2744,7 +2797,7 @@
          "type": "string",
          "minLength": 1,
          "maxLength": 300,
-         "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+         "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
         },
         {
          "type": "object",
@@ -2753,7 +2806,7 @@
            "type": "string",
            "minLength": 1,
            "maxLength": 300,
-           "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+           "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
           },
           "weight": {
            "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -2792,7 +2845,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+          "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
          },
          {
           "type": "object",
@@ -2801,7 +2854,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
-            "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+            "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
            },
            "weight": {
             "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3069,7 +3122,7 @@
  {
   "name": "template_update",
   "title": "Update a theme made from brand files",
-  "description": "Change a theme template_create_from_brand made through MCP, giving only what changes: {name, colors?: {paper: …}, components?: {outro: {params: {logo_size: 72}}}, logo_kind?, cursor?, fonts?, brand?, logo?, wordmark?, background?, base?} — null removes an optional input (back to the derived or the base's value), components merge per kind and params per key. The theme is re-made from its recorded inputs with the patch applied (the same checks as create); the files the patch does not name are the theme's own copies (never read again from where they came). Refused for a theme a person made (retake theme create, the Studio), one whose files or recorded inputs changed since, a starter, an unknown name; invalid when nothing changes. Returns what create returns and the keys that changed; then template_preview {project, template: name}.",
+  "description": "Change a theme template_create_from_brand made through MCP, giving only what changes: {name, project? (the project whose own theme it is), colors?: {paper: …}, components?: {outro: {params: {logo_size: 72}}}, logo_kind?, cursor?, fonts?, brand?, logo?, wordmark?, background?, base?} — null removes an optional input (back to the derived or the base's value), components merge per kind and params per key. The theme is re-made from its recorded inputs with the patch applied (the same checks as create); the files the patch does not name are the theme's own copies (never read again from where they came). Refused for a theme a person made (retake theme create, the Studio), one whose files or recorded inputs changed since, a starter, an unknown name; invalid when nothing changes. Returns what create returns and the keys that changed; then template_preview {project, template: name}.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -3078,6 +3131,12 @@
      "maxLength": 60,
      "pattern": "^[a-z0-9][a-z0-9-]*$",
      "description": "The theme to update: one this tool made through MCP that nobody edited since."
+    },
+    "project": {
+     "description": "The project whose own theme it is (projects/<slug>/templates/<name>/, found first); omitted: the workspace's theme.",
+     "type": "string",
+     "maxLength": 100,
+     "pattern": "^[a-z0-9][a-z0-9-]*$"
     },
     "base": {
      "description": "Another base theme (its components, frame, captions, motion and durations).",
@@ -3216,7 +3275,7 @@
        "type": "string",
        "minLength": 1,
        "maxLength": 300,
-       "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+       "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
       },
       {
        "type": "null"
@@ -3237,7 +3296,7 @@
              "type": "string",
              "minLength": 1,
              "maxLength": 300,
-             "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+             "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
             },
             {
              "type": "object",
@@ -3246,7 +3305,7 @@
                "type": "string",
                "minLength": 1,
                "maxLength": 300,
-               "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+               "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
               },
               "weight": {
                "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",
@@ -3291,7 +3350,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 300,
-              "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+              "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
              },
              {
               "type": "object",
@@ -3300,7 +3359,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 300,
-                "description": "A file relative to the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
+                "description": "A file relative to the project folder when a project is named (looked for there first, then the workspace root; recommended: brand/), else the workspace root (e.g. brand/logo.svg), or site:<site id>/logo-<n> from template_from_site; a font may be fontsource:<id>[@<version>][:<weight>[italic]] once font_fetch stored it."
                },
                "weight": {
                 "description": "Weight of this file, or a variable font's range \"<min> <max>\" (e.g. \"200 800\"; default: read from the font — a TrueType / OpenType variable font's wght axis —, else its file name).",

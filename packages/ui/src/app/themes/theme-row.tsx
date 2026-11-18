@@ -5,7 +5,7 @@
 import type { ThemeListAnswer } from '../../server/theme-ops.js';
 import { Txt } from '../bits.js';
 import { hrefTo } from '../route.js';
-import { SOURCE_BADGE, offersCopy, okHex, opensInEditor, usedByWords } from '../words/theme-words.js';
+import { offersCopy, okHex, opensInEditor, originBadge, shadowWords, usedByWords } from '../words/theme-words.js';
 import { Button, LinkButton, StatusMark, Tag } from '../ui-kit/index.js';
 
 export type ListTheme = ThemeListAnswer['themes'][number];
@@ -58,8 +58,13 @@ export function ThemeRow({ slug, t, onCopy }: { slug: string; t: ListTheme; onCo
         </span>
         <span className="tm-tags">
           <Tag testId="theme-tag">
-            <Txt text={SOURCE_BADGE[t.source]} />
+            <Txt text={originBadge(t)} />
           </Tag>
+          {shadowWords(t) && (
+            <Tag testId="theme-tag">
+              <Txt text={shadowWords(t) ?? ''} />
+            </Tag>
+          )}
           {t.default && <Tag testId="theme-tag">The project's theme</Tag>}
           <Tag testId="theme-tag">
             <Txt text={t.editable === true ? 'Editable' : 'Read-only'} />

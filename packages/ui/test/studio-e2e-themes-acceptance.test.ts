@@ -80,7 +80,8 @@ function rgbAt(input: { png: Buffer } | { video: string; t: number }, fx: number
 /** Close to BG (a light blue: blue well above red), whatever the encoder did to it. */
 const isBg = ([r, g, b]: [number, number, number]) => b - r > 30 && b > 200 && g > 180;
 
-const themeYaml = async () => parseYaml(await readFile(join(root, 'templates', COPY, 'template.yaml'), 'utf8')).value as Record<string, Untyped>;
+// Copy to edit from a project's screen makes the project's own theme: projects/<P>/templates/<COPY>/.
+const themeYaml = async () => parseYaml(await readFile(join(root, 'projects', P, 'templates', COPY, 'template.yaml'), 'utf8')).value as Record<string, Untyped>;
 const settles = async () => Number(await page.getByTestId('theme-preview').getAttribute('data-settles'));
 async function settledAfter(n: number): Promise<void> {
   await expect.poll(async () => (await page.getByTestId('theme-preview').getAttribute('data-state')) === 'settled' && (await settles()) > n, POLL).toBe(true);

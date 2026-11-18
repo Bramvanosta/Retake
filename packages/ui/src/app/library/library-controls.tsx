@@ -17,7 +17,7 @@ export function ThemeSelect({ view, slug }: { view: LibraryViewAnswer; slug: str
       onChange={(t) => (location.hash = hrefTo({ name: 'library', slug, theme: t }))}
       options={view.themes.map((t) => ({
         value: t.name,
-        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.source === 'project' ? ' (project folder)' : ''}`,
+        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.by_path ? ' (project folder)' : t.source === 'project' ? ' (project)' : ''}`,
       }))}
     />
   );

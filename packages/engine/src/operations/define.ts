@@ -78,7 +78,7 @@ export interface ToolDef<S extends z.ZodType = z.ZodType, D extends object = obj
    * the handler after every earlier call of the same key on the same engine has settled (operationChain). MCP's
    * operations declare none.
    */
-  serialize?(args: z.output<S>): string;
+  serialize?(args: z.output<S>, engine: Engine): string;
 }
 
 /** An operation of the engine (operations/): a definition whose name is an operation of the catalogue. */

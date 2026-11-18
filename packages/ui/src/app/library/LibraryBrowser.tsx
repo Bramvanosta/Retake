@@ -20,7 +20,7 @@ export interface BrowserTheme {
   opens: boolean;
 }
 
-const FROM: Record<BrowserTheme['source'], string> = { starter: 'Starter', workspace: 'Workspace', project: 'Project folder' };
+const FROM: Record<BrowserTheme['source'], string> = { starter: 'Starter', workspace: 'Workspace', project: 'Project' };
 
 export function LibraryBrowser({ slug, at, themes, current, components }: { slug: string; at: 'library' | 'themes'; themes: BrowserTheme[]; current?: string; components?: number }) {
   const themeRows: SourceItem[] = themes

@@ -17,8 +17,17 @@ import { nodeWorkspaceDisk } from './file-facts.js';
 import { listProjectsOn, loadProjectOn, planNewProjectOn } from './project.js';
 import { loadScenarioOn, readScenarioSourceOn } from './scenario.js';
 import type { ScenarioLoadOptions, ScenarioReadOptions } from './scenario.js';
-import { listTemplatesOn, loadProjectTemplateOn, loadTemplateOn, projectTemplateFolderIdOn, templateFolderIdOn } from './template.js';
-import type { TemplateLoadOptions } from './template.js';
+import {
+  listTemplatesOn,
+  loadProjectTemplateOn,
+  loadTemplateOn,
+  projectTemplateFolderIdOn,
+  projectTemplateFolderOn,
+  sameTemplateFolderOn,
+  templateFolderIdOn,
+  templateFolderMatcherOn,
+} from './template.js';
+import type { TemplateLoadOptions, ThemeScope } from './template.js';
 import { fileFacts } from './work-files.js';
 import { findWorkspaceRootOn, findWorkspaceUpwardOn, loadWorkspaceConfigOn } from './workspace.js';
 
@@ -36,12 +45,19 @@ export interface WorkspaceReader {
   planNewProject(root: string, input: CreateProjectInput): Promise<NewProjectPlan>;
   readScenarioSource(project: LoadedProject, nameOrPath: string, o?: ScenarioReadOptions): Promise<ScenarioSource>;
   loadScenario(project: LoadedProject, nameOrPath: string, opts: ScenarioLoadOptions): Promise<LoadedScenario>;
-  listTemplates(root: string): Promise<TemplateEntry[]>;
+  /** With `scope.projectDir`, the project's own themes first (core io template.ts listTemplates). */
+  listTemplates(root: string, scope?: ThemeScope): Promise<TemplateEntry[]>;
   loadTemplate(nameOrDir: string, root: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate>;
   loadProjectTemplate(project: LoadedProject, override: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate>;
   projectTemplateFolderId(project: Pick<LoadedProject, 'root' | 'dir'>, ref: string | undefined): Promise<string | undefined>;
   /** A theme folder's identity, as a render record holds it (`template_folder`: template.ts templateFolderId). */
-  templateFolderId(dir: string, root: string): string;
+  templateFolderId(dir: string, root: string, projectDir?: string): string;
+  /** Whether a recorded theme folder id names today's (template.ts sameTemplateFolder: older ids read too). */
+  sameTemplateFolder(recorded: string, current: string, project: Pick<LoadedProject, 'root' | 'dir'>): boolean;
+  /** sameTemplateFolder for many recorded ids against one `current` (the real paths read once). */
+  templateFolderMatcher(current: string, project: Pick<LoadedProject, 'root' | 'dir'>): (recorded: string) => boolean;
+  /** The folder a project's work would load for a theme reference, and how it was found (template.ts projectTemplateFolder). */
+  projectTemplateFolder(project: Pick<LoadedProject, 'root' | 'dir'>, ref: string): Promise<{ dir: string; via: 'path' | 'project' | 'workspace' | 'starter' }>;
 }
 
 /**
@@ -60,11 +76,14 @@ export function workspaceReader(disk: WorkspaceDisk, facts: (policy: WorkPolicy)
     planNewProject: (root: string, input: CreateProjectInput) => planNewProjectOn(disk, root, input),
     readScenarioSource: (project: LoadedProject, nameOrPath: string, o?: ScenarioReadOptions) => readScenarioSourceOn(disk, project, nameOrPath, o),
     loadScenario: (project: LoadedProject, nameOrPath: string, opts: ScenarioLoadOptions) => loadScenarioOn(disk, project, nameOrPath, opts),
-    listTemplates: (root: string) => listTemplatesOn(disk, root),
+    listTemplates: (root: string, scope?: ThemeScope) => listTemplatesOn(disk, root, scope),
     loadTemplate: (nameOrDir: string, root: string | undefined, o: TemplateLoadOptions) => loadTemplateOn(disk, nameOrDir, root, o),
     loadProjectTemplate: (project: LoadedProject, override: string | undefined, o: TemplateLoadOptions) => loadProjectTemplateOn(disk, project, override, o),
     projectTemplateFolderId: (project: Pick<LoadedProject, 'root' | 'dir'>, ref: string | undefined) => projectTemplateFolderIdOn(disk, project, ref),
-    templateFolderId: (dir: string, root: string) => templateFolderIdOn(disk, dir, root),
+    templateFolderId: (dir: string, root: string, projectDir?: string) => templateFolderIdOn(disk, dir, root, projectDir),
+    sameTemplateFolder: (recorded: string, current: string, project: Pick<LoadedProject, 'root' | 'dir'>) => sameTemplateFolderOn(disk, recorded, current, project),
+    templateFolderMatcher: (current: string, project: Pick<LoadedProject, 'root' | 'dir'>) => templateFolderMatcherOn(disk, current, project),
+    projectTemplateFolder: (project: Pick<LoadedProject, 'root' | 'dir'>, ref: string) => projectTemplateFolderOn(disk, project, ref),
   });
 }
 
