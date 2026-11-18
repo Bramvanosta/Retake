@@ -16,7 +16,7 @@
  * folder is configured outside the workspace (`projects_dir`, `templates_dir`, `components_dir` elsewhere) journals its
  * paths under its label (`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`), never an absolute path.
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, cp, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -36,6 +36,44 @@ import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabe
 export type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreScope, StoreWriteOptions } from './store.js';
 
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
+
+/**
+ * A stage's file from a stream (FolderStage.writeFrom): each folder of `rel` made without `recursive` (EEXIST on one
+ * `made` does not hold: another spelling of a name the disk folds — refused), the file opened O_EXCL | O_NOFOLLOW with
+ * `mode` set exactly (fchmod: no umask, no setuid).
+ */
+async function streamInto(stageDir: string, rel: string, source: AsyncIterable<Buffer | Uint8Array>, mode: 0o644 | 0o755, made: Set<string>): Promise<{ sha256: string; bytes: number }> {
+  const segments = rel.split('/');
+  for (let i = 1; i < segments.length; i++) {
+    const folder = segments.slice(0, i).join('/');
+    if (made.has(folder)) continue;
+    try {
+      await mkdir(join(stageDir, ...segments.slice(0, i)), { mode: 0o755 });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      throw new EngineError('refused', `two names are one on this disk (case or Unicode form): the folder of ${JSON.stringify(rel.slice(0, 200))} exists already`);
+    }
+    made.add(folder);
+  }
+  const fh = await open(join(stageDir, ...segments), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'EEXIST') throw new EngineError('refused', `two names are one on this disk (case or Unicode form): ${JSON.stringify(rel.slice(0, 200))} exists already`);
+    throw e;
+  });
+  const hash = createHash('sha256');
+  let bytes = 0;
+  try {
+    await fh.chmod(mode);
+    for await (const chunk of source) {
+      const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      hash.update(b);
+      bytes += b.length;
+      await fh.write(b);
+    }
+  } finally {
+    await fh.close();
+  }
+  return { sha256: hash.digest('hex'), bytes };
+}
 
 /** The disk adapter of the ProjectStore port (built by `diskProjectStores` only: the import-rules ratchet's `store-new`). */
 class DiskProjectStore implements ProjectStore {
@@ -217,6 +255,8 @@ class DiskProjectStore implements ProjectStore {
       throw e;
     }
     const written: string[] = [];
+    // The folders writeFrom made in this stage, by their exact spelling.
+    const made = new Set<string>();
     const stage: FolderStage = {
       dir: tmp,
       write: async (rel, data) => {
@@ -230,6 +270,11 @@ class DiskProjectStore implements ProjectStore {
         await mkdir(dirname(p), { recursive: true });
         await copyFile(from, p, 1 /* COPYFILE_EXCL */);
         written.push(rel);
+      },
+      writeFrom: async (rel, source, wo) => {
+        const r = await streamInto(tmp, rel, source, wo.mode, made);
+        written.push(rel);
+        return r;
       },
     };
     const path = this.journalPathOf(final);

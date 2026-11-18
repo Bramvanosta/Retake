@@ -2931,3 +2931,18 @@ Testing's terms allow shipping it in a public DMG (with BL-138).
   --project <slug>` by hand); doctor does not check them and validation takes one project at a time; a component
   move's users are found by text in themes, project.yaml and scenarios, and other projects' older runs and renders
   that name the folder are not counted; no `components diff` between a project's copy and the workspace's.
+
+### BL-194 — Sharing a project: what L9.4 left
+*S–M each · from L9.4 (field feedback 2, point 32)*
+
+- **MCP:** `project_export` as a queued job for large projects (over 1 GB is refused now), and `with_runs` through MCP.
+- **The Studio:** an Export button, import and trust screens, a card badge, the status bar's Run / Render disabled on
+  an untrusted import (the server refuses them), a browser test of the banner.
+- **Renders made with a theme outside the project:** `--with-runs` leaves them out (re-render after import); rewriting
+  their records to the archived copy of the theme would carry them.
+- **`retake prune`** listing `.retake/imports/discarded/` and stale marks of slugs whose folder is gone.
+- **Trust:** revoking it (`--untrust`), re-binding it to file hashes later.
+- **More shapes:** importing over an existing project (an update), exporting several projects, `--exclude`.
+- **Embedding workspace brand inputs** (themes hold their copies) and rewriting a path theme (refused now: adopt it).
+- **Signing archives;** a compose project name collision warning at import.
+- **Doctor checks** of imported projects; an automated out-tier test of the whole round trip (done by hand).

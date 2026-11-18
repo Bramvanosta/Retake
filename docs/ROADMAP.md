@@ -180,7 +180,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L9.1 | Records with project-relative paths (field feedback 2, point 32): run, render and review records write the paths of the project's files relative to their own folder, older absolute records read where they now lie, render records at format version 2, MCP checks only the files each reader opens | M | **done** (2026-11-17) |
 | L9.2 | Themes and brand files of a project (point 32): `projects/<slug>/templates/` and `brand/` before the workspace's, writers target the project, `retake project adopt` / `project_adopt` | L | **done** (2026-11-18) |
 | L9.3 | Components of a project (point 32): `projects/<slug>/components/` before the workspace's and the built-in library, project code held in the Studio, adopt `--component` | M | **done** (2026-11-18) |
-| L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | todo |
+| L9.4 | Project export and import (point 32): a ZIP with everything the project needs, `retake project import`, an imported project inert until `retake project trust` | M | **done** (2026-11-18) |
 | L9.5 | The sandbox in the export (point 32): compose files and images (saved by id, loaded at trust), the `.env` only on an explicit option | M | todo |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
@@ -1484,6 +1484,20 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   bundle per project; `retake project adopt --component` moves (or copies), checking every item before acting, and
   `studio/` ids are refused; MCP `project_adopt {components}` copies. Requirements R-SHR-20 – R-SHR-25; what is left:
   BL-193.
+
+### L9.4 — Project export and import (M; decided 2026-11-17)
+- **Goal:** hand a whole project to someone or move it to another Mac as one file (point 32, the fourth of
+  L9.1 – L9.5).
+- **Done (2026-11-18):** `retake project export` (MCP `project_export`, synchronous, no runs) writes a ZIP with our own
+  writer under the project's `exports/`: the project, its own themes and components and the workspace ones it uses,
+  a manifest; never `.retake/`, env, key or credential files, sessions, storage states, git folders or `node_modules`
+  (literal tokens warned); `--with-runs` carries runs, renders and reviews (renders made with a theme outside the
+  project left out). `retake project import <zip> [--as]` (CLI only) reads only what our writer writes and refuses
+  zip-slip, links, odd spellings, bombs and records leading outside; an imported project is inert — every operation
+  outside an allow-list refused in the engine, the jobs, the CLI and the product adapters — until a person runs
+  `retake project trust` at a terminal after the list of its code files (recomputed from the files, never the
+  manifest); the mark has two halves sharing one import id and fails closed; `--discard` sets an import aside.
+  The Studio shows a banner. Requirements R-SHR-30 – R-SHR-39; what is left: BL-194.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

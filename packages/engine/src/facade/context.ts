@@ -205,6 +205,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
     project,
     overlay,
     renderMemos: caches.renders,
+    env: ports.env,
     stores: ports.stores,
     seen: caches.scenarioVersions,
   });

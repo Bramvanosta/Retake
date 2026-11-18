@@ -142,7 +142,7 @@ export function ProductionsScreen({ slug, group }: { slug: string; group?: Produ
           Arrow keys move between productions, Enter opens the selected one, Escape clears the selection.
         </p>
         <ShellSlot name="inspector" inline={current ? 'Production details' : 'Project details'}>
-          {current ? <ProductionInspector s={current} p={p} live={live} /> : <ProjectInspector p={p} />}
+          {current ? <ProductionInspector s={current} p={p} live={live} {...(board?.imported ? { imported: board.imported.command } : {})} /> : <ProjectInspector p={p} />}
         </ShellSlot>
       </div>
     </ThumbsProvider>
@@ -199,7 +199,30 @@ function ProductionsHead({
   );
 }
 
-/** What the grid says above it: project.yaml's warnings, a board shown in part, loading, an error, nothing to show. */
+/** The id of the imported-project banner (the Render button of a production names it). */
+export const IMPORTED_BANNER_ID = 'pr-imported';
+
+/**
+ * A project imported from a project archive and not trusted: nothing of it runs until a person trusts it, in a
+ * terminal. A region with its heading (a lasting state, not a live announcement).
+ */
+export function ImportedBanner({ imported }: { imported: NonNullable<ProjectBoardView['imported']> }) {
+  return (
+    <section className="pr-warnings" id={IMPORTED_BANNER_ID} aria-labelledby={`${IMPORTED_BANNER_ID}-h`} data-testid="imported-banner">
+      <h2 id={`${IMPORTED_BANNER_ID}-h`} className="sc-h3">
+        <StatusMark state="warn" word="Imported — not trusted" />
+      </h2>
+      <p>
+        {'Its hooks, sandboxes and components do not run, and nothing of it is filmed or rendered, until a person reads its code files and trusts it, in a terminal: '}
+        <code>
+          <Txt text={imported.command} />
+        </code>
+      </p>
+    </section>
+  );
+}
+
+/** What the grid says above it: an import not trusted, project.yaml's warnings, a board shown in part, loading, an error, nothing to show. */
 function BoardNotices({
   p,
   board,
@@ -234,6 +257,7 @@ function BoardNotices({
           </Disclosure>
         </div>
       )}
+      {board?.imported && <ImportedBanner imported={board.imported} />}
       {board?.truncated && <p className="sc-quiet">{shown(`The first ${board.truncated.shown} of ${board.truncated.total} scenarios are shown.`)}</p>}
       {boardState.state === 'loading' && (
         <p className="sc-quiet" role="status">

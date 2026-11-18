@@ -26,6 +26,8 @@
  * Path-free; text read from a file (the video's title, an environment the project does not have) under `untrusted`,
  * capped; strings from run.json only when they have the expected shape (an environment name, an ISO time).
  */
+import { importTrust } from '../project-archive/trust.js';
+import type { EngineEnv } from '../env.js';
 import { lstatSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
@@ -160,6 +162,11 @@ export interface ProjectBoardView {
   truncated?: { shown: number; total: number };
   /** Render and review job ids the board shows (a page re-reads it when one of them, or a job it never saw, changes). */
   jobs: string[];
+  /**
+   * The project was imported from a project archive and is not trusted (engine project-archive/trust.ts): nothing of
+   * it runs until a person runs `command` in a terminal. Absent for an ordinary or a trusted project.
+   */
+  imported?: { trusted: false; command: string };
 }
 
 export interface RunPoster {
@@ -183,6 +190,8 @@ export interface ProjectBoardContext {
   seen: VersionLedger;
   /** The stores port: a scenario's file is read through its project folder. */
   stores: ProjectStores;
+  /** The environment whose Retake home judges an imported project's trust (absent: none is judged trusted). */
+  env?: EngineEnv;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -358,9 +367,11 @@ export class ProjectBoards {
       await this.scenarioPoster(b.p, s, g);
       out.push(s);
     }
+    const imported = await importTrust({ root: p.root, dir: p.dir, slug: p.slug }, this.ctx.env ?? {});
     return {
       project: slug,
       ...(p.config.default_env ? { default_env: p.config.default_env } : {}),
+      ...(imported.state === 'untrusted' ? { imported: { trusted: false as const, command: `retake project trust ${p.slug}` } } : {}),
       scenarios: out,
       ...(p.scenarios.length > names.length ? { truncated: { shown: names.length, total: p.scenarios.length } } : {}),
       jobs: [...shownJobs].sort(),

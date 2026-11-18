@@ -356,11 +356,11 @@
    },
    "answer": {
     "isError": true,
-    "text": "not_found: template \"nowhere\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)",
+    "text": "not_found: template \"nowhere\" not found in <ws>/projects/demo/templates, <repo>/templates or the starter templates (available: default, editorial, motion)",
     "data": {
      "error": {
       "code": "not_found",
-      "message": "template \"nowhere\" not found in <repo>/templates or the starter templates (available: default, editorial, motion)",
+      "message": "template \"nowhere\" not found in <ws>/projects/demo/templates, <repo>/templates or the starter templates (available: default, editorial, motion)",
       "docs": "<repository>/blob/v<version>/docs/guide/workspace.md"
      }
     }
@@ -1370,7 +1370,7 @@
     "mode": "dry"
    },
    "answer": {
-    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"scenario_run\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"scenario_run\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, project_adopt, project_export, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
    }
   },
   {
@@ -1380,7 +1380,7 @@
     "job": "<job-5>"
    },
    "answer": {
-    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"render_cancel\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
+    "protocolError": "MCP error -32602: MCP error -32602: unknown tool \"render_cancel\" (tools: engine_info, project_list, project_get, project_create, project_update_readme, project_env_set, project_env_remove, project_prune, project_adopt, project_export, scenario_get, scenario_validate, scenario_save, page_inspect, scenario_record, scenario_from_script, run_list, run_status, run_dry, run_capture, run_cancel, plan_preview, render, render_status, review, review_get, export, comments_list, comment_reply, comment_resolve, template_list, template_preview, template_from_site, template_from_tokens, template_create_from_brand, template_update, font_fetch, component_list, component_get, component_validate, component_preview, component_create, job_list, job_status, job_cancel, hooks_run, env_reset, auth_status, auth_login, sandbox_status, sandbox_up, sandbox_reset, sandbox_init)"
    }
   },
   {
@@ -2064,7 +2064,7 @@
         "ref": "runs/<run-1>/run.json",
         "path": "<ws>/projects/northfield-fixture/runs/<run-1>/run.json",
         "kind": "run",
-        "bytes": 558
+        "bytes": 427
        }
       ],
       "screenshots": [],

@@ -302,6 +302,21 @@ describe('retake doctor (mocked environment)', () => {
     }
   });
 
+  it('--project on an import not trusted: no request to its hosts, no session read — one line says it was not checked', async () => {
+    const dir = join(ws, 'projects', 'imported');
+    await mkdir(join(dir, '.retake'), { recursive: true });
+    await writeFile(join(dir, 'project.yaml'), 'name: Imported\nenvironments:\n  local: {app: "http://169.254.169.254/latest"}\n');
+    await writeFile(join(dir, '.retake', 'import.json'), JSON.stringify({ v: 1, import_id: 'a'.repeat(32) }));
+    const asked: string[] = [];
+    try {
+      const r = await checks(macProbes({ head: async (url) => (asked.push(url), { status: 200, ms: 1 }) }), 'imported');
+      expect(asked).toEqual([]);
+      expect(byName(r.checks, 'Imported project')).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^not checked: imported, not trusted/), hint: expect.stringMatching(/retake project trust imported/) });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('--project: missing profile → warn (retake login), unreachable default environment → fail, other environment → warn', async () => {
     const { code, checks: list } = await checks(
       macProbes({ head: async (url) => (url.includes('admin') || url.includes('app.example.com') ? { error: 'ENOTFOUND', ms: 3 } : { status: 302, ms: 8 }) }),

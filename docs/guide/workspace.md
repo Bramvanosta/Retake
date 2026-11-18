@@ -350,3 +350,57 @@ absolute paths.
   it the same way). A relative path that leads out of the project is never followed: it reads as missing.
 - **Through Claude**, a render whose video, run folder, capture or page tracks lie outside its project is refused, as
   before; so is a caption font that is no font file of the plan.
+
+## A project in one ZIP: export, import, trust
+
+`retake project export <slug>` writes the project as one ZIP file, a **project archive**, into its own `exports/`
+folder (`exports/<slug>-project-<YYYYMMDD-HHMMSS>.zip`; `--out <file or folder>` elsewhere, never inside the project
+but its `exports/`). Another person, or you on another Mac, makes it a project of a workspace with
+`retake project import <archive> [--as <slug>]`.
+
+- **What goes in:** project.yaml, the README, scenarios, hooks, assets, data, the project's own themes and components,
+  and — so that the archive alone carries its look — the workspace themes and workspace components it uses: they land
+  in the imported project's own `templates/` and `components/`. Starter themes and built-in components ship with every
+  Retake: the manifest names them (`uses`). `--with-runs` adds its runs, renders and reviews — but a render made with a
+  theme outside the project (a starter, a workspace theme) names that theme's files and is left out with its review:
+  the export says which (re-render after the import; adopt a workspace theme first to keep its renders).
+- **What never does:** the state folder (`.retake/`), any env file (`.env*`, `*.env`, `*.env.*`), sessions (they live in
+  the Retake home, never in a project), `exports/`, key and credential files (`*.pem`, `*.key`, `*.p12`, `*.kdbx`,
+  `id_*`, `.netrc`, `.npmrc`, `.pgpass`, `.git-credentials`, `credentials*`, `service-account*.json`, `*.tfstate*`, every
+  file of `.aws/`, `.ssh/`, `.docker/`, `.gnupg/`, `.kube/` and `.auth/` — a test tool's saved sign-in), the file project.yaml names as a sign-in's saved state (`auth.storage_state`, `auth.profile`),
+  the secrets, configs and env files of its sandbox's compose files, symbolic links, `.git/` and `node_modules/`. The
+  export lists what it left out.
+- **The manifest** (`retake-project.json`, the archive's last entry) lists every file with its size and sha256, and
+  what the project needs where it goes — by name only, never a value: the environment variables and keychain items its
+  `{{env:…}}` / `{{keychain:…}}` references name, the variables passed on (`pass_env`), the personas to sign in.
+- **Literal tokens** (a value shaped like an API key in any text file of the project, a plain value under `headers:`)
+  are warned about by file and line,
+  never printed and never removed: move them into `{{env:…}}` and export again.
+- **A theme named by a path outside the project** (`template: ../../brand-themes/acme`) is refused: copy it into the
+  project first (a workspace theme: `retake project adopt <slug> --theme <name>`) and name it by its name.
+- **Through Claude** (`project_export`): without the runs, into the project's `exports/` only, at most 1 GB, written at
+  once; `dry_run: true` says what would go in. Claude never imports and never trusts.
+
+**An imported project is not trusted:** nothing of it runs — no hook, no sandbox, no component, no capture, no render,
+none of its browser settings — through any way in (a terminal, Claude, the Studio, a job queued by hand), until a
+person reads what of it runs and trusts it. Reading it, editing its scenarios and README, exporting it, pruning it and
+stopping a sandbox stay possible. `retake project import` prints its code files; `retake project trust <slug>` lists
+them again — the hooks, its components' files, its themes' Lottie and SVG files and any Lottie anywhere, its sandbox
+files, the scenarios that name hooks, page code or a Lottie, every file a scenario, a hooks file or a theme names (a sql
+hook's `data/seed.sql`), any script (`.sql` included) or executable file, every hidden file or folder and the files tools
+read on opening a folder (`.vscode/`, `.claude/`, `CLAUDE.md`, `package.json`…), and what project.yaml asks of this
+machine (browser programs and their switches, sign-in profiles and saved states at every level, variables passed on,
+reset hooks, paths outside the project) and the scenarios' themes outside it, each marked
+`changed` or `new` since the import — then asks. It needs a person at a terminal, always: without one it is refused, and
+there is no `--yes`. `--list` only lists;
+`--discard` sets the folder of an import nobody trusted aside under `.retake/imports/discarded/` and forgets it. The
+Studio shows an untrusted project with a banner and the command.
+
+The import checks everything it is handed and believes nothing of the manifest: the archive must be one this Retake
+writes (anything else is refused before a byte is written), every file listed once with its sha256, no `.retake/`,
+env or key file, no `.git/`, `node_modules/` or `.DS_Store` (Retake never archives them: a git folder could run a command
+at the next `git status`), no name a Mac's disk would take for another, the layout's names spelt as Retake spells them
+(`runs/`, `run.json`: never `Runs/`, `RUN.JSON`); a run, render or review record that names a path
+outside its own folder is left out (its run, render or review with it; a render's review too) and said; the code files listed come from the
+files written. A slug already used is refused (`--as <other>`): nothing is ever replaced. Its saved sessions are this
+machine's: a project imported under a slug that already has sessions here uses them once trusted (the import says so).

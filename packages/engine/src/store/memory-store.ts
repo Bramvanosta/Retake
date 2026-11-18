@@ -216,6 +216,14 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
         const data = await readFile(from);
         put(rel, data, () => existsError('copyfile', join(tmp, ...rel.split('/')), from));
       },
+      // No modes here; names compared byte for byte (the disk's folding is the disk's: see the header).
+      writeFrom: async (rel, source) => {
+        const chunks: Buffer[] = [];
+        for await (const c of source) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+        const data = Buffer.concat(chunks);
+        put(rel, data, () => existsError('open', join(tmp, ...rel.split('/'))));
+        return { sha256: sha256Hex(data), bytes: data.length };
+      },
     };
     const path = this.journalPathOf(final);
     const keysUnder = (dir: string): string[] => [...files.keys()].filter((k) => k.startsWith(under(dir)));

@@ -48,6 +48,13 @@ export interface FolderStage {
   write(rel: string, data: string | Buffer): Promise<void>;
   /** Copy a file into the stage, never over one. */
   copy(rel: string, from: string): Promise<void>;
+  /**
+   * Write a new file from a stream of bytes (an import): its folders made one at a time, never `recursive` — a folder
+   * already there that this stage did not make (a name the disk takes for another: case, Unicode forms) refuses —,
+   * the file opened exclusively and never through a link, with the mode given exactly (0644 or 0755: never setuid).
+   * Answers the sha256 and the count of the bytes written.
+   */
+  writeFrom(rel: string, source: AsyncIterable<Buffer | Uint8Array>, o: { mode: 0o644 | 0o755 }): Promise<{ sha256: string; bytes: number }>;
 }
 
 /** The text of a file, the sha256 of its bytes and whether they are UTF-8 (storage.ts `Storage.readText`). */

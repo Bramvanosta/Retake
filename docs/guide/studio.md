@@ -46,7 +46,10 @@ running: the MCP server keeps working without it.
   *New scenario*. The grid is one keyboard stop: the arrows move, Return opens, Escape clears. Nothing selected, the
   inspector shows the project (its README, recent runs, recent activity); a selected production shows its length,
   content, last take, capture, render, review and location, *Open* and *Render* (the timeline). The posters reflow to
-  the window (three a row at 1440 px, one at the desktop app's narrowest). The browser holds the open project:
+  the window (three a row at 1440 px, one at the desktop app's narrowest). A project imported from a project archive
+  and not trusted yet shows a banner, *Imported — not trusted*, with the command a person runs in a terminal
+  (`retake project trust <slug>`): until then its takes and renders are refused (its scenarios still read and edit).
+  The browser holds the open project:
   Productions and its smart groups *Ready to render*, *Needs a shoot*, *Failed*; the Library (Components, Themes); the
   Locations (clicking one shows its pages, the URLs the video shows and its personas in the inspector, even with a
   production selected); the Cast (each persona's session, its location under it; *Sessions* opens the Sessions panel);

@@ -20,6 +20,7 @@ import type { ProcessIdentity } from './proc.js';
 import type { JobFiles } from './queue.js';
 import { executeRunJob, pauseMaxMs } from './run-job.js';
 import { executeSandboxJob } from './sandbox-job.js';
+import { checkProjectTrusted, projectPlace } from '../project-archive/trust.js';
 import type { JobErrorView, JobEventBody, JobProgress, JobResult } from './types.js';
 import type { FreeBytes, RecordWindow } from './worker-ports.js';
 import { errorMessage } from '@retake/core/base';
@@ -224,8 +225,14 @@ export const JOB_HANDLERS: { readonly [K in JobKind]: JobHandler<K> } = {
   site: siteHandler,
 };
 
-/** Run a parsed job through its kind's handler. */
-export function handleJob<K extends JobKind>(job: JobOfKind<K>, run: JobRun): Promise<JobOutcome> {
+/**
+ * Run a parsed job through its kind's handler — refused first when it names an imported project not trusted (every
+ * kind: no job is one an untrusted project may run, project-archive/trust.ts), whatever queued it (a job file written
+ * by hand, an older client).
+ */
+export async function handleJob<K extends JobKind>(job: JobOfKind<K>, run: JobRun): Promise<JobOutcome> {
+  const slug = (job as { project?: unknown }).project;
+  if (typeof slug === 'string') await checkProjectTrusted(projectPlace(run.base.ws, slug), run.base.env);
   // TypeScript does not tie a union's `kind` to the table's key: the table's type holds each pair.
   return (JOB_HANDLERS[job.kind as K] as JobHandler<K>)(job, run);
 }

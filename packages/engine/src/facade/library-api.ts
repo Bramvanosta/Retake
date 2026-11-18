@@ -40,7 +40,7 @@ export function templatesApi(ctx: EngineContext): Engine['templates'] {
     editList: (project) => themeEditList(ws, project, caches.themeEdit),
     edit: (name, req, o = {}) => editTheme(ws, name, req, { client: opts.client, scope, memos: caches.themeEdit, ...(o.project !== undefined ? { project: o.project } : {}) }),
     // As create: the engine's agent trust (a copy into a project never hides a workspace theme of its name).
-    copy: (req) => copyTheme(ws, req, { scope, trust: ENGINE_TRUST }),
+    copy: (req) => copyTheme(ws, req, { scope, trust: ENGINE_TRUST, env: ports.env }),
     files: (kind, o = {}) => brandFileList(ws, kind, o.project),
     sites: () => siteList(ws),
     siteConflicts: (host) => siteHostConflicts(ws, ports.hosts, host),

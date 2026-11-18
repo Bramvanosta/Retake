@@ -8,9 +8,9 @@ import { annotationProblem, catalogueOperation, hintsOf, servedNames } from '@re
 import { TOOLS } from '../src/index.js';
 
 describe('the MCP tools and the operation catalogue', () => {
-  it('serves exactly the operations the catalogue gives MCP, in its order (52 operations)', () => {
+  it('serves exactly the operations the catalogue gives MCP, in its order (53 operations)', () => {
     expect(TOOLS.map((t) => t.name)).toEqual(servedNames('mcp'));
-    expect(TOOLS).toHaveLength(52);
+    expect(TOOLS).toHaveLength(53);
   });
 
   it("each tool's read-only and destructive hints are its operation's facets'", () => {

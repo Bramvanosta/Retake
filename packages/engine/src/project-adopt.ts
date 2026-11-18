@@ -31,6 +31,8 @@
  *   renders keep the workspace folder's identity, and still match: their theme name resolves to the project's copy,
  *   whose content hash is the one they hold (the board, an export). Other projects' renders of a moved theme are named.
  */
+import { untrustedSourceRefusal } from './project-archive/trust.js';
+import type { EngineEnv } from './env.js';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { Stats } from 'node:fs';
@@ -123,6 +125,8 @@ export interface AdoptOptions {
   trust: CallerTrust;
   /** The workspace's jobs queued or running (a move is refused while there is one): `kind (id)` each. */
   activeJobs: () => Promise<string[]>;
+  /** Whose Retake home judges an imported project's trust: a source inside an import not trusted is never copied out. */
+  env?: EngineEnv;
 }
 
 /** A stamp for a folder set aside, from the scope's clock (`20261118T001500Z`). */
@@ -254,7 +258,7 @@ async function adoptTheme(pass: AdoptPass, name: string): Promise<AdoptedTheme> 
   const { source, target } = await themeSourceOf(pass, name);
   const before = req.mode === 'move' ? await folderHashes(source.dir) : undefined;
   // The workspace theme of a starter's name already hides that starter: the project's copy keeps that for itself.
-  const files = await copyThemeFolder(ws, { source, from: name }, target, checkNewThemeName(name), { provenance: 'keep', scope: o.scope, keepStarterName: true });
+  const files = await copyThemeFolder(ws, { source, from: name }, target, checkNewThemeName(name), { provenance: 'keep', scope: o.scope, keepStarterName: true, ...(o.env ? { env: o.env } : {}) });
   const out: AdoptedTheme = { name, dir: join(target.dir, name), files };
   if (req.mode === 'move') {
     const others = await rendersOfThemeFolder(ws, ws.reads.templateFolderId(source.dir, ws.root), { except: project.slug });
@@ -470,6 +474,10 @@ async function componentSourceOf(pass: AdoptPass, id: string): Promise<{ dir: st
 async function adoptComponent(pass: AdoptPass, id: string): Promise<AdoptedComponent> {
   const { ws, req, o, stamp } = pass;
   const { dir, target, ns, name, nsDir, files } = await componentSourceOf(pass, id);
+  if (o.env) {
+    const refused = await untrustedSourceRefusal(ws, realPathOf(dir, nodeFileFacts), o.env);
+    if (refused) throw refused;
+  }
   const before = await folderHashes(dir);
   try {
     const store = target.store(o.scope);

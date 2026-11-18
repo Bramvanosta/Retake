@@ -103,8 +103,10 @@ describe("the engine's entries", () => {
     // runs createThemeFromBrand — the person's own act, without a form;
     // 156: the three sandbox words `retake sandbox` prints for the work it runs in its own process — firebaseAuthText,
     // resetLadderText, snapshotStatusText, the same sentences sandbox_status and the job summaries say — and the MCP
-    // server's approval form of an environment change, projectChangeApprovalFormText, built where the engine limits it).
-    expect(values.length).toBeLessThanOrEqual(156);
+    // server's approval form of an environment change, projectChangeApprovalFormText, built where the engine limits it;
+    // 157: untrustedCommandRefusal, the CLI's gate of a command on an imported project not trusted — before any command
+    // runs, whatever the command, so no one operation hands it).
+    expect(values.length).toBeLessThanOrEqual(157);
   });
 
   it('@retake/engine/testing holds values other packages’ tests import from it, and no product source imports a testing entry', () => {

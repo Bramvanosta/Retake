@@ -1834,3 +1834,56 @@ engine is client `mcp`; a reply's proposal is refused for any other caller by th
   replies: the entry tail and the budget), the slow `fixture-acceptance.test.ts` (a real render's proposal total
   commented, replied, resolved by the re-render). Only the tests that read a still need ffmpeg: without it the
   synthetic renders are empty files and the trust, lock, forgery and size tests of engine / cli / mcp still run.
+
+## 5. A project archive (engine `project-archive/`, `archive/`)
+
+**Format.** A ZIP written by Retake's own writer (`archive/zip-write.ts`, no dependency; `zlib.crc32`, deflate level 6,
+stored for media already compressed; UTF-8 names, flag bit 11 only, no data descriptor: each local header is reserved
+and patched; ZIP64 for an entry whose size reaches 0xF0000000 and for the end records when the count reaches 0xFFFF or
+the central directory's offset or size 0xFFFFFFFF; Unix modes 0644 / 0755; entries sorted by name). `project/<path>` for
+each file, the project tree as the import writes it; the manifest `retake-project.json` last (`project-archive/
+manifest.ts`, `format: "retake-project"`, version 1 = core `FORMAT_VERSIONS.project_archive`): `project {slug, name}`,
+`options {with_runs}`, `files[] {path, size, sha256 of the bytes streamed, mode, origin: project | workspace-theme |
+workspace-component}`, `embedded {themes, components}`, `uses {starters, builtin_components}`, `needs {env_vars,
+keychain, pass_env, sessions[{env, persona}]}` (names only), `excluded {env, sensitive, links, special}`, `warnings
+{literal_tokens[{file, lines, what}]}`, `code_files` (informational). A later lot adds the sandbox's files and images
+beside `project/` (an option and a prefix of the manifest; the reader's per-entry cap is a function of the name).
+
+**Export** (`export.ts`, `plan.ts`). The project folder walked (no link followed) minus the never-list (core
+`project-archive.ts` `neverArchived`, on the folded key of each segment: `.retake/`, `.env*`, `exports/`, key and
+credential names, `.git/`, `node_modules/`, `.DS_Store`), the outputs (`runs/`, `renders/`, `review/`) only with
+`with_runs`, and the files project.yaml names as secret (`auth.storage_state` / `profile`, the compose files'
+`secrets` / `configs` / `env_file`, sandbox.yaml's `compose.env_file`); plus the workspace themes the project's theme
+references resolve to (core `projectTemplateFolder`, `via: workspace`) under `templates/<name>/` and the workspace
+components its registry resolves that a project file names or a theme it uses picks, under `components/<id>/`. A path
+theme outside the project is refused (adopt it). With the runs, a render whose record names a file outside the project
+(a starter's or a workspace theme's assets) is left out with its files and review (`excluded.outside_renders`).
+Written to a `.partial` beside the target, put into place never over a file (`placeArchive`: a hard link, else on a
+volume without links an exclusive copy), the target's disk keeping 1 GB free; an entry whose deflated bytes would pass
+the reader's bomb ratio is stored (`limits.ts bombRatio`, one rule for both). MCP: no `with_runs`, no `out`, ≤ 1 GB, synchronous (no job kind).
+
+**Import** (`import.ts`, a person only). The reader (`archive/zip-read.ts`) accepts only what the writer writes (§
+security.md); the manifest parsed (≤ 64 MB, version checked), every entry under `project/` listed once and every listed
+file an entry, sizes and modes equal; every never-list kind refused (`.retake/`, env files, exports, key files, `.git/`,
+`node_modules/`, `.DS_Store`), and a layout name spelt otherwise than the layout (`layoutSpellingProblem`); each run / render / review
+record's written paths (core `writtenRecordPaths`) relative and inside their bound, else that run, render or review left
+out. A slug taken (case-insensitively) is a conflict. The store's `createFolder` stages the files (`FolderStage.writeFrom`:
+folders one by one without `recursive`, `O_EXCL | O_NOFOLLOW`, the mode set exactly, sha256 checked), computes the code
+files from them (`code-files.ts` `projectCodeFiles`), writes the marker `.retake/import.json {v, import_id}` and the
+workspace's mark `.retake/imports/<slug>.json {v, slug, import_id, imported_at, archive, from_retake, code_files}`, then
+the recheck (a folder of the slug there: conflict, never a replace) and the rename; a failure removes the mark.
+
+**Trust** (`trust.ts`, `trust-work.ts`, `guard.ts`). `importTrust(place, env)`: `none` (neither half), `trusted` (both
+halves, one id, a `trusted {at, files, sig}` stanza whose HMAC-SHA256 with the Retake home's key covers `{slug,
+import_id, at, files}`), else `untrusted` (fails closed). The gate: invoke (after the caller rules: an operation naming
+an untrusted `project` is refused unless `allowedOnUntrusted` — a read or one of catalogue `UNTRUSTED_WRITES`), the
+worker's `handleJob` (any job of an untrusted project), the CLI's `preAction` hook (`untrustedCommandRefusal`: a command
+is allowed only when every operation it serves is; its `<project>` argument or `--project`), and the product's adapters
+(compose `productAdapters` → engine `guardUntrusted`: the hook runner's run and rollbacks, a sandbox handle's every
+member but `down` / `killStartedSync`, the capture runner's run, recording, session check, sign-in and js-hook pages,
+the renderer's videos, stills and preview bundles by every folder a request names). Theme copies and adopt refuse a
+source folder inside an untrusted import (`untrustedSourceRefusal`). `retake project trust` lists the code files with
+`changed` / `new` since the import and what project.yaml asks of the machine (`settingsNotes`), refuses when the files
+changed while read, then signs on a person's y/N at a terminal (no `--yes`); `--discard` moves the folder to `.retake/imports/discarded/<stamp>-<slug>/`. A new
+project of a slug clears a stale mark (`writeNewProject`). The Studio's board answers `imported: {trusted: false,
+command}` for an untrusted project.

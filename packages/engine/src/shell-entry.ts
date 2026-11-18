@@ -18,6 +18,7 @@ export { componentCreateShell, componentListEntries, componentPreviewTargets, co
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkHeadedDisplay, prepareRun, writesSummary } from './execute-run.js';
 export { firebaseAuthText, formatMs, resetLadderText, sandboxUpText, snapshotStatusText } from './format.js';
 export { envResetWork, hooksRunWork, rollbackWork } from './hooks-work.js';
+export { untrustedCommandRefusal } from './project-archive/trust.js';
 export { HooksSourceError } from './hooks.js';
 export {
   DISCOVERY_VERSION,
