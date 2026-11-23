@@ -78,7 +78,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.2 | Tauri desktop shell (macOS) | M | **done** (live checks: MACOS-CHECKLIST 14a) |
 | L5.2b | Desktop app: job notifications and a quit confirmation (asked after L5.2) | S | **done** (live checks: MACOS-CHECKLIST 14a steps 10–11) |
 | L5.3 | iOS Simulator runner (simctl, XCUITest driver, touch overlay burnt in; decided 2026-11-17) | L | done |
-| L5.4 | Phase 5 acceptance | S | todo |
+| L5.4 | Phase 5 acceptance | S | **done** (2026-11-23: accepted in use — the person films with the app every day; no separate pass) — phase 5 done, every MVP lot done |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
@@ -1579,6 +1579,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   default), docs.
 
 ### L5.4, L6
+**L5.4 closed (2026-11-23):** the phase 5 acceptance is accepted in use — the desktop app (signed releases v0.2.0 –
+v0.4.0) and the iOS runner (L5.3) are what the person films with every day; the MACOS-CHECKLIST passes are not run
+as a separate lot, and a problem found in use becomes a bug. L6 stays the V2 bucket.
+
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

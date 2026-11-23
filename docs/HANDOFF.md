@@ -2,10 +2,8 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by the rename's one-off script (removed in v0.2.1), so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-23, the **L9 chain** (lots L9.1 – L9.5, sharing one project: branch
-`claude/fb-32-project-share-cbf322`, rebased onto `main` after pull requests 22 – 26, one pull request, not merged);
-before it **BL-192** (Playwright 1.65.1 and the app's downloaded Tools, a pull request against `main`); before it
-2026-11-17, L8.4 and **L5.3**; **v0.3.0** (the L8 chain, lots L8.1 – L8.3, on `main` since pull request 20;
+Last updated: 2026-11-23, **v0.4.0** (pull requests 22 – 28: L8.4, L8.5, FB-31, L5.3, BL-192, L9.1 – L9.5) and
+**L5.4** closed as accepted in use — every MVP lot is done; before that 2026-11-16, **v0.3.0** (the L8 chain);
 this file is cut to what is true now, the history moved, verbatim, to
 [archive/HANDOFF-history.md](archive/HANDOFF-history.md): the states of every lot before L7.58, the hotfix notes
 v0.2.1 – v0.2.6, the lot log, the evidence per lot, the notes per lot and the trust rules in them, the cloud
@@ -13,12 +11,14 @@ container, the earlier heads of this file — under their original headings, so 
 (after L7.1)" is found there).
 
 ## Where things stand
-- **Phases 1 – 4 are done** (phases 3 – 4 pending the user's live runs, MACOS-CHECKLIST 12c – 12j and 13a – 13j);
-  **phase 5 is under way** (L5.1, L5.2, L5.2b, L5.3, L5.5 – L5.18 done: the « Épure » Studio, the name Retake, the standalone
-  app and its releases, captures first, renders on the GPU, the two hardening lots, the iOS Simulator runner). The architecture series
-  (L6.1 – L6.13, L7.1 – L7.58) is on `main` since 2026-11-15; the **L8 chain** answers the second field feedback
-  ([FIELD-FEEDBACK-2.md](FIELD-FEEDBACK-2.md): L8.1, L8.1b, L8.2, L8.2b) and finishes the app's native menus (L8.3).
-  The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`. The **L9 chain** (2026-11-18)
+- **Phases 1 – 5 are done: every MVP lot of the ROADMAP is.** Phase 5: L5.1 – L5.18 (the « Épure » Studio, the name
+  Retake, the standalone app and its releases, captures first, renders on the GPU, the two hardening lots, the iOS
+  Simulator runner); L5.4, its acceptance, was closed on 2026-11-23 as accepted in use — the person films with the app
+  every day, which stands for the MACOS-CHECKLIST passes (no separate hand-check pass; a problem found in use becomes a
+  bug). The architecture series (L6.1 – L6.13, L7.1 – L7.58) is on `main` since 2026-11-15; the **L8 chain** answers
+  the second field feedback ([FIELD-FEEDBACK-2.md](FIELD-FEEDBACK-2.md): L8.1, L8.1b, L8.2, L8.2b, then L8.4, L8.5 and
+  FB-31) and finishes the app's native menus (L8.3); the **L9 chain** answers its point 32: a project shared on its
+  own (L9.1 – L9.5, "State (after L9.5)"). The MVP scope is locked to the ROADMAP's lots; new ideas go to `docs/BACKLOG.md`. The **L9 chain** (2026-11-18)
   answers field feedback 2's point 32: a project shared on its own (L9.1 – L9.5, "State (after L9.5)").
 - **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, the
   hotfixes v0.2.1 – v0.2.6 (their notes are in the archive), then v0.3.0 on 2026-11-16: the architecture series,
@@ -42,34 +42,19 @@ container, the earlier heads of this file — under their original headings, so 
   the Mac).
 
 ## Next steps
-0. **The L9 chain's pull request** (branch `claude/fb-32-project-share-cbf322`): review and merge it, then the hand
-   checks of "State (after L9.5)".
-1. **BL-192's pull request**: the person reviews and merges it, then checks MACOS-CHECKLIST §22 by hand (the first
-   real download from the publishers, a signed and notarised release's Tools step). The next release re-records
-   `apps/desktop/bundle/tools.json` (RELEASING step 1).
+1. **Nothing is open on the ROADMAP**: what comes next is the person's pick — bugs found in use, BACKLOG entries
+   (BL-193 the iOS runner's rest, BL-194 – BL-201 the Tools, BL-202 – BL-204 sharing a project, and the older ones), or
+   L6 (V2 and later).
 2. **The two open Homebrew pull requests** (4 and 7) do the same job: one should land, the other be closed.
-3. **The person's hand checks** (MACOS-CHECKLIST): the L8 chain's below (14h, §18 – §20 and the L8 notes' "left for the
-   person"), then the older live runs under "Pending for the person".
-4. **L5.3 is done** (below, "State (after L5.3)"), pending its pull request's merge; **L5.4** (the phase-5 acceptance)
-   only when the person asks. Also open, when the person asks: the 2026-11-04 plan's T15 rest and T16
-   (the measured snapshot, `scripts/audit/snapshot.mjs` against `docs/audit/2026-11-04/summary.json`), and the desktop
-   bundle's staging of stale `dist` outputs (until it is decided, `rm -rf packages/*/dist && pnpm build` before a
-   bundle).
-5. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
+3. When the person asks: the 2026-11-04 plan's T15 rest and T16 (the measured snapshot, `scripts/audit/snapshot.mjs`
+   against `docs/audit/2026-11-04/summary.json`), and the desktop bundle's staging of stale `dist` outputs (until it is
+   decided, `rm -rf packages/*/dist && pnpm build` before a bundle).
+4. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Pending for the person
-- The L9 chain's hand checks: `retake project trust` of an imported project at a terminal, then a render and a review
-  of a copied render there (trusting is a person's act: the chain tested it in process only); `retake project adopt`
-  on a real workspace (a theme move, the folder set aside in `.retake/adopted/`); the Studio's Library and timeline
-  with a project component (held, then allowed); an export onto a real exFAT stick; `--with-sandbox` on a real
-  project's sandbox (it must fit the Compose subset of the sandbox guide).
-- The L8 chain's hand checks: the menus (MACOS-CHECKLIST 14h), one real font fetch from the npm registry (§20: the
-  fontsource package layout is an unverified assumption), a real variable font at two weights and a real wide logo in a
-  full render (L8.1), a real design-token export through `retake theme from-tokens` (L8.1b), one live take on a real
-  Firebase Auth emulator after a reset and `packages/cli/test/sandbox-docker.test.ts` with a `node:22-alpine` image
-  (L8.2, §18: neither was run), `retake env` and a real single-page app's route that loads (L8.2b, §19).
-- The live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c – 12j, 13a; 13d: the field project with a sandbox, a hook step and
-  compact results through Claude Code) and the open questions, gathered in one test document outside the repository.
+- No hand-check pass is pending: since 2026-11-23 the MACOS-CHECKLIST sections and the lots' "left for the person"
+  lists are accepted by daily use; what breaks in use is filed as a bug. The checklist stays as a reference for a
+  check worth doing on purpose.
 - R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first
   buyer) and Q2 (L4.7 scope).
 - Open phase-1 items: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import into an editing tool,
