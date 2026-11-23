@@ -6461,9 +6461,9 @@
    "id": "R-ACC5-01",
    "source": "SPEC §14.5",
    "requirement": "macOS Tauri desktop shell + iOS runner delivered.",
-   "status": "n/a-here",
-   "evidence": "",
-   "gap": "macOS-only.",
+   "status": "done",
+   "evidence": "L5.2 (apps/desktop, the Tauri shell; signed and notarised releases v0.2.0 – v0.4.0 by .github/workflows/release.yml) and L5.3 (packages/runner-ios, the iOS Simulator runner); accepted in use on 2026-11-23: the person films with the app every day, in place of a separate acceptance pass.",
+   "gap": "",
    "phase": "5",
    "lot": "L5.4"
   },
