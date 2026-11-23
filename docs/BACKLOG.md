@@ -3070,3 +3070,12 @@ of 8 MB bodies in a context with no disk); drop the workaround once the native c
 - **MCP** `with_sandbox` through a queued job (decided: CLI only for now).
 - **A sandbox.yaml outside the project** (refused now); one `docker save` for images that share a platform; a doctor
   minimum for Compose 2.24.
+
+### BL-205 — `retake doctor` and the Set-up sheet know a Homebrew link
+*S · from pull request 4 (closed 2026-11-23 in favour of pull request 7)*
+
+A `retake` command installed by the Homebrew cask is a link into the app (`/opt/homebrew/bin/retake` or
+`/usr/local/bin/retake` → `Retake.app/Contents/Resources/bin/retake`). `retake doctor` and the Set-up sheet's command
+item should read such a link as this app's own command, whatever the app's PATH, instead of offering to install the
+command again or calling it another copy's. Pull request 4 had a version of this, written before the architecture
+series; port the idea, not its code.
