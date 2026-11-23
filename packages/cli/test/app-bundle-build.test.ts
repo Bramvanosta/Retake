@@ -224,7 +224,7 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
     'bundle.json',
     JSON.stringify({
       v: 2,
-      app: '0.3.0',
+      app: '0.4.0',
       playwright: { core: '1.65.1' },
       compositor: '4.0.534',
       tools: JSON.parse(readFileSync(join(APP, 'bundle', 'tools.json'), 'utf8')).platforms['darwin-arm64'],

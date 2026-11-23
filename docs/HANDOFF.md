@@ -22,9 +22,9 @@ container, the earlier heads of this file — under their original headings, so 
   answers field feedback 2's point 32: a project shared on its own (L9.1 – L9.5, "State (after L9.5)").
 - **Releases** are tagged on `main` (`vX.Y.Z` → `.github/workflows/release.yml`, `docs/RELEASING.md`): v0.2.0, the
   hotfixes v0.2.1 – v0.2.6 (their notes are in the archive), then v0.3.0 on 2026-11-16: the architecture series,
-  the Studio's large-screen pass, the native menu bar and the L8 chain (on Playwright 1.56.1). BL-192 brings
-  playwright-core 1.65.1 and the app's Tools ("State (after BL-192)"): the next release is the first without a browser
-  in the DMG.
+  the Studio's large-screen pass, the native menu bar and the L8 chain (on Playwright 1.56.1), then v0.4.0 on
+  2026-11-23: L5.3 (iOS), L8.4, L8.5, FB-31, BL-192 (playwright-core 1.65.1, the app's Tools: the first DMG without a
+  browser; an app updated from 0.3.0 downloads its Tools at its first start) and L9.1 – L9.5 (pull requests 22 – 27).
 - **Branches.** `main`: the releases, the architecture series (fast-forwarded on 2026-11-15: pull request 8 merged,
   pull request 9 closed with nothing left to merge), the Studio's large-screen pass (`0131be7d`) and the native menu
   bar (`053baebc`), both 2026-11-15. Then the L8 chain, one commit per lot (pull request 20, 2026-11-16).
