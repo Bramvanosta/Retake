@@ -6,7 +6,18 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-23
+
+This version downloads its Tools once: at its first start the app asks to download its browser and rendering parts
+(about 315 MB, from their publishers, each file checked), and the app itself is half the size. Retake now films iOS
+apps in the Simulator, shares one project on its own (export, import, its own themes and components), dates a mail
+card like the filmed pages, and sandboxes gain build secrets and an in-memory database that resets cleanly.
+
 ### Added
+- iOS apps in the Simulator: a project environment `ios: {app, device, schemes}` picked with `env:` films an iOS app
+  from the same scenario language — taps, typing, swipes and deep links through an XCUITest driver built from the
+  repository, a touch overlay burnt into the film, the take framed in a phone by default. `retake doctor` says whether
+  the Mac is ready (Xcode, a Simulator runtime). See docs/guide/ios.md.
 - A docker-compose sandbox's build secrets: sandbox.yaml `compose.secrets: {NPM_TOKEN: "{{keychain:…}}"}` (or
   `"{{env:NPM_TOKEN}}"`) gives an image's build the private registry token its compose file reads through a build
   secret (`secrets: {<id>: {environment: …}}`, `RUN --mount=type=secret`) — from a terminal, the Studio, the app and
